@@ -57,7 +57,6 @@ Aurora is an open-source community project, any help with the source code is gre
 3. Open a command prompt in the root folder of the project **(the one that houses build.py and main.py)**
 4. Run `pip install -r dev/requirements.txt`
 5. Run `python build.py` or `py build.py`
-6. 
 ### ᅠ
 ## Translation Status
 | Language | Status | File | Status |
