@@ -7,6 +7,7 @@ from src.ui_main import AuroraUI
 from src.engine import AuroraEngine
 from src.utils import resource_path
 from src.path_finder import get_game_directory
+from src import config_manager as cfg
 
 def handle_exception(exc_type, exc_value, exc_tb):
     error = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -43,7 +44,11 @@ def main():
     app = QApplication(sys.argv)
     initial_path = get_game_directory()
 
-    engine = AuroraEngine(initial_path) if initial_path else None
+    engine = AuroraEngine(
+        initial_path,
+        censorship_removal=cfg.get_censorship_removal(),
+        no_drive_line=cfg.get_no_drive_line(),
+    ) if initial_path else None
     window = AuroraUI(engine, initial_path)
 
     window.show()
