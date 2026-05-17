@@ -5,6 +5,7 @@
     "launcher": "启动器",
     "developer": "开发者",
     "language": "语言",
+    "language_desc": "界面显示语言",
     "game_directory": "游戏目录",
     "browse": "浏览",
     "developer_mode": "开发者模式",
@@ -20,5 +21,15 @@
     "toast_game_not_found": "未找到 NTE，请在设置中手动设置路径。",
     "toast_launching": "正在启动 NTE...",
     "toast_engine_error": "错误：引擎未初始化 (e:2)",
-    "search_tooltip": "在所有驱动器中搜索 NTE"
+    "search_tooltip": "在所有驱动器中搜索 NTE",
+    "censorship_removal": "反审查补丁",
+    "censorship_removal_desc": "消除特定角度下角色的透明效果 (鸣谢： cp0bi)",
+    "no_drive_line": "隐藏行车线",
+    "no_drive_line_desc": "去掉开车时显示的 3D GPS 导航线。 (鸣谢： Rokkudayo)",
+    "search_mods": "搜索本地模组...",
+    "mod_manager_unknown": "未知",
+    "mod_manager_author": "作者：",
+    "mod_manager_restart": "重新启动",
+    "discord_rpc": "Discord RPC",
+    "discord_rpc_desc": "切换内置 Discord RPC"
 }
