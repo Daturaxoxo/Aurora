@@ -7,7 +7,7 @@ from datetime import datetime
 # CONFIGURATION 
 APP_NAME = "Aurora"          # No spaces, avoids ShellExecuteW and PyInstaller errors
 DISPLAY_NAME = "Aurora Launcher"
-VERSION = "1.0.0"
+VERSION = "0.2.0"
 ICON_PATH = "Bin/Assets/logo.ico"
 MAIN_SCRIPT = "main.py"
 DIST_DIR = f"./dist/{APP_NAME}_v{VERSION}"
@@ -34,7 +34,10 @@ def run_build():
         "--noupx",
         f"--add-data=Bin/Assets{SEP}Bin/Assets",
         f"--add-data=Bin/version.dll{SEP}Bin",
-        f"--add-data=Bin/UniversalSigBypasser.asi{SEP}Bin",
+        f"--add-data=Bin/signmain.asi{SEP}Bin",
+        f"--add-data=Bin/ntfrmain.asi{SEP}Bin",
+        f"--add-data=Bin/cutils.dll{SEP}Bin",
+        f"--add-data=Bin/Builtins{SEP}Bin/Builtins",
         f"--add-data=Lang{SEP}Lang",
         "--hidden-import=psutil",
         "--hidden-import=psutil._pswindows",
