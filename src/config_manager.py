@@ -1,15 +1,3 @@
-"""
-config_manager.py
-Owns all persistent app settings (language, dev mode, game path).
-Single source of truth, both path_finder and ui_main read from here.
-
-Config file lives next to the EXE:
-{
-    "game_path": "C:\\Program Files\\Neverness To Everness",
-    "language": "en",
-    "dev_mode": false
-}
-"""
 import os
 import sys
 import json
@@ -27,6 +15,8 @@ DEFAULTS = {
     "game_path": "",
     "language":  "en",
     "dev_mode":  False,
+    "csn_rem": True,
+    "drv_lin": False,
 }
 
 def get_app_dir():
@@ -87,3 +77,15 @@ def get_dev_mode() -> bool:
 
 def set_dev_mode(enabled: bool):
     set("dev_mode", enabled)
+
+def get_censorship_removal() -> bool:
+    return bool(get("csn_rem"))
+
+def set_censorship_removal(enabled: bool):
+    set("csn_rem", enabled)
+
+def get_no_drive_line() -> bool:
+    return bool(get("drv_lin"))
+
+def set_no_drive_line(enabled: bool):
+    set("drv_lin", enabled)
