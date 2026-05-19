@@ -26,9 +26,18 @@
     "no_drive_line": "Eliminar línea de conducción",
     "no_drive_line_desc": "Elimina la línea de conducción 3D creada mientras conduces. (Créditos: Rokkudayo)",
     "search_mods": "Buscar mods locales...",
+    "mod_manager": "Gestor de mods",
+    "mod_manager_desc_a": "DE",
+    "mod_manager_desc_b": "ACTIVADO",
     "mod_manager_unknown": "desconocido",
     "mod_manager_author": "hecho por ",
     "mod_manager_restart": "REINICIAR",
     "discord_rpc": "Discord RPC",
-    "discord_rpc_desc": "Activar/desactivar el Discord RPC integrado"
+    "discord_rpc_desc": "Activar/desactivar el Discord RPC integrado",
+    "update_available_title": "Actualización disponible",
+    "update_current_version": "Versión actual",
+    "update_new_version": "Nueva versión",
+    "update_available_message_a": "¡Nueva versión de Aurora Launcher disponible!",
+    "update_available_message_b": "¿Quieres abrir GitHub y descargar la última actualización?",
+    "update_available_confirm": "Abrir en el navegador"
 }
