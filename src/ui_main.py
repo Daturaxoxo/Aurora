@@ -1411,7 +1411,7 @@ class AuroraUI(QMainWindow):
         self.btn_discord = QPushButton()
         self.btn_discord.setIcon(QIcon(resource_path("Bin/Assets/discord.png")))
         self.btn_discord.setIconSize(QSize(42, 42))
-        self.btn_discord.clicked.connect(lambda: webbrowser.open("https://discord.gg/bT4rkCzuBC"))
+        self.btn_discord.clicked.connect(lambda: webbrowser.open("https://discord.gg/565jfeYsbp"))
 
         self.btn_gamebanana = QPushButton()
         self.btn_gamebanana.setIcon(QIcon(resource_path("Bin/Assets/marketplace.png")))
