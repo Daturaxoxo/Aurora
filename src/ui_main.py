@@ -23,17 +23,21 @@ from src.engine import get_app_dir
 from src.mod_manager import ModManager
 import urllib.request
 
+def parse_version(v):
+    try:
+        return tuple(int(x) for x in v.strip().split("."))
+    except (ValueError, AttributeError):
+        return (0, 0, 0)
+
 def GetOnlineVersion():
     try:
         with urllib.request.urlopen("https://raw.githubusercontent.com/Daturaxoxo/Aurora/refs/heads/main/dev/VERSION") as response:
             version_info = response.read().decode('utf-8').strip()
-        return version_info
+        return version_info or "9.9.9"
     except Exception as e:
         logger.warning("Couldn't get version information GitHub ")
 
-# ─────────────────────────────────────────────
 # ENGINE THREAD
-# ─────────────────────────────────────────────
 class GameMonitorThread(QThread):
     game_started = pyqtSignal()  # emitted the moment HTGame.exe is detected
     access_denied = pyqtSignal() # emitted when AV/UAC blocks a file operation (or if the user somehow ran it without Administrator priviledges)
@@ -64,9 +68,7 @@ class GameMonitorThread(QThread):
             self.access_denied.emit()
 
 
-# ─────────────────────────────────────────────
 # DRIVE SEARCH THREAD
-# ─────────────────────────────────────────────
 class DriveSearchThread(QThread):
     finished = pyqtSignal(str)
 
@@ -74,9 +76,7 @@ class DriveSearchThread(QThread):
         result = get_game_directory()
         self.finished.emit(result or "")
 
-# ─────────────────────────────────────────────
 # TOAST NOTIFICATION
-# ─────────────────────────────────────────────
 class ToastNotification(QFrame):
     def __init__(self, parent, message, is_error=False):
         super().__init__(parent)
@@ -117,9 +117,7 @@ class ToastNotification(QFrame):
         self.anim.start()
 
 
-# ─────────────────────────────────────────────
 # POPUP DIALOG
-# ─────────────────────────────────────────────
 class PopupDialog(QWidget):
     def __init__(self, parent, title, message, confirm_text="Confirm",
                  cancel_text="Cancel", on_confirm=None, on_cancel=None):
@@ -213,9 +211,7 @@ class PopupDialog(QWidget):
         self.anim.start()
 
 
-# ─────────────────────────────────────────────
 # DEV CONSOLE PANEL
-# ─────────────────────────────────────────────
 class DevConsolePanel(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -274,9 +270,7 @@ class DevConsolePanel(QFrame):
         super().closeEvent(event)
 
 
-# ─────────────────────────────────────────────
-# SETTING ROW
-# ─────────────────────────────────────────────
+# SETTINGS ROW
 class SettingRow(QFrame):
     def __init__(self, title, description, checked=False, on_toggle=None, parent=None):
         super().__init__(parent)
@@ -331,9 +325,7 @@ class SettingRow(QFrame):
         self._lbl_desc.setText(text)
 
 
-# ─────────────────────────────────────────────
 # SETTINGS OVERLAY
-# ─────────────────────────────────────────────
 _SIDEBAR_STYLE = """
     QFrame#SettingsSidebar {
         background-color: rgba(255, 255, 255, 3);
@@ -454,7 +446,7 @@ class SettingsOverlay(QFrame):
         self._row_rpc.set_title(t("discord_rpc"))
         self._row_rpc.set_description(t("discord_rpc_desc"))
 
-    # ── Helpers ──────────────────────────────────────────
+    # Helpers
     def _make_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -474,7 +466,7 @@ class SettingsOverlay(QFrame):
         line.setStyleSheet("background-color: rgba(255,255,255,6); border: none; max-height: 1px;")
         return line
 
-    # ── General page ─────────────────────────────────────
+    # General Page
     def _create_general_page(self):
         page, layout = self._make_page()
 
@@ -550,7 +542,7 @@ class SettingsOverlay(QFrame):
         cfg.set_language(code)
         Translator.load(code)
 
-    # ── Launcher page ────────────────────────────────────
+    # Launcher Page
     def _create_launcher_page(self):
         page, layout = self._make_page()
 
@@ -676,7 +668,7 @@ class SettingsOverlay(QFrame):
             if hasattr(main_ui, 'rpc'):
                 main_ui.rpc.stop()
 
-    # ── Developer page ───────────────────────────────────
+    # Developer Page
     def _create_developer_page(self):
         page, layout = self._make_page()
 
@@ -1072,9 +1064,7 @@ class ModManagerOverlay(QFrame):
             card = ModCard(mod, self.manager, self)
             self.list_layout.addWidget(card)
 
-# ─────────────────────────────────────────────
 # BACKGROUND WIDGET
-# ─────────────────────────────────────────────
 class BackgroundWidget(QWidget):
     def __init__(self, image_path, parent=None):
         super().__init__(parent)
@@ -1096,9 +1086,7 @@ class BackgroundWidget(QWidget):
         painter.end()
 
 
-# ─────────────────────────────────────────────
 # OVERLAY WIDGET
-# ─────────────────────────────────────────────
 class OverlayWidget(QWidget):
     TOP_BAR_HEIGHT = 60
 
@@ -1127,9 +1115,7 @@ class OverlayWidget(QWidget):
         painter.end()
 
 
-# ─────────────────────────────────────────────
-# IN-GAME OVERLAY WINDOW
-# ─────────────────────────────────────────────
+# OVERLAY WINDOW
 class AuroraOverlayWindow(QWidget):
     DISPLAY_MS = 6000
     FADE_MS    = 1000
@@ -1248,9 +1234,7 @@ class AuroraOverlayWindow(QWidget):
         self._anim.start()
 
 
-# ─────────────────────────────────────────────
 # MAIN UI
-# ─────────────────────────────────────────────
 class AuroraUI(QMainWindow):
     def __init__(self, engine, current_path):
         super().__init__()
@@ -1311,7 +1295,7 @@ class AuroraUI(QMainWindow):
         self.check_for_updates()
         self.refresh_launch_state()
 
-    # ── TRANSLATION ──────────────────────────
+    # Translation
     def retranslate_ui(self):
         self.btn_search.setToolTip(t("search_tooltip"))
         self.refresh_launch_state() 
@@ -1325,11 +1309,13 @@ class AuroraUI(QMainWindow):
             self.mod_overlay.raise_()
     
 
-    # ── CHECKING FOR UPDATES ──────────────────────────────
+    # Checking for updates
     def check_for_updates(self):
         self.current_version = get_local_version()
-        self.online_version = GetOnlineVersion()
-        if self.current_version < self.online_version:
+        self.online_version = GetOnlineVersion() or "9.9.9"
+        logger.info(self.current_version)
+        logger.info(self.online_version)
+        if parse_version(self.current_version) < parse_version(self.online_version):
             TMP_msg_a = t("update_available_message_a")
             TMP_msg_b = t("update_available_message_b")
             TMP_msg_c = t("update_current_version")
@@ -1348,7 +1334,7 @@ class AuroraUI(QMainWindow):
                 on_confirm=lambda: webbrowser.open("https://github.com/Daturaxoxo/Aurora/releases/latest"),
             )
 
-    # ── TOP BAR ──────────────────────────────
+    # Top Bar
     def setup_top_bar(self):
         tb_layout = QHBoxLayout(self.top_bar)
         tb_layout.setContentsMargins(15, 0, 15, 0)
@@ -1383,7 +1369,7 @@ class AuroraUI(QMainWindow):
         tb_layout.addWidget(self.btn_min)
         tb_layout.addWidget(self.btn_close)
 
-    # ── BOTTOM BAR ───────────────────────────
+    # Bottom Bar
     def setup_bottom_bar(self):
         BOTTOM_H = 90
         self._bottom_bar = QWidget(self.central_widget)
@@ -1444,7 +1430,7 @@ class AuroraUI(QMainWindow):
 
         self._bottom_bar.raise_()
 
-    # ── HELPERS ──────────────────────────────
+    # HELPERS
     def toggle_settings(self):
         if self.settings_menu.isHidden():
             self.settings_menu.show()
@@ -1483,7 +1469,7 @@ class AuroraUI(QMainWindow):
             self.btn_launch.setText(f"    {t('launch_invalid')}")
             self.btn_search.show()
 
-    # ── DRIVE SEARCH ─────────────────────────
+    # DRIVE SEARCH
     def _prompt_drive_search(self):
         PopupDialog(
             parent=self.central_widget,
@@ -1519,7 +1505,7 @@ class AuroraUI(QMainWindow):
             logger.warning("Aurora did not find NTE using Drive Search.")
             ToastNotification(self.central_widget, t("toast_game_not_found"), True)
 
-    # ── LAUNCH ───────────────────────────────
+    # LAUNCH
     def handle_launch(self):
         logger.info("Launch button was clicked, initialising engine...")
         if not self.engine:
@@ -1646,7 +1632,7 @@ class AuroraUI(QMainWindow):
         self._overlay_win = AuroraOverlayWindow()
         self._overlay_win.show_over_game(game_rect)
 
-    # ── WINDOW CHROME ────────────────────────
+    # WINDOW CHROME
     def closeEvent(self, event):
         # Guard: stop the overlay poll timer if Aurora is closed while the
         # game is still loading, to prevent the timer firing on a destroyed object.
