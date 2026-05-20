@@ -7,6 +7,7 @@ import psutil
 from pathlib import Path
 from src.logger import logger
 from src.discord_rpc import DiscordRPC
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
@@ -66,22 +67,20 @@ class AuroraEngine:
 
     def _kill_nte(self):
         targets = [
-            "NTEGlobalLauncher.exe",    # The Anti-Cheat will flag Aurora and crash it since it edits directory files, closing Launcher prevents this.
-            "NTEGlobal.exe",            # Holds lock on NTEGlobal\version.dll
-            "NTEGlobalGame.exe",        # Sometimes this process will still be left behind and yes, it causes issues. Seemingly random as well. Wtf.
-            "HTGame.exe",               # Main game, which... is self explanatory
+            "NTEGlobalLauncher.exe",
+            "NTEGlobal.exe",
+            "NTEGlobalGame.exe",
+            "HTGame.exe",
         ]
-        for proc_name in targets:
-            result = subprocess.run(
-                f'taskkill /F /IM {proc_name} /T',
-                shell=True, capture_output=True, text=True
+        procs = [
+            subprocess.Popen(
+                f'taskkill /F /IM {t} /T',
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            if result.returncode == 0:
-                logger.info(f"Successfully ended process: {proc_name}")
-            else:
-                continue # In the old version we say "Failed to kill process: {proc_name}", but this creates console clutter that isn't required.
-
-        time.sleep(2)
+            for t in targets
+        ]
+        for p in procs:
+            p.wait()
 
         # Here we verify the global_dll file to make sure that Aurora can edit it -Datura
         dll_path = self.targets.get("global_dll")
@@ -92,12 +91,13 @@ class AuroraEngine:
                         break  # File is accessible, moving onto the next step.
                 except (PermissionError, OSError):
                     # File isn't accessible, waiting until it is (5 retries before dumping)
-                    logger.warning("global_dll still locked, Aurora is waiting...")
+                    # EL: logger.warning("global_dll still locked, Aurora is waiting...")
                     time.sleep(1)
 
-    def sanitize(self):
+    def sanitize(self, kill_first: bool):
         logger.info("Starting system sanitation...")
-        self._kill_nte()
+        if kill_first:
+            self._kill_nte()
 
         all_targets = {**self.targets, **self.cr_targets, **self.ndl_targets}
 
@@ -108,18 +108,19 @@ class AuroraEngine:
                 if path.is_file():
                     os.chmod(path, 0o777)
                     path.unlink()
-                    logger.info(f"Removed file: {key} ({path})")
+                    # EL: logger.info(f"Removed file: {key} ({path})")
                 elif path.is_dir() or os.path.islink(path):
                     if self._remove_junction(path):
-                        logger.info(f"Removed junction/directory: {key} ({path})")
+                        # EL: logger.info(f"Removed junction/directory: {key} ({path})")
+                        continue
                     else:
-                        logger.warning(f"rmdir failed for {key} — trying del fallback...")
+                        # EL: logger.warning(f"Sanitization method one failed, using fallback...")
                         subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
             except Exception:
-                logger.warning(f"Primary removal failed for {key}, trying shell fallback...")
+                # EL: logger.warning(f"Sanitization method one and two failed, trying shell fallback...")
                 try:
                     subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
-                    logger.info(f"Shell-removed: {key}")
+                    # EL: logger.info(f"Shell-removed: {key}")
                 except Exception as fallback_err:
                     logger.error(f"Could not remove {key}: {fallback_err}")
 
@@ -129,15 +130,16 @@ class AuroraEngine:
             for item in pak_dir.iterdir():
                 if item.name.startswith("zz_") and (item.is_dir() or os.path.islink(item)):
                     if self._remove_junction(item):
-                        logger.info(f"Removed mod junction: {item.name}")
+                        # EL: logger.info(f"Removed mod junction: {item.name}")
+                        continue
                     else:
                         logger.warning(f"Failed to remove mod junction: {item.name}")
 
     def inject(self):
         logger.info("Injecting into NTE...")
-        logger.info(f"Game path:  {self.game_path}")
-        logger.info(f"Bin path:   {self.bin_path}")
-        logger.info(f"Mods path:  {self.mods_source}")
+        # EL: logger.info(f"Game path:  {self.game_path}")
+        # EL: logger.info(f"Bin path:   {self.bin_path}")
+        # EL: logger.info(f"Mods path:  {self.mods_source}")
 
         # Bin file validation.
         required_bin_files = [
@@ -155,24 +157,27 @@ class AuroraEngine:
                 return False
 
         try:
-            # Kill any NTE processes before touching files, if NTEGlobalLauncher or any other NTE app is open (even minimised in tray),
-            # it holds a lock on version.dll and causes shutil.copy to get a PermissionError before sanitize even runs.
-            self._kill_nte()
-            self.sanitize()
+            self.sanitize(kill_first=True)
 
             # Copy DLL files into the directory paths
-            logger.info("Copying version.dll to game directories...")
+            # EL: logger.info("Copying version.dll to game directories...")
             try:
-                shutil.copy(self.bin_path / "version.dll", self.targets["root_dll"])
+                copies = [
+                    (self.bin_path / "version.dll", self.targets["root_dll"]),
+                    (self.bin_path / "version.dll", self.targets["global_dll"]),
+                    (self.bin_path / "version.dll", self.targets["bin_dll"]),
+                ]
                 self.targets["global_dll"].parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(self.bin_path / "version.dll", self.targets["global_dll"])
-                shutil.copy(self.bin_path / "version.dll", self.targets["bin_dll"])
-                logger.info("Copied version.dll(s).")
+                with ThreadPoolExecutor() as ex:
+                    futures = {ex.submit(shutil.copy, src, dst): dst for src, dst in copies}
+                    for future in as_completed(futures):
+                        future.result()
+
             except (PermissionError, OSError) as e:
                 if getattr(e, 'winerror', None) in (5, 32):
                     # WinError 5 = Access Denied, WinError 32 = file in use.
                     logger.error(f"Access denied copying version.dll (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
-                    self.sanitize()
+                    self.sanitize(kill_first=False)
                     return "access_denied"
                 raise
 
@@ -184,13 +189,13 @@ class AuroraEngine:
             except (PermissionError, OSError) as e:
                 if getattr(e, 'winerror', None) in (5, 32):
                     logger.error(f"Access denied copying ASI plugin (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
-                    self.sanitize()
+                    self.sanitize(kill_first=False)
                     return "access_denied"
                 raise
 
             # Copy censorship-removal files if the feature is enabled.
             if self.censorship_removal:
-                logger.info("Censorship Removal is enabled — copying ntfrmain.asi and cutils.dll...")
+                logger.info("Censorship Removal is enabled, copying censorship patching files.")
                 try:
                     shutil.copy(self.bin_path / "ntfrmain.asi", self.cr_targets["ntfrmain_asi"])
                     shutil.copy(self.bin_path / "cutils.dll",   self.cr_targets["cutils_dll"])
@@ -198,40 +203,41 @@ class AuroraEngine:
                 except (PermissionError, OSError) as e:
                     if getattr(e, 'winerror', None) in (5, 32):
                         logger.error(f"Access denied copying censorship-removal files (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
-                        self.sanitize()
+                        self.sanitize(kill_first=False)
                         return "access_denied"
                     raise
 
-            logger.info("Deploying enabled mods via individual junctions...")
-
+            # EL: logger.info("Deploying enabled mods via individual junctions...")
             pak_dir = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks"
-            deployed_count = 0
-
-            for folder in self.mods_source.iterdir():
-                if not folder.is_dir():
-                    continue
-                if folder.name.startswith("disabled_"):
-                    continue
-
-                mod_target_path = pak_dir / f"zz_{folder.name}"
-
-                if os.path.lexists(mod_target_path):
-                    self._remove_junction(mod_target_path)
-
-                cmd = f'mklink /J "{mod_target_path}" "{folder.resolve()}"'
+            folders = [
+                f for f in self.mods_source.iterdir()
+                if f.is_dir() and not f.name.startswith("disabled_")
+            ]
+            def _junction(folder):
+                target = pak_dir / f"zz_{folder.name}"
+                if os.path.lexists(target):
+                    self._remove_junction(target)
+                cmd = f'mklink /J "{target}" "{folder.resolve()}"'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-                if result.returncode == 0:
-                    deployed_count += 1
-                    logger.info(f"Junctioned mod: zz_{folder.name}")
-                else:
-                    logger.error(f"Failed to junction mod {folder.name}: {result.stderr.strip()}")
+                return folder.name, result.returncode == 0, result.stderr.strip()
+            deployed_count = 0
+            failed_mods = []
+            with ThreadPoolExecutor() as ex:
+                for name, success, err in ex.map(_junction, folders):
+                    if success:
+                        deployed_count += 1
+                        # EL: logger.info(f"Junctioned mod: zz_{name}")
+                    else:
+                        failed_mods.append(name)
+                        logger.error(f"Failed to junction mod {name}: {err}")
 
             logger.info(f"Successfully deployed {deployed_count} mods via junctions.")
+            if failed_mods:
+                logger.warning(f"Failed to deploy {len(failed_mods)} mod(s): {failed_mods}")
 
             # Copy no-drive-line pak files directly into the PAKs folder if the feature is enabled.
             if self.no_drive_line:
-                logger.info("No Drive Line is enabled, copying built-in pak files")
+                # EL: logger.info("No Drive Line is enabled, copying built-in pak files")
                 ndl_files = ["auddl_P.pak", "auddl_P.utoc", "auddl_P.ucas"]
                 missing = [f for f in ndl_files if not (self._ndl_source / f).exists()]
                 if missing:
@@ -240,11 +246,11 @@ class AuroraEngine:
                     try:
                         for fname in ndl_files:
                             shutil.copy(self._ndl_source / fname, self._pak_base.parent / fname)
-                        logger.info("Copied No Drive Line pak files.")
+                        # EL: logger.info("Copied No Drive Line pak files.")
                     except (PermissionError, OSError) as e:
                         if getattr(e, 'winerror', None) in (5, 32):
                             logger.error(f"Access denied copying No Drive Line files (WinError {e.winerror}).")
-                            self.sanitize()
+                            self.sanitize(kill_first=False)
                             return "access_denied"
                         raise
 
@@ -252,8 +258,7 @@ class AuroraEngine:
 
         except Exception as e:
             logger.critical("FATAL: Injection failed!", exc_info=True)
-            # Sanitize on partial failure to prevent buildup in the future.
-            self.sanitize()
+            self.sanitize(kill_first=True)
             return False
 
     def monitor_game(self):
@@ -264,11 +269,11 @@ class AuroraEngine:
         MAX_GRACE_SECONDS = 7
         TOTAL_TIMEOUT_SECONDS = 120
 
-        logger.info("Monitoring for HTGame.exe... (Must run the game manually)")
+        logger.info("Monitoring for Neverness To Everness (NTE), you must press \"Play\" in the launcher!")
 
         # Holy f####ng spagetti code -Datura
         for _ in range(TOTAL_TIMEOUT_SECONDS):
-            time.sleep(1)
+            time.sleep(0.5)
 
             active = {p.name().lower() for p in psutil.process_iter(['name'])}
 
@@ -287,26 +292,29 @@ class AuroraEngine:
 
             if launcher_running:
                 if not launcher_ever_seen:
-                    logger.info("NTE Launcher detected for the first time.")
+                    # EL: logger.info("NTE Launcher detected for the first time.")
+                    continue
                 elif launcher_missing_seconds > 0:
-                    logger.info("NTE Launcher activity re-detected. Resetting grace tracker.")
+                    # EL: logger.info("NTE Launcher activity re-detected. Resetting grace tracker.")
+                    continue
                 launcher_ever_seen = True
                 launcher_missing_seconds = 0
             elif launcher_ever_seen:
                 launcher_missing_seconds += 1
                 if launcher_missing_seconds == 1:
-                    logger.warning("NTE Launcher process not detected. Tracking stability window...")
+                    # EL: logger.warning("NTE Launcher process not detected. Tracking stability window...")
+                    continue
 
                 if launcher_missing_seconds >= MAX_GRACE_SECONDS:
                     logger.warning(
                         f"NTE Launcher failed to resolve within {MAX_GRACE_SECONDS}s of continuous absence. Aborting monitor."
                     )
-                    self.sanitize()
+                    self.sanitize(kill_first=True)
                     return
 
         if not game_started:
             logger.warning("NTE (HTGame.exe) was never detected within 120s. Aborting monitor.")
-            self.sanitize()
+            self.sanitize(kill_first=True)
             return
 
         # Phase 2: Active game tracking
@@ -317,4 +325,4 @@ class AuroraEngine:
                 break
 
         logger.info("NTE was closed, initialising clean-up process...")
-        self.sanitize()
+        self.sanitize(kill_first=False)
