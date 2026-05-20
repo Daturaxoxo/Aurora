@@ -506,7 +506,7 @@ class SettingsOverlay(QFrame):
 
         from src.config_manager import LANG_NAMES
         self._lang_box = QComboBox()
-        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Deutsch", "Türkçe"])
+        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Deutsch", "Türkçe", "Tiếng Việt"])
         self._lang_box.setFixedWidth(160)
         current_code = cfg.get_language()
         display = LANG_NAMES.get(current_code, "English")

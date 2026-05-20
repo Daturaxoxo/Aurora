@@ -9,6 +9,7 @@ LANG_CODES = {
     "日本語":    "jp",
     "Español":   "es",
     "Deutsch":   "de",
+    "Tiếng Việt": "vi",
 }
 # Reverse map: code -> display name
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
