@@ -9,6 +9,8 @@
     "browse": "Buscar",
     "developer_mode": "Modo desarrollador",
     "developer_mode_desc": "Muestra la consola de registro para la depuración.",
+    "extensive_logging": "Registro detallado",
+    "extensive_logging_desc": "Permite que se muestren más registros de depuración en la consola.",
     "launch": "Iniciar",
     "launch_running": "Iniciando...",
     "launch_invalid": "Ruta incorrecta",

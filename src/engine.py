@@ -35,14 +35,13 @@ class AuroraEngine:
             "asi_plugin":  self._win64 / "signmain.asi",
         }
 
-        # Censorship-removal targets, only deployed / cleaned when the feature is enabled.
+        # Censorship-removal targets
         self.cr_targets = {
             "ntfrmain_asi": self._win64 / "ntfrmain.asi",
             "cutils_dll":   self._win64 / "cutils.dll",
         }
 
-        # No-drive-line built-in pak files
-        # Source lives in Bin/Builtins/ so it is always shipped with Aurora on NTE launch.
+        # No Drive Line PAK files
         self._ndl_source = self.bin_path / "Builtins"
         self.ndl_targets = {
             "auddl_pak":  self._pak_base.parent / "auddl_P.pak",
@@ -91,7 +90,7 @@ class AuroraEngine:
                         break  # File is accessible, moving onto the next step.
                 except (PermissionError, OSError):
                     # File isn't accessible, waiting until it is (5 retries before dumping)
-                    # EL: logger.warning("global_dll still locked, Aurora is waiting...")
+                    logger.warning("global_dll still locked, Aurora is waiting...", extra={'el': True})
                     time.sleep(1)
 
     def sanitize(self, kill_first: bool):
@@ -108,38 +107,36 @@ class AuroraEngine:
                 if path.is_file():
                     os.chmod(path, 0o777)
                     path.unlink()
-                    # EL: logger.info(f"Removed file: {key} ({path})")
+                    logger.info(f"Removed file: {key} ({path})", extra={'el': True})
                 elif path.is_dir() or os.path.islink(path):
                     if self._remove_junction(path):
-                        # EL: logger.info(f"Removed junction/directory: {key} ({path})")
-                        continue
+                        logger.info(f"Removed junction/directory: {key} ({path})", extra={'el': True})
                     else:
-                        # EL: logger.warning(f"Sanitization method one failed, using fallback...")
+                        logger.warning(f"Sanitization method one failed, using fallback...", extra={'el': True})
                         subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
             except Exception:
-                # EL: logger.warning(f"Sanitization method one and two failed, trying shell fallback...")
+                logger.warning(f"Sanitization method one and two failed, trying shell fallback...", extra={'el': True})
                 try:
                     subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
-                    # EL: logger.info(f"Shell-removed: {key}")
+                    logger.info(f"Shell-removed: {key}", extra={'el': True})
                 except Exception as fallback_err:
                     logger.error(f"Could not remove {key}: {fallback_err}")
 
-        # Clean up zz_ mod junctions from Paks
+        # Cleaning up PAKs
         pak_dir = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks"
         if pak_dir.exists():
             for item in pak_dir.iterdir():
                 if item.name.startswith("zz_") and (item.is_dir() or os.path.islink(item)):
                     if self._remove_junction(item):
-                        # EL: logger.info(f"Removed mod junction: {item.name}")
-                        continue
+                        logger.info(f"Removed mod junction: {item.name}", extra={'el': True})
                     else:
                         logger.warning(f"Failed to remove mod junction: {item.name}")
 
     def inject(self):
         logger.info("Injecting into NTE...")
-        # EL: logger.info(f"Game path:  {self.game_path}")
-        # EL: logger.info(f"Bin path:   {self.bin_path}")
-        # EL: logger.info(f"Mods path:  {self.mods_source}")
+        logger.info(f"Game path:  {self.game_path}", extra={'el': True})
+        logger.info(f"Bin path:   {self.bin_path}", extra={'el': True})
+        logger.info(f"Mods path:  {self.mods_source}", extra={'el': True})
 
         # Bin file validation.
         required_bin_files = [
@@ -160,7 +157,7 @@ class AuroraEngine:
             self.sanitize(kill_first=True)
 
             # Copy DLL files into the directory paths
-            # EL: logger.info("Copying version.dll to game directories...")
+            logger.info("Copying version.dll to game directories...", extra={'el': True})
             try:
                 copies = [
                     (self.bin_path / "version.dll", self.targets["root_dll"]),
@@ -185,7 +182,7 @@ class AuroraEngine:
             logger.info("Copying ASI plugin...")
             try:
                 shutil.copy(self.bin_path / "signmain.asi", self.targets["asi_plugin"])
-                logger.info("Copied ASI plugin.")
+                logger.info("Copied ASI plugin.", extra={"el": True})
             except (PermissionError, OSError) as e:
                 if getattr(e, 'winerror', None) in (5, 32):
                     logger.error(f"Access denied copying ASI plugin (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
@@ -193,7 +190,7 @@ class AuroraEngine:
                     return "access_denied"
                 raise
 
-            # Copy censorship-removal files if the feature is enabled.
+            # Censorship Removal Feature
             if self.censorship_removal:
                 logger.info("Censorship Removal is enabled, copying censorship patching files.")
                 try:
@@ -207,7 +204,7 @@ class AuroraEngine:
                         return "access_denied"
                     raise
 
-            # EL: logger.info("Deploying enabled mods via individual junctions...")
+            logger.info("Deploying enabled mods via individual junctions...", extra={'el': True})
             pak_dir = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks"
             folders = [
                 f for f in self.mods_source.iterdir()
@@ -226,7 +223,7 @@ class AuroraEngine:
                 for name, success, err in ex.map(_junction, folders):
                     if success:
                         deployed_count += 1
-                        # EL: logger.info(f"Junctioned mod: zz_{name}")
+                        logger.info(f"Junctioned mod: zz_{name}", extra={'el': True})
                     else:
                         failed_mods.append(name)
                         logger.error(f"Failed to junction mod {name}: {err}")
@@ -235,9 +232,9 @@ class AuroraEngine:
             if failed_mods:
                 logger.warning(f"Failed to deploy {len(failed_mods)} mod(s): {failed_mods}")
 
-            # Copy no-drive-line pak files directly into the PAKs folder if the feature is enabled.
+            # No Drive Line Feature
             if self.no_drive_line:
-                # EL: logger.info("No Drive Line is enabled, copying built-in pak files")
+                logger.info("No Drive Line is enabled, copying built-in pak files", extra={'el': True})
                 ndl_files = ["auddl_P.pak", "auddl_P.utoc", "auddl_P.ucas"]
                 missing = [f for f in ndl_files if not (self._ndl_source / f).exists()]
                 if missing:
@@ -246,7 +243,7 @@ class AuroraEngine:
                     try:
                         for fname in ndl_files:
                             shutil.copy(self._ndl_source / fname, self._pak_base.parent / fname)
-                        # EL: logger.info("Copied No Drive Line pak files.")
+                        logger.info("Copied No Drive Line PAK files.", extra={'el': True})
                     except (PermissionError, OSError) as e:
                         if getattr(e, 'winerror', None) in (5, 32):
                             logger.error(f"Access denied copying No Drive Line files (WinError {e.winerror}).")
@@ -292,18 +289,15 @@ class AuroraEngine:
 
             if launcher_running:
                 if not launcher_ever_seen:
-                    # EL: logger.info("NTE Launcher detected for the first time.")
-                    continue
+                    logger.info("NTE Launcher was detected for the first time.", extra={'el': True})
                 elif launcher_missing_seconds > 0:
-                    # EL: logger.info("NTE Launcher activity re-detected. Resetting grace tracker.")
-                    continue
+                    logger.info("NTE Launcher activity re-detected. Resetting grace tracker.", extra={'el': True})
                 launcher_ever_seen = True
                 launcher_missing_seconds = 0
             elif launcher_ever_seen:
                 launcher_missing_seconds += 1
                 if launcher_missing_seconds == 1:
-                    # EL: logger.warning("NTE Launcher process not detected. Tracking stability window...")
-                    continue
+                    logger.warning("NTE Launcher process not detected. Tracking stability window...", extra={'el': True})
 
                 if launcher_missing_seconds >= MAX_GRACE_SECONDS:
                     logger.warning(

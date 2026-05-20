@@ -6,7 +6,6 @@ from PyQt6.QtCore import Qt
 from src.styles import SETTING_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
-
 from src.ui.elements import AnimatedToggle
 
 # SETTINGS ROW
@@ -182,6 +181,8 @@ class SettingsOverlay(QFrame):
         self._row_ndl.set_description(t("no_drive_line_desc"))
         self._row_dev.set_title(t("developer_mode"))
         self._row_dev.set_description(t("developer_mode_desc"))
+        self._row_EL.set_title(t("extensive_logging"))
+        self._row_EL.set_description(t("extensive_logging_desc"))
         self._row_rpc.set_title(t("discord_rpc"))
         self._row_rpc.set_description(t("discord_rpc_desc"))
 
@@ -425,7 +426,15 @@ class SettingsOverlay(QFrame):
             checked=cfg.get_dev_mode(),
             on_toggle=self._toggle_dev_mode,
         )
+        self._row_EL = SettingRow(
+            title="",
+            description="",
+            checked=cfg.get_extensive_logging(),
+            on_toggle=self._toggle_extensive_logging_mode,
+        )
         layout.addWidget(self._row_dev)
+        layout.addSpacing(8)
+        layout.addWidget(self._row_EL)
         layout.addStretch()
         
         return page
@@ -434,3 +443,6 @@ class SettingsOverlay(QFrame):
         cfg.set_dev_mode(new_state)
         main_ui = self.parent().parent()
         main_ui.set_dev_console(new_state)
+
+    def _toggle_extensive_logging_mode(self, new_state):
+        cfg.set_extensive_logging(new_state)

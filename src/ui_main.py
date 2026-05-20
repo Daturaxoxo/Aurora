@@ -43,7 +43,7 @@ class GameMonitorThread(QThread):
                 return
             if result:
                 launcher_path = self.engine.game_path / "NTEGlobalLauncher.exe"
-                logger.info("Launcher started, waiting for manual game start. (HTGame.exe)")
+                logger.info("Launcher started, waiting for manual game start. (HTGame.exe)", extra={"el": True})
                 subprocess.Popen([str(launcher_path)], cwd=str(self.engine.game_path))
                 # Patch monitor_game to signal us when the game actually starts
                 self.engine.on_game_started = lambda: self.game_started.emit()
@@ -264,8 +264,8 @@ class AuroraUI(QMainWindow):
     def check_for_updates(self):
         self.current_version = get_local_version()
         self.online_version = GetOnlineVersion() or "9.9.9"
-        logger.info(self.current_version)
-        logger.info(self.online_version)
+        logger.info(self.current_version, extra={'el': True})
+        logger.info(self.online_version, extra={'el': True})
         if parse_version(self.current_version) < parse_version(self.online_version):
             TMP_msg_a = t("update_available_message_a")
             TMP_msg_b = t("update_available_message_b")
@@ -458,17 +458,17 @@ class AuroraUI(QMainWindow):
 
     # LAUNCH
     def handle_launch(self):
-        logger.info("Launch button was clicked, initialising engine...")
+        logger.info("Launch button was clicked, initialising engine...", extra={"el": True})
         if not self.engine:
             logger.warning("Launch aborted: Engine not initialized.")
             ToastNotification(self.central_widget, t("toast_engine_error"), True)
             return
-        # logger.info(f"Target Path: {self.current_path}")
+        logger.info(f"Target Path: {self.current_path}", extra={"el": True})
         self.btn_launch.setEnabled(False)
         self.btn_launch.setText(f"    {t('launch_running')}")
         self.monitor_thread = GameMonitorThread(self.engine)
         self.monitor_thread.finished.connect(self.refresh_launch_state)
-        self.monitor_thread.finished.connect(lambda: setattr(self, 'monitor_thread', None))  # ← add this
+        self.monitor_thread.finished.connect(lambda: setattr(self, 'monitor_thread', None))
         self.monitor_thread.game_started.connect(self._show_game_overlay)
         self.monitor_thread.access_denied.connect(self._show_access_denied_popup)
         self.monitor_thread.start()
@@ -481,11 +481,6 @@ class AuroraUI(QMainWindow):
         ToastNotification(self.central_widget, t("toast_launching"), False)
 
     def _show_access_denied_popup(self):
-        """Called when engine.inject() returns 'access_denied'.
-        Most commonly caused by antivirus software or UAC intercepting
-        file copy / junction creation. We can't confirm it's AV specifically,
-        but we can give the user an actionable message.
-        """
         self.refresh_launch_state()
         PopupDialog(
             parent=self.central_widget,
@@ -502,8 +497,7 @@ class AuroraUI(QMainWindow):
         )
 
     def _show_game_overlay(self):
-        """Called on main thread when HTGame.exe is first detected."""
-        logger.info("HTGame.exe detected. Starting window polling...")
+        logger.info("HTGame.exe detected. Starting window polling...", extra={"el": True})
         
         # Initialize polling state
         self._poll_count = 0
@@ -512,7 +506,6 @@ class AuroraUI(QMainWindow):
         self._poll_timer.start(500)  # Default: 500ms
 
     def _get_game_hwnd(self):
-        """Helper to find the HWND for the game window with non-blocking checks."""
         hwnd_result = [None]
         
         def enum_cb(hwnd, _):
@@ -550,11 +543,10 @@ class AuroraUI(QMainWindow):
         return hwnd_result[0]
 
     def _check_window_ready(self):
-        """Checks if the game window is fully initialized AND focused."""
         self._poll_count += 1
         
         if self._poll_count > 300: # 150s timeout (300 polls * 500ms)
-            logger.warning("Overlay polling timed out.")
+            logger.warning("Overlay polling timed out.", extra={"el": True})
             self._poll_timer.stop()
             return
 
@@ -572,12 +564,12 @@ class AuroraUI(QMainWindow):
             is_focused = (hwnd == foreground_hwnd)
             
             if is_focused and width > 100:
-                logger.info(f"NTE has loaded, showing game overlay...")
+                logger.info(f"NTE has loaded, showing game overlay...", extra={"el": True})
                 self._poll_timer.stop()
                 self._spawn_overlay(rect)
             else:
                 if self._poll_count % 10 == 0 and not is_focused:
-                    logger.info("NTE (HTGame.exe) is detected but not focused, yielding game overlay until focused.")
+                    logger.info("NTE (HTGame.exe) is detected but not focused, yielding game overlay until focused.", extra={"el": True})
 
     def _spawn_overlay(self, game_rect=None):
         self._overlay_win = AuroraOverlayWindow()

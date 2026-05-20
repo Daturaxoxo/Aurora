@@ -9,6 +9,8 @@
     "browse": "Browse",
     "developer_mode": "Developer Mode",
     "developer_mode_desc": "Shows the log console for debugging.",
+    "extensive_logging": "Extensive Logging",
+    "extensive_logging_desc": "Allows for more logs to be shown in the console.",
     "launch": "Launch",
     "launch_running": "Running...",
     "launch_invalid": "Invalid Path",

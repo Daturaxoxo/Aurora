@@ -21,6 +21,7 @@ DEFAULTS = {
     "csn_rem":      True,
     "drv_lin":      False,
     "discord_rpc":  True,
+    "extensive_logging": False,
 }
 
 def get_app_dir():
@@ -97,3 +98,9 @@ def get_discord_rpc() -> bool:
 
 def set_discord_rpc(enabled: bool):
     set("discord_rpc", enabled)
+
+def get_extensive_logging() -> bool:
+    return bool(get("extensive_logging"))
+
+def set_extensive_logging(enabled: bool):
+    set("extensive_logging", enabled)

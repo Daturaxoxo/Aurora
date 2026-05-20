@@ -9,6 +9,8 @@
     "browse": "Duyệt...",
     "developer_mode": "Chế độ nhà phát triển",
     "developer_mode_desc": "Hiển thị bảng điều khiển nhật ký (log) để gỡ lỗi.",
+    "extensive_logging": "Nhật ký chi tiết",
+    "extensive_logging_desc": "Cho phép hiển thị nhiều nhật ký gỡ lỗi hơn trong bảng điều khiển.",
     "launch": "Khởi chạy",
     "launch_running": "Đang chạy...",
     "launch_invalid": "Đường dẫn không hợp lệ",

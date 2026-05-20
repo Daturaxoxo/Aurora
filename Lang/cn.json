@@ -10,6 +10,8 @@
     "browse": "浏览",
     "developer_mode": "开发者模式",
     "developer_mode_desc": "显示日志控制台以供调试。",
+    "extensive_logging": "详细日志",
+    "extensive_logging_desc": "允许在控制台中显示更多调试日志。",
     "launch": "启动",
     "launch_running": "运行中...",
     "launch_invalid": "路径无效",

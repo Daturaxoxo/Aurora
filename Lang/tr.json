@@ -9,6 +9,8 @@
     "browse": "Gözat",
     "developer_mode": "Geliştirici Modu",
     "developer_mode_desc": "Hata bulmak için geliştirici konsolunu açar.",
+    "extensive_logging": "Kapsamlı Hata Mesajları",
+    "extensive_logging_desc": "Konsolda daha fazla debug mesajı gösterilmesini sağlar.",
     "launch": "Başlat",
     "launch_running": "Çalışıyor...",
     "launch_invalid": "Geçersiz Yol",

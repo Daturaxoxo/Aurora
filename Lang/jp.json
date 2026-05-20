@@ -10,6 +10,8 @@
     "browse": "参照",
     "developer_mode": "デベロッパーモード",
     "developer_mode_desc": "デバッグ用のログコンソールを表示します。",
+    "extensive_logging": "詳細ログ",
+    "extensive_logging_desc": "コンソールにより多くのデバッグログを表示できるようにします。",
     "launch": "起動",
     "launch_running": "実行中...",
     "launch_invalid": "無効なパス",

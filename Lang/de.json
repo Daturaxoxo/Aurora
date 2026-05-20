@@ -9,6 +9,8 @@
     "browse": "Durchsuchen",
     "developer_mode": "Entwicklermodus",
     "developer_mode_desc": "Zeigt die Protokollkonsole zur Fehlersuche an.",
+    "extensive_logging": "Ausführliche Protokollierung",
+    "extensive_logging_desc": "Ermöglicht die Anzeige von mehr Debug-Protokollen in der Konsole.",
     "launch": "Starten",
     "launch_running": "Wird ausgeführt...",
     "launch_invalid": "Ungültiger Pfad",

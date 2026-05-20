@@ -3,12 +3,18 @@ import os
 import sys
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
+from src import config_manager as cfg
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+class ExtensiveLoggingFilter(logging.Filter):
+    def filter(self, record):
+        if getattr(record, 'el', False):
+            return cfg.get_extensive_logging()
+        return True
 
 class ErrorTriggeredFileHandler(logging.Handler):
     def __init__(self, log_dir):
@@ -124,14 +130,16 @@ def setup_logger():
     global dev_console_handler
     dev_console_handler = DevConsoleHandler()
 
+    el_filter = ExtensiveLoggingFilter()
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(dev_console_handler)
 
     logger = logging.getLogger("Aurora")
+    logger.addFilter(el_filter)
     logger.info("————— Aurora Launcher —————")
-    logger.info(f"App directory: {app_dir}")
+    logger.info(f"App directory: {app_dir}", extra={'el': True})
     return logger
 
 
