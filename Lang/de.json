@@ -11,6 +11,10 @@
     "developer_mode_desc": "Zeigt die Protokollkonsole zur Fehlersuche an.",
     "extensive_logging": "Ausführliche Protokollierung",
     "extensive_logging_desc": "Ermöglicht die Anzeige von mehr Debug-Protokollen in der Konsole.",
+    "export_file_title": "In Datei exportieren",
+    "export_file_desc": "Exportiert die Ausgaben der Entwicklerkonsole in eine Textdatei.",
+    "export_file_button": "Exportieren",
+    "export_file_done": "Exportiert!",
     "launch": "Starten",
     "launch_running": "Wird ausgeführt...",
     "launch_invalid": "Ungültiger Pfad",
@@ -42,5 +46,10 @@
     "update_new_version": "Neue Version",
     "update_available_message_a": "Eine neue Version von Aurora Launcher ist verfügbar!",
     "update_available_message_b": "Möchten Sie GitHub öffnen und das neueste Update herunterladen?",
-    "update_available_confirm": "Im Browser öffnen"
+    "update_available_confirm": "Im Browser öffnen",
+    "settings_tooltip": "Einstellungen",
+    "mod_manager_tooltip": "Mod-Manager",
+    "ko-fi_tooltip": "Unterstütze Aurora auf Ko-Fi",
+    "discord_tooltip": "Tritt dem Discord-Server bei",
+    "gamebanana_tooltip": "GameBanana-Seite"
 }

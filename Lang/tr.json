@@ -11,6 +11,10 @@
     "developer_mode_desc": "Hata bulmak için geliştirici konsolunu açar.",
     "extensive_logging": "Kapsamlı Hata Mesajları",
     "extensive_logging_desc": "Konsolda daha fazla debug mesajı gösterilmesini sağlar.",
+    "export_file_title": "Metin Dosyasına Aktar",
+    "export_file_desc": "Geliştirici konsolundaki mesajları bir metin dosyasına aktarın.",
+    "export_file_button": "Aktar",
+    "export_file_done": "Dışa aktarıldı!",
     "launch": "Başlat",
     "launch_running": "Çalışıyor...",
     "launch_invalid": "Geçersiz Yol",
@@ -41,5 +45,10 @@
     "update_new_version": "Yeni Sürüm",
     "update_available_message_a": "Aurora Launcher'ın yeni bir sürümü mevcut!",
     "update_available_message_b": "GitHub'ı açıp en son güncellemeyi indirmek ister misiniz?",
-    "update_available_confirm": "Tarayıcıda Aç"
+    "update_available_confirm": "Tarayıcıda Aç",
+    "settings_tooltip": "Ayarlar",
+    "mod_manager_tooltip": "Mod Yönetici",
+    "ko-fi_tooltip": "Aurora'yı Ko-Fi'de destekle",
+    "discord_tooltip": "Discord sunucusuna katıl",
+    "gamebanana_tooltip": "GameBanana Sayfası"
 }

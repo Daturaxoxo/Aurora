@@ -11,6 +11,10 @@
     "developer_mode_desc": "Hiển thị bảng điều khiển nhật ký (log) để gỡ lỗi.",
     "extensive_logging": "Nhật ký chi tiết",
     "extensive_logging_desc": "Cho phép hiển thị nhiều nhật ký gỡ lỗi hơn trong bảng điều khiển.",
+    "export_file_title": "Xuất ra tệp",
+    "export_file_desc": "Xuất đầu ra của bảng điều khiển nhà phát triển ra tệp văn bản.",
+    "export_file_button": "Xuất khẩu",
+    "export_file_done": "Đã xuất!",
     "launch": "Khởi chạy",
     "launch_running": "Đang chạy...",
     "launch_invalid": "Đường dẫn không hợp lệ",
@@ -42,5 +46,10 @@
     "update_new_version": "Phiên bản mới",
     "update_available_message_a": "Đã có phiên bản mới của Aurora Launcher!",
     "update_available_message_b": "Bạn có muốn mở GitHub để tải xuống bản cập nhật mới nhất không?",
-    "update_available_confirm": "Mở trong trình duyệt"
+    "update_available_confirm": "Mở trong trình duyệt",
+    "settings_tooltip": "Cài đặt",
+    "mod_manager_tooltip": "Quản lý Mod",
+    "ko-fi_tooltip": "Hãy ủng hộ Aurora trên Ko-Fi",
+    "discord_tooltip": "Tham gia máy chủ Discord",
+    "gamebanana_tooltip": "Trang GameBanana"
 }

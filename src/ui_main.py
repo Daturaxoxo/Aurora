@@ -202,7 +202,7 @@ class AuroraUI(QMainWindow):
         self.setWindowIcon(QIcon(resource_path("Bin/Assets/logo.ico")))
         
         # Load saved language and apply
-        Translator.load(cfg.get_language())
+        Translator.load(cfg.get(cfg.Key.LANGUAGE))
         Translator.language_changed.connect(self.retranslate_ui)
         self.retranslate_ui()
 
@@ -241,7 +241,7 @@ class AuroraUI(QMainWindow):
         self.btn_settings.clicked.connect(self.toggle_settings)
 
         # Apply saved dev mode
-        if cfg.get_dev_mode():
+        if cfg.get(cfg.Key.DEV_MODE):
             self.set_dev_console(True)
 
         self.check_for_updates()
@@ -249,7 +249,28 @@ class AuroraUI(QMainWindow):
 
     # Translation
     def retranslate_ui(self):
+        new_lang = cfg.get(cfg.Key.LANGUAGE)
+        if hasattr(self, "_current_lang") and self._current_lang == new_lang:
+            return
+        self._current_lang = new_lang
+        self._retranslate_tooltips()
         self.refresh_launch_state() 
+
+    def _retranslate_tooltips(self):
+        buttons = {
+            "btn_settings":  "settings_tooltip",
+            "btn_folder":    "mod_manager_tooltip",
+            "btn_coffee":    "ko-fi_tooltip",
+            "btn_discord":   "discord_tooltip",
+            "btn_gamebanana":"gamebanana_tooltip",
+            "btn_search":    "search_tooltip",
+        }
+        for attr, key in buttons.items():
+            btn = getattr(self, attr, None)
+            if btn:
+                btn.setToolTip(t(key))
+                btn.style().unpolish(btn)
+                btn.style().polish(btn)
 
     def toggle_mod_manager(self):
         if hasattr(self, 'mod_overlay') and self.mod_overlay.isVisible():
@@ -259,7 +280,6 @@ class AuroraUI(QMainWindow):
             self.mod_overlay.show()
             self.mod_overlay.raise_()
     
-
     # Checking for updates
     def check_for_updates(self):
         self.current_version = get_local_version()
@@ -465,9 +485,9 @@ class AuroraUI(QMainWindow):
         if found_path:
             logger.info(f"Drive search found NTE at: {found_path}")
             self.current_path = found_path
-            cfg.set_game_path(found_path)
+            cfg.set(cfg.Key.GAME_PATH)
             from src.engine import AuroraEngine
-            self.engine = AuroraEngine(found_path, censorship_removal=cfg.get_censorship_removal(), no_drive_line=cfg.get_no_drive_line())
+            self.engine = AuroraEngine(found_path, censorship_removal=cfg.get(cfg.Key.CENSORSHIP_REMOVE), no_drive_line=cfg.get(cfg.Key.NO_DRIVE_LINE))
             try:
                 self.settings_menu.path_display.setText(found_path)
             except Exception:

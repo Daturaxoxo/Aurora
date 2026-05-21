@@ -12,6 +12,10 @@
     "developer_mode_desc": "デバッグ用のログコンソールを表示します。",
     "extensive_logging": "詳細ログ",
     "extensive_logging_desc": "コンソールにより多くのデバッグログを表示できるようにします。",
+    "export_file_title": "ファイルにエクスポート",
+    "export_file_desc": "開発者コンソールの出力をテキストファイルにエクスポートします。",
+    "export_file_button": "エクスポート",
+    "export_file_done": "エクスポート済み!",
     "launch": "起動",
     "launch_running": "実行中...",
     "launch_invalid": "無効なパス",
@@ -42,5 +46,10 @@
     "update_new_version": "新しいバージョン",
     "update_available_message_a": "の新バージョンがあります！",
     "update_available_message_b": "GitHubを開いて最新のアップデートをダウンロードしますか？",
-    "update_available_confirm": "ブラウザで開く"
+    "update_available_confirm": "ブラウザで開く",
+    "settings_tooltip": "設定",
+    "mod_manager_tooltip": "Modマネージャー",
+    "ko-fi_tooltip": "Ko-FiでAuroraを応援する",
+    "discord_tooltip": "Discordサーバーに参加する",
+    "gamebanana_tooltip": "GameBananaのページ"
 }

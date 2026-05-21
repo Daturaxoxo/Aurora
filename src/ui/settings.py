@@ -6,7 +6,11 @@ from PyQt6.QtCore import Qt
 from src.styles import SETTING_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
+from src.logger import dev_console_handler, get_app_dir
 from src.ui.elements import AnimatedToggle
+import os
+from datetime import datetime
+import logging
 
 # SETTINGS ROW
 class SettingRow(QFrame):
@@ -183,6 +187,9 @@ class SettingsOverlay(QFrame):
         self._row_dev.set_description(t("developer_mode_desc"))
         self._row_EL.set_title(t("extensive_logging"))
         self._row_EL.set_description(t("extensive_logging_desc"))
+        self._lbl_export.setText(t("export_file_title"))
+        self._lbl_export_desc.setText(t("export_file_desc"))
+        self._btn_export_console.setText(t("export_file_button"))
         self._row_rpc.set_title(t("discord_rpc"))
         self._row_rpc.set_description(t("discord_rpc_desc"))
 
@@ -248,7 +255,38 @@ class SettingsOverlay(QFrame):
         self._lang_box = QComboBox()
         self._lang_box.addItems(["English", "中文", "日本語", "Español", "Deutsch", "Türkçe", "Tiếng Việt"])
         self._lang_box.setFixedWidth(160)
-        current_code = cfg.get_language()
+        self._lang_box.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e1e;
+                color: #C8C8C8;
+                border: 1px solid rgba(255, 255, 255, 12);
+                border-radius: 7px;
+                padding: 4px 10px;
+                font-size: 12px;
+            }
+            QComboBox:hover {
+                background-color: #2a2a2a;
+                color: #FFFFFF;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 0px;
+                background-color: transparent;
+            }
+            QComboBox::down-arrow {
+                width: 0;
+                height: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1e1e1e;
+                color: #C8C8C8;
+                border: 1px solid rgba(255, 255, 255, 12);
+                selection-background-color: rgba(255, 255, 255, 10);
+                selection-color: #FFFFFF;
+                outline: none;
+            }
+        """)
+        current_code = cfg.get(cfg.Key.LANGUAGE)
         display = LANG_NAMES.get(current_code, "English")
         idx = self._lang_box.findText(display)
         if idx >= 0:
@@ -269,7 +307,7 @@ class SettingsOverlay(QFrame):
         self._row_rpc = SettingRow(
             title="",
             description="",
-            checked=cfg.get_discord_rpc(),
+            checked=cfg.get(cfg.Key.DISCORD_RPC),
             on_toggle=self._toggle_rpc,
         )
         layout.addWidget(self._row_rpc)
@@ -279,7 +317,7 @@ class SettingsOverlay(QFrame):
     def _on_language_changed(self, display_name):
         from src.config_manager import LANG_CODES
         code = LANG_CODES.get(display_name, "en")
-        cfg.set_language(code)
+        cfg.set(cfg.Key.LANGUAGE, code)
         Translator.load(code)
 
     # Launcher Page
@@ -357,7 +395,7 @@ class SettingsOverlay(QFrame):
         self._row_cr = SettingRow(
             title="Censorship Removal",
             description="",
-            checked=cfg.get_censorship_removal(),
+            checked=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
             on_toggle=self._toggle_cr_mode,
         )
         layout.addWidget(self._row_cr)
@@ -366,7 +404,7 @@ class SettingsOverlay(QFrame):
         self._row_ndl = SettingRow(
             title="No Drive Line",
             description="",
-            checked=cfg.get_no_drive_line(),
+            checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
             on_toggle=self._toggle_ndl_mode,
         )
         layout.addWidget(self._row_ndl)
@@ -379,23 +417,23 @@ class SettingsOverlay(QFrame):
             self.path_display.setText(folder)
             main_ui = self.parent().parent()
             main_ui.current_path = folder
-            cfg.set_game_path(folder)
+            cfg.set(cfg.Key.GAME_PATH)
             main_ui.refresh_launch_state()
 
     def _toggle_cr_mode(self, new_state):
-        cfg.set_censorship_removal(new_state)
+        cfg.set(cfg.Key.CENSORSHIP_REMOVE)
         main_ui = self.parent().parent()
         if main_ui.engine:
             main_ui.engine.censorship_removal = new_state
 
     def _toggle_ndl_mode(self, new_state):
-        cfg.set_no_drive_line(new_state)
+        cfg.set(cfg.Key.NO_DRIVE_LINE)
         main_ui = self.parent().parent()
         if main_ui.engine:
             main_ui.engine.no_drive_line = new_state
 
     def _toggle_rpc(self, new_state):
-        cfg.set_discord_rpc(new_state)
+        cfg.set(cfg.Key.DISCORD_RPC)
         main_ui = self.parent().parent()
         if new_state:
             from src.discord_rpc import DiscordRPC
@@ -423,26 +461,106 @@ class SettingsOverlay(QFrame):
         self._row_dev = SettingRow(
             title="",
             description="",
-            checked=cfg.get_dev_mode(),
+            checked=cfg.get(cfg.Key.DEV_MODE),
             on_toggle=self._toggle_dev_mode,
         )
         self._row_EL = SettingRow(
             title="",
             description="",
-            checked=cfg.get_extensive_logging(),
+            checked=cfg.get(cfg.Key.EXTENSIVE_LOGGING),
             on_toggle=self._toggle_extensive_logging_mode,
         )
+        export_card = QFrame()
+        export_card.setObjectName("ExportCard")
+        export_card.setFixedHeight(68)
+        export_card.setStyleSheet("""
+            #ExportCard {
+                background-color: rgba(255, 255, 255, 4);
+                border: 1px solid rgba(255, 255, 255, 7);
+                border-radius: 10px;
+            }
+        """)
+        export_row = QHBoxLayout(export_card)
+        export_row.setContentsMargins(20, 0, 14, 0)
+        export_row.setSpacing(12)
+
+        # Export file button
+        export_text = QVBoxLayout()
+        export_text.setSpacing(3)
+        self._lbl_export = QLabel()
+        self._lbl_export.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        self._lbl_export_desc = QLabel()
+        self._lbl_export_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        export_text.addStretch()
+        export_text.addWidget(self._lbl_export)
+        export_text.addWidget(self._lbl_export_desc)
+        export_text.addStretch()
+
+        self._btn_export_console = QPushButton()
+        self._btn_export_console.setFixedSize(72, 32)
+        self._btn_export_console.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_export_console.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 8);
+                color: #C8C8C8;
+                border: 1px solid rgba(255, 255, 255, 12);
+                border-radius: 7px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 14);
+                color: #FFFFFF;
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 5);
+            }
+        """)
+        self._btn_export_console.clicked.connect(self._handle_export_console)
         layout.addWidget(self._row_dev)
         layout.addSpacing(8)
         layout.addWidget(self._row_EL)
+        layout.addSpacing(8)
+        export_row.addLayout(export_text)
+        export_row.addStretch()
+        export_row.addWidget(self._btn_export_console)
+
+        layout.addWidget(export_card)
         layout.addStretch()
         
         return page
 
     def _toggle_dev_mode(self, new_state):
-        cfg.set_dev_mode(new_state)
+        cfg.set(cfg.Key.DEV_MODE, new_state)
         main_ui = self.parent().parent()
         main_ui.set_dev_console(new_state)
 
     def _toggle_extensive_logging_mode(self, new_state):
-        cfg.set_extensive_logging(new_state)
+        cfg.set(cfg.Key.EXTENSIVE_LOGGING, new_state)
+
+    def _toggle_export_file(self, new_state):
+        cfg.set(cfg.Key.EXPORT_CONSOLE, new_state)
+
+    def _handle_export_console(self):
+        
+        records = getattr(dev_console_handler, 'session_buffer', [])
+
+        log_dir = os.path.join(get_app_dir(), "Logs")
+        os.makedirs(log_dir, exist_ok=True)
+
+        filename = datetime.now().strftime("aurora_console_%Y-%m-%d_%H-%M-%S.aulog")
+        filepath = os.path.join(log_dir, filename)
+
+        formatter = logging.Formatter(
+            '[%(asctime)s] [%(levelname)s] %(message)s',
+            datefmt='%H:%M:%S'
+        )
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(f"--- Aurora Console Export — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n\n")
+                for record in records:
+                    f.write(formatter.format(record) + '\n')
+            self._btn_export_console.setText(t("export_file_done"))
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(2500, lambda: self._btn_export_console.setText(t("export_file_button")))
+        except OSError:
+            self._btn_export_console.setText("Error")

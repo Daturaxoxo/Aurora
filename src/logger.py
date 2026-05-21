@@ -13,7 +13,7 @@ def get_app_dir():
 class ExtensiveLoggingFilter(logging.Filter):
     def filter(self, record):
         if getattr(record, 'el', False):
-            return cfg.get_extensive_logging()
+            return cfg.get(cfg.Key.EXTENSIVE_LOGGING)
         return True
 
 class ErrorTriggeredFileHandler(logging.Handler):
@@ -66,6 +66,7 @@ class DevConsoleHandler(logging.Handler):
         super().__init__(level=logging.DEBUG)
         self._widget = None
         self._signaller = None
+        self.session_buffer: list[logging.LogRecord] = []
         self.formatter = logging.Formatter(
             '[%(asctime)s] [%(levelname)s] %(message)s',
             datefmt='%H:%M:%S'
@@ -98,6 +99,7 @@ class DevConsoleHandler(logging.Handler):
         self._widget = None
 
     def emit(self, record):
+        self.session_buffer.append(record)
         if self._widget is None or self._signaller is None:
             return
         try:

@@ -12,6 +12,10 @@
     "developer_mode_desc": "显示日志控制台以供调试。",
     "extensive_logging": "详细日志",
     "extensive_logging_desc": "允许在控制台中显示更多调试日志。",
+    "export_file_title": "导出到文件",
+    "export_file_desc": "将开发者控制台的输出导出到文本文件。",
+    "export_file_button": "导出",
+    "export_file_done": "已导出!",
     "launch": "启动",
     "launch_running": "运行中...",
     "launch_invalid": "路径无效",
@@ -42,5 +46,10 @@
     "update_new_version": "新版本",
     "update_available_message_a": "Aurora Launcher 有新版本可用！",
     "update_available_message_b": "是否打开 GitHub 并下载最新更新？",
-    "update_available_confirm": "在浏览器中打开"
+    "update_available_confirm": "在浏览器中打开",
+    "settings_tooltip": "设置",
+    "mod_manager_tooltip": "模组管理器",
+    "ko-fi_tooltip": "在 Ko-Fi 上支持 Aurora",
+    "discord_tooltip": "加入 Discord 服务器",
+    "gamebanana_tooltip": "GameBanana 页面"
 }
