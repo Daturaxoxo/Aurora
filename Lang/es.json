@@ -39,5 +39,10 @@
     "update_new_version": "Nueva versión",
     "update_available_message_a": "¡Nueva versión de Aurora Launcher disponible!",
     "update_available_message_b": "¿Quieres abrir GitHub y descargar la última actualización?",
-    "update_available_confirm": "Abrir en el navegador"
+    "update_available_confirm": "Abrir en el navegador",
+    "settings_tooltip": "Opciones",
+    "mod_manager_tooltip": "Gestionar mods",
+    "ko-fi_tooltip": "Apoya a Aurora en Ko-Fi",
+    "discord_tooltip": "Únete al servidor de Discord",
+    "gamebanana_tooltip": "Página de GameBanana"
 }
