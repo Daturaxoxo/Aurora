@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, 
+    QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, QSlider
 )
 from PyQt6.QtCore import Qt
 from src.styles import SETTING_STYLE
@@ -8,6 +8,7 @@ from src import config_manager as cfg
 from src.translator import Translator, t
 from src.logger import dev_console_handler, get_app_dir
 from src.ui.elements import AnimatedToggle
+from src.helpers import ui_scaling
 import os
 from datetime import datetime
 import logging
@@ -192,6 +193,8 @@ class SettingsOverlay(QFrame):
         self._btn_export_console.setText(t("export_file_button"))
         self._row_rpc.set_title(t("discord_rpc"))
         self._row_rpc.set_description(t("discord_rpc_desc"))
+        self._lbl_ui_scale.setText(t("ui_scaling"))
+        self._lbl_ui_scale_desc.setText(t("ui_scaling_desc"))
 
     # Helpers
     def _make_page(self):
@@ -398,16 +401,98 @@ class SettingsOverlay(QFrame):
             checked=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
             on_toggle=self._toggle_cr_mode,
         )
-        layout.addWidget(self._row_cr)
-        layout.addSpacing(8)
-
         self._row_ndl = SettingRow(
             title="No Drive Line",
             description="",
             checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
             on_toggle=self._toggle_ndl_mode,
         )
+        # Remind me to cleanup this ugly mess and write a proper slider row for the UI -Datura
+        scale_card = QFrame()
+        scale_card.setObjectName("ScaleCard")
+        scale_card.setMinimumHeight(68)
+        scale_card.setStyleSheet("""
+            #ScaleCard {
+                background-color: rgba(255, 255, 255, 4);
+                border: 1px solid rgba(255, 255, 255, 7);
+                border-radius: 10px;
+            }
+        """)
+        scale_row = QHBoxLayout(scale_card)
+        scale_row.setContentsMargins(20, 0, 20, 0)
+        scale_row.setSpacing(16)
+        scale_text = QVBoxLayout()
+        scale_text.setSpacing(3)
+        self._lbl_ui_scale = QLabel()
+        self._lbl_ui_scale.setStyleSheet(
+            "color: #E8E8E8; font-size: 14px; font-weight: 500; "
+            "background: transparent; border: none;"
+        )
+        self._lbl_ui_scale_desc = QLabel()
+        self._lbl_ui_scale_desc.setStyleSheet(
+            "color: #707070; font-size: 12px; "
+            "background: transparent; border: none;"
+        )
+        self._lbl_ui_scale_desc.setWordWrap(True)
+        self._lbl_ui_scale_desc.setMaximumWidth(380)
+        self._scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self._scale_slider.setMinimum(50)
+        self._scale_slider.setMaximum(200)
+        self._scale_slider.setSingleStep(25)
+        self._scale_slider.setPageStep(25)
+        self._scale_slider.setTickInterval(25)
+        self._scale_slider.setFixedWidth(160)
+        self._scale_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: rgba(255, 255, 255, 12);
+                border-radius: 2px;
+            }
+            QSlider::sub-page:horizontal {
+                background: rgba(180, 140, 255, 180);
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                width: 14px;
+                height: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+                background: #C8A8FF;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #DFC0FF;
+            }
+        """)
+        saved_scale = cfg.get(cfg.Key.UI_SCALING)
+        if saved_scale is None:
+            saved_scale = 1.0
+        self._scale_slider.setValue(int(round(float(saved_scale) * 100)))
+        self._scale_value_lbl = QLabel(f"{int(round(float(saved_scale) * 100))}%")
+        self._scale_value_lbl.setFixedWidth(36)
+        self._scale_value_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._scale_value_lbl.setStyleSheet(
+            "color: #C8A8FF; font-size: 12px; font-weight: 500; "
+            "background: transparent; border: none;"
+        )
+        self._scale_slider.valueChanged.connect(self._on_scale_slider_moved)
+        self._scale_slider.sliderReleased.connect(self._on_scale_committed)
+
+        layout.addWidget(self._row_cr)
+        layout.addSpacing(6)
+        layout.addSpacing(6)
         layout.addWidget(self._row_ndl)
+        layout.addSpacing(6)
+        scale_text.addStretch()
+        scale_text.addWidget(self._lbl_ui_scale)
+        scale_text.addWidget(self._lbl_ui_scale_desc)
+        layout.addSpacing(6)
+        scale_row.addLayout(scale_text)
+        scale_row.addStretch()
+        scale_row.addWidget(self._scale_value_lbl)
+        scale_row.addWidget(self._scale_slider)
+ 
+        layout.addWidget(scale_card)
+        scale_text.addStretch()
         layout.addStretch()
         return page
 
@@ -417,23 +502,23 @@ class SettingsOverlay(QFrame):
             self.path_display.setText(folder)
             main_ui = self.parent().parent()
             main_ui.current_path = folder
-            cfg.set(cfg.Key.GAME_PATH)
+            cfg.set(cfg.Key.GAME_PATH, folder)
             main_ui.refresh_launch_state()
 
     def _toggle_cr_mode(self, new_state):
-        cfg.set(cfg.Key.CENSORSHIP_REMOVE)
+        cfg.set(cfg.Key.CENSORSHIP_REMOVE, new_state)
         main_ui = self.parent().parent()
         if main_ui.engine:
             main_ui.engine.censorship_removal = new_state
 
     def _toggle_ndl_mode(self, new_state):
-        cfg.set(cfg.Key.NO_DRIVE_LINE)
+        cfg.set(cfg.Key.NO_DRIVE_LINE, new_state)
         main_ui = self.parent().parent()
         if main_ui.engine:
             main_ui.engine.no_drive_line = new_state
 
     def _toggle_rpc(self, new_state):
-        cfg.set(cfg.Key.DISCORD_RPC)
+        cfg.set(cfg.Key.DISCORD_RPC, new_state)
         main_ui = self.parent().parent()
         if new_state:
             from src.discord_rpc import DiscordRPC
@@ -445,6 +530,29 @@ class SettingsOverlay(QFrame):
         else:
             if hasattr(main_ui, 'rpc'):
                 main_ui.rpc.stop()
+
+    def _on_scale_slider_moved(self, value: int):
+        snapped = round(value / 5) * 5 # Snap to the nearest 5 to make it look smooth
+        if self._scale_slider.value() != snapped:
+            self._scale_slider.blockSignals(True)
+            self._scale_slider.setValue(snapped)
+            self._scale_slider.blockSignals(False)
+        self._scale_value_lbl.setText(f"{snapped}%")
+ 
+    def _on_scale_committed(self):
+        value   = self._scale_slider.value()
+        scale_f = round(value / 100, 2)
+ 
+        cfg.set(cfg.Key.UI_SCALING, scale_f)
+ 
+        ok = ui_scaling.apply_scale(scale_f)
+        if not ok:
+            from src.logger import logger
+            logger.warning(
+                f"UI Scaling: failed to write Engine.ini "
+                f"({ui_scaling.ini_path()}). "
+                "Check file permissions."
+            )
 
     # Developer Page
     def _create_developer_page(self):

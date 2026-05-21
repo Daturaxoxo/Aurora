@@ -23,6 +23,7 @@ class Key:
     DISCORD_RPC       = "discord_rpc"
     EXTENSIVE_LOGGING = "extensive_logging"
     EXPORT_CONSOLE    = "export_console"
+    UI_SCALING        = "ui_scaling"
 
 DEFAULTS = {
     Key.GAME_PATH:         "",
@@ -32,6 +33,7 @@ DEFAULTS = {
     Key.NO_DRIVE_LINE:     False,
     Key.DISCORD_RPC:       True,
     Key.EXTENSIVE_LOGGING: False,
+    Key.UI_SCALING:        1.0,
 }
 
 def get_app_dir():
