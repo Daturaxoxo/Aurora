@@ -19,6 +19,17 @@ QPushButton:hover {
     border-radius: 5px;
 }
 
+QToolTip {
+    background-color: #141414;
+    color: #D7D7D7;
+    border: 1px solid #202020;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 6px;
+    opacity: 230;
+}
+
 /* Launch Button */
 #LaunchButton {
     background-color: #141414;

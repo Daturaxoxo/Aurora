@@ -193,12 +193,18 @@ class AuroraUI(QMainWindow):
         self.current_path = current_path
         self.old_pos = None
         self._search_thread = None
+        self.is_valid = validate_path(self.current_path) if self.current_path else False
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(1280, 720)
         self.setStyleSheet(MAIN_STYLE)
         self.setWindowTitle("Aurora Launcher")
         self.setWindowIcon(QIcon(resource_path("Bin/Assets/logo.ico")))
+        
+        # Load saved language and apply
+        Translator.load(cfg.get_language())
+        Translator.language_changed.connect(self.retranslate_ui)
+        self.retranslate_ui()
 
         self.central_widget = QWidget()
         self.central_widget.setObjectName("CentralWidget")
@@ -234,11 +240,6 @@ class AuroraUI(QMainWindow):
         self.settings_menu = SettingsOverlay(self.central_widget)
         self.btn_settings.clicked.connect(self.toggle_settings)
 
-        # Load saved language and apply
-        Translator.load(cfg.get_language())
-        Translator.language_changed.connect(self.retranslate_ui)
-        self.retranslate_ui()
-
         # Apply saved dev mode
         if cfg.get_dev_mode():
             self.set_dev_console(True)
@@ -248,7 +249,6 @@ class AuroraUI(QMainWindow):
 
     # Translation
     def retranslate_ui(self):
-        self.btn_search.setToolTip(t("search_tooltip"))
         self.refresh_launch_state() 
 
     def toggle_mod_manager(self):
@@ -293,6 +293,7 @@ class AuroraUI(QMainWindow):
         self.btn_settings = QPushButton()
         self.btn_settings.setIcon(QIcon(resource_path("Bin/Assets/settings.png")))
         self.btn_settings.setIconSize(QSize(32, 32))
+        self.btn_settings.setToolTip(t("settings_tooltip"))
 
         self.logo = QLabel()
         logo_pix = QPixmap(resource_path("Bin/Assets/logo1024_wn.png"))
@@ -339,21 +340,25 @@ class AuroraUI(QMainWindow):
         self.btn_folder.setIcon(QIcon(resource_path("Bin/Assets/folder.png")))
         self.btn_folder.setIconSize(QSize(42, 42))
         self.btn_folder.clicked.connect(self.toggle_mod_manager)
+        self.btn_folder.setToolTip(t("mod_manager_tooltip"))
 
         self.btn_coffee = QPushButton()
         self.btn_coffee.setIcon(QIcon(resource_path("Bin/Assets/coffee.png")))
         self.btn_coffee.setIconSize(QSize(42, 42))
         self.btn_coffee.clicked.connect(lambda: webbrowser.open("https://ko-fi.com/daturaxoxo"))
+        self.btn_coffee.setToolTip(t("ko-fi_tooltip"))
 
         self.btn_discord = QPushButton()
         self.btn_discord.setIcon(QIcon(resource_path("Bin/Assets/discord.png")))
         self.btn_discord.setIconSize(QSize(42, 42))
         self.btn_discord.clicked.connect(lambda: webbrowser.open("https://discord.gg/565jfeYsbp"))
+        self.btn_discord.setToolTip(t("discord_tooltip"))
 
         self.btn_gamebanana = QPushButton()
         self.btn_gamebanana.setIcon(QIcon(resource_path("Bin/Assets/marketplace.png")))
         self.btn_gamebanana.setIconSize(QSize(42, 42))
         self.btn_gamebanana.clicked.connect(lambda: webbrowser.open("https://gamebanana.com/games/23012"))
+        self.btn_gamebanana.setToolTip(t("gamebanana_tooltip"))
 
         self.btn_search = QPushButton()
         self.btn_search.setObjectName("SearchButton")
@@ -362,12 +367,24 @@ class AuroraUI(QMainWindow):
         self.btn_search.setFixedSize(60, 60)
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._prompt_drive_search)
-        self.btn_search.hide()
+        self.btn_search.setToolTip(t("search_tooltip"))
+        if self.is_valid:
+            self.btn_search.hide()
+        else:
+            self.btn_search.show()
 
         self.btn_launch = QPushButton()
         self.btn_launch.setObjectName("LaunchButton")
         self.btn_launch.setFixedSize(240, 60)
         self.btn_launch.setIconSize(QSize(28, 28))
+        if self.is_valid:
+            self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/checkmark.png")))
+            self.btn_launch.setEnabled(True)
+            self.btn_launch.setText(f"    {t('launch')}")
+        else:
+            self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/cancel.png")))
+            self.btn_launch.setEnabled(False)
+            self.btn_launch.setText(f"    {t('launch_invalid')}")
         self.btn_launch.clicked.connect(self.handle_launch)
 
         bottom_layout.addWidget(self.btn_coffee)
@@ -408,17 +425,23 @@ class AuroraUI(QMainWindow):
             self._overlay.setGeometry(0, 0, 1280, 720)
 
     def refresh_launch_state(self):
-        is_valid = validate_path(self.current_path) if self.current_path else False
-        if is_valid:
-            self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/checkmark.png")))
-            self.btn_launch.setEnabled(True)
-            self.btn_launch.setText(f"    {t('launch')}")
-            self.btn_search.hide()
-        else:
-            self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/cancel.png")))
-            self.btn_launch.setEnabled(False)
-            self.btn_launch.setText(f"    {t('launch_invalid')}")
-            self.btn_search.show()
+        self.is_valid = validate_path(self.current_path) if self.current_path else False
+        if hasattr(self, "btn_launch"):
+            if self.is_valid:
+                self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/checkmark.png")))
+                self.btn_launch.setEnabled(True)
+                self.btn_launch.setText(f"    {t('launch')}")
+            else:
+                self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/cancel.png")))
+                self.btn_launch.setEnabled(False)
+                self.btn_launch.setText(f"    {t('launch_invalid')}")
+                
+        if hasattr(self, "btn_search"):
+            print(self.is_valid)
+            if self.is_valid:
+                self.btn_search.hide()
+            else:
+                self.btn_search.show()
 
     # DRIVE SEARCH
     def _prompt_drive_search(self):
