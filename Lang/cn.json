@@ -53,5 +53,8 @@
     "mod_manager_tooltip": "模组管理器",
     "ko-fi_tooltip": "在 Ko-Fi 上支持 Aurora",
     "discord_tooltip": "加入 Discord 服务器",
-    "gamebanana_tooltip": "GameBanana 页面"
+    "gamebanana_tooltip": "GameBanana 页面",
+    "faq_tooltip": "常见问题页面",
+    "ui_scaling": "UI 缩放",
+    "ui_scaling_desc": "调整游戏内界面缩放（需要重新启动）(鸣谢：Tayuya)"
 }

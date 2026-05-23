@@ -53,5 +53,8 @@
     "mod_manager_tooltip": "Modマネージャー",
     "ko-fi_tooltip": "Ko-FiでAuroraを応援する",
     "discord_tooltip": "Discordサーバーに参加する",
-    "gamebanana_tooltip": "GameBananaのページ"
+    "gamebanana_tooltip": "GameBananaのページ",
+    "faq_tooltip": "FAQページ",
+    "ui_scaling": "UIスケーリング",
+    "ui_scaling_desc": "ゲーム内のインターフェース倍率を調整します（再起動が必要）(クレジット：Tayuya)"
 }

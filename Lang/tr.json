@@ -52,5 +52,8 @@
     "mod_manager_tooltip": "Mod Yönetici",
     "ko-fi_tooltip": "Aurora'yı Ko-Fi'de destekle",
     "discord_tooltip": "Discord sunucusuna katıl",
-    "gamebanana_tooltip": "GameBanana Sayfası"
+    "gamebanana_tooltip": "GameBanana Sayfası",
+    "faq_tooltip": "Soru Sayfası",
+    "ui_scaling": "Arayüz Büyüklüğü",
+    "ui_scaling_desc": "Oyun içi arayüz büyüklüğünü ayarlar (yeniden başlatma gereklidir) (Kaynak: Tayuya)"
 }

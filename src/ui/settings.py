@@ -2,7 +2,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, QSlider
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QIcon
+from src.utils import resource_path
 from src.styles import SETTING_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
@@ -109,9 +111,38 @@ class SettingsOverlay(QFrame):
         self.setStyleSheet(SETTING_STYLE)
         self.hide()
 
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        # Top bar with close button
+        top_bar = QWidget()
+        top_bar.setFixedHeight(44)
+        top_bar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        top_bar_layout = QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(0, 10, 14, 0)
+        top_bar_layout.setSpacing(0)
+        top_bar_layout.addStretch()
+
+        btn_close = QPushButton()
+        btn_close.setIcon(QIcon(resource_path("Bin/Assets/close.png")))
+        btn_close.setIconSize(QSize(24, 24))
+        btn_close.setFixedSize(24, 24)
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close.setStyleSheet(
+            "QPushButton { background: transparent; border: none; }"
+        )
+        btn_close.clicked.connect(self.hide)
+        top_bar_layout.addWidget(btn_close)
+
+        root.addWidget(top_bar)
+
+        # Sidebar + content body
+        body = QWidget()
+        body.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
 
         # Sidebar
         sidebar = QFrame()
@@ -150,8 +181,9 @@ class SettingsOverlay(QFrame):
         self.stack.addWidget(self._create_launcher_page())  # 1
         self.stack.addWidget(self._create_developer_page()) # 2
 
-        root.addWidget(sidebar)
-        root.addWidget(self.stack, 1)
+        body_layout.addWidget(sidebar)
+        body_layout.addWidget(self.stack, 1)
+        root.addWidget(body, 1)
 
         # Connect side buttons
         for i, b in enumerate(self._sidebar_btns):

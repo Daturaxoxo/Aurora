@@ -53,5 +53,8 @@
     "mod_manager_tooltip": "Quản lý Mod",
     "ko-fi_tooltip": "Hãy ủng hộ Aurora trên Ko-Fi",
     "discord_tooltip": "Tham gia máy chủ Discord",
-    "gamebanana_tooltip": "Trang GameBanana"
+    "gamebanana_tooltip": "Trang GameBanana",
+    "faq_tooltip": "Trang câu hỏi thường gặp",
+    "ui_scaling": "Tỷ lệ giao diện",
+    "ui_scaling_desc": "Điều chỉnh tỷ lệ giao diện trong trò chơi (yêu cầu khởi động lại) (Người thực hiện: Tayuya)"
 }

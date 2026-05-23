@@ -325,9 +325,7 @@ class AuroraEngine:
         ht_procs = [p for p in psutil.process_iter(['name']) if p.name().lower() == "htgame.exe"]
         if ht_procs:
             psutil.wait_procs(ht_procs, timeout=None)
-            logger.info("Used ht_procs method")
         else:
-            logger.info("ht_procs not active, falling back to the old method")
             while True:
                 time.sleep(2)
                 active = {p.name().lower() for p in psutil.process_iter(['name'])}

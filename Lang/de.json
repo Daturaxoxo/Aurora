@@ -53,5 +53,8 @@
     "mod_manager_tooltip": "Mod-Manager",
     "ko-fi_tooltip": "Unterstütze Aurora auf Ko-Fi",
     "discord_tooltip": "Tritt dem Discord-Server bei",
-    "gamebanana_tooltip": "GameBanana-Seite"
+    "gamebanana_tooltip": "GameBanana-Seite",
+    "faq_tooltip": "FAQ-Seite",
+    "ui_scaling": "UI-Skalierung",
+    "ui_scaling_desc": "Passt die Skalierung der Benutzeroberfläche im Spiel an (Neustart erforderlich) (Credits: Tayuya)"
 }

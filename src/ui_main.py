@@ -25,6 +25,7 @@ from src.ui.dev_console import DevConsolePanel
 from src.ui.widgets import BackgroundWidget, OverlayWidget
 from src.ui.notification import ToastNotification
 from src.ui.mod_manager import ModManagerOverlay
+from src.ui.faq import FaqOverlay
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
@@ -114,6 +115,9 @@ class AuroraUI(QMainWindow):
         self.settings_menu = SettingsOverlay(self.central_widget)
         self.btn_settings.clicked.connect(self.toggle_settings)
 
+        self.faq_overlay = FaqOverlay(self.central_widget)
+        self.btn_faq.clicked.connect(self.toggle_faq)
+
         if cfg.get(cfg.Key.DEV_MODE):
             self.set_dev_console(True)
 
@@ -145,6 +149,7 @@ class AuroraUI(QMainWindow):
             "btn_discord":   "discord_tooltip",
             "btn_gamebanana":"gamebanana_tooltip",
             "btn_search":    "search_tooltip",
+            "btn_faq":    "faq_tooltip",
         }
         for attr, key in buttons.items():
             btn = getattr(self, attr, None)
@@ -197,9 +202,9 @@ class AuroraUI(QMainWindow):
         self.btn_settings.setToolTip(t("settings_tooltip"))
 
         self.btn_faq = QPushButton()
-        self.btn_faq.setIcon(QIcon(resource_path("Bin/Assets/favourite.png")))
+        self.btn_faq.setIcon(QIcon(resource_path("Bin/Assets/question.png")))
         self.btn_faq.setIconSize(QSize(32, 32))
-        self.btn_faq.setToolTip(t("settings_tooltip"))
+        self.btn_faq.setToolTip(t("faq_tooltip"))
 
         self.logo = QLabel()
         logo_pix = QPixmap(resource_path("Bin/Assets/logo1024_wn.png"))
@@ -312,6 +317,13 @@ class AuroraUI(QMainWindow):
             self.settings_menu.raise_()
         else:
             self.settings_menu.hide()
+
+    def toggle_faq(self):
+        if self.faq_overlay.isHidden():
+            self.faq_overlay.show()
+            self.faq_overlay.raise_()
+        else:
+            self.faq_overlay.hide()
 
     def set_dev_console(self, enabled: bool):
         console_h = self._dev_console.height()

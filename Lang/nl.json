@@ -54,6 +54,7 @@
     "ko-fi_tooltip": "Steun Aurora op Ko-fi",
     "discord_tooltip": "Deelnemen aan de Discord Server",
     "gamebanana_tooltip": "GameBanana Pagina",
+    "faq_tooltip": "FAQ-pagina",
     "ui_scaling":      "UI-schaling",
     "ui_scaling_desc": "Past de schaal van de interface in het spel aan (herstart vereist) (Credits: Tayuya)"
 }
