@@ -7,8 +7,9 @@ from src.translator import Translator, t
 
 @dataclass
 class ModEntry:
-    folder_name: str      # Actual name on disk ("disabled_MintMod")
-    display_name: str     # Name shown in UI ("MintMod")
+    folder_name: str
+    display_name: str
+    folder_path: Path = None
     version: str = t("mod_manager_unknown")
     author: str = t("mod_manager_unknown")
     support_link: str = ""
@@ -27,22 +28,27 @@ class ModManager:
         if not self.mods_dir.exists():
             return mods
 
-        for folder in self.mods_dir.iterdir():
-            if not folder.is_dir():
+        seen_paths = set()
+
+        # Find all folders that contain a .pak or .pak.disabled file
+        for pak_file in list(self.mods_dir.rglob("*.pak")) + list(self.mods_dir.rglob("*.pak.disabled")):
+            folder = pak_file.parent
+            resolved = folder.resolve()
+            if resolved in seen_paths:
                 continue
-            
-            # Mod Folder Check: Must have at least one .pak file
-            has_pak = any(f.suffix.lower() == ".pak" for f in folder.iterdir())
-            if not has_pak:
-                continue
+            seen_paths.add(resolved)
 
             raw_name = folder.name
-            is_enabled = not raw_name.startswith("disabled_")
-            clean_name = raw_name.replace("disabled_", "").replace("_P", "")
+            # A folder is disabled only if ALL its pak files are .pak.disabled
+            pak_files = list(folder.glob("*.pak"))
+            disabled_files = list(folder.glob("*.pak.disabled"))
+            is_enabled = len(pak_files) > 0  # has at least one active .pak
+            clean_name = raw_name.replace("_P", "")
 
             mod_data = {
                 "folder_name": raw_name,
                 "display_name": clean_name,
+                "folder_path": folder,
                 "is_enabled": is_enabled,
                 "version": t("mod_manager_unknown"),
                 "author": t("mod_manager_unknown"),
@@ -71,35 +77,45 @@ class ModManager:
         # Alphabetical sorting based on folder name
         return sorted(mods, key=lambda x: x.display_name.lower())
 
-    def toggle_mod(self, mod: ModEntry) -> str:
-        old_path = self.mods_dir / mod.folder_name
-        
-        if mod.is_enabled: # Disabled Clause
-            new_name = f"disabled_{mod.folder_name}"
-        else: # Enabled Clause
-            new_name = mod.folder_name.replace("disabled_", "")
+    def toggle_mod(self, mod: ModEntry) -> bool:
+        folder = mod.folder_path
+        if folder is None or not folder.exists():
+            logger.error(f"Cannot toggle mod: folder not found for {mod.folder_name}")
+            return False
 
-        new_path = self.mods_dir / new_name
-        
         try:
-            if new_path.exists():
-                logger.error(f"Cannot toggle mod: {new_name} already exists!")
-                return None
+            if mod.is_enabled:
+                # Disable: rename every .pak -> .pak.disabled
+                targets = list(folder.glob("*.pak"))
+                if not targets:
+                    logger.error(f"Cannot disable mod: no .pak files found in {folder.name}")
+                    return False
+                for pak in targets:
+                    new_path = pak.with_suffix(pak.suffix + ".disabled")
+                    if new_path.exists():
+                        logger.error(f"Cannot disable: {new_path.name} already exists!")
+                        return False
+                    pak.rename(new_path)
+                logger.info(f"Mod disabled: renamed {len(targets)} file(s) in {folder.name}", extra={"el": True})
+            else:
+                # Enable: rename every .pak.disabled -> .pak
+                targets = list(folder.glob("*.pak.disabled"))
+                if not targets:
+                    logger.error(f"Cannot enable mod: no .pak.disabled files found in {folder.name}")
+                    return False
+                for disabled in targets:
+                    # Strip the trailing .disabled suffix
+                    new_path = disabled.with_suffix("")  # e.g. Foo.pak.disabled -> Foo.pak
+                    if new_path.exists():
+                        logger.error(f"Cannot enable: {new_path.name} already exists!")
+                        return False
+                    disabled.rename(new_path)
+                logger.info(f"Mod enabled: renamed {len(targets)} file(s) in {folder.name}", extra={"el": True})
 
-            try:
-                old_path.rename(new_path)
-            except PermissionError:
-                import subprocess
-                result = subprocess.run(
-                    f'rename "{old_path}" "{new_path.name}"',
-                    shell=True, capture_output=True, text=True
-                )
-                if result.returncode != 0:
-                    logger.error(f"Shell rename also failed: {result.stderr.strip()}")
-                    return None
-
-            logger.info(f"Mod toggled: {mod.folder_name} -> {new_name}", extra={"el": True})
-            return new_name
+            return True
+        except PermissionError as e:
+            logger.error(f"Permission error toggling mod {folder.name}: {e}")
+            return False
         except Exception as e:
             logger.error(f"FileSystem error toggling mod: {e}")
-            return None
+            return False

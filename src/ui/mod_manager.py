@@ -17,7 +17,10 @@ from src.translator import t
 from src.engine import get_app_dir
 from src.ui.elements import ModCard
 
-class InstallZone(QFrame):
+
+class _BaseInstallZone(QFrame):
+    """Shared base for install drop zones."""
+
     files_installed = pyqtSignal(list)
 
     STYLE = """
@@ -52,7 +55,7 @@ class InstallZone(QFrame):
         }
     """
 
-    def __init__(self, mods_dir: Path, parent=None):
+    def __init__(self, mods_dir: Path, icon_path: str, title: str, choose_label: str, parent=None):
         super().__init__(parent)
         self.mods_dir = mods_dir
         self.setObjectName("InstallZone")
@@ -66,11 +69,12 @@ class InstallZone(QFrame):
         layout.setSpacing(4)
         layout.setContentsMargins(16, 12, 16, 12)
 
-        icon_lbl = QLabel("🗎")
+        icon_lbl = QLabel()
         icon_lbl.setObjectName("InstallIcon")
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setPixmap(QIcon(resource_path(icon_path)).pixmap(32, 32))
 
-        title_lbl = QLabel(t("install_zone_title") or "Install mods ")
+        title_lbl = QLabel(title)
         title_lbl.setObjectName("InstallTitle")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_lbl.setWordWrap(True)
@@ -79,7 +83,7 @@ class InstallZone(QFrame):
         sub_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub_row.setSpacing(4)
 
-        choose_btn = QPushButton(t("install_zone_choose") or "choose your files")
+        choose_btn = QPushButton(choose_label)
         choose_btn.setObjectName("InstallChooseLink")
         choose_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         choose_btn.clicked.connect(self._open_file_dialog)
@@ -95,23 +99,11 @@ class InstallZone(QFrame):
             self._open_file_dialog()
         super().mousePressEvent(event)
 
-    # File / Folder dialog
     def _open_file_dialog(self):
-        # Create the dialog instance
-        dialog = QFileDialog(self, "Select mod files or folders") # I CBA having to translate this to every language
-        dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
-        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)
-        dialog.setNameFilters([
-            "Mod files (*.zip *.7z *.rar)",
-            "All files (*)"
-        ])
-        
-        if dialog.exec():
-            selected_paths = [Path(p) for p in dialog.selectedFiles()]
-            if selected_paths:
-                self._install_paths(selected_paths)
+        raise NotImplementedError
 
-    # Install Logic
+    # ------------------------------------------------------------------ helpers
+
     def _unique_dest(self, dest: Path) -> Path:
         counter = 2
         original = dest
@@ -143,6 +135,56 @@ class InstallZone(QFrame):
 
         if installed:
             self.files_installed.emit(installed)
+
+
+class ZipInstallZone(_BaseInstallZone):
+    """Drop zone for archive files (ZIP, RAR, 7Z)."""
+
+    def __init__(self, mods_dir: Path, parent=None):
+        super().__init__(
+            mods_dir=mods_dir,
+            icon_path="Bin/Assets/install_zip.png",
+            title=t("install_zone_title_zip") or "Install mod archives",
+            choose_label=t("install_zone_choose_zip") or "choose ZIP / RAR / 7Z files",
+            parent=parent,
+        )
+
+    def _open_file_dialog(self):
+        dialog = QFileDialog(self, "Select mod archive files")
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+        dialog.setNameFilters([
+            "Mod archives (*.zip *.7z *.rar)",
+            "All files (*)",
+        ])
+
+        if dialog.exec():
+            selected_paths = [Path(p) for p in dialog.selectedFiles()]
+            if selected_paths:
+                self._install_paths(selected_paths)
+
+
+class FolderInstallZone(_BaseInstallZone):
+    """Drop zone for mod folders."""
+
+    def __init__(self, mods_dir: Path, parent=None):
+        super().__init__(
+            mods_dir=mods_dir,
+            icon_path="Bin/Assets/install_folder.png",
+            title=t("install_zone_title_folder") or "Install mod folder",
+            choose_label=t("install_zone_choose_folder") or "choose a folder",
+            parent=parent,
+        )
+
+    def _open_file_dialog(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select mod folder",
+            "",
+        )
+
+        if folder:
+            self._install_paths([Path(folder)])
+
 
 class ModManagerOverlay(QFrame):
     def __init__(self, parent, mod_manager):
@@ -258,12 +300,21 @@ class ModManagerOverlay(QFrame):
         self.scroll.setWidget(self.list_container)
 
         mods_path = get_mods_path()
-        self.install_zone = InstallZone(mods_path, self)
-        self.install_zone.files_installed.connect(self._on_files_installed)
 
-        self.list_layout.addWidget(self.install_zone)
+        zones_row = QHBoxLayout()
+        zones_row.setSpacing(12)
+
+        self.zip_install_zone = ZipInstallZone(mods_path, self)
+        self.zip_install_zone.files_installed.connect(self._on_files_installed)
+
+        self.folder_install_zone = FolderInstallZone(mods_path, self)
+        self.folder_install_zone.files_installed.connect(self._on_files_installed)
+
+        zones_row.addWidget(self.zip_install_zone)
+        zones_row.addWidget(self.folder_install_zone)
 
         body_layout.addWidget(search_row)
+        body_layout.addLayout(zones_row)
         body_layout.addWidget(self.scroll, 1)
 
         root.addWidget(body, 1)
@@ -294,8 +345,9 @@ class ModManagerOverlay(QFrame):
 
     def refresh_list(self):
         for i in reversed(range(self.list_layout.count())):
-            child = self.list_layout.itemAt(i).widget()
-            if child and child != self.install_zone:
+            item = self.list_layout.itemAt(i)
+            child = item.widget()
+            if child:
                 child.deleteLater()
 
         search_text = self.search_bar.text().lower()
@@ -307,7 +359,7 @@ class ModManagerOverlay(QFrame):
 
         self._update_mod_count()
         if not visible:
-            if self.list_layout.count() == 1: # Only InstallZone exists
+            if self.list_layout.count() == 0:
                 empty = QLabel("No mods found" if search_text else "No mods installed")
                 empty.setObjectName("EmptyLabel")
                 empty.setAlignment(Qt.AlignmentFlag.AlignCenter)

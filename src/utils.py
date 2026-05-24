@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
 import sys
-
 import urllib
 import urllib.request
-
-from engine import get_app_dir
+from src.engine import get_app_dir
 from src.logger import logger
 from src import config_manager as cfg
 

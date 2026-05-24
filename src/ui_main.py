@@ -253,7 +253,7 @@ class AuroraUI(QMainWindow):
         )
 
         self.btn_folder = QPushButton()
-        self.btn_folder.setIcon(QIcon(resource_path("Bin/Assets/folder.png")))
+        self.btn_folder.setIcon(QIcon(resource_path("Bin/Assets/mod_manager.png")))
         self.btn_folder.setIconSize(QSize(42, 42))
         self.btn_folder.clicked.connect(self.toggle_mod_manager)
         self.btn_folder.setToolTip(t("mod_manager_tooltip"))

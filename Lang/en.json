@@ -58,14 +58,16 @@
     "ui_scaling": "UI Scaling",
     "ui_scaling_desc": "Adjusts the in-game interface scale (restart required) (Credits: Tayuya)",
     "hard_links": "Use Hard Links",
-    "hard_links_desc": "Use hard links/junctions for handling mods. (NOT RECOMMENDED)"
+    "hard_links_desc": "Use hard links/junctions for handling mods. (NOT RECOMMENDED)",
     "hide_uid_title": "Hide UID",
     "hide_uid_desc": "Hides your User ID text in-game. (Credits: Rokkudayo)",
     "hide_dots_title": "Hide Red Dots",
     "hide_dots_desc": "Hides the notification red dots in-game (Credits: rzwei)",
-    "install_zone_title": "Install Mods",
-    "install_zone_choose": "Choose your files",
+    "install_zone_title_zip": "Install Mod from ZIP",
+    "install_zone_choose_zip": "Choose ZIP files",
+    "install_zone_title_folder": "Install Mod from folder",
+    "install_zone_choose_folder": "Choose a folder",
     "mod_delete_title": "Deleting Mod",
     "mod_delete_message": "Are you sure you want to delete the following mod?",
-    "faq_tooltip": "FAQ Page",
+    "faq_tooltip": "FAQ Page"
 }

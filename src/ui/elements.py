@@ -13,6 +13,7 @@ from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 from src.path_finder import get_app_dir
+import shutil
 
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
@@ -224,19 +225,21 @@ class ModCard(QFrame):
         )
 
     def _delete_mod(self):
-        import shutil
         try:
-            folder_name = self.mod.folder_name
-            candidate = self.manager.mods_dir / folder_name
-            if not candidate.exists():
-                bare = Path(folder_name).name
-                candidate = self.manager.mods_dir / bare
-            if not candidate.exists():
+            candidate = (
+                self.mod.folder_path
+                if getattr(self.mod, "folder_path", None)
+                else self.manager.mods_dir / self.mod.folder_name
+            )
+            if not candidate or not candidate.exists():
+                logger.warning(f"Delete target not found for mod '{self.mod.display_name}'")
                 return
-            if candidate.is_dir():
-                shutil.rmtree(candidate)
-            else:
-                candidate.unlink()
+            shutil.rmtree(candidate) if candidate.is_dir() else candidate.unlink()
+            logger.info(f"Deleted mod: {candidate}", extra={"el": True})
+            parent = candidate.parent
+            if parent != self.manager.mods_dir and parent.exists() and not any(parent.iterdir()):
+                parent.rmdir()
+                logger.info(f"Removed empty group folder: {parent.name}", extra={"el": True})
             self.parent_overlay.refresh_list()
         except Exception as e:
             logger.error(f"Failed to delete mod '{self.mod.display_name}': {e}")

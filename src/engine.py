@@ -230,10 +230,15 @@ class AuroraEngine:
 
             logger.info("Deploying enabled mods via individual junctions...", extra={'el': True})
             pak_dir = self._pak_base.parent
-            folders = [
-                f for f in self.mods_source.iterdir()
-                if f.is_dir() and not f.name.startswith("disabled_")
-            ]
+            seen_folders = set()
+            folders = []
+            for pak_file in self.mods_source.rglob("*.pak"):
+                folder = pak_file.parent
+                resolved = folder.resolve()
+                if resolved in seen_folders:
+                    continue
+                seen_folders.add(resolved)
+                folders.append(folder)
 
             deployed_count = 0
             failed_mods = []
@@ -254,7 +259,6 @@ class AuroraEngine:
             for addon in PAK_ADDONS:
                 if not cfg.get(addon.config_key):
                     continue
-                logger.info(f"PAK Addon '{addon.folder_name}' is enabled, copying files...", extra={'el': True})
                 missing = [f for f in addon.files if not (self._builtins_source / f).exists()]
                 if missing:
                     logger.error(f"PAK Addon '{addon.base_name}': missing source file(s) in Bin/Builtins: {missing}. Skipping.", extra={"el": True})
