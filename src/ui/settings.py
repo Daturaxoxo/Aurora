@@ -1,5 +1,8 @@
+from pathlib import Path
+import shutil
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
+    QLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, QSlider
 )
 from PyQt6.QtCore import Qt, QSize
@@ -240,14 +243,26 @@ class SettingsOverlay(QFrame):
         self._row_rpc.set_description(t("discord_rpc_desc"))
         self._lbl_ui_scale.setText(t("ui_scaling"))
         self._lbl_ui_scale_desc.setText(t("ui_scaling_desc"))
+        self._row_hard_links.set_title(t("hard_links"))
+        self._row_hard_links.set_description(t("hard_links_desc"))
 
     # Helpers
     def _make_page(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        
         page = QWidget()
+        page.setStyleSheet("QWidget { background: transparent; }")
         layout = QVBoxLayout(page)
         layout.setContentsMargins(32, 32, 32, 32)
         layout.setSpacing(0)
-        return page, layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        scroll.setWidget(page)
+        
+        return scroll, layout
 
     def _section_label(self, text):
         lbl = QLabel(text.upper())
@@ -477,6 +492,17 @@ class SettingsOverlay(QFrame):
         layout.addWidget(path_card)
         layout.addSpacing(24)
 
+        # Mods
+        layout.addWidget(self._section_label("Mods"))
+        layout.addSpacing(10)
+        self._row_hard_links = SettingRow(
+            title="Use Hard Links",
+            description="",
+            checked=cfg.get(cfg.Key.USE_HARD_LINKS),
+            on_toggle=self._toggle_hard_links,
+        )
+        layout.addWidget(self._row_hard_links)
+
         layout.addStretch()
 
         return page
@@ -501,6 +527,27 @@ class SettingsOverlay(QFrame):
         engine = self.parent().parent().engine
         if engine:
             engine.no_drive_line = new_state
+            
+    def _toggle_hard_links(self, new_state):
+        from src.logger import logger
+        logger.info("Toggling hard links...")
+        cfg.set(cfg.Key.USE_HARD_LINKS, new_state)
+        nte_mod_folder = Path(cfg.get(cfg.Key.GAME_PATH) + "/Client/WindowsNoEditor/HT/Content/Paks/AuroraMods")
+        aurora_mod_folder = Path(get_app_dir() + "/Mods")
+        logger.info(f"Mod folder: {aurora_mod_folder}")
+        logger.info(f"NTE mod folder: {nte_mod_folder}")
+        if new_state:
+            if nte_mod_folder.exists():
+                logger.info("Moving files from NTE mod folder to Aurora mod folder...")
+                for file in nte_mod_folder.iterdir():
+                    shutil.move(file, aurora_mod_folder)
+                shutil.rmtree(nte_mod_folder)
+        else:
+            logger.info("Moving files from Aurora mod folder to NTE mod folder...")
+            nte_mod_folder.mkdir(exist_ok=True)
+            if aurora_mod_folder.exists():
+                for file in aurora_mod_folder.iterdir():
+                    shutil.move(file, nte_mod_folder)
 
     def _toggle_rpc(self, new_state):
         self._toggle(cfg.Key.DISCORD_RPC, new_state)

@@ -55,9 +55,10 @@
     "ko-fi_tooltip": "Support Aurora on Ko-Fi",
     "discord_tooltip": "Join the Discord Server",
     "gamebanana_tooltip": "GameBanana Page",
-    "faq_tooltip": "FAQ Page",
-    "ui_scaling":      "UI Scaling",
+    "ui_scaling": "UI Scaling",
     "ui_scaling_desc": "Adjusts the in-game interface scale (restart required) (Credits: Tayuya)",
+    "hard_links": "Use Hard Links",
+    "hard_links_desc": "Use hard links/junctions for handling mods. (NOT RECOMMENDED)"
     "hide_uid_title": "Hide UID",
     "hide_uid_desc": "Hides your User ID text in-game. (Credits: Rokkudayo)",
     "hide_dots_title": "Hide Red Dots",
@@ -65,5 +66,6 @@
     "install_zone_title": "Install Mods",
     "install_zone_choose": "Choose your files",
     "mod_delete_title": "Deleting Mod",
-    "mod_delete_message": "Are you sure you want to delete the following mod?"
+    "mod_delete_message": "Are you sure you want to delete the following mod?",
+    "faq_tooltip": "FAQ Page",
 }

@@ -1,3 +1,4 @@
+from itertools import repeat
 import os
 import sys
 import shutil
@@ -26,7 +27,16 @@ class AuroraEngine:
         # IMPORTANT: We use absolute paths and not relative paths because using "./" will break if the application is launched from a different directory, like a desktop shortcut for example.
         app_dir = Path(get_app_dir())
         self.bin_path = app_dir / "Bin"
-        self.mods_source = app_dir / "Mods"
+        
+        nte_mod_folder = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
+        aurora_mod_folder = app_dir / "Mods"
+        if cfg.get(cfg.Key.USE_HARD_LINKS):
+            self.mods_source = aurora_mod_folder
+        else:
+            self.mods_source = nte_mod_folder
+            
+        self._win64 = self.game_path / "Client/WindowsNoEditor/HT/Binaries/Win64"
+        self._pak_base = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/~Aurora"
 
         self.version = detect_version(self.game_path)
         self._vpaths = get_version_paths(self.game_path, self.version)
@@ -55,21 +65,21 @@ class AuroraEngine:
             for fname in addon.files
         }
 
-    def _remove_junction(self, path):
-        result = subprocess.run(
-            f'rmdir "{path}"',
-            shell=True, capture_output=True, text=True
-        )
-        if result.returncode == 0:
-            return True
+    def _remove_file_or_dir(self, path):
+        if os.remove(path) == OSError:
+            logger.warning(f"Failed to remove file: {path}", extra={'el': True})
+            shutil.rmtree(path, ignore_errors=True)
         
-        # If plain rmdir fails, use the /S /Q fallback method.
-        result = subprocess.run(
-            f'rmdir /S /Q "{path}"',
-            shell=True, capture_output=True, text=True
-        )
-        return result.returncode == 0
-
+        return True
+    
+    def _create_hard_link(self, folder, pak_dir):
+        target = pak_dir / f"zz_{folder.name}"
+        if os.path.lexists(target):
+            self._remove_file_or_dir(target)
+        cmd = f'mklink /J "{target}" "{folder.resolve()}"'
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return folder.name, result.returncode == 0, result.stderr.strip()
+    
     def _kill_nte(self):
         targets = [
             self._vpaths.launcher_process,
@@ -97,6 +107,7 @@ class AuroraEngine:
                     time.sleep(1)
 
     def sanitize(self, kill_first: bool):
+        pak_dir = self._pak_base.parent
         logger.info("Starting system sanitation...", extra={"el": True})
         if kill_first:
             self._kill_nte()
@@ -112,7 +123,7 @@ class AuroraEngine:
                     path.unlink()
                     logger.info(f"Removed file: {key} ({path})", extra={'el': True})
                 elif path.is_dir() or os.path.islink(path):
-                    if self._remove_junction(path):
+                    if self._remove_file_or_dir(path):
                         logger.info(f"Removed junction/directory: {key} ({path})", extra={'el': True})
                     else:
                         logger.warning(f"Sanitization method one failed, using fallback...", extra={'el': True})
@@ -126,20 +137,31 @@ class AuroraEngine:
                     logger.error(f"Could not remove {key}: {fallback_err}")
 
         # Cleaning up PAKs
-        pak_dir = self._pak_base.parent
         if pak_dir.exists():
             for item in pak_dir.iterdir():
                 if item.name.startswith("zz_") and (item.is_dir() or os.path.islink(item)):
-                    if self._remove_junction(item):
-                        logger.info(f"Removed mod junction: {item.name}", extra={'el': True})
+                    if self._remove_file_or_dir(item):
+                        logger.info(f"Removed mod: {item.name}", extra={'el': True})
                     else:
-                        logger.warning(f"Failed to remove mod junction: {item.name}")
+                        logger.warning(f"Failed to remove mod: {item.name}")
 
     def inject(self):
         logger.info("Injecting into NTE...")
         logger.info(f"Game path:  {self.game_path}", extra={'el': True})
         logger.info(f"Bin path:   {self.bin_path}", extra={'el': True})
         logger.info(f"Mods path:  {self.mods_source}", extra={'el': True})
+   
+        nte_mod_folder = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
+        aurora_mod_folder = Path(get_app_dir() + "/Mods")
+        if cfg.get(cfg.Key.USE_HARD_LINKS):
+            if Path.exists(nte_mod_folder):
+                for file in nte_mod_folder.iterdir():
+                    shutil.move(file, aurora_mod_folder)
+                    shutil.rmtree(nte_mod_folder)
+        else:
+            nte_mod_folder.mkdir(exist_ok=True)
+            for file in aurora_mod_folder.iterdir():
+                shutil.move(file, nte_mod_folder)
 
         # Bin file validation.
         required_bin_files = [
@@ -212,23 +234,18 @@ class AuroraEngine:
                 f for f in self.mods_source.iterdir()
                 if f.is_dir() and not f.name.startswith("disabled_")
             ]
-            def _junction(folder):
-                target = pak_dir / f"zz_{folder.name}"
-                if os.path.lexists(target):
-                    self._remove_junction(target)
-                cmd = f'mklink /J "{target}" "{folder.resolve()}"'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                return folder.name, result.returncode == 0, result.stderr.strip()
+
             deployed_count = 0
             failed_mods = []
             with ThreadPoolExecutor() as ex:
-                for name, success, err in ex.map(_junction, folders):
-                    if success:
-                        deployed_count += 1
-                        logger.info(f"Junctioned mod: zz_{name}", extra={'el': True})
-                    else:
-                        failed_mods.append(name)
-                        logger.error(f"Failed to junction mod {name}: {err}")
+                if cfg.get(cfg.Key.USE_HARD_LINKS):
+                    for name, success, err in ex.map(self._create_hard_link, folders, repeat(pak_dir)):
+                        if success:
+                            deployed_count += 1
+                            logger.info(f"Junctioned mod: zz_{name}", extra={'el': True})
+                        else:
+                            failed_mods.append(name)
+                            logger.error(f"Failed to junction mod {name}: {err}")
 
             logger.info(f"Successfully deployed {deployed_count} mods via junctions.")
             if failed_mods:

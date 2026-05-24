@@ -54,9 +54,10 @@
     "ko-fi_tooltip": "Apoya a Aurora en Ko-Fi",
     "discord_tooltip": "Únete al servidor de Discord",
     "gamebanana_tooltip": "Página de GameBanana",
-    "faq_tooltip": "Página de preguntas frecuentes",
-    "ui_scaling": "Escalado de la interfaz",
-    "ui_scaling_desc": "Ajusta la escala de la interfaz del juego (requiere reinicio) (Créditos: Tayuya)",
+    "ui_scaling": "Escala de la interfaz",
+    "ui_scaling_desc": "Ajusta la escala de la interfaz del juego (requiere reiniciar) (Créditos: Tayuya)",
+    "hard_links": "Usar enlaces duros",
+    "hard_links_desc": "Usar enlaces duros/uniones para gestionar mods. (NO RECOMENDADO)",
     "hide_uid_title": "Ocultar UID",
     "hide_uid_desc": "Oculta el texto de tu ID de usuario en el juego. (Créditos: Rokkudayo)",
     "hide_dots_title": "Ocultar puntos rojos",
@@ -64,5 +65,6 @@
     "install_zone_title": "Instalar mods",
     "install_zone_choose": "Elige tus archivos",
     "mod_delete_title": "Eliminar mod",
-    "mod_delete_message": "¿Estás seguro de que quieres eliminar el siguiente mod?"
+    "mod_delete_message": "¿Estás seguro de que quieres eliminar el siguiente mod?",
+    "faq_tooltip": "Página de preguntas frecuentes",
 }
