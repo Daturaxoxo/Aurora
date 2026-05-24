@@ -28,6 +28,7 @@ from src.ui.dev_console import DevConsolePanel
 from src.ui.widgets import BackgroundWidget, OverlayWidget
 from src.ui.notification import ToastNotification
 from src.ui.mod_manager import ModManagerOverlay
+from src.ui.faq import FaqOverlay
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
@@ -46,10 +47,10 @@ class GameMonitorThread(QThread):
                 self.access_denied.emit()
                 return
             if result:
-                launcher_path = self.engine.game_path / "NTEGlobalLauncher.exe"
+                launcher_path = self.engine.game_path / self.engine._vpaths.launcher_process
                 logger.info("Launcher started, waiting for manual game start. (HTGame.exe)", extra={"el": True})
                 subprocess.Popen([str(launcher_path)], cwd=str(self.engine.game_path))
-                self.engine.on_launcher_detected = lambda: self.launcher_detected.emit()  # <-- ADD
+                self.engine.on_launcher_detected = lambda: self.launcher_detected.emit()
                 self.engine.on_game_started = lambda: self.game_started.emit()
                 self.engine.monitor_game()
                 logger.info("Session was ended successfully.")
@@ -117,6 +118,9 @@ class AuroraUI(QMainWindow):
         self.settings_menu = SettingsOverlay(self.central_widget)
         self.btn_settings.clicked.connect(self.toggle_settings)
 
+        self.faq_overlay = FaqOverlay(self.central_widget)
+        self.btn_faq.clicked.connect(self.toggle_faq)
+
         if cfg.get(cfg.Key.DEV_MODE):
             self.set_dev_console(True)
 
@@ -148,6 +152,7 @@ class AuroraUI(QMainWindow):
             "btn_discord":   "discord_tooltip",
             "btn_gamebanana":"gamebanana_tooltip",
             "btn_search":    "search_tooltip",
+            "btn_faq":    "faq_tooltip",
         }
         for attr, key in buttons.items():
             btn = getattr(self, attr, None)
@@ -200,9 +205,9 @@ class AuroraUI(QMainWindow):
         self.btn_settings.setToolTip(t("settings_tooltip"))
 
         self.btn_faq = QPushButton()
-        self.btn_faq.setIcon(QIcon(resource_path("Bin/Assets/favourite.png")))
+        self.btn_faq.setIcon(QIcon(resource_path("Bin/Assets/question.png")))
         self.btn_faq.setIconSize(QSize(32, 32))
-        self.btn_faq.setToolTip(t("settings_tooltip"))
+        self.btn_faq.setToolTip(t("faq_tooltip"))
 
         self.logo = QLabel()
         logo_pix = QPixmap(resource_path("Bin/Assets/logo1024_wn.png"))
@@ -319,6 +324,13 @@ class AuroraUI(QMainWindow):
             self.settings_menu.raise_()
         else:
             self.settings_menu.hide()
+
+    def toggle_faq(self):
+        if self.faq_overlay.isHidden():
+            self.faq_overlay.show()
+            self.faq_overlay.raise_()
+        else:
+            self.faq_overlay.hide()
 
     def set_dev_console(self, enabled: bool):
         console_h = self._dev_console.height()
@@ -447,7 +459,6 @@ class AuroraUI(QMainWindow):
         hwnd_result = [None]
         
         def enum_cb(hwnd, _):
-            # Check 1. Basic Visibility check
             if not ctypes.windll.user32.IsWindowVisible(hwnd):
                 return True
                 
@@ -464,10 +475,7 @@ class AuroraUI(QMainWindow):
                 buf = ctypes.create_unicode_buffer(length + 1)
                 ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
                 title = buf.value.lower()
-                
-                # Filter specifically for NTE
                 if any(name in title for name in ["neverness", "htgame", "nte"]):
-                    # Check 3. Final Sanity: Does it have an actual area?
                     rect = ctypes.wintypes.RECT()
                     ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
                     if (rect.right - rect.left) > 100:
@@ -490,15 +498,10 @@ class AuroraUI(QMainWindow):
 
         hwnd = self._get_game_hwnd()
         if hwnd:
-            # Check 1: Get the current active foreground window.
             foreground_hwnd = ctypes.windll.user32.GetForegroundWindow()
-            
-            # Check 2: Get window dimensions
             rect = ctypes.wintypes.RECT()
             ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
             width = rect.right - rect.left
-
-            # Check 3: Checks if NTE is focused and on the foreground before showing overlay (New Check) -Datura
             is_focused = (hwnd == foreground_hwnd)
             
             if is_focused and width > 100:

@@ -1,0 +1,63 @@
+{
+    "question": {
+        "en": "How can I get support?",
+        "tr": "Nasıl destek alabilirim?",
+        "cn": "如何获取支持？",
+        "de": "Wie kann ich Support erhalten?",
+        "es": "¿Cómo puedo obtener soporte?",
+        "jp": "サポートを受けるにはどうすればいいですか？",
+        "nl": "Hoe kan ik support krijgen?",
+        "vi": "Làm thế nào để nhận được sự hỗ trợ?"
+    },
+    "answer": {
+        "en": [
+            "## Getting Support",
+            "Places to get support from:",
+            "\n- Our Discord server",
+            "\n- GameBanana page",
+            "Any other location will result in late responses or no reply at all."
+        ],
+        "tr": [
+            "## Destek Alma",
+            "Destek alabileceğiniz yerler:",
+            "\n- Discord sunucumuz",
+            "\n- GameBanana sayfamız",
+            "Bunlar dışındaki herhangi bir yer, geç yanıt almanıza veya hiç yanıt alamamanıza neden olur."
+        ],
+        "cn": [
+            "## 获取支持",
+            "您可以从以下渠道获取支持：",
+            "\n- 我们的 Discord 服务器",
+            "\n- GameBanana 页面",
+            "在任何其他地方提问都可能导致回复延迟或根本得不到回复。"
+        ],
+        "de": [
+            "## Support erhalten",
+            "Hier bekommst du Support:",
+            "\n- Unser Discord-Server",
+            "\n- GameBanana-Seite",
+            "Anfragen over andere Kanäle führen zu verzögerten oder gar keinen Antworten."
+        ],
+        "es": [
+            "## Obtener Soporte",
+            "Lugares donde obtener soporte:",
+            "\n- Nuestro servidor de Discord",
+            "\n- Página de GameBanana",
+            "Cualquier otra ubicación resultará en respuestas tardías o en ninguna respuesta."
+        ],
+        "jp": [
+            "## サポートを受ける",
+            "サポートを受けられる場所：",
+            "\n- 公式Discordサーバー",
+            "\n- GameBananaページ",
+            "これら以外の場所では、返信が遅れるか、あるいは全く返信されない可能性があります。"
+        ],
+        "nl": [
+            "## Support Krijgen",
+            "Plekken waar je support kunt krijgen:",
+            "\n- Onze Discord-server",
+            "\n- GameBanana-pagina",
+            "Elke andere locatie zal leiden tot vertraagde reacties of helemaal geen antwoord."
+        ]
+    }
+}

@@ -5,6 +5,7 @@
     "launcher": "ランチャー",
     "developer": "開発者",
     "language": "言語",
+    "addons": "アドオン",
     "language_desc": "インターフェースの表示言語",
     "ui_minimization_title": "インターフェースの最小化",
     "ui_minimization_desc": "ゲームの開始後、ランチャーを閉じます。",
@@ -53,5 +54,16 @@
     "mod_manager_tooltip": "Modマネージャー",
     "ko-fi_tooltip": "Ko-FiでAuroraを応援する",
     "discord_tooltip": "Discordサーバーに参加する",
-    "gamebanana_tooltip": "GameBananaのページ"
+    "gamebanana_tooltip": "GameBananaのページ",
+    "faq_tooltip": "FAQページ",
+    "ui_scaling": "UIスケーリング",
+    "ui_scaling_desc": "ゲーム内のインターフェース倍率を調整します（再起動が必要）(クレジット：Tayuya)",
+    "hide_uid_title": "UIDを非表示",
+    "hide_uid_desc": "ゲーム内のユーザーID表示を隠します。（クレジット: Rokkudayo）",
+    "hide_dots_title": "赤点を非表示",
+    "hide_dots_desc": "ゲーム内の通知用赤点を隠します。（クレジット: rzwei）",
+    "install_zone_title": "MODをインストール",
+    "install_zone_choose": "ファイルを選択",
+    "mod_delete_title": "MODを削除",
+    "mod_delete_message": "以下のMODを本当に削除しますか？"
 }

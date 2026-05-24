@@ -1,0 +1,98 @@
+{
+    "question": {
+        "en": "How do I install mods?",
+        "tr": "Modları nasıl kurarım?",
+        "cn": "如何安装模组？",
+        "de": "Wie installiere ich Mods?",
+        "es": "¿Cómo instalo los mods?",
+        "jp": "モッドのインストール方法は？",
+        "nl": "Hoe installeer ik mods?",
+        "vi": "Làm thế nào để cài đặt mod?"
+    },
+    "answer": {
+        "en": [
+            "## Installing Mods",
+            "1. Download a mod from [GameBanana](https://gamebanana.com/games/23012) or [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)",
+            "2. Extract the ZIP file",
+            "3. Put the mod into the `\\Mods` folder inside Aurora",
+            "4. Check your mod out inside the Mod Manager",
+            "5. Launch the game to display the mod in-game.",
+            "",
+            "### Notes",
+            "1. Only `.pak` file mods are supported by Aurora.",
+            "2. Conflicting mods (same asset/character overridden by two different mods) will show whichever mod was loaded last alphabetically."
+        ],
+        "tr": [
+            "## Mod Kurulumu",
+            "1. [GameBanana](https://gamebanana.com/games/23012) veya [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)'dan bir mod indirin",
+            "2. ZIP dosyasını çıkartın",
+            "3. Modu Aurora içindeki `\\Mods` klasörüne koyun",
+            "4. Mod Yöneticisinde modunuzu kontrol edin",
+            "5. Modu oyunda görmek için oyunu başlatın.",
+            "",
+            "### Notlar",
+            "1. Aurora tarafından yalnızca `.pak` uzantılı modlar desteklenir.",
+            "2. Çakışan modlar (aynı varlığın/karakterin iki farklı mod tarafından üzerine yazılması), alfabetik olarak en son yüklenen modu gösterecektir."
+        ],
+        "cn": [
+            "## 安装模组",
+            "1. 从 [GameBanana](https://gamebanana.com/games/23012) 或 [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/) 下载模组",
+            "2. 解压 ZIP 文件",
+            "3. 将模组放入 Aurora 内的 `\\Mods` 文件夹中",
+            "4. 在模组管理器中检查您的模组",
+            "5. 启动游戏以在游戏中显示模组。",
+            "",
+            "### 注意事项",
+            "1. Aurora 仅支持 `.pak` 文件的模组。",
+            "2. 冲突的模组（同一个资产/角色被两个不同的模组覆盖）将显示按字母顺序最后加载的那个模组。"
+        ],
+        "de": [
+            "## Mods installieren",
+            "1. Lade einen Mod von [GameBanana](https://gamebanana.com/games/23012) oder [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/) herunter",
+            "2. Entpacke die ZIP-Datei",
+            "3. Lege den Mod in den Ordner `\\Mods` innerhalb von Aurora",
+            "4. Überprüfe deinen Mod im Mod-Manager",
+            "5. Starte das Spiel, um den Mod im Spiel anzuzeigen.",
+            "",
+            "### Hinweise",
+            "1. Von Aurora werden nur `.pak`-Dateien als Mods unterstützt.",
+            "2. Bei in Konflikt stehenden Mods (dasselbe Asset/Charakter wird von zwei verschiedenen Mods überschrieben) wird der Mod angezeigt, der alphabetisch zuletzt geladen wurde."
+        ],
+        "es": [
+            "## Instalación de Mods",
+            "1. Descarga un mod de [GameBanana](https://gamebanana.com/games/23012) o [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)",
+            "2. Extrae el archivo ZIP",
+            "3. Coloca el mod en la carpeta `\\Mods` dentro de Aurora",
+            "4. Revisa tu mod en el Gestor de Mods",
+            "5. Inicia el juego para ver el mod.",
+            "",
+            "### Notas",
+            "1. Aurora solo soporta mods en formato `.pak`.",
+            "2. Los mods en conflicto (el mismo recurso/personaje modificado por dos mods diferentes) mostrarán el mod que se haya cargado último alfabéticamente."
+        ],
+        "jp": [
+            "## モッドのインストール",
+            "1. [GameBanana](https://gamebanana.com/games/23012) または [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/) からモッドをダウンロードする",
+            "2. ZIPファイルを展開する",
+            "3. モッドをAurora内の `\\Mods` フォルダーに入れる",
+            "4. モッドマネージャー内でモッドを確認する",
+            "5. ゲームを起動してゲーム内にモッドを表示させる。",
+            "",
+            "### 注意点",
+            "1. Auroraでサポートされているのは `.pak` ファイルのモッドのみです。",
+            "2. 競合するモッド（同じアセット/キャラクターが2つの異なるモッドで上書きされる場合）は、アルファベット順で最後にロードされたモッドが表示されます。"
+        ],
+        "nl": [
+            "## Mods Installeren",
+            "1. Download een mod via [GameBanana](https://gamebanana.com/games/23012) of [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)",
+            "2. Pak het ZIP-bestand uit",
+            "3. Plaats de mod in de `\\Mods` map binnen Aurora",
+            "4. Controleer je mod in de Mod Manager",
+            "5. Start de game om de mod in-game te zien.",
+            "",
+            "### Opmerkingen",
+            "1. Alleen `.pak` bestanden worden ondersteund door Aurora.",
+            "2. Bij conflicterende mods (hetzelfde asset/karakter wordt overschreven door twee verschillende mods) wordt de mod getoond die alfabetisch als laatste is geladen."
+        ]
+    }
+}

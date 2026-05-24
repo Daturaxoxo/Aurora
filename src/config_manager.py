@@ -10,17 +10,20 @@ LANG_CODES = {
     "Español":    "es",
     "Deutsch":    "de",
     "Tiếng Việt": "vi",
-    "Nederlands":      "nl",
+    "Nederlands": "nl",
+    "Pусский":    "ru",
 }
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 
-# Config keys — use these instead of raw strings
+# Config keys, use these instead of raw strings
 class Key:
     GAME_PATH         = "game_path"
     LANGUAGE          = "language"
     DEV_MODE          = "dev_mode"
     CENSORSHIP_REMOVE = "csn_rem"
     NO_DRIVE_LINE     = "drv_lin"
+    HIDE_UID          = "uid_rem"
+    HIDE_NOTIF_DOTS   = "nor_rem"
     DISCORD_RPC       = "discord_rpc"
     EXTENSIVE_LOGGING = "extensive_logging"
     EXPORT_CONSOLE    = "export_console"
@@ -34,6 +37,8 @@ DEFAULTS = {
     Key.DEV_MODE:          False,
     Key.CENSORSHIP_REMOVE: True,
     Key.NO_DRIVE_LINE:     False,
+    Key.HIDE_UID:          True,
+    Key.HIDE_NOTIF_DOTS:   False,
     Key.DISCORD_RPC:       True,
     Key.EXTENSIVE_LOGGING: False,
     Key.UI_SCALING:        1.0,

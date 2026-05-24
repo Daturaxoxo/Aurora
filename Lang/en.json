@@ -4,6 +4,7 @@
     "launcher": "Launcher",
     "developer": "Developer",
     "language": "Language",
+    "addons": "Addons",
     "language_desc": "Interface display language",
     "ui_minimization_title": "Interface Minimization",
     "ui_minimization_desc": "Closes the launcher after the game starts.",
@@ -58,4 +59,13 @@
     "ui_scaling_desc": "Adjusts the in-game interface scale (restart required) (Credits: Tayuya)",
     "hard_links": "Use Hard Links",
     "hard_links_desc": "Use hard links/junctions for handling mods. (NOT RECOMMENDED)"
+    "hide_uid_title": "Hide UID",
+    "hide_uid_desc": "Hides your User ID text in-game. (Credits: Rokkudayo)",
+    "hide_dots_title": "Hide Red Dots",
+    "hide_dots_desc": "Hides the notification red dots in-game (Credits: rzwei)",
+    "install_zone_title": "Install Mods",
+    "install_zone_choose": "Choose your files",
+    "mod_delete_title": "Deleting Mod",
+    "mod_delete_message": "Are you sure you want to delete the following mod?",
+    "faq_tooltip": "FAQ Page",
 }

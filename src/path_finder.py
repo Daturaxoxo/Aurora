@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from pathlib import Path
-
+from src.helpers.paths import _LAUNCHER_MAP
 from scandir_rs import Scandir
 
 def get_app_dir():
@@ -37,22 +37,26 @@ def validate_path(path):
         return False
     try:
         base = Path(path)
-        launcher_exists = (base / "NTEGlobalLauncher.exe").exists()
-        global_folder_exists = (base / "NTEGlobal").is_dir()
-        return launcher_exists and global_folder_exists
+        launcher_exists = any((base / launcher).exists() for launcher in _LAUNCHER_MAP)
+        if not launcher_exists:
+            return False
+        htgame_found = any(True for _ in base.rglob("HTGame.exe"))
+        return htgame_found
+
     except (OSError, ValueError):
         # Handles UNC paths, permission errors, or malformed paths to prevent any issues in the future.
         return False
 
 def _candidate_directories():
     checked = set()
-    
+    from src.helpers.paths import _LAUNCHER_MAP
+
     def emit(path):
         p = str(Path(path))
         if p not in checked:
             checked.add(p)
             yield p
-            
+
     for env_var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
         base = os.environ.get(env_var)
         if base:
@@ -60,25 +64,23 @@ def _candidate_directories():
 
     for drive_letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
         drive = f"{drive_letter}:\\"
-        
+
         if not os.path.exists(drive):
             continue
 
-
         for dirEntry in Scandir(
-            drive, 
-            dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"], 
+            drive,
+            dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
             skip_hidden=True
         ):
-            if "NTEGlobalLauncher.exe" in dirEntry.path and "NTEGlobal" in dirEntry.path:
+            if any(launcher in dirEntry.path for launcher in _LAUNCHER_MAP):
                 path = Path(f"{drive}{dirEntry.path}").parent
-                
+
                 if path not in checked:
                     checked.add(path)
                     yield from emit(path)
 
 def get_game_directory():
-    # Lazy import to avoid circular dependency at module load time, I f####ng hate you for this Python.
     try:
         from src.logger import logger
         _log = logger.info
@@ -87,7 +89,6 @@ def get_game_directory():
         _log = print
         _warn = print
 
-    # Priority 1: Saved config
     saved_path = load_config()
     if saved_path:
         if validate_path(saved_path):
@@ -96,17 +97,16 @@ def get_game_directory():
         else:
             _warn(f"Saved config path is no longer valid: {saved_path}")
 
-    # Priority 2: Search all drives and known download locations
-    _log("Searching for NTE installation across all drives (this may take a moment)...")
+    _log("Searching for NTE installation across all drives")
     for candidate in _candidate_directories():
         if validate_path(candidate):
-            _log(f"Found NTE at: {candidate}")
+            _log(f"Found NTE at: {candidate}", extra={"el": True})
             save_config(candidate)
             return candidate
 
     _warn(
         "NTE installation not found automatically. "
-        "User will need to set the path manually via Settings."
+        "User will need to set the path manually"
     )
     return None
 

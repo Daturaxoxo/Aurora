@@ -1,13 +1,9 @@
 MAIN_STYLE = """
-/* The Topbar */
-/* Background is handled by OverlayWidget so this stays transparent.
-   The border still gives a subtle separator line. */
 #TopBar {
     background-color: transparent;
     border-bottom: 1px solid rgba(255, 255, 255, 15);
 }
 
-/* Icon Buttons (Settings, Folder, Coffee, Min/Close) */
 QPushButton {
     background-color: transparent;
     border: none;
@@ -30,7 +26,6 @@ QToolTip {
     opacity: 230;
 }
 
-/* Launch Button */
 #LaunchButton {
     background-color: #141414;
     color: #D7D7D7;
@@ -52,7 +47,6 @@ QToolTip {
     color: #4B4B4B;
 }
 
-/* Search Button — sits left of Launch when path is missing */
 #SearchButton {
     background-color: #141414;
     border: 4px solid #202020;
@@ -160,7 +154,6 @@ POPUP_STYLE = """
     color: #D7D7D7;
 }
 
-/* Dim overlay behind the popup */
 #DimOverlay {
     background-color: rgba(0, 0, 0, 140);
     border-radius: 10px;
@@ -168,14 +161,12 @@ POPUP_STYLE = """
 """
 
 MOD_MANAGER_STYLE = """
-/* ── Outer container — mirrors SettingsContainer ── */
 #ModManagerOverlay {
     background-color: #101010;
     border: 1px solid #333333;
     border-radius: 20px;
 }
 
-/* ── Header bar ── */
 #ModManagerHeader {
     background-color: rgba(255, 255, 255, 3);
     border-bottom: 1px solid rgba(255, 255, 255, 8);
@@ -196,7 +187,6 @@ MOD_MANAGER_STYLE = """
     letter-spacing: 1px;
 }
 
-/* ── Close button in header ── */
 #ModManagerClose {
     background-color: transparent;
     border: none;
@@ -211,7 +201,6 @@ MOD_MANAGER_STYLE = """
     color: #D7D7D7;
 }
 
-/* ── Search row (pill bar + icon buttons) ── */
 #SearchRow {
     background-color: rgba(255, 255, 255, 4);
     border: 1px solid rgba(255, 255, 255, 7);
@@ -241,14 +230,12 @@ MOD_MANAGER_STYLE = """
     padding: 0px;
 }
 
-/* Divider between search and action buttons */
 #SearchDivider {
     background-color: rgba(255, 255, 255, 8);
     max-width: 1px;
     min-width: 1px;
 }
 
-/* Refresh + open-folder icon buttons inside the search row */
 #SearchActionBtn {
     background-color: transparent;
     border: none;
@@ -264,14 +251,12 @@ MOD_MANAGER_STYLE = """
     background-color: rgba(255, 255, 255, 5);
 }
 
-/* ── Mod image thumbnail ── */
 #ModImage {
     border-radius: 6px;
     background-color: rgba(255, 255, 255, 6);
     border: 1px solid rgba(255, 255, 255, 8);
 }
 
-/* ── Mod cards — mirrors SettingRow ── */
 #ModCard {
     background-color: rgba(255, 255, 255, 4);
     border: 1px solid rgba(255, 255, 255, 7);
@@ -310,16 +295,18 @@ MOD_MANAGER_STYLE = """
     font-size: 11px;
 }
 
-/* ── Empty-state label ── */
 #EmptyLabel {
     color: #484848;
     font-size: 13px;
 }
 
-/* ── Scroll area ── */
 QScrollArea {
     background: transparent;
     border: none;
+}
+
+QScrollArea > QWidget > QWidget {
+    background: transparent;
 }
 
 #ScrollContent {

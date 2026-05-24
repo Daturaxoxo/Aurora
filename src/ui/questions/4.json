@@ -1,0 +1,63 @@
+{
+    "question": {
+        "en": "How can I make suggestions?",
+        "tr": "Nasıl öneride bulunabilirim?",
+        "cn": "如何提出建议？",
+        "de": "Wie kann ich Vorschläge einreichen?",
+        "es": "¿Cómo puedo hacer sugerencias?",
+        "jp": "提案や要望を送るにはどうすればいいですか？",
+        "nl": "Hoe kan ik suggesties doen?",
+        "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?"
+    },
+    "answer": {
+        "en": [
+            "## Making a suggestion",
+            "Places to make suggestions:",
+            "\n- Our Discord server",
+            "\n- GameBanana page",
+            "Any other location will result in late responses or no reply at all."
+        ],
+        "tr": [
+            "## Öneride Bulunma",
+            "Öneride bulunabileceğiniz yerler:",
+            "\n- Discord sunucumuz",
+            "\n- GameBanana sayfamız",
+            "Bunlar dışındaki herhangi bir yer, geç yanıt almanıza veya hiç yanıt alamamanıza neden olur."
+        ],
+        "cn": [
+            "## 提出建议",
+            "您可以从以下渠道提出建议：",
+            "\n- 我们的 Discord 服务器",
+            "\n- GameBanana 页面",
+            "在任何其他地方提问都可能导致回复延迟或根本得不到回复。"
+        ],
+        "de": [
+            "## Vorschläge einreichen",
+            "Hier kannst du Vorschläge einreichen:",
+            "\n- Unser Discord-Server",
+            "\n- GameBanana-Seite",
+            "Anfragen über andere Kanäle führen zu verzögerten oder gar keinen Antworten."
+        ],
+        "es": [
+            "## Hacer una sugerencia",
+            "Lugares para hacer sugerencias:",
+            "\n- Nuestro servidor de Discord",
+            "\n- Página de GameBanana",
+            "Cualquier otra ubicación resultará en respuestas tardías o en ninguna respuesta."
+        ],
+        "jp": [
+            "## 提案・要望を送る",
+            "提案や要望を送れる場所：",
+            "\n- 公式Discordサーバー",
+            "\n- GameBananaページ",
+            "これら以外の場所では、返信が遅れるか、あるいは全く返信されない可能性があります。"
+        ],
+        "nl": [
+            "## Een suggestie doen",
+            "Plekken waar je suggesties kunt achterlaten:",
+            "\n- Onze Discord-server",
+            "\n- GameBanana-pagina",
+            "Elke andere locatie zal leiden tot vertraagde reacties of helemaal geen antwoord."
+        ]
+    }
+}

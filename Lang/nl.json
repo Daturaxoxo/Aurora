@@ -4,6 +4,7 @@
     "launcher": "Launcher",
     "developer": "Ontwikkelaar",
     "language": "Taal",
+    "addons": "Addons",
     "language_desc": "Weergavetaal van de interface",
     "ui_minimization_title": "Interface Minimaliseren",
     "ui_minimization_desc": "Sluit de launcher nadat het spel is gestart.",
@@ -54,6 +55,15 @@
     "ko-fi_tooltip": "Steun Aurora op Ko-fi",
     "discord_tooltip": "Deelnemen aan de Discord Server",
     "gamebanana_tooltip": "GameBanana Pagina",
+    "faq_tooltip": "FAQ-pagina",
     "ui_scaling":      "UI-schaling",
-    "ui_scaling_desc": "Past de schaal van de interface in het spel aan (herstart vereist) (Credits: Tayuya)"
+    "ui_scaling_desc": "Past de schaal van de interface in het spel aan (herstart vereist) (Credits: Tayuya)",
+    "hide_uid_title": "UID verbergen",
+    "hide_uid_desc": "Verbergt je gebruikers-ID in de game. (Credits: Rokkudayo)",
+    "hide_dots_title": "Rode stippen verbergen",
+    "hide_dots_desc": "Verbergt de rode notificatiestippen in de game. (Credits: rzwei)",
+    "install_zone_title": "Mods installeren",
+    "install_zone_choose": "Kies je bestanden",
+    "mod_delete_title": "Mod verwijderen",
+    "mod_delete_message": "Weet je zeker dat je de volgende mod wilt verwijderen?"
 }

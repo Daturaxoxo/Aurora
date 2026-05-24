@@ -6,11 +6,13 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QGraphicsOpacityEffect
 )
+from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize
 from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon
 from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
+from src.path_finder import get_app_dir
 
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
@@ -60,7 +62,15 @@ class AnimatedToggle(QWidget):
         painter.setBrush(self._handle_color)
         painter.drawEllipse(self._handle_position, 3, 20, 20)
 
-def _get_mod_image(mod_folder_name: str, mod_display_name: str) -> QPixmap:
+def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
+    if mod_icon:
+        icon_filename = f"{mod_icon.lower()}.png"
+        images_dir = Path(resource_path("Bin/Assets/ModImages"))
+
+        for img_path in images_dir.iterdir():
+            if img_path.name.lower() == icon_filename:
+                return QPixmap(str(img_path))
+
     images_dir = Path(resource_path("Bin/Assets/ModImages"))
     if not images_dir.exists():
         return QPixmap()
@@ -119,7 +129,6 @@ class ModImage(QLabel):
             y = (self.height() - scaled.height()) // 2
             painter.drawPixmap(x, y, scaled)
         else:
-            # Fallback: filled rect so the slot isn't invisible
             painter.fillRect(self.rect(), QColor(40, 40, 50))
 
         painter.end()
@@ -141,7 +150,11 @@ class ModCard(QFrame):
         layout.setSpacing(14)
 
         # Mod Thumbnail
-        pixmap = _get_mod_image(mod.folder_name, mod.display_name)
+        pixmap = _get_mod_image(
+            self.mod.folder_name, 
+            self.mod.display_name, 
+            getattr(self.mod, 'icon', "")
+        )
         thumb = ModImage(pixmap, 44)
         layout.addWidget(thumb)
 
@@ -183,10 +196,50 @@ class ModCard(QFrame):
         layout.addLayout(info_vbox)
         layout.addStretch()
 
+        # Delete button
+        btn_delete = QPushButton()
+        btn_delete.setObjectName("ModDeleteBtn")
+        btn_delete.setFixedSize(30, 30)
+        btn_delete.setIcon(QIcon(resource_path("Bin/Assets/delete.png")))
+        btn_delete.setIconSize(QSize(16, 16))
+        btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_delete.setToolTip("Delete mod")
+        btn_delete.clicked.connect(self._confirm_delete)
+        layout.addWidget(btn_delete)
+
         # Toggle
         self.toggle = AnimatedToggle(self)
         self.toggle.setChecked(mod.is_enabled)
         layout.addWidget(self.toggle)
+
+    def _confirm_delete(self):
+        message = t("mod_delete_message")
+        PopupDialog(
+            parent=self.parent_overlay,
+            title=t("mod_delete_title"),
+            message=f"{message}\n- {self.mod.display_name}",
+            confirm_text=t("confirm"),
+            cancel_text=t("cancel"),
+            on_confirm=self._delete_mod,
+        )
+
+    def _delete_mod(self):
+        import shutil
+        try:
+            folder_name = self.mod.folder_name
+            candidate = self.manager.mods_dir / folder_name
+            if not candidate.exists():
+                bare = Path(folder_name).name
+                candidate = self.manager.mods_dir / bare
+            if not candidate.exists():
+                return
+            if candidate.is_dir():
+                shutil.rmtree(candidate)
+            else:
+                candidate.unlink()
+            self.parent_overlay.refresh_list()
+        except Exception as e:
+            logger.error(f"Failed to delete mod '{self.mod.display_name}': {e}")
 
     def _open_support_link(self, url: str):
         if not url.startswith("https://"):

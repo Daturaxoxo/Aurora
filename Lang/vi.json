@@ -4,6 +4,7 @@
     "launcher": "Trình khởi chạy",
     "developer": "Nhà phát triển",
     "language": "Ngôn ngữ",
+    "addons": "Tiện ích mở rộng",
     "language_desc": "Ngôn ngữ hiển thị giao diện",
     "ui_minimization_title": "Tối ưu hóa giao diện",
     "ui_minimization_desc": "Đóng trình khởi chạy sau khi trò chơi bắt đầu.",
@@ -53,5 +54,16 @@
     "mod_manager_tooltip": "Quản lý Mod",
     "ko-fi_tooltip": "Hãy ủng hộ Aurora trên Ko-Fi",
     "discord_tooltip": "Tham gia máy chủ Discord",
-    "gamebanana_tooltip": "Trang GameBanana"
+    "gamebanana_tooltip": "Trang GameBanana",
+    "faq_tooltip": "Trang câu hỏi thường gặp",
+    "ui_scaling": "Tỷ lệ giao diện",
+    "ui_scaling_desc": "Điều chỉnh tỷ lệ giao diện trong trò chơi (yêu cầu khởi động lại) (Người thực hiện: Tayuya)",
+    "hide_uid_title": "Ẩn UID",
+    "hide_uid_desc": "Ẩn văn bản ID người dùng của bạn trong trò chơi. (Tín dụng: Rokkudayo)",
+    "hide_dots_title": "Ẩn chấm đỏ",
+    "hide_dots_desc": "Ẩn các chấm đỏ thông báo trong trò chơi. (Tín dụng: rzwei)",
+    "install_zone_title": "Cài đặt bản mod",
+    "install_zone_choose": "Chọn tệp của bạn",
+    "mod_delete_title": "Xóa bản mod",
+    "mod_delete_message": "Bạn có chắc chắn muốn xóa bản mod sau đây không?"
 }

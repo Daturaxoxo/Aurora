@@ -4,6 +4,7 @@
     "launcher": "Launcher",
     "developer": "Entwickler",
     "language": "Sprache",
+    "addons": "Addons",
     "language_desc": "Anzeigesprache der Benutzeroberfläche",
     "ui_minimization_title": "Reduzierung der Schnittstellen",
     "ui_minimization_desc": "Schließt den Launcher, sobald das Spiel gestartet ist.",
@@ -53,5 +54,16 @@
     "mod_manager_tooltip": "Mod-Manager",
     "ko-fi_tooltip": "Unterstütze Aurora auf Ko-Fi",
     "discord_tooltip": "Tritt dem Discord-Server bei",
-    "gamebanana_tooltip": "GameBanana-Seite"
+    "gamebanana_tooltip": "GameBanana-Seite",
+    "faq_tooltip": "FAQ-Seite",
+    "ui_scaling": "UI-Skalierung",
+    "ui_scaling_desc": "Passt die Skalierung der Benutzeroberfläche im Spiel an (Neustart erforderlich) (Credits: Tayuya)",
+    "hide_uid_title": "UID ausblenden",
+    "hide_uid_desc": "Blendet deine User-ID im Spiel aus. (Credits: Rokkudayo)",
+    "hide_dots_title": "Rote Punkte ausblenden",
+    "hide_dots_desc": "Blendet die Benachrichtigungs-Punkte im Spiel aus. (Credits: rzwei)",
+    "install_zone_title": "Mods installieren",
+    "install_zone_choose": "Wähle deine Dateien",
+    "mod_delete_title": "Mod löschen",
+    "mod_delete_message": "Bist du sicher, dass du den folgenden Mod löschen möchtest?"
 }

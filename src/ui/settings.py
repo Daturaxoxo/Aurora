@@ -5,7 +5,9 @@ from PyQt6.QtWidgets import (
     QLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, QSlider
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QIcon
+from src.utils import resource_path
 from src.styles import SETTING_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
@@ -112,9 +114,40 @@ class SettingsOverlay(QFrame):
         self.setStyleSheet(SETTING_STYLE)
         self.hide()
 
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        # Top bar with close button
+        top_bar = QWidget()
+        top_bar.setFixedHeight(44)
+        top_bar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        top_bar_layout = QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(0, 10, 14, 0)
+        top_bar_layout.setSpacing(0)
+        top_bar_layout.addStretch()
+
+        btn_close = QPushButton()
+        btn_close.setIcon(QIcon(resource_path("Bin/Assets/close.png")))
+        btn_close.setIconSize(QSize(24, 24))
+        btn_close.setFixedSize(24, 24)
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close.setStyleSheet(
+            "QPushButton { background: transparent; border: none; }"
+        )
+        btn_close.clicked.connect(self.hide)
+        top_bar_layout.addWidget(btn_close)
+
+        top_bar.setParent(self)
+        top_bar.move(0, 0)
+        top_bar.resize(800, 44)
+
+        # Sidebar + content body
+        body = QWidget()
+        body.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
 
         # Sidebar
         sidebar = QFrame()
@@ -123,7 +156,7 @@ class SettingsOverlay(QFrame):
         sidebar.setStyleSheet(_SIDEBAR_STYLE)
 
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(16, 28, 16, 28)
+        sidebar_layout.setContentsMargins(16, 28, 16, 16)
         sidebar_layout.setSpacing(4)
 
         self.lbl_title = QLabel()
@@ -134,7 +167,8 @@ class SettingsOverlay(QFrame):
         self.btn_general  = QPushButton()
         self.btn_launcher = QPushButton()
         self.btn_developer = QPushButton()
-        self._sidebar_btns = [self.btn_general, self.btn_launcher, self.btn_developer]
+        self.btn_addons = QPushButton()
+        self._sidebar_btns = [self.btn_general, self.btn_launcher, self.btn_addons, self.btn_developer]
 
         for b in self._sidebar_btns:
             b.setObjectName("SidebarBtn")
@@ -151,10 +185,13 @@ class SettingsOverlay(QFrame):
 
         self.stack.addWidget(self._create_general_page())   # 0
         self.stack.addWidget(self._create_launcher_page())  # 1
-        self.stack.addWidget(self._create_developer_page()) # 2
+        self.stack.addWidget(self._create_addons_page())    # 2
+        self.stack.addWidget(self._create_developer_page()) # 3
 
-        root.addWidget(sidebar)
-        root.addWidget(self.stack, 1)
+        body_layout.addWidget(sidebar)
+        body_layout.addWidget(self.stack, 1)
+        root.addWidget(body, 1)
+        top_bar.raise_()
 
         # Connect side buttons
         for i, b in enumerate(self._sidebar_btns):
@@ -175,9 +212,11 @@ class SettingsOverlay(QFrame):
         self.lbl_title.setText(t("settings").upper())
         self.btn_general.setText(t("general"))
         self.btn_launcher.setText(t("launcher"))
+        self.btn_addons.setText(t("addons"))
         self.btn_developer.setText(t("developer"))
         self.general_page_title.setText(t("general"))
         self.launcher_page_title.setText(t("launcher"))
+        self.addons_page_title.setText(t("addons"))
         self.developer_page_title.setText(t("developer"))
         self._lbl_language.setText(t("language"))
         self._lbl_language_desc.setText(t("language_desc"))
@@ -187,6 +226,10 @@ class SettingsOverlay(QFrame):
         self._row_cr.set_description(t("censorship_removal_desc"))
         self._row_ndl.set_title(t("no_drive_line"))
         self._row_ndl.set_description(t("no_drive_line_desc"))
+        self._row_uid.set_title(t("hide_uid_title"))
+        self._row_uid.set_description(t("hide_uid_desc"))
+        self._row_hide_dots.set_title(t("hide_dots_title"))
+        self._row_hide_dots.set_description(t("hide_dots_desc"))
         self._row_dev.set_title(t("developer_mode"))
         self._row_dev.set_description(t("developer_mode_desc"))
         self._row_min.set_title(t("ui_minimization_title"))
@@ -232,6 +275,38 @@ class SettingsOverlay(QFrame):
         line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet("background-color: rgba(255,255,255,6); border: none; max-height: 1px;")
         return line
+    
+    def _make_slider(self, minimum, maximum, step, width, value, color="#C8A8FF"):
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setMinimum(minimum)
+        slider.setMaximum(maximum)
+        slider.setSingleStep(step)
+        slider.setPageStep(step)
+        slider.setTickInterval(step)
+        slider.setFixedWidth(width)
+        slider.setValue(value)
+        slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                height: 4px;
+                background: rgba(255, 255, 255, 12);
+                border-radius: 2px;
+            }}
+            QSlider::sub-page:horizontal {{
+                background: rgba(180, 140, 255, 180);
+                border-radius: 2px;
+            }}
+            QSlider::handle:horizontal {{
+                width: 14px;
+                height: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+                background: {color};
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: #DFC0FF;
+            }}
+        """)
+        return slider
 
     # General Page
     def _create_general_page(self):
@@ -273,7 +348,7 @@ class SettingsOverlay(QFrame):
 
         from src.config_manager import LANG_NAMES
         self._lang_box = QComboBox()
-        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands"])
+        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands", "Pусский"])
         self._lang_box.setFixedWidth(160)
         self._lang_box.setStyleSheet("""
             QComboBox {
@@ -317,7 +392,7 @@ class SettingsOverlay(QFrame):
             title="Launcher Minimization",
             description="",
             checked=cfg.get(cfg.Key.UI_MINIMIZATION),
-            on_toggle=self._toggle_min_mode,
+            on_toggle=lambda v: self._toggle(cfg.Key.UI_MINIMIZATION, v),
         )
 
         lang_row.addLayout(lang_text)
@@ -417,111 +492,6 @@ class SettingsOverlay(QFrame):
         layout.addWidget(path_card)
         layout.addSpacing(24)
 
-        # Gameplay
-        layout.addWidget(self._section_label("Gameplay"))
-        layout.addSpacing(10)
-
-        self._row_cr = SettingRow(
-            title="Censorship Removal",
-            description="",
-            checked=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
-            on_toggle=self._toggle_cr_mode,
-        )
-        self._row_ndl = SettingRow(
-            title="No Drive Line",
-            description="",
-            checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
-            on_toggle=self._toggle_ndl_mode,
-        )
-        # Remind me to cleanup this ugly mess and write a proper slider row for the UI -Datura
-        scale_card = QFrame()
-        scale_card.setObjectName("ScaleCard")
-        scale_card.setMinimumHeight(68)
-        scale_card.setStyleSheet("""
-            #ScaleCard {
-                background-color: rgba(255, 255, 255, 4);
-                border: 1px solid rgba(255, 255, 255, 7);
-                border-radius: 10px;
-            }
-        """)
-        scale_row = QHBoxLayout(scale_card)
-        scale_row.setContentsMargins(20, 0, 20, 0)
-        scale_row.setSpacing(16)
-        scale_text = QVBoxLayout()
-        scale_text.setSpacing(3)
-        self._lbl_ui_scale = QLabel()
-        self._lbl_ui_scale.setStyleSheet(
-            "color: #E8E8E8; font-size: 14px; font-weight: 500; "
-            "background: transparent; border: none;"
-        )
-        self._lbl_ui_scale_desc = QLabel()
-        self._lbl_ui_scale_desc.setStyleSheet(
-            "color: #707070; font-size: 12px; "
-            "background: transparent; border: none;"
-        )
-        self._lbl_ui_scale_desc.setWordWrap(True)
-        self._lbl_ui_scale_desc.setMaximumWidth(380)
-        self._scale_slider = QSlider(Qt.Orientation.Horizontal)
-        self._scale_slider.setMinimum(50)
-        self._scale_slider.setMaximum(200)
-        self._scale_slider.setSingleStep(25)
-        self._scale_slider.setPageStep(25)
-        self._scale_slider.setTickInterval(25)
-        self._scale_slider.setFixedWidth(160)
-        self._scale_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: rgba(255, 255, 255, 12);
-                border-radius: 2px;
-            }
-            QSlider::sub-page:horizontal {
-                background: rgba(180, 140, 255, 180);
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                width: 14px;
-                height: 14px;
-                margin: -5px 0;
-                border-radius: 7px;
-                background: #C8A8FF;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #DFC0FF;
-            }
-        """)
-        saved_scale = cfg.get(cfg.Key.UI_SCALING)
-        if saved_scale is None:
-            saved_scale = 1.0
-        self._scale_slider.setValue(int(round(float(saved_scale) * 100)))
-        self._scale_value_lbl = QLabel(f"{int(round(float(saved_scale) * 100))}%")
-        self._scale_value_lbl.setFixedWidth(36)
-        self._scale_value_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._scale_value_lbl.setStyleSheet(
-            "color: #C8A8FF; font-size: 12px; font-weight: 500; "
-            "background: transparent; border: none;"
-        )
-        self._scale_slider.valueChanged.connect(self._on_scale_slider_moved)
-        self._scale_slider.sliderReleased.connect(self._on_scale_committed)
-
-        layout.addWidget(self._row_cr)
-        layout.addSpacing(6)
-        layout.addSpacing(6)
-        layout.addWidget(self._row_ndl)
-        layout.addSpacing(6)
-        scale_text.addStretch()
-        scale_text.addWidget(self._lbl_ui_scale)
-        scale_text.addWidget(self._lbl_ui_scale_desc)
-        layout.addSpacing(6)
-        scale_row.addLayout(scale_text)
-        scale_row.addStretch()
-        scale_row.addWidget(self._scale_value_lbl)
-        scale_row.addWidget(self._scale_slider)
- 
-        layout.addWidget(scale_card)
-        scale_text.addStretch()
-        
-        layout.addSpacing(24)
-
         # Mods
         layout.addWidget(self._section_label("Mods"))
         layout.addSpacing(10)
@@ -532,8 +502,9 @@ class SettingsOverlay(QFrame):
             on_toggle=self._toggle_hard_links,
         )
         layout.addWidget(self._row_hard_links)
-        
+
         layout.addStretch()
+
         return page
 
     def _handle_browse(self):
@@ -546,16 +517,16 @@ class SettingsOverlay(QFrame):
             main_ui.refresh_launch_state()
 
     def _toggle_cr_mode(self, new_state):
-        cfg.set(cfg.Key.CENSORSHIP_REMOVE, new_state)
-        main_ui = self.parent().parent()
-        if main_ui.engine:
-            main_ui.engine.censorship_removal = new_state
+        self._toggle(cfg.Key.CENSORSHIP_REMOVE, new_state)
+        engine = self.parent().parent().engine
+        if engine:
+            engine.censorship_removal = new_state
 
     def _toggle_ndl_mode(self, new_state):
-        cfg.set(cfg.Key.NO_DRIVE_LINE, new_state)
-        main_ui = self.parent().parent()
-        if main_ui.engine:
-            main_ui.engine.no_drive_line = new_state
+        self._toggle(cfg.Key.NO_DRIVE_LINE, new_state)
+        engine = self.parent().parent().engine
+        if engine:
+            engine.no_drive_line = new_state
             
     def _toggle_hard_links(self, new_state):
         from src.logger import logger
@@ -579,7 +550,7 @@ class SettingsOverlay(QFrame):
                     shutil.move(file, nte_mod_folder)
 
     def _toggle_rpc(self, new_state):
-        cfg.set(cfg.Key.DISCORD_RPC, new_state)
+        self._toggle(cfg.Key.DISCORD_RPC, new_state)
         main_ui = self.parent().parent()
         if new_state:
             from src.discord_rpc import DiscordRPC
@@ -591,9 +562,6 @@ class SettingsOverlay(QFrame):
         else:
             if hasattr(main_ui, 'rpc'):
                 main_ui.rpc.stop()
-
-    def _toggle_min_mode(self, new_state):
-        cfg.set(cfg.Key.UI_MINIMIZATION, new_state)
 
     def _on_scale_slider_moved(self, value: int):
         snapped = round(value / 5) * 5 # Snap to the nearest 5 to make it look smooth
@@ -640,7 +608,7 @@ class SettingsOverlay(QFrame):
             title="",
             description="",
             checked=cfg.get(cfg.Key.EXTENSIVE_LOGGING),
-            on_toggle=self._toggle_extensive_logging_mode,
+            on_toggle=lambda v: self._toggle(cfg.Key.EXTENSIVE_LOGGING, v),
         )
         export_card = QFrame()
         export_card.setObjectName("ExportCard")
@@ -700,17 +668,109 @@ class SettingsOverlay(QFrame):
         layout.addStretch()
         
         return page
+    
+    # Addons Page
+    def _create_addons_page(self):
+        page, layout = self._make_page()
+
+        self.addons_page_title = QLabel(t("addons"))
+        self.addons_page_title.setStyleSheet(_PAGE_TITLE_STYLE)
+        layout.addWidget(self.addons_page_title)
+        layout.addSpacing(24)
+
+        layout.addWidget(self._section_label("Builtin Addons"))
+        layout.addSpacing(10)
+
+        self._row_cr = SettingRow(
+            title="Censorship Removal",
+            description="",
+            checked=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
+            on_toggle=self._toggle_cr_mode,
+        )
+        self._row_ndl = SettingRow(
+            title="No Drive Line",
+            description="",
+            checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
+            on_toggle=self._toggle_ndl_mode,
+        )
+        self._row_uid = SettingRow(
+            title="Hide UID",
+            description="",
+            checked=cfg.get(cfg.Key.HIDE_UID),
+            on_toggle=lambda v: self._toggle(cfg.Key.HIDE_UID, v),
+        )
+        self._row_hide_dots = SettingRow(
+            title="Hide Red Dots",
+            description="",
+            checked=cfg.get(cfg.Key.HIDE_NOTIF_DOTS),
+            on_toggle=lambda v: self._toggle(cfg.Key.HIDE_NOTIF_DOTS, v),
+        )
+
+        # Slider (still have to make it prettier)
+        saved_scale = cfg.get(cfg.Key.UI_SCALING)
+        if saved_scale is None:
+            saved_scale = 1.0
+        initial_val = int(round(float(saved_scale) * 100))
+
+        scale_card = QFrame()
+        scale_card.setObjectName("ScaleCard")
+        scale_card.setMinimumHeight(68)
+        scale_card.setStyleSheet("""
+            #ScaleCard {
+                background-color: rgba(255, 255, 255, 4);
+                border: 1px solid rgba(255, 255, 255, 7);
+                border-radius: 10px;
+            }
+        """)
+        scale_row = QHBoxLayout(scale_card)
+        scale_row.setContentsMargins(20, 0, 20, 0)
+        scale_row.setSpacing(16)
+
+        scale_text = QVBoxLayout()
+        scale_text.setSpacing(3)
+        self._lbl_ui_scale = QLabel()
+        self._lbl_ui_scale.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        self._lbl_ui_scale_desc = QLabel()
+        self._lbl_ui_scale_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        self._lbl_ui_scale_desc.setWordWrap(True)
+        self._lbl_ui_scale_desc.setMaximumWidth(280)
+        scale_text.addStretch()
+        scale_text.addWidget(self._lbl_ui_scale)
+        scale_text.addWidget(self._lbl_ui_scale_desc)
+        scale_text.addStretch()
+
+        self._scale_slider = self._make_slider(50, 200, 25, 160, initial_val)
+        self._scale_slider.valueChanged.connect(self._on_scale_slider_moved)
+        self._scale_slider.sliderReleased.connect(self._on_scale_committed)
+
+        self._scale_value_lbl = QLabel(f"{initial_val}%")
+        self._scale_value_lbl.setFixedWidth(36)
+        self._scale_value_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._scale_value_lbl.setStyleSheet("color: #C8A8FF; font-size: 12px; font-weight: 500; background: transparent; border: none;")
+
+        layout.addWidget(self._row_cr)
+        layout.addSpacing(6)
+        layout.addWidget(self._row_ndl)
+        layout.addSpacing(6)
+        layout.addWidget(self._row_uid)
+        layout.addSpacing(6)
+        layout.addWidget(self._row_hide_dots)
+        layout.addSpacing(6)
+        scale_row.addLayout(scale_text)
+        scale_row.addStretch()
+        scale_row.addWidget(self._scale_value_lbl)
+        scale_row.addWidget(self._scale_slider)
+        layout.addWidget(scale_card)
+        layout.addStretch()
+
+        return page
+    
+    def _toggle(self, key, new_state):
+        cfg.set(key, new_state)
 
     def _toggle_dev_mode(self, new_state):
-        cfg.set(cfg.Key.DEV_MODE, new_state)
-        main_ui = self.parent().parent()
-        main_ui.set_dev_console(new_state)
-
-    def _toggle_extensive_logging_mode(self, new_state):
-        cfg.set(cfg.Key.EXTENSIVE_LOGGING, new_state)
-
-    def _toggle_export_file(self, new_state):
-        cfg.set(cfg.Key.EXPORT_CONSOLE, new_state)
+        self._toggle(cfg.Key.DEV_MODE, new_state)
+        self.parent().parent().set_dev_console(new_state)
 
     def _handle_export_console(self):
         

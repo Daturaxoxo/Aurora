@@ -1,0 +1,112 @@
+{
+    "question": {
+        "en": "What servers are supported?",
+        "tr": "Hangi sunucular destekleniyor?",
+        "cn": "支持哪些服务器？",
+        "de": "Welche Server werden unterstützt?",
+        "es": "¿Qué servidores están soportados?",
+        "jp": "どのサーバーが対応していますか？",
+        "nl": "Welke servers worden ondersteund?",
+        "vi": "Những máy chủ nào được hỗ trợ?"
+    },
+    "answer": {
+        "en": [
+            "## Supported Servers",
+            "Launcher versions that Aurora supports are listed below:",
+            "\n- North America & South America",
+            "\n- Europe",
+            "\n- Africa",
+            "\n- Middle East",
+            "\n- South East Asia",
+            "\n- Central Asia",
+            "",
+            "## Unsupported Servers",
+            "\n- Mainland China",
+            "\n- Taiwan"
+        ],
+        "tr": [
+            "## Desteklenen Sunucular",
+            "Aurora'nın desteklediği başlatıcı sürümleri aşağıda listelenmiştir:",
+            "\n- Kuzey Amerika & Güney Amerika",
+            "\n- Avrupa",
+            "\n- Afrika",
+            "\n- Orta Doğu",
+            "\n- Güneydoğu Asya",
+            "\n- Orta Asya",
+            "",
+            "## Desteklenmeyen Sunucular",
+            "\n- Çin Anakarası",
+            "\n- Tayvan"
+        ],
+        "cn": [
+            "## 支持的服务器",
+            "Aurora 支持的启动器版本如下所示：",
+            "\n- 北美和南美",
+            "\n- 欧洲",
+            "\n- 非洲",
+            "\n- 中东",
+            "\n- 东南亚",
+            "\n- 中亚",
+            "",
+            "## 不支持的服务器",
+            "\n- 中国大陆",
+            "\n- 台湾"
+        ],
+        "de": [
+            "## Unterstützte Server",
+            "Die von Aurora unterstützten Launcher-Versionen sind unten aufgeführt:",
+            "\n- Nordamerika & Südamerika",
+            "\n- Europa",
+            "\n- Afrika",
+            "\n- Naher Osten",
+            "\n- Südostasien",
+            "\n- Zentralasien",
+            "",
+            "## Nicht unterstützte Server",
+            "\n- Festlandchina",
+            "\n- Taiwan"
+        ],
+        "es": [
+            "## Servidores Soportados",
+            "Las versiones del lanzador que soporta Aurora se enumeran a continuación:",
+            "\n- Norteamérica y Sudamérica",
+            "\n- Europa",
+            "\n- África",
+            "\n- Medio Oriente",
+            "\n- Sudeste Asiático",
+            "\n- Asia Central",
+            "",
+            "## Servidores No Soportados",
+            "\n- China Continental",
+            "\n- Taiwán"
+        ],
+        "jp": [
+            "## 対応サーバー",
+            "Auroraがサポートするランチャーのバージョンは以下の通りです：",
+            "\n- 北米および南米",
+            "\n- ヨーロッパ",
+            "\n- アフリカ",
+            "\n- 中東",
+            "\n- 東南アジア",
+            "\n- 中央アジア",
+            "",
+            "## 非対応サーバー",
+            "\n- 中国本土",
+            "\n- 台湾"
+        ],
+        "nl": [
+            "## Ondersteunde Servers",
+            "Launcher-versies die door Aurora worden ondersteund, staan hieronder vermeld:",
+            "\n- Noord-Amerika & Zuid-Amerika",
+            "\n- Europa",
+            "\n- Afrika",
+            "\n- Midden-Oosten",
+            "\n- Zuidoost-Azië",
+            "\n- Centraal-Azië",
+            "",
+            "## Niet-ondersteunde Servers",
+            "\n- Vasteland van China",
+            "\n- Taiwan"
+        ]
+    }
+}

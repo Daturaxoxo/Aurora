@@ -7,17 +7,11 @@ import time
 import psutil
 from pathlib import Path
 from src.logger import logger
+from src.discord_rpc import DiscordRPC
+from src.helpers.paths import _LAUNCHER_MAP, _ALL_NTE_PROCS, detect_version, get_version_paths
 from src import config_manager as cfg
+from src.helpers.builtins import PAK_ADDONS
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-# Process List
-launchers = {
-    "ntegloballauncher.exe",
-    "ntelauncher.exe",
-    "ntetwlauncher.exe",
-    "nteglobal.exe",
-    "nteglobalgame.exe",
-}
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
@@ -44,26 +38,31 @@ class AuroraEngine:
         self._win64 = self.game_path / "Client/WindowsNoEditor/HT/Binaries/Win64"
         self._pak_base = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/~Aurora"
 
-        # Target Maps
-        self.targets = {
-            "root_dll":    self.game_path / "version.dll",
-            "global_dll":  self.game_path / "NTEGlobal" / "version.dll",
-            "bin_dll":     self._win64 / "version.dll",
-            "asi_plugin":  self._win64 / "signmain.asi",
-        }
+        self.version = detect_version(self.game_path)
+        self._vpaths = get_version_paths(self.game_path, self.version)
+        logger.info(f"Detected NTE version: {self.version.upper()}")
 
-        # Censorship-removal targets
+        self._win64    = self._vpaths.win64
+        self._pak_base = self._vpaths.pak_base
+
+        self.targets = {
+            "root_dll":   self._vpaths.root_dll,
+            "bin_dll":    self._vpaths.bin_dll,
+            "asi_plugin": self._vpaths.asi_plugin,
+        }
+        if self._vpaths.global_dll is not None:
+            self.targets["global_dll"] = self._vpaths.global_dll
+
         self.cr_targets = {
             "ntfrmain_asi": self._win64 / "ntfrmain.asi",
             "cutils_dll":   self._win64 / "cutils.dll",
         }
 
-        # No Drive Line PAK files
-        self._ndl_source = self.bin_path / "Builtins"
+        self._builtins_source = self.bin_path / "Builtins"
         self.ndl_targets = {
-            "auddl_pak":  self._pak_base.parent / "auddl_P.pak",
-            "auddl_utoc": self._pak_base.parent / "auddl_P.utoc",
-            "auddl_ucas": self._pak_base.parent / "auddl_P.ucas",
+            f"{addon.base_name}_{fname}": self._pak_base.parent / fname
+            for addon in PAK_ADDONS
+            for fname in addon.files
         }
 
     def _remove_file_or_dir(self, path):
@@ -83,10 +82,9 @@ class AuroraEngine:
     
     def _kill_nte(self):
         targets = [
-            "NTEGlobalLauncher.exe",
-            "NTEGlobal.exe",
-            "NTEGlobalGame.exe",
-            "HTGame.exe",
+            self._vpaths.launcher_process,
+            *self._vpaths.helper_processes,
+            self._vpaths.game_process,
         ]
         procs = [
             subprocess.Popen(
@@ -98,7 +96,6 @@ class AuroraEngine:
         for p in procs:
             p.wait()
 
-        # Here we verify the global_dll file to make sure that Aurora can edit it -Datura
         dll_path = self.targets.get("global_dll")
         if dll_path and dll_path.exists():
             for _ in range(5):
@@ -110,8 +107,8 @@ class AuroraEngine:
                     time.sleep(1)
 
     def sanitize(self, kill_first: bool):
-        pak_dir = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks"
-        logger.info("Starting system sanitation...")
+        pak_dir = self._pak_base.parent
+        logger.info("Starting system sanitation...", extra={"el": True})
         if kill_first:
             self._kill_nte()
 
@@ -183,16 +180,15 @@ class AuroraEngine:
 
         try:
             self.sanitize(kill_first=True)
-
-            # Copy DLL files into the directory paths
             logger.info("Copying version.dll to game directories...", extra={'el': True})
             try:
                 copies = [
                     (self.bin_path / "version.dll", self.targets["root_dll"]),
-                    (self.bin_path / "version.dll", self.targets["global_dll"]),
                     (self.bin_path / "version.dll", self.targets["bin_dll"]),
                 ]
-                self.targets["global_dll"].parent.mkdir(parents=True, exist_ok=True)
+                if "global_dll" in self.targets:
+                    self.targets["global_dll"].parent.mkdir(parents=True, exist_ok=True)
+                    copies.append((self.bin_path / "version.dll", self.targets["global_dll"]))
                 with ThreadPoolExecutor() as ex:
                     futures = {ex.submit(shutil.copy, src, dst): dst for src, dst in copies}
                     for future in as_completed(futures):
@@ -233,7 +229,7 @@ class AuroraEngine:
                     raise
 
             logger.info("Deploying enabled mods via individual junctions...", extra={'el': True})
-            pak_dir = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks"
+            pak_dir = self._pak_base.parent
             folders = [
                 f for f in self.mods_source.iterdir()
                 if f.is_dir() and not f.name.startswith("disabled_")
@@ -255,24 +251,24 @@ class AuroraEngine:
             if failed_mods:
                 logger.warning(f"Failed to deploy {len(failed_mods)} mod(s): {failed_mods}")
 
-            # No Drive Line Feature
-            if self.no_drive_line:
-                logger.info("No Drive Line is enabled, copying built-in pak files", extra={'el': True})
-                ndl_files = ["auddl_P.pak", "auddl_P.utoc", "auddl_P.ucas"]
-                missing = [f for f in ndl_files if not (self._ndl_source / f).exists()]
+            for addon in PAK_ADDONS:
+                if not cfg.get(addon.config_key):
+                    continue
+                logger.info(f"PAK Addon '{addon.folder_name}' is enabled, copying files...", extra={'el': True})
+                missing = [f for f in addon.files if not (self._builtins_source / f).exists()]
                 if missing:
-                    logger.error(f"Missing No Drive Line source file(s) in Bin/Builtins: {missing}. Skipping.")
-                else:
-                    try:
-                        for fname in ndl_files:
-                            shutil.copy(self._ndl_source / fname, self._pak_base.parent / fname)
-                        logger.info("Copied No Drive Line PAK files.", extra={'el': True})
-                    except (PermissionError, OSError) as e:
-                        if getattr(e, 'winerror', None) in (5, 32):
-                            logger.error(f"Access denied copying No Drive Line files (WinError {e.winerror}).")
-                            self.sanitize(kill_first=False)
-                            return "access_denied"
-                        raise
+                    logger.error(f"PAK Addon '{addon.base_name}': missing source file(s) in Bin/Builtins: {missing}. Skipping.", extra={"el": True})
+                    continue
+                try:
+                    for fname in addon.files:
+                        shutil.copy(self._builtins_source / fname, self._pak_base.parent / fname)
+                    logger.info(f"PAK Addon '{addon.base_name}': copied successfully.", extra={'el': True})
+                except (PermissionError, OSError) as e:
+                    if getattr(e, 'winerror', None) in (5, 32):
+                        logger.error(f"PAK Addon '{addon.base_name}': access denied (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
+                        self.sanitize(kill_first=False)
+                        return "access_denied"
+                    raise
 
             return True
 
@@ -286,8 +282,12 @@ class AuroraEngine:
         launcher_missing_seconds = 0
         launcher_ever_seen = False
 
-        MAX_GRACE_SECONDS = 7
+        MAX_GRACE_SECONDS = 5
         TOTAL_TIMEOUT_SECONDS = 120
+
+        game_exe     = self._vpaths.game_process.lower()
+        launcher_exe = self._vpaths.launcher_process.lower()
+        helper_exes  = {p.lower() for p in self._vpaths.helper_processes}
 
         logger.info("Monitoring for Neverness To Everness (NTE), you must press \"Play\" in the launcher!")
 
@@ -297,18 +297,14 @@ class AuroraEngine:
 
             active = {p.name().lower() for p in psutil.process_iter(['name'])}
 
-            if "htgame.exe" in active:
+            if game_exe in active:
                 game_started = True
-                logger.info("NTE Process (HTGame.exe) was detected, game is running.")
+                logger.info(f"NTE Process ({self._vpaths.game_process}) was detected, game is running.")
                 if callable(getattr(self, 'on_game_started', None)):
                     self.on_game_started()
                 break
 
-            launcher_running = (
-                "ntegloballauncher.exe" in active or
-                "nteglobal.exe" in active or
-                "nteglobalgame.exe" in active
-            )
+            launcher_running = launcher_exe in active or bool(helper_exes & active)
 
             if launcher_running:
                 if not launcher_ever_seen:
@@ -337,27 +333,24 @@ class AuroraEngine:
             return
 
         # Phase 2: Active game tracking
-        ht_procs = [p for p in psutil.process_iter(['name']) if p.name().lower() == "htgame.exe"]
+        ht_procs = [p for p in psutil.process_iter(['name']) if p.name().lower() == game_exe]
         if ht_procs:
             psutil.wait_procs(ht_procs, timeout=None)
-            logger.info("Used ht_procs method")
         else:
-            logger.info("ht_procs not active, falling back to the old method")
             while True:
                 time.sleep(2)
                 active = {p.name().lower() for p in psutil.process_iter(['name'])}
-                if "htgame.exe" not in active:
+                if game_exe not in active:
                     break
 
         logger.info("NTE was closed, initialising clean-up process...")
         self.sanitize(kill_first=False)
 
-        # Watch for the NTE Launcher after sanitization ends
+        # Watch for any lingering NTE launcher processes after sanitization ends.
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             active = {p.name().lower() for p in psutil.process_iter(['name'])}
-            found = launchers & active
-            if found:
+            if _ALL_NTE_PROCS & active:
                 self._kill_nte()
                 break
             time.sleep(0.5)

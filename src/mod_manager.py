@@ -12,6 +12,7 @@ class ModEntry:
     version: str = t("mod_manager_unknown")
     author: str = t("mod_manager_unknown")
     support_link: str = ""
+    icon: str = ""
     is_enabled: bool = True
     has_json: bool = False
 
@@ -59,6 +60,7 @@ class ModManager:
                             "version": data.get("Version", "1.0.0"),
                             "author": data.get("Author", t("mod_manager_unknown")),
                             "support_link": data.get("Optionals", {}).get("Support Link", ""),
+                            "icon": data.get("Icon", ""),
                             "has_json": True
                         })
                 except Exception as e:
@@ -96,7 +98,7 @@ class ModManager:
                     logger.error(f"Shell rename also failed: {result.stderr.strip()}")
                     return None
 
-            logger.info(f"Mod toggled: {mod.folder_name} -> {new_name}")
+            logger.info(f"Mod toggled: {mod.folder_name} -> {new_name}", extra={"el": True})
             return new_name
         except Exception as e:
             logger.error(f"FileSystem error toggling mod: {e}")

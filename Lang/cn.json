@@ -5,6 +5,7 @@
     "launcher": "启动器",
     "developer": "开发者",
     "language": "语言",
+    "addons": "插件",
     "language_desc": "界面显示语言",
     "ui_minimization_title": "接口简化",
     "ui_minimization_desc": "游戏启动后关闭启动器。",
@@ -53,5 +54,16 @@
     "mod_manager_tooltip": "模组管理器",
     "ko-fi_tooltip": "在 Ko-Fi 上支持 Aurora",
     "discord_tooltip": "加入 Discord 服务器",
-    "gamebanana_tooltip": "GameBanana 页面"
+    "gamebanana_tooltip": "GameBanana 页面",
+    "faq_tooltip": "常见问题页面",
+    "ui_scaling": "UI 缩放",
+    "ui_scaling_desc": "调整游戏内界面缩放（需要重新启动）(鸣谢：Tayuya)",
+    "hide_uid_title": "隐藏 UID",
+    "hide_uid_desc": "在游戏中隐藏您的用户 ID 文字。（鸣谢：Rokkudayo）",
+    "hide_dots_title": "隐藏红点",
+    "hide_dots_desc": "在游戏中隐藏通知红点。（鸣谢：rzwei）",
+    "install_zone_title": "安装模组",
+    "install_zone_choose": "选择您的文件",
+    "mod_delete_title": "删除模组",
+    "mod_delete_message": "您确定要删除以下模组吗？"
 }
