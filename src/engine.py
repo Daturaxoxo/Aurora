@@ -160,6 +160,7 @@ class AuroraEngine:
                     shutil.rmtree(nte_mod_folder)
         else:
             nte_mod_folder.mkdir(exist_ok=True)
+            aurora_mod_folder.mkdir(exist_ok=True)
             for file in aurora_mod_folder.iterdir():
                 shutil.move(file, nte_mod_folder)
 
