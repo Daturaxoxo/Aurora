@@ -14,7 +14,7 @@ from src.styles import MOD_MANAGER_STYLE
 from src.translator import t
 from src.engine import get_app_dir
 from src.ui.elements import ModCard
-
+from src import config_manager as cfg
 
 class ModManagerOverlay(QFrame):
     def __init__(self, parent, mod_manager):
@@ -141,7 +141,11 @@ class ModManagerOverlay(QFrame):
         self.refresh_list()
 
     def _open_mods_folder(self):
-        mods_path = Path(get_app_dir()) / "Mods"
+        if cfg.get(cfg.Key.USE_HARD_LINKS):
+            mods_path = Path(get_app_dir()) / "Mods"
+        else:
+            mods_path = Path(cfg.get(cfg.Key.GAME_PATH)) / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
+        print(mods_path)
         if not mods_path.exists():
             mods_path.mkdir(parents=True, exist_ok=True)
         if sys.platform == "win32":

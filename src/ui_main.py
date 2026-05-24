@@ -1,8 +1,11 @@
 # ui_main.py
 import ctypes
 import ctypes.wintypes
+import time
 import webbrowser
 import subprocess
+
+import psutil
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -218,7 +221,7 @@ class AuroraUI(QMainWindow):
         self.btn_close = QPushButton()
         self.btn_close.setIcon(QIcon(resource_path("Bin/Assets/close.png")))
         self.btn_close.setIconSize(QSize(24, 24))
-        self.btn_close.clicked.connect(self.close)
+        self.btn_close.clicked.connect(self._on_close)
 
         tb_layout.addWidget(self.btn_settings)
         tb_layout.addWidget(self.btn_faq)
@@ -238,8 +241,12 @@ class AuroraUI(QMainWindow):
         bottom_layout = QHBoxLayout(self._bottom_bar)
         bottom_layout.setContentsMargins(30, 15, 30, 20)
 
+        if cfg.get(cfg.Key.USE_HARD_LINKS):
+            mods_dir = Path(get_app_dir()) / "Mods"
+        else:
+            mods_dir = Path(cfg.get(cfg.Key.GAME_PATH)) / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
         self.mod_manager = ModManager(
-            mods_dir=Path(get_app_dir()) / "Mods",
+            mods_dir=mods_dir,
             state_file=Path(get_app_dir()) / "Bin" / "disabled_mods.json"
         )
 
@@ -518,6 +525,7 @@ class AuroraUI(QMainWindow):
     def _send_to_tray(self):
         if not cfg.get(cfg.Key.UI_MINIMIZATION):
             return
+        
         self._tray.show()
         self.hide()
         self._overlay_win = AuroraOverlayWindow(
@@ -541,6 +549,28 @@ class AuroraUI(QMainWindow):
             return
         self._restore_from_tray()
         logger.info("Session ended, Aurora restored from tray.", extra={"el": True})
+        
+    def _on_close(self):
+        logger.info("Closing aurora...", extra={"el": True})
+        
+        active = {p.name().lower() for p in psutil.process_iter(['name'])}
+        if "htgame.exe" in active:
+            self._tray.show()
+            self.hide()
+            logger.info("NTE Process (HTGame.exe) was detected while closing, waiting...", extra={"el": True})
+            ht_procs = [p for p in psutil.process_iter(['name']) if p.name().lower() == "htgame.exe"]
+            if ht_procs:
+                psutil.wait_procs(ht_procs, timeout=None)
+            else:
+                while True:
+                    time.sleep(0.5)
+                    active = {p.name().lower() for p in psutil.process_iter(['name'])}
+                    if "htgame.exe" not in active:
+                        break
+        
+        logger.info("Sanitizing and closing...", extra={"el": True})
+        self.engine.sanitize(False)
+        self.close()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
