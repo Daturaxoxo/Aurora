@@ -62,8 +62,10 @@
     "hide_uid_desc": "Скрывает ваш ID пользователя в игре. (Авторы: Rokkudayo)",
     "hide_dots_title": "Скрыть красные точки",
     "hide_dots_desc": "Скрывает красные точки уведомлений в игре. (Авторы: rzwei)",
-    "install_zone_title": "Установить моды",
-    "install_zone_choose": "Bыберите файлы",
+    "install_zone_title_zip": "Установить мод из ZIP",
+    "install_zone_choose_zip": "Выберите ZIP-файлы",
+    "install_zone_title_folder": "Установить мод из папки",
+    "install_zone_choose_folder": "Выберите папку",
     "mod_delete_title": "Удалить мод",
     "mod_delete_message": "Вы уверены, что хотите удалить следующий мод?"
 }

@@ -62,8 +62,10 @@
     "hide_uid_desc": "Blendet deine User-ID im Spiel aus. (Credits: Rokkudayo)",
     "hide_dots_title": "Rote Punkte ausblenden",
     "hide_dots_desc": "Blendet die Benachrichtigungs-Punkte im Spiel aus. (Credits: rzwei)",
-    "install_zone_title": "Mods installieren",
-    "install_zone_choose": "Wähle deine Dateien",
+    "install_zone_title_zip": "Mod aus ZIP installieren",
+    "install_zone_choose_zip": "ZIP-Dateien auswählen",
+    "install_zone_title_folder": "Mod aus Ordner installieren",
+    "install_zone_choose_folder": "Ordner auswählen",
     "mod_delete_title": "Mod löschen",
     "mod_delete_message": "Bist du sicher, dass du den folgenden Mod löschen möchtest?"
 }

@@ -62,8 +62,10 @@
     "hide_uid_desc": "Verbergt je gebruikers-ID in de game. (Credits: Rokkudayo)",
     "hide_dots_title": "Rode stippen verbergen",
     "hide_dots_desc": "Verbergt de rode notificatiestippen in de game. (Credits: rzwei)",
-    "install_zone_title": "Mods installeren",
-    "install_zone_choose": "Kies je bestanden",
+    "install_zone_title_zip": "Mod installeren vanuit ZIP",
+    "install_zone_choose_zip": "ZIP-bestanden kiezen",
+    "install_zone_title_folder": "Mod installeren vanuit map",
+    "install_zone_choose_folder": "Een map kiezen",
     "mod_delete_title": "Mod verwijderen",
     "mod_delete_message": "Weet je zeker dat je de volgende mod wilt verwijderen?"
 }

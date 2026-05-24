@@ -62,8 +62,10 @@
     "hide_uid_desc": "在游戏中隐藏您的用户 ID 文字。（鸣谢：Rokkudayo）",
     "hide_dots_title": "隐藏红点",
     "hide_dots_desc": "在游戏中隐藏通知红点。（鸣谢：rzwei）",
-    "install_zone_title": "安装模组",
-    "install_zone_choose": "选择您的文件",
+    "install_zone_title_zip": "从 ZIP 安装模组",
+    "install_zone_choose_zip": "选择 ZIP 文件",
+    "install_zone_title_folder": "从文件夹安装模组",
+    "install_zone_choose_folder": "选择文件夹",
     "mod_delete_title": "删除模组",
     "mod_delete_message": "您确定要删除以下模组吗？"
 }

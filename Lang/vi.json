@@ -62,8 +62,10 @@
     "hide_uid_desc": "Ẩn văn bản ID người dùng của bạn trong trò chơi. (Tín dụng: Rokkudayo)",
     "hide_dots_title": "Ẩn chấm đỏ",
     "hide_dots_desc": "Ẩn các chấm đỏ thông báo trong trò chơi. (Tín dụng: rzwei)",
-    "install_zone_title": "Cài đặt bản mod",
-    "install_zone_choose": "Chọn tệp của bạn",
+    "install_zone_title_zip": "Cài đặt bản mod từ tệp ZIP",
+    "install_zone_choose_zip": "Chọn tệp ZIP",
+    "install_zone_title_folder": "Cài đặt bản mod từ thư mục",
+    "install_zone_choose_folder": "Chọn một thư mục",
     "mod_delete_title": "Xóa bản mod",
     "mod_delete_message": "Bạn có chắc chắn muốn xóa bản mod sau đây không?"
 }

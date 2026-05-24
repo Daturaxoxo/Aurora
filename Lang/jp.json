@@ -62,8 +62,10 @@
     "hide_uid_desc": "ゲーム内のユーザーID表示を隠します。（クレジット: Rokkudayo）",
     "hide_dots_title": "赤点を非表示",
     "hide_dots_desc": "ゲーム内の通知用赤点を隠します。（クレジット: rzwei）",
-    "install_zone_title": "MODをインストール",
-    "install_zone_choose": "ファイルを選択",
+    "install_zone_title_zip": "ZIPからMODをインストール",
+    "install_zone_choose_zip": "ZIPファイルを選択",
+    "install_zone_title_folder": "フォルダからMODをインストール",
+    "install_zone_choose_folder": "フォルダを選択",
     "mod_delete_title": "MODを削除",
     "mod_delete_message": "以下のMODを本当に削除しますか？"
 }

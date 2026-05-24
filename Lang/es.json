@@ -62,8 +62,10 @@
     "hide_uid_desc": "Oculta el texto de tu ID de usuario en el juego. (Créditos: Rokkudayo)",
     "hide_dots_title": "Ocultar puntos rojos",
     "hide_dots_desc": "Oculta los puntos rojos de notificación en el juego. (Créditos: rzwei)",
-    "install_zone_title": "Instalar mods",
-    "install_zone_choose": "Elige tus archivos",
+    "install_zone_title_zip": "Instalar mod desde ZIP",
+    "install_zone_choose_zip": "Elegir archivos ZIP",
+    "install_zone_title_folder": "Instalar mod desde carpeta",
+    "install_zone_choose_folder": "Elegir una carpeta",
     "mod_delete_title": "Eliminar mod",
     "mod_delete_message": "¿Estás seguro de que quieres eliminar el siguiente mod?",
     "faq_tooltip": "Página de preguntas frecuentes"
