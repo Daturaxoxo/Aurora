@@ -34,9 +34,6 @@ class AuroraEngine:
             self.mods_source = aurora_mod_folder
         else:
             self.mods_source = nte_mod_folder
-            
-        self._win64 = self.game_path / "Client/WindowsNoEditor/HT/Binaries/Win64"
-        self._pak_base = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/~Aurora"
 
         self.version = detect_version(self.game_path)
         self._vpaths = get_version_paths(self.game_path, self.version)
@@ -66,10 +63,10 @@ class AuroraEngine:
         }
 
     def _remove_file_or_dir(self, path):
-        if os.remove(path) == OSError:
-            logger.warning(f"Failed to remove file: {path}", extra={'el': True})
+        try:
+            os.remove(path)
+        except OSError:
             shutil.rmtree(path, ignore_errors=True)
-        
         return True
     
     def _create_hard_link(self, folder, pak_dir):
@@ -94,7 +91,10 @@ class AuroraEngine:
             for t in targets
         ]
         for p in procs:
-            p.wait()
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.kill()
 
         dll_path = self.targets.get("global_dll")
         if dll_path and dll_path.exists():
@@ -157,7 +157,7 @@ class AuroraEngine:
             if Path.exists(nte_mod_folder):
                 for file in nte_mod_folder.iterdir():
                     shutil.move(file, aurora_mod_folder)
-                    shutil.rmtree(nte_mod_folder)
+                shutil.rmtree(nte_mod_folder)
         else:
             nte_mod_folder.mkdir(exist_ok=True)
             aurora_mod_folder.mkdir(exist_ok=True)
@@ -298,7 +298,7 @@ class AuroraEngine:
 
         # Holy f####ng spagetti code -Datura
         for _ in range(TOTAL_TIMEOUT_SECONDS):
-            time.sleep(0.5)
+            time.sleep(1)
 
             active = {p.name().lower() for p in psutil.process_iter(['name'])}
 
