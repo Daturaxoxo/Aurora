@@ -40,12 +40,15 @@ def run_build():
         "--noupx",
         f"--add-data=Bin/Assets{SEP}Bin/Assets",
         f"--add-data=Bin/version.dll{SEP}Bin",
-        f"--add-data=Bin/signmain.asi{SEP}Bin",
-        f"--add-data=Bin/ntfrmain.asi{SEP}Bin",
+        f"--add-data=Bin/dinput8.dll{SEP}Bin",
+        f"--add-data=Bin/ausigbp.asi{SEP}Bin",
+        f"--add-data=Bin/glntfrmain.asi{SEP}Bin",
+        f"--add-data=Bin/cnntfrmain.asi{SEP}Bin",
+        f"--add-data=Bin/cnntfrsub.dll{SEP}Bin",
         f"--add-data=Bin/cutils.dll{SEP}Bin",
         f"--add-data=Bin/Builtins{SEP}Bin/Builtins",
         f"--add-data=Lang{SEP}Lang",
-         f"--add-data=dev/VERSION{SEP}dev",
+        f"--add-data=dev/VERSION{SEP}dev",
         "--hidden-import=psutil",
         "--hidden-import=psutil._pswindows",
         "--python-option=u",
@@ -86,6 +89,7 @@ def run_build():
     zip_anchor = "./dist"
     with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(DIST_DIR):
+            dirs[:] = [d for d in dirs if d != "Bin"]
             for file in files:
                 full_path = os.path.join(root, file)
                 arcname = os.path.relpath(full_path, zip_anchor)

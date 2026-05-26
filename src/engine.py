@@ -12,7 +12,7 @@ from src.helpers.paths import _LAUNCHER_MAP, _ALL_NTE_PROCS, detect_version, get
 from src import config_manager as cfg
 from src.helpers.builtins import PAK_ADDONS
 from concurrent.futures import ThreadPoolExecutor, as_completed
-JUNK_EXTENSIONS = {'.rar', '.zip', '.7z', '.exe', '.tar', '.gz'}
+JUNK_EXTENSIONS = {'.rar', '.zip', '.7z', '.tar', '.gz'}
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
@@ -32,8 +32,11 @@ class AuroraEngine:
 
         # IMPORTANT: We use absolute paths and not relative paths because using "./" will break if the application is launched from a different directory, like a desktop shortcut for example.
         app_dir = Path(get_app_dir())
-        self.bin_path = app_dir / "Bin"
-        
+        if getattr(sys, 'frozen', False):
+            self.bin_path = Path(sys._MEIPASS) / "Bin"
+        else:
+            self.bin_path = app_dir / "Bin"
+
         nte_mod_folder = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
         aurora_mod_folder = app_dir / "Mods"
         if cfg.get(cfg.Key.USE_HARD_LINKS):
@@ -44,6 +47,7 @@ class AuroraEngine:
         self.version = detect_version(self.game_path)
         self._vpaths = get_version_paths(self.game_path, self.version)
         logger.info(f"Detected NTE version: {self.version.upper()}")
+        self.main_dll = "dinput8.dll" if self.version == "cn" else "version.dll"
 
         self._win64    = self._vpaths.win64
         self._pak_base = self._vpaths.pak_base
@@ -58,13 +62,13 @@ class AuroraEngine:
 
         if self.version == "cn":
             self.cr_targets = {
-                "ntfrmain_asi": self._win64 / "cn_ntfrmain.asi",
+                "ntfrmain_asi": self._win64 / "cnntfr.asi",
                 "cutils_dll":   self._win64 / "cutils.dll",
-                "ntfrsub_dll":  self._win64 / "cn_ntfrsub.dll",
+                "ntfrsub_dll":  self._win64 / "cnntfrsub.dll",
             }
         else:
             self.cr_targets = {
-                "ntfrmain_asi": self._win64 / "ntfrmain.asi",
+                "ntfrmain_asi": self._win64 / "glntfrmain.asi",
                 "cutils_dll":   self._win64 / "cutils.dll",
             }
 
@@ -81,7 +85,7 @@ class AuroraEngine:
         except OSError:
             shutil.rmtree(path, ignore_errors=True)
         return True
-    
+
     def _create_hard_link(self, folder, pak_dir):
         target = pak_dir / f"zz_{folder.name}"
         if os.path.lexists(target):
@@ -89,7 +93,7 @@ class AuroraEngine:
         cmd = f'mklink /J "{target}" "{folder.resolve()}"'
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         return folder.name, result.returncode == 0, result.stderr.strip()
-    
+
     def _kill_nte(self):
         targets = [
             self._vpaths.launcher_process,
@@ -163,7 +167,7 @@ class AuroraEngine:
         logger.info(f"Game path:  {self.game_path}", extra={'el': True})
         logger.info(f"Bin path:   {self.bin_path}", extra={'el': True})
         logger.info(f"Mods path:  {self.mods_source}", extra={'el': True})
-   
+
         nte_mod_folder = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
         aurora_mod_folder = Path(get_app_dir() + "/Mods")
         junk_files = []
@@ -190,19 +194,19 @@ class AuroraEngine:
 
         # Bin file validation.
         required_bin_files = [
-            self.bin_path / "version.dll",
-            self.bin_path / "signmain.asi",
+            self.bin_path / self.main_dll,
+            self.bin_path / "ausigbp.asi",
         ]
         if self.censorship_removal:
             if self.version == "cn":
                 required_bin_files += [
-                    self.bin_path / "cn_ntfrmain.asi",
+                    self.bin_path / "cnntfrmain.asi",
                     self.bin_path / "cutils.dll",
-                    self.bin_path / "cn_ntfrsub.dll",
+                    self.bin_path / "cnntfrsub.dll",
                 ]
             else:
                 required_bin_files += [
-                    self.bin_path / "ntfrmain.asi",
+                    self.bin_path / "glntfrmain.asi",
                     self.bin_path / "cutils.dll",
                 ]
         for f in required_bin_files:
@@ -212,15 +216,15 @@ class AuroraEngine:
 
         try:
             self.sanitize(kill_first=True)
-            logger.info("Copying version.dll to game directories...", extra={'el': True})
+            logger.info(f"Copying {self.main_dll} to game directories...", extra={'el': True})
             try:
                 copies = [
-                    (self.bin_path / "version.dll", self.targets["root_dll"]),
-                    (self.bin_path / "version.dll", self.targets["bin_dll"]),
+                    (self.bin_path / self.main_dll, self.targets["root_dll"]),
+                    (self.bin_path / self.main_dll, self.targets["bin_dll"]),
                 ]
                 if "global_dll" in self.targets:
                     _ensure_dir(self.targets["global_dll"].parent)
-                    copies.append((self.bin_path / "version.dll", self.targets["global_dll"]))
+                    copies.append((self.bin_path / self.main_dll, self.targets["global_dll"]))
                 with ThreadPoolExecutor() as ex:
                     futures = {ex.submit(shutil.copy, src, dst): dst for src, dst in copies}
                     for future in as_completed(futures):
@@ -229,7 +233,7 @@ class AuroraEngine:
             except (PermissionError, OSError) as e:
                 if getattr(e, 'winerror', None) in (5, 32):
                     # WinError 5 = Access Denied, WinError 32 = file in use.
-                    logger.error(f"Access denied copying version.dll (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
+                    logger.error(f"Access denied copying {self.main_dll} (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
                     self.sanitize(kill_first=False)
                     return "access_denied"
                 raise
@@ -237,7 +241,7 @@ class AuroraEngine:
             # Copy ASI
             logger.info("Copying ASI plugin...")
             try:
-                shutil.copy(self.bin_path / "signmain.asi", self.targets["asi_plugin"])
+                shutil.copy(self.bin_path / "ausigbp.asi", self.targets["asi_plugin"])
                 logger.info("Copied ASI plugin.", extra={"el": True})
             except (PermissionError, OSError) as e:
                 if getattr(e, 'winerror', None) in (5, 32):
