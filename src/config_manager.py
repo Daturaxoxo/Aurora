@@ -3,15 +3,16 @@ import sys
 import json
 
 LANG_CODES = {
-    "English":    "en",
-    "Türkçe":     "tr",
-    "中文":        "cn",
-    "日本語":      "jp",
-    "Español":    "es",
-    "Deutsch":    "de",
-    "Tiếng Việt": "vi",
-    "Nederlands": "nl",
-    "Pусский":    "ru",
+    "English":                "en",
+    "Türkçe":                 "tr",
+    "中文":                   "cn",
+    "日本語":                 "jp",
+    "Español":                "es",
+    "Deutsch":                "de",
+    "Tiếng Việt":             "vi",
+    "Nederlands":             "nl",
+    "Pусский":                "ru",
+    "Bahasa Indonesia":       "id"
 }
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 
