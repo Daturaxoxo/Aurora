@@ -92,6 +92,7 @@ Aurora's Mod Manager supports a `mod.json` file inside your mod folder to displa
 | <img src="https://flagcdn.com/w20/kr.png" width="20"> Korean | ![0%](https://geps.dev/progress/0?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `kr.json` | No Translation |
 | <img src="https://flagcdn.com/w20/vn.png" width="20"> Vietnamese | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `vi.json` | Credits: [@TanNhatCMS](https://github.com/TanNhatCMS) |
 | <img src="https://flagcdn.com/w20/nl.png" width="20"> Dutch | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `nl.json` | Credits: [@devAxri](https://github.com/devAxri)
+| <img src="https://flagcdn.com/w20/it.png" width="20"> Italian | ![0%](https://geps.dev/progress/0?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `nl.json` | No Translation |
 
 ### ᅠ
 ## Contributors
