@@ -12,7 +12,8 @@ LANG_CODES = {
     "Tiếng Việt":             "vi",
     "Nederlands":             "nl",
     "Pусский":                "ru",
-    "Bahasa Indonesia":       "id"
+    "Bahasa Indonesia":       "id",
+    "Italiano":               "it"
 }
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 
