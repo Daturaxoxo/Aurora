@@ -93,6 +93,8 @@ Aurora's Mod Manager supports a `mod.json` file inside your mod folder to displa
 | <img src="https://flagcdn.com/w20/vn.png" width="20"> Vietnamese | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `vi.json` | Credits: [@TanNhatCMS](https://github.com/TanNhatCMS) |
 | <img src="https://flagcdn.com/w20/nl.png" width="20"> Dutch | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `nl.json` | Credits: [@devAxri](https://github.com/devAxri)
 | <img src="https://flagcdn.com/w20/it.png" width="20"> Italian | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `it.json` | Credits: [@yuukitoyaro](https://github.com/yuukitoyaro) |
+| <img src="https://flagcdn.com/w20/pt.png" width="20"> Portuguese | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `pt-br.json` | Credits: [@SouzaNonaka](https://github.com/SouzaNonaka) |
+| <img src="https://flagcdn.com/w20/br.png" width="20"> Brazillian | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `pt-br.json` | Credits: [@SouzaNonaka](https://github.com/SouzaNonaka) |
 
 ### ᅠ
 ## Contributors
