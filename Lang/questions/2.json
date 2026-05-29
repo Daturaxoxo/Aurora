@@ -5,6 +5,7 @@
         "cn": "支持哪些服务器？",
         "de": "Welche Server werden unterstützt?",
         "es": "¿Qué servidores están soportados?",
+        "pt-br": "Quais servidores são compatíveis?",
         "jp": "どのサーバーが対応していますか？",
         "nl": "Welke servers worden ondersteund?",
         "vi": "Những máy chủ nào được hỗ trợ?"
@@ -69,6 +70,18 @@
             "\n- Asia Central",
             "\n- China Continental",
             "\n- Taiwán"
+        ],
+        "pt-br": [
+            "## Servidores Compatíveis",
+            "As versões do launcher compatíveis com o Aurora estão listadas abaixo:",
+            "\n- América do Norte e América do Sul",
+            "\n- Europa",
+            "\n- África",
+            "\n- Oriente Médio",
+            "\n- Sudeste Asiático",
+            "\n- Ásia Central",
+            "\n- China Continental",
+            "\n- Taiwan"
         ],
         "jp": [
             "## 対応サーバー",

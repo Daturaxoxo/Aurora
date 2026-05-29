@@ -5,6 +5,7 @@
         "cn": "如何安装模组？",
         "de": "Wie installiere ich Mods?",
         "es": "¿Cómo instalo los mods?",
+        "pt-br": "Como instalo mods?",
         "jp": "モッドのインストール方法は？",
         "nl": "Hoe installeer ik mods?",
         "vi": "Làm thế nào để cài đặt mod?"
@@ -69,6 +70,18 @@
             "### Notas",
             "1. Aurora solo soporta mods en formato `.pak`.",
             "2. Los mods en conflicto (el mismo recurso/personaje modificado por dos mods diferentes) mostrarán el mod que se haya cargado último alfabéticamente."
+        ],
+        "pt-br": [
+            "## Instalando Mods",
+            "1. Baixe um mod no [GameBanana](https://gamebanana.com/games/23012) ou [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)",
+            "2. Extraia o arquivo ZIP",
+            "3. Coloque o mod na pasta `\\Mods` dentro do Aurora",
+            "4. Confira o mod no Gerenciador de Mods",
+            "5. Inicie o jogo para exibir o mod dentro do jogo.",
+            "",
+            "### Observações",
+            "1. O Aurora suporta apenas mods em arquivos `.pak`.",
+            "2. Mods conflitantes (o mesmo recurso/personagem sobrescrito por dois mods diferentes) mostrarão o mod carregado por último em ordem alfabética."
         ],
         "jp": [
             "## モッドのインストール",

@@ -8,6 +8,7 @@ LANG_CODES = {
     "中文":                   "cn",
     "日本語":                 "jp",
     "Español":                "es",
+    "Português (Brasil)":     "pt-br",
     "Deutsch":                "de",
     "Tiếng Việt":             "vi",
     "Nederlands":             "nl",

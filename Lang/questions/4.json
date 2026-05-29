@@ -5,6 +5,7 @@
         "cn": "如何提出建议？",
         "de": "Wie kann ich Vorschläge einreichen?",
         "es": "¿Cómo puedo hacer sugerencias?",
+        "pt-br": "Como posso fazer sugestões?",
         "jp": "提案や要望を送るにはどうすればいいですか？",
         "nl": "Hoe kan ik suggesties doen?",
         "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?"
@@ -44,6 +45,13 @@
             "\n- Nuestro servidor de Discord",
             "\n- Página de GameBanana",
             "Cualquier otra ubicación resultará en respuestas tardías o en ninguna respuesta."
+        ],
+        "pt-br": [
+            "## Fazendo uma sugestão",
+            "Lugares onde você pode fazer sugestões:",
+            "\n- Nosso servidor do Discord",
+            "\n- Página do GameBanana",
+            "Qualquer outro local resultará em respostas atrasadas ou nenhuma resposta."
         ],
         "jp": [
             "## 提案・要望を送る",

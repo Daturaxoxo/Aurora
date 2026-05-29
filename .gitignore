@@ -1,11 +1,35 @@
-# Created by Aurora at runtime
+# Aurora runtime files
 config.json
-/Mods
-/Logs
-__pycache__
+/Mods/
+/Logs/
+*.log
+*.aulog
 
-# Build Artifacts
-/build
-/dist
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and tooling cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+/build/
+/dist/
 *.spec
 *.zip
+*.egg-info/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
