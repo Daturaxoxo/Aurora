@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/v/release/Daturaxoxo/Aurora?include_prereleases&color=007ec6&v=1" alt="Release" />
   <img src="https://img.shields.io/github/downloads/Daturaxoxo/Aurora/total?color=2ea44f&v=1" alt="Downloads" />
-  <img src="https://img.shields.io/github/contributors/Daturaxoxo/Aurora?color=dfb317&v=1" alt="Contributors" />
+  <img src="https://img.shields.io/github/contributors/Daturaxoxo/Aurora?color=dfb317&v=2" alt="Contributors" />
 </p>
 
 > [!NOTE]
@@ -99,5 +99,5 @@ Aurora's Mod Manager supports a `mod.json` file inside your mod folder to displa
 ### ᅠ
 ## Contributors
 <a href="https://github.com/Daturaxoxo/Aurora/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Daturaxoxo/Aurora&anon=1" />
+  <img src="https://contrib.rocks/image?repo=Daturaxoxo/Aurora&anon=1&v=1" />
 </a>
