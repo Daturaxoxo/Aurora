@@ -29,6 +29,8 @@ from src.ui.widgets import BackgroundWidget, OverlayWidget
 from src.ui.notification import ToastNotification
 from src.ui.mod_manager import ModManagerOverlay
 from src.ui.faq import FaqOverlay
+from src.ui.update_overlay import UpdateOverlay
+from src.updater import UpdateChecker
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
@@ -175,27 +177,36 @@ class AuroraUI(QMainWindow):
     
     # Checking for updates
     def check_for_updates(self):
-        self.current_version = get_local_version()
-        self.online_version = GetOnlineVersion() or "9.9.9"
-        logger.info(self.current_version, extra={'el': True})
-        logger.info(self.online_version, extra={'el': True})
-        if parse_version(self.current_version) < parse_version(self.online_version):
-            TMP_msg_a = t("update_available_message_a")
-            TMP_msg_b = t("update_available_message_b")
-            TMP_msg_c = t("update_current_version")
-            TMP_msg_d = t("update_new_version")
+            self._update_checker = UpdateChecker()
+            self._update_checker.update_available.connect(self._on_update_available)
+            self._update_checker.start()
+
+    def _on_update_available(self, local_ver: str, online_ver: str):
+        try:
+            overlay = UpdateOverlay(
+                parent=self.central_widget,
+                local_version=local_ver,
+                online_version=online_ver,
+            )
+            overlay.show()
+            overlay.raise_()
+        except Exception:
+            logger.warning("Update Overlay failed to open; falling back to browser dialog.")
+            from src.ui.elements import PopupDialog
             PopupDialog(
                 parent=self,
                 title=t("update_available_title"),
                 message=(
-                    f"{TMP_msg_a}\n\n"
-                    f"{TMP_msg_c}: {self.current_version}\n"
-                    f"{TMP_msg_d}: {self.online_version}\n\n"
-                    f"{TMP_msg_b}"
+                    f"{t('update_available_message_a')}\n\n"
+                    f"{t('update_current_version')}: {local_ver}\n"
+                    f"{t('update_new_version')}: {online_ver}\n\n"
+                    f"{t('update_available_message_b')}"
                 ),
                 confirm_text=t("update_available_confirm"),
                 cancel_text=t("cancel"),
-                on_confirm=lambda: webbrowser.open("https://github.com/Daturaxoxo/Aurora/releases/latest"),
+                on_confirm=lambda: webbrowser.open(
+                    "https://github.com/Daturaxoxo/Aurora/releases/latest"
+                ),
             )
 
     # Top Bar
@@ -381,13 +392,18 @@ class AuroraUI(QMainWindow):
         )
 
     def _start_drive_search(self):
+        from src.ui.drive_search import DriveSearchWindow
         logger.info("User initiated drive search.")
         self.btn_search.setEnabled(False)
-        self._search_thread = DriveSearchThread()
-        self._search_thread.finished.connect(self._on_search_finished)
-        self._search_thread.start()
-
+        self._search_win = DriveSearchWindow()
+        self._search_win.search_finished.connect(self._on_search_finished)
+        self._search_win.cancelled.connect(lambda: self.btn_search.setEnabled(True))
+        self._search_win.show()
+        self._search_win.start()
+    
     def _on_search_finished(self, found_path):
+        if hasattr(self, '_search_win'):
+            self._search_win.close()
         self.btn_search.setEnabled(True)
         if found_path:
             logger.info(f"Drive search found NTE at: {found_path}")
@@ -592,8 +608,17 @@ class AuroraUI(QMainWindow):
                         break
         
         logger.info("Sanitizing and closing...", extra={"el": True})
-        self.engine.sanitize(False)
+        if self.engine:
+            self.engine.sanitize(False)
         self.close()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        hwnd = int(self.winId())
+        GWL_STYLE      = -16
+        WS_MINIMIZEBOX = 0x00020000
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
+        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-
 # Version Identifiers
 
 VERSION_GLOBAL = "global"

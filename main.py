@@ -2,9 +2,10 @@ import sys
 import ctypes
 import traceback
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QTimer
 from src.ui_main import AuroraUI
 from src.engine import AuroraEngine
-from src.path_finder import get_game_directory
+from src.path_finder import validate_path
 from src import config_manager as cfg
 from src.discord_rpc import DiscordRPC
 
@@ -23,12 +24,10 @@ def run_as_admin():
     if ctypes.windll.shell32.IsUserAnAdmin():
         return True
 
-    # sys.executable is the EXE itself when frozen, pass sys.argv[1:] as args. If not, pass sys.argv[0] as args.
     if getattr(sys, 'frozen', False):
         exe = sys.executable
         params = " ".join(f'"{a}"' for a in sys.argv[1:])
     else:
-        # Developer Mode: Relaunch python.exe with the script as argument for the console to appear.
         exe = sys.executable
         params = " ".join(f'"{a}"' for a in sys.argv)
 
@@ -37,13 +36,15 @@ def run_as_admin():
 
 def main():
     app = QApplication(sys.argv)
-    initial_path = get_game_directory()
+    saved_path = cfg.get(cfg.Key.GAME_PATH)
+    initial_path = saved_path if (saved_path and validate_path(saved_path)) else None
 
     engine = AuroraEngine(
         initial_path,
         censorship_removal=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
         no_drive_line=cfg.get(cfg.Key.NO_DRIVE_LINE)
     ) if initial_path else None
+    
     window = AuroraUI(engine, initial_path)
 
     if cfg.get(cfg.Key.DISCORD_RPC):
@@ -52,6 +53,11 @@ def main():
         window.rpc.start()
 
     window.show()
+    
+    # Trigger the visual drive search UI automatically if no valid path is found
+    if not initial_path:
+        QTimer.singleShot(500, window._prompt_drive_search)
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":

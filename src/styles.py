@@ -295,6 +295,19 @@ MOD_MANAGER_STYLE = """
     font-size: 11px;
 }
 
+#ModRenameBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 0px;
+}
+#ModRenameBtn:hover {
+    background-color: rgba(255, 255, 255, 8);
+}
+#ModRenameBtn:pressed {
+    background-color: rgba(255, 255, 255, 4);
+}
+
 #EmptyLabel {
     color: #484848;
     font-size: 13px;

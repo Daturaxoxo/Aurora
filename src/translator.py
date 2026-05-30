@@ -16,21 +16,23 @@ class _Translator(QObject):
         self._lang_dir = resource_path("Lang")
 
     def load(self, lang_code: str):
-        path = os.path.join(self._lang_dir, f"{lang_code}.json")
-        
-        if not os.path.exists(path):
-            logger.warning(f"Language file not found ({path}), Aurora will fall to English translation.")
-            path = os.path.join(self._lang_dir, "en.json")
-            lang_code = "en"
-            
+        path = os.path.join(self._lang_dir, "langs.json")
+
         try:
             with open(path, "r", encoding="utf-8") as f:
-                self._strings = json.load(f)
-            self._lang = lang_code
+                all_strings: dict = json.load(f)
         except Exception as e:
-            print(f"Error loading translation: {e}")
+            logger.warning(f"Error loading translations file ({path}): {e}")
             self._strings = {}
-            
+            self.language_changed.emit()
+            return
+
+        if lang_code not in all_strings:
+            logger.warning(f"Language '{lang_code}' not found in langs.json, falling back to English.")
+            lang_code = "en"
+
+        self._strings = all_strings.get(lang_code, {})
+        self._lang = lang_code
         self.language_changed.emit()
 
     def t(self, key: str) -> str:

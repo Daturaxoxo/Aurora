@@ -1,19 +1,97 @@
 import webbrowser
 import ctypes
+import json
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QGraphicsOpacityEffect
+    QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QLineEdit,
+    QScrollArea, QGridLayout, QFileDialog, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath
 from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 from src.path_finder import get_app_dir
 import shutil
+
+
+# Icon Map Helpers
+
+def _custom_icons_dir() -> Path:
+    d = Path(resource_path("Bin/Assets/ModImages/custom"))
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def _icon_map_path() -> Path:
+    return _custom_icons_dir() / "_icon_map.json"
+
+def _load_icon_map() -> dict:
+    p = _icon_map_path()
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+def _save_icon_map(mapping: dict):
+    _icon_map_path().write_text(
+        json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+# Mod Image Resolution
+
+def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
+    icon_map = _load_icon_map()
+    if mod_folder_name in icon_map:
+        entry = icon_map[mod_folder_name]
+        if entry.startswith("builtin:"):
+            builtin_path = Path(resource_path("Bin/Assets/ModImages")) / entry[len("builtin:"):]
+            if builtin_path.exists():
+                return QPixmap(str(builtin_path))
+        else:
+            custom_path = _custom_icons_dir() / entry
+            if custom_path.exists():
+                return QPixmap(str(custom_path))
+
+    if mod_icon:
+        icon_filename = f"{mod_icon.lower()}.png"
+        images_dir = Path(resource_path("Bin/Assets/ModImages"))
+        for img_path in images_dir.iterdir():
+            if img_path.name.lower() == icon_filename:
+                return QPixmap(str(img_path))
+
+    images_dir = Path(resource_path("Bin/Assets/ModImages"))
+    if not images_dir.exists():
+        return QPixmap()
+
+    images = sorted(
+        p for p in images_dir.iterdir()
+        if p.suffix.lower() in (".png", ".jpg", ".jpeg") and p.is_file()
+    )
+    if not images:
+        return QPixmap()
+
+    name_lower = mod_display_name.lower()
+    best_match = None
+    best_length = 0
+    for img_path in images:
+        character = img_path.stem.lower()
+        if character in name_lower and len(character) > best_length:
+            best_match = img_path
+            best_length = len(character)
+
+    if best_match:
+        return QPixmap(str(best_match))
+
+    idx = hash(mod_folder_name) % len(images)
+    return QPixmap(str(images[idx]))
+
+
+# Animated Toggle
 
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
@@ -21,8 +99,8 @@ class AnimatedToggle(QWidget):
         self.setFixedSize(50, 26)
         self._checked = False
         self._handle_position = 3
-        
-        self._active_color = QColor("#00AD5C") 
+
+        self._active_color = QColor("#00AD5C")
         self._inactive_color = QColor("#3E3E42")
         self._handle_color = QColor("#FFFFFF")
 
@@ -54,7 +132,7 @@ class AnimatedToggle(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
+
         color = self._active_color if self._checked else self._inactive_color
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -63,59 +141,91 @@ class AnimatedToggle(QWidget):
         painter.setBrush(self._handle_color)
         painter.drawEllipse(self._handle_position, 3, 20, 20)
 
-def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
-    if mod_icon:
-        icon_filename = f"{mod_icon.lower()}.png"
-        images_dir = Path(resource_path("Bin/Assets/ModImages"))
 
-        for img_path in images_dir.iterdir():
-            if img_path.name.lower() == icon_filename:
-                return QPixmap(str(img_path))
-
-    images_dir = Path(resource_path("Bin/Assets/ModImages"))
-    if not images_dir.exists():
-        return QPixmap()
-
-    images = sorted(
-        p for p in images_dir.iterdir()
-        if p.suffix.lower() in (".png", ".jpg", ".jpeg")
-    )
-    if not images:
-        return QPixmap()
-
-    name_lower = mod_display_name.lower()
-
-    # Character match (Longest character name will be picked)
-    best_match = None
-    best_length = 0
-    for img_path in images:
-        character = img_path.stem.lower()
-        if character in name_lower and len(character) > best_length:
-            best_match = img_path
-            best_length = len(character)
-
-    if best_match:
-        return QPixmap(str(best_match))
-
-    # Stable fallback
-    idx = hash(mod_folder_name) % len(images)
-    return QPixmap(str(images[idx]))
-
+# Mod Thumbnail Widget
 
 class ModImage(QLabel):
     RADIUS = 6
 
-    def __init__(self, pixmap: QPixmap, size: int, parent=None):
+    def __init__(self, pixmap: QPixmap, size: int, mod_folder_name: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("ModImage")
         self.setFixedSize(size, size)
         self._source = pixmap
+        self._mod_folder_name = mod_folder_name
+        self._hovered = False
+
+        self._btn = QPushButton(self)
+        self._btn.setFixedSize(size, size)
+        self._btn.setIcon(QIcon(resource_path("Bin/Assets/rename.png")))
+        self._btn.setIconSize(QSize(16, 16))
+        self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn.setToolTip(t("change_icon_tooltip"))
+        self._btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
+        self._btn.move(0, 0)
+        self._btn.hide()
+        self._btn.clicked.connect(self._open_icon_picker)
+
+        self.setMouseTracking(True)
+
+    def set_pixmap_source(self, pixmap: QPixmap):
+        self._source = pixmap
+        self.update()
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self._btn.show()
+        self._btn.raise_()
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self._btn.hide()
+        self.update()
+        super().leaveEvent(event)
+
+    def _open_icon_picker(self):
+        overlay = self.parent()
+        while overlay is not None and not hasattr(overlay, "refresh_list"):
+            overlay = overlay.parent()
+        if overlay is None:
+            return
+
+        card = self.parent()
+        while card is not None and card.objectName() != "ModCard":
+            card = card.parent()
+
+        IconPickerDialog(
+            parent=overlay,
+            mod_folder_name=self._mod_folder_name,
+            on_confirm=lambda path: self._apply_icon(path, card),
+        )
+
+    def _apply_icon(self, icon_path: Path | None, card):
+        if icon_path is None:
+            mapping = _load_icon_map()
+            mapping.pop(self._mod_folder_name, None)
+            _save_icon_map(mapping)
+        else:
+            mapping = _load_icon_map()
+            name = str(icon_path)
+            if not name.startswith("builtin:"):
+                name = icon_path.name
+            mapping[self._mod_folder_name] = name
+            _save_icon_map(mapping)
+
+        new_pixmap = _get_mod_image(
+            self._mod_folder_name,
+            card.mod.display_name if card else "",
+            getattr(card.mod, "icon", "") if card else "",
+        )
+        self.set_pixmap_source(new_pixmap)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        from PyQt6.QtGui import QPainterPath
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), self.RADIUS, self.RADIUS)
         painter.setClipPath(path)
@@ -132,8 +242,13 @@ class ModImage(QLabel):
         else:
             painter.fillRect(self.rect(), QColor(40, 40, 50))
 
+        if self._hovered:
+            painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
+
         painter.end()
 
+
+# Mod Card
 
 class ModCard(QFrame):
     def __init__(self, mod, manager, parent_overlay):
@@ -152,19 +267,36 @@ class ModCard(QFrame):
 
         # Mod Thumbnail
         pixmap = _get_mod_image(
-            self.mod.folder_name, 
-            self.mod.display_name, 
+            self.mod.folder_name,
+            self.mod.display_name,
             getattr(self.mod, 'icon', "")
         )
-        thumb = ModImage(pixmap, 44)
+        thumb = ModImage(pixmap, 44, mod_folder_name=self.mod.folder_name)
         layout.addWidget(thumb)
 
         # Mod Info
         info_vbox = QVBoxLayout()
         info_vbox.setSpacing(3)
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        title_row.setContentsMargins(0, 0, 0, 0)
+
         self.title = QLabel(mod.display_name)
         self.title.setObjectName("ModTitle")
+
+        btn_rename = QPushButton()
+        btn_rename.setObjectName("ModRenameBtn")
+        btn_rename.setFixedSize(20, 20)
+        btn_rename.setIcon(QIcon(resource_path("Bin/Assets/rename.png")))
+        btn_rename.setIconSize(QSize(13, 13))
+        btn_rename.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_rename.setToolTip(t("rename_mod_tooltip"))
+        btn_rename.clicked.connect(self._open_rename_dialog)
+
+        title_row.addWidget(self.title)
+        title_row.addWidget(btn_rename)
+        title_row.addStretch()
 
         meta_row = QHBoxLayout()
         meta_row.setSpacing(10)
@@ -190,25 +322,25 @@ class ModCard(QFrame):
         meta_row.addStretch()
 
         info_vbox.addStretch()
-        info_vbox.addWidget(self.title)
+        info_vbox.addLayout(title_row)
         info_vbox.addLayout(meta_row)
         info_vbox.addStretch()
 
         layout.addLayout(info_vbox)
         layout.addStretch()
 
-        # Delete button
+        # Delete Button
         btn_delete = QPushButton()
         btn_delete.setObjectName("ModDeleteBtn")
         btn_delete.setFixedSize(30, 30)
         btn_delete.setIcon(QIcon(resource_path("Bin/Assets/delete.png")))
         btn_delete.setIconSize(QSize(16, 16))
         btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_delete.setToolTip("Delete mod")
+        btn_delete.setToolTip(t("delete_mod_tooltip"))
         btn_delete.clicked.connect(self._confirm_delete)
         layout.addWidget(btn_delete)
 
-        # Toggle
+        # Enable Toggle
         self.toggle = AnimatedToggle(self)
         self.toggle.setChecked(mod.is_enabled)
         layout.addWidget(self.toggle)
@@ -256,17 +388,432 @@ class ModCard(QFrame):
             on_confirm=lambda: webbrowser.open(url),
         )
 
+    def _open_rename_dialog(self):
+        RenameDialog(
+            parent=self.parent_overlay,
+            current_name=self.mod.display_name,
+            on_confirm=self._apply_rename,
+        )
+
+    def _apply_rename(self, new_name: str):
+        new_name = new_name.strip()
+        if not new_name or new_name == self.mod.display_name:
+            return
+        try:
+            candidate = (
+                self.mod.folder_path
+                if getattr(self.mod, "folder_path", None)
+                else self.manager.mods_dir / self.mod.folder_name
+            )
+            if not candidate or not candidate.exists():
+                logger.warning(f"Rename target not found for mod '{self.mod.display_name}'")
+                return
+
+            new_folder = candidate.parent / new_name
+            candidate.rename(new_folder)
+            logger.info(f"Renamed mod folder: '{candidate.name}' → '{new_name}'", extra={"el": True})
+
+            self.mod.folder_name = new_name
+            self.mod.display_name = new_name
+            if hasattr(self.mod, "folder_path"):
+                self.mod.folder_path = new_folder
+
+            self.title.setText(new_name)
+        except Exception as e:
+            logger.error(f"Failed to rename mod '{self.mod.display_name}': {e}")
+
     def handle_toggle(self):
         new_state = self.toggle.isChecked()
-
         new_folder_name = self.manager.toggle_mod(self.mod)
         if new_folder_name:
             self.mod.folder_name = new_folder_name
             self.mod.is_enabled = new_state
-
         self.parent_overlay._update_mod_count()
 
-# POPUP DIALOG
+
+# Icon Picker Cell
+
+class _IconCell(QFrame):
+    CELL_SIZE = 72
+
+    def __init__(self, pixmap: QPixmap | None, label: str,
+                 is_custom: bool, is_add: bool,
+                 on_select=None, on_delete=None, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(self.CELL_SIZE, self.CELL_SIZE)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setObjectName("IconCell")
+        self.setStyleSheet("""
+            QFrame#IconCell {
+                border: 2px solid #3d444d;
+                border-radius: 8px;
+                background: #161b22;
+            }
+            QFrame#IconCell:hover {
+                border-color: #4493f8;
+                background: #1c2333;
+            }
+        """)
+
+        self._on_select = on_select
+
+        if pixmap and not pixmap.isNull():
+            img_lbl = QLabel(self)
+            img_lbl.setFixedSize(self.CELL_SIZE - 4, self.CELL_SIZE - 4)
+            img_lbl.move(2, 2)
+            scaled = pixmap.scaled(
+                img_lbl.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            img_lbl.setPixmap(scaled)
+            img_lbl.setScaledContents(False)
+            img_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        elif is_add:
+            add_lbl = QLabel(self)
+            add_lbl.setFixedSize(self.CELL_SIZE, self.CELL_SIZE)
+            add_lbl.move(0, 0)
+            add_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            add_icon = QIcon(resource_path("Bin/Assets/add.png")).pixmap(28, 28)
+            if not add_icon.isNull():
+                add_lbl.setPixmap(add_icon)
+            else:
+                add_lbl.setText("+")
+                add_lbl.setStyleSheet("color:#848d97; font-size:24px;")
+            add_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+        # Delete badge for custom icons
+        if is_custom and on_delete:
+            del_btn = QPushButton("✕", self)
+            del_btn.setFixedSize(18, 18)
+            del_btn.move(self.CELL_SIZE - 20, 2)
+            del_btn.setStyleSheet("""
+                QPushButton {
+                    background: #3d444d;
+                    color: #e6edf3;
+                    border: none;
+                    border-radius: 9px;
+                    font-size: 10px;
+                }
+                QPushButton:hover { background: #c93c37; }
+            """)
+            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            del_btn.clicked.connect(lambda _checked, cb=on_delete: cb())
+            del_btn.raise_()
+
+        if label:
+            self.setToolTip(label)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._on_select:
+            self._on_select()
+        super().mousePressEvent(event)
+
+
+# Icon Picker Dialog
+
+class IconPickerDialog(QWidget):
+    COLS = 6
+
+    def __init__(self, parent, mod_folder_name: str, on_confirm=None):
+        super().__init__(parent)
+        self._mod_folder_name = mod_folder_name
+        self._on_confirm = on_confirm
+
+        self.setObjectName("DimOverlay")
+        self.setFixedSize(parent.size())
+        self.move(0, 0)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet(POPUP_STYLE)
+
+        # Card (width = 6 cols × 72px + 5 gaps × 8px + 2 × 28px padding + 12px scrollbar clearance)
+        self._card = QFrame(self)
+        self._card.setObjectName("PopupContainer")
+        self._card.setFixedWidth(548)
+        self._card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self._card.setStyleSheet(POPUP_STYLE)
+
+        self._card_layout = QVBoxLayout(self._card)
+        self._card_layout.setContentsMargins(28, 24, 28, 24)
+        self._card_layout.setSpacing(14)
+
+        lbl_title = QLabel(t("choose_icon_title"))
+        lbl_title.setObjectName("PopupTitle")
+        self._card_layout.addWidget(lbl_title)
+
+        lbl_desc = QLabel("Custom icons are shown first. Click an icon to assign it.")
+        lbl_desc.setObjectName("PopupMessage")
+        lbl_desc.setWordWrap(True)
+        self._card_layout.addWidget(lbl_desc)
+
+        # Icon Grid
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFixedHeight(300)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical {
+                background: #161b22; width: 6px; border-radius: 3px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3d444d; border-radius: 3px; min-height: 20px;
+            }
+        """)
+
+        self._grid_widget = QWidget()
+        self._grid_widget.setStyleSheet("background: transparent;")
+        self._grid = QGridLayout(self._grid_widget)
+        self._grid.setSpacing(8)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._scroll.setWidget(self._grid_widget)
+        self._card_layout.addWidget(self._scroll)
+
+        # Cancel Button
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_cancel = QPushButton(t("cancel") or "Cancel")
+        btn_cancel.setObjectName("PopupCancelButton")
+        btn_cancel.setFixedHeight(36)
+        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cancel.clicked.connect(self._close)
+        btn_row.addWidget(btn_cancel)
+        self._card_layout.addLayout(btn_row)
+
+        self._populate_grid()
+
+        self._card.adjustSize()
+        self._card.move(
+            (self.width()  - self._card.width())  // 2,
+            (self.height() - self._card.height()) // 2,
+        )
+
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(200)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.show()
+        self.raise_()
+        self.anim.start()
+
+    def _populate_grid(self):
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        col = 0
+        row = 0
+
+        def _next_pos():
+            nonlocal row, col
+            r, c = row, col
+            col += 1
+            if col >= self.COLS:
+                col = 0
+                row += 1
+            return r, c
+
+        add_cell = _IconCell(
+            pixmap=None, label=t("custom_icon_tooltip"),
+            is_custom=False, is_add=True,
+            on_select=self._import_custom_icon,
+        )
+        r, c = _next_pos()
+        self._grid.addWidget(add_cell, r, c)
+
+        # Custom Icons
+        custom_dir = _custom_icons_dir()
+        custom_images = sorted(
+            p for p in custom_dir.iterdir()
+            if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and p.is_file()
+        )
+        for img_path in custom_images:
+            path_capture = img_path
+            cell = _IconCell(
+                pixmap=QPixmap(str(img_path)),
+                label=img_path.stem,
+                is_custom=True,
+                is_add=False,
+                on_select=lambda p=path_capture: self._select(p),
+                on_delete=lambda p=path_capture: self._delete_custom(p),
+            )
+            r, c = _next_pos()
+            self._grid.addWidget(cell, r, c)
+
+        # Built-in Icons
+        builtin_dir = Path(resource_path("Bin/Assets/ModImages"))
+        if builtin_dir.exists():
+            builtin_images = sorted(
+                p for p in builtin_dir.iterdir()
+                if p.suffix.lower() in (".png", ".jpg", ".jpeg") and p.is_file()
+            )
+            for img_path in builtin_images:
+                path_capture = img_path
+                cell = _IconCell(
+                    pixmap=QPixmap(str(img_path)),
+                    label=img_path.stem,
+                    is_custom=False,
+                    is_add=False,
+                    on_select=lambda p=path_capture: self._select_builtin(p),
+                )
+                r, c = _next_pos()
+                self._grid.addWidget(cell, r, c)
+
+    def _import_custom_icon(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select icon image", "", "Image files (*.png *.jpg *.jpeg *.webp)"
+        )
+        if not file_path:
+            return
+        src = Path(file_path)
+        dest = _custom_icons_dir() / src.name
+        counter = 2
+        while dest.exists():
+            dest = _custom_icons_dir() / f"{src.stem}_{counter}{src.suffix}"
+            counter += 1
+        try:
+            shutil.copy2(src, dest)
+        except Exception as e:
+            logger.error(f"Failed to copy custom icon: {e}")
+            return
+        self._select(dest)
+
+    def _select(self, path: Path):
+        if self._on_confirm:
+            self._on_confirm(path)
+        self._close()
+
+    def _select_builtin(self, path: Path):
+        if self._on_confirm:
+            self._on_confirm(Path("builtin:" + path.name))
+        self._close()
+
+    def _delete_custom(self, path: Path):
+        try:
+            mapping = _load_icon_map()
+            for key, val in list(mapping.items()):
+                if val == path.name:
+                    del mapping[key]
+            _save_icon_map(mapping)
+            path.unlink(missing_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to delete custom icon: {e}")
+        self._populate_grid()
+
+    def _close(self):
+        self.anim.setDirection(QPropertyAnimation.Direction.Backward)
+        self.anim.finished.connect(self.deleteLater)
+        self.anim.start()
+
+
+# Rename Dialog
+
+class RenameDialog(QWidget):
+    def __init__(self, parent, current_name: str, on_confirm=None):
+        super().__init__(parent)
+        self.on_confirm = on_confirm
+
+        self.setObjectName("DimOverlay")
+        self.setFixedSize(parent.size())
+        self.move(0, 0)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet(POPUP_STYLE)
+
+        card = QFrame(self)
+        card.setObjectName("PopupContainer")
+        card.setFixedWidth(460)
+        card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        card.setStyleSheet(POPUP_STYLE)
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(32, 28, 32, 28)
+        card_layout.setSpacing(12)
+
+        lbl_title = QLabel(t("rename_mod_title"))
+        lbl_title.setObjectName("PopupTitle")
+
+        lbl_desc = QLabel(t("rename_mod_desc"))
+        lbl_desc.setObjectName("PopupMessage")
+        lbl_desc.setWordWrap(True)
+
+        self._input = QLineEdit()
+        self._input.setText(current_name)
+        self._input.selectAll()
+        self._input.setStyleSheet("""
+            QLineEdit {
+                background-color: #1a1a1a;
+                color: #D7D7D7;
+                border: 1px solid #333333;
+                border-radius: 8px;
+                font-size: 13px;
+                padding: 8px 12px;
+            }
+            QLineEdit:focus {
+                border-color: #555555;
+            }
+        """)
+        self._input.returnPressed.connect(self._handle_confirm)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        btn_row.addStretch()
+
+        btn_cancel = QPushButton(t("cancel"))
+        btn_cancel.setObjectName("PopupCancelButton")
+        btn_cancel.setFixedHeight(36)
+        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cancel.clicked.connect(self._close)
+
+        btn_confirm = QPushButton(t("rename_button"))
+        btn_confirm.setObjectName("PopupConfirmButton")
+        btn_confirm.setFixedHeight(36)
+        btn_confirm.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_confirm.clicked.connect(self._handle_confirm)
+
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_confirm)
+
+        card_layout.addWidget(lbl_title)
+        card_layout.addWidget(lbl_desc)
+        card_layout.addWidget(self._input)
+        card_layout.addStretch()
+        card_layout.addLayout(btn_row)
+
+        card.adjustSize()
+        card.move(
+            (self.width()  - card.width())  // 2,
+            (self.height() - card.height()) // 2,
+        )
+
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(200)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.show()
+        self.raise_()
+        self.anim.start()
+        self._input.setFocus()
+
+    def _handle_confirm(self):
+        if self.on_confirm:
+            self.on_confirm(self._input.text())
+        self._close()
+
+    def _close(self):
+        self.anim.setDirection(QPropertyAnimation.Direction.Backward)
+        self.anim.finished.connect(self.deleteLater)
+        self.anim.start()
+
+
+# Popup Dialog
+
 class PopupDialog(QWidget):
     def __init__(self, parent, title, message, confirm_text="Confirm",
                  cancel_text="Cancel", on_confirm=None, on_cancel=None):
@@ -359,7 +906,9 @@ class PopupDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-# OVERLAY WINDOW
+
+# Aurora Overlay Window
+
 class AuroraOverlayWindow(QWidget):
     DISPLAY_MS = 6000
     FADE_MS    = 1000
@@ -381,7 +930,6 @@ class AuroraOverlayWindow(QWidget):
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        # Icon
         icon_lbl = QLabel()
         icon_pix = QIcon(resource_path("Bin/Assets/logo1024_wn.png")).pixmap(30, 30)
         icon_lbl.setPixmap(icon_pix)
@@ -393,15 +941,15 @@ class AuroraOverlayWindow(QWidget):
 
         lbl_title = QLabel(title)
         lbl_title.setStyleSheet("""
-            color: #E0E0E0; 
-            font-size: 14px; 
-            font-weight: 600; 
+            color: #E0E0E0;
+            font-size: 14px;
+            font-weight: 600;
             font-family: 'Segoe UI', system-ui, sans-serif;
         """)
 
         lbl_sub = QLabel(subtitle)
         lbl_sub.setStyleSheet("""
-            color: #AAAAAA; 
+            color: #AAAAAA;
             font-size: 12px;
             font-family: 'Segoe UI', system-ui, sans-serif;
         """)
@@ -412,9 +960,8 @@ class AuroraOverlayWindow(QWidget):
 
         layout.addWidget(icon_lbl)
         layout.addLayout(text_col)
-        layout.addStretch() 
+        layout.addStretch()
 
-        # Fade effect
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         self.opacity_effect.setOpacity(0)
@@ -433,7 +980,6 @@ class AuroraOverlayWindow(QWidget):
             x, y = game_rect.left, game_rect.top
         else:
             x, y = self._find_game_position()
-        # Top-left corner of the game window with a small margin
         self.move(x + 20, y + 20)
         self.show()
         self._fade_in()

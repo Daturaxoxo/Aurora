@@ -314,7 +314,7 @@ class ModManagerOverlay(QFrame):
         btn_refresh = QPushButton()
         btn_refresh.setObjectName("SearchActionBtn")
         btn_refresh.setFixedSize(30, 30)
-        btn_refresh.setToolTip("Refresh mod list")
+        btn_refresh.setToolTip(t("refresh_list_tooltip"))
         btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_refresh.setIcon(QIcon(resource_path("Bin/Assets/refresh.png")))
         btn_refresh.setIconSize(QSize(16, 16))
@@ -323,7 +323,7 @@ class ModManagerOverlay(QFrame):
         btn_folder = QPushButton()
         btn_folder.setObjectName("SearchActionBtn")
         btn_folder.setFixedSize(30, 30)
-        btn_folder.setToolTip("Open Mods folder")
+        btn_folder.setToolTip(t("open_mods_folder_tooltip"))
         btn_folder.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_folder.setIcon(QIcon(resource_path("Bin/Assets/folder.png")))
         btn_folder.setIconSize(QSize(16, 16))
@@ -389,14 +389,15 @@ class ModManagerOverlay(QFrame):
         self._lbl_mod_count.setText(f"{enabled} {TMP_desc_a} {total} {TMP_desc_b}")
 
     def refresh_list(self):
-        widgets_to_remove = []
-        for i in range(self.list_layout.count()):
-            item = self.list_layout.itemAt(i)
-            child = item.widget() if item else None
-            if child:
-                widgets_to_remove.append(child)
-        for w in widgets_to_remove:
-            w.deleteLater()
+        # Remove all items from the layout (widgets and spacers alike) so that
+        # accumulated stretch items from previous calls don't push content down.
+        while self.list_layout.count():
+            item = self.list_layout.takeAt(0)
+            if item is None:
+                break
+            w = item.widget()
+            if w:
+                w.deleteLater()
 
         search_text = self.search_bar.text().lower()
         mods = self.manager.scan_mods()

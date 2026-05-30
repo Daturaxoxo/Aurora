@@ -4,6 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from src.logger import logger
 from src.translator import Translator, t
+from src.utils import get_mods_path
 
 @dataclass
 class ModEntry:
@@ -19,9 +20,11 @@ class ModEntry:
 
 class ModManager:
     def __init__(self, mods_dir: Path, state_file: Path):
-        self.mods_dir = mods_dir
         self.state_file = state_file
-        self.mods_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def mods_dir(self) -> Path:
+        return get_mods_path()
 
     def scan_mods(self) -> list[ModEntry]:
         mods = []

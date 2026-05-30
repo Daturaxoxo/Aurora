@@ -32,10 +32,8 @@ class AuroraEngine:
 
         # IMPORTANT: We use absolute paths and not relative paths because using "./" will break if the application is launched from a different directory, like a desktop shortcut for example.
         app_dir = Path(get_app_dir())
-        if getattr(sys, 'frozen', False):
-            self.bin_path = Path(sys._MEIPASS) / "Bin"
-        else:
-            self.bin_path = app_dir / "Bin"
+        app_dir = Path(get_app_dir())
+        self.bin_path = app_dir / "Bin"
 
         nte_mod_folder = self.game_path / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
         aurora_mod_folder = app_dir / "Mods"
