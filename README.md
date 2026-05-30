@@ -10,6 +10,7 @@
 
 > [!NOTE]
 > Due to our application not having a signed certificate, Windows Defender (or other Antivirus software) may false-flag Aurora, we do not support Microsoft's [Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview) system. You are most likely to get blocked by Smart App Control while running Aurora for the first time.
+>
 > Find out how to disable Smart App Control: [Click Me!](https://github.com/Daturaxoxo/Aurora/blob/main/docs/SmartAppControl.md)
 
 Aurora is a light-weight high performance mod launcher built for [Neverness to Everness](https://nte.perfectworld.com/) that allows you to freely edit models inside the game using UE5 (Unreal Engine 5) PAKs.
