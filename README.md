@@ -10,6 +10,8 @@
 
 > [!NOTE]
 > Due to our application not having a signed certificate, Windows Defender (or other Antivirus software) may false-flag Aurora, we do not support Microsoft's [Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview) system. You are most likely to get blocked by Smart App Control while running Aurora for the first time.
+>
+> Find out how to disable Smart App Control: [Click Me!](https://github.com/Daturaxoxo/Aurora/blob/main/docs/SmartAppControl.md)
 
 Aurora is a light-weight high performance mod launcher built for [Neverness to Everness](https://nte.perfectworld.com/) that allows you to freely edit models inside the game using UE5 (Unreal Engine 5) PAKs.
 
@@ -37,16 +39,18 @@ Aurora is an open-source community project, any help with the source code is gre
 > [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe).
 
 ### ᅠ
-### Portable Installation (Windows and possibly Linux via WINE or Proton)
+## Aurora Installer (Windows only)
+1. Download the [latest release](https://github.com/Daturaxoxo/Aurora/releases) of **AuroraInstaller.exe**.
+2. Run the file.
+> [!NOTE]
+> Although not required, it is recommended to run the Installer file as Administrator to reduce chances of failure.
+### ᅠ
+## Portable Installation (Windows and possibly Linux via WINE or Proton)
 1. Download the [latest release](https://github.com/Daturaxoxo/Aurora/releases) of **Aurora_vX.X.X.zip**.
 2. Extract the portable zip file into a dedicated folder or trusted place.
 3. Run `Aurora.exe` and wait for the User Interface to load.
-> [!NOTE]
-> Aurora will automatically attempt to find Neverness To Everness. If it fails you can try to use the button next to **"Launch"** to search your drives for Neverness To Everness.
-> 
-> If that doesn't find the game either, head over to the settings icon top left and under the **"Launcher"** tab, manually select your Neverness To Everness download location.
 ### ᅠ
-### Building the Application from Source
+## Building the Application from Source
 > [!NOTE]
 > For the simple average user, this is not recommended. Only build from source if you don't trust the Portable installation or plan on modifying the source code of the program.
 
