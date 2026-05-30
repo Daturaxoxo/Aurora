@@ -81,7 +81,7 @@ class _BaseInstallZone(QFrame):
         title_lbl = QLabel(title)
         title_lbl.setObjectName("InstallTitle")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setWordWrap(True)
+        title_lbl.setWordWrap(False)
 
         sub_row = QHBoxLayout()
         sub_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
