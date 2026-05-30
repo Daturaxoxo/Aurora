@@ -47,7 +47,7 @@ class AuroraEngine:
         logger.info(f"Detected NTE version: {self.version.upper()}")
 
         # CN needs two loader DLLs; global and TW only need one.
-        self.main_dlls = ["dinput8.dll", "dsound.dll"] if self.version == "cn" else ["version.dll"]
+        self.main_dlls = ["version0.dll", "dsound.dll"] if self.version == "cn" else ["version.dll"]
 
         self._win64    = self._vpaths.win64
         self._pak_base = self._vpaths.pak_base
