@@ -1,19 +1,19 @@
 import webbrowser
 import ctypes
 import json
+from src.gamebanana.api import NTEMod
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QLineEdit,
-    QScrollArea, QGridLayout, QFileDialog, QSizePolicy,
+    QScrollArea, QGridLayout, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QColor
 from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
-from src.path_finder import get_app_dir
 import shutil
 
 
@@ -969,7 +969,6 @@ class AuroraOverlayWindow(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        from PyQt6.QtGui import QColor
         painter.setBrush(QColor(10, 8, 18, 210))
         painter.setPen(QColor(60, 60, 80, 200))
         painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 12, 12)
@@ -1031,3 +1030,131 @@ class AuroraOverlayWindow(QWidget):
         if not self.isHidden():
             self.hide()
             self.deleteLater()
+            
+class GameBananaMod(QFrame):
+    def __init__(self, mod: NTEMod, parent=None):
+        super().__init__(parent)
+        self.setObjectName("GameBananaModCard")
+        self.setFixedSize(140, 172)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.mod = mod
+
+        self.setStyleSheet("""
+            QFrame#GameBananaModCard {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+            }
+            QFrame#GameBananaModCard:hover {
+                border-color: #4493f8;
+                background: #1c2333;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        thumb = QLabel()
+        thumb.setObjectName("GBThumbnail")
+        thumbnail = QPixmap()
+        thumbnail.loadFromData(mod.thumbnail)
+        thumb.setPixmap(thumbnail)
+        thumb.setCursor(Qt.CursorShape.PointingHandCursor)
+        thumb.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        def _thumb_click(e):
+            if e.button() == Qt.MouseButton.LeftButton:
+                show_image(thumbnail, self)
+        thumb.mousePressEvent = _thumb_click
+        
+        layout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
+
+        name_lbl = QLabel(mod.name)
+        name_lbl.setObjectName("GBName")
+        name_lbl.setWordWrap(True)
+        name_lbl.setMaximumHeight(36)
+        name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name_lbl.setStyleSheet("""
+            color: #e6edf3;
+            font-size: 12px;
+            font-weight: 500;
+            background: transparent;
+            border: none;
+            padding: 0;
+        """)
+        layout.addWidget(name_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        install_btn = QPushButton(t("install_btn") or "Install")
+        install_btn.setObjectName("GBInstallBtn")
+        install_btn.setFixedHeight(26)
+        install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        install_btn.setStyleSheet("""
+            QPushButton {
+                background: #238636;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #2ea043;
+            }
+            QPushButton:pressed {
+                background: #1e7a30;
+            }
+        """)
+        install_btn.clicked.connect(self._install)
+        layout.addWidget(install_btn)
+
+    def _install(self):
+        from src.logger import logger
+        logger.info(f"GameBanana install stubbed for: {self.mod.name}")
+
+
+class _ImageViewerOverlay(QWidget):
+    def __init__(self, parent: QWidget, pixmap: QPixmap):
+        super().__init__(parent)
+        self.setObjectName("DimOverlay")
+        self.setFixedSize(parent.size())
+        self.move(0, 0)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet("""
+            QWidget#DimOverlay {
+                background: rgba(0, 0, 0, 180);
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(30, 30, 30, 30)
+
+        img = QLabel()
+        img.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        img.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        max_w = min(pixmap.width(), int(parent.width() * 0.88))
+        max_h = min(pixmap.height(), int(parent.height() * 0.88))
+        scaled = pixmap.scaled(
+            max_w, max_h,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        img.setPixmap(scaled)
+
+        layout.addWidget(img)
+
+        def _dismiss(e):
+            self.close()
+        img.mousePressEvent = _dismiss
+        self.mousePressEvent = _dismiss
+
+
+def show_image(pixmap: QPixmap, parent_widget: QWidget):
+    if pixmap.isNull():
+        return
+    overlay = _ImageViewerOverlay(parent_widget.window(), pixmap)
+    overlay.show()
+    overlay.raise_()

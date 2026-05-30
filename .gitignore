@@ -3,6 +3,7 @@ config.json
 /Mods/
 /Logs/
 /Bin/Assets/ModImages/
+/Cache/
 *.log
 *.aulog
 
