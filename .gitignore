@@ -2,6 +2,7 @@
 config.json
 /Mods/
 /Logs/
+/Bin/Assets/ModImages/
 *.log
 *.aulog
 
