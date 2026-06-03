@@ -1,5 +1,5 @@
 PyQt6==6.7.1
 psutil==5.9.8
 pyinstaller
-scandir-rs
+./dev/scandir_rs-2.9.9-cp314-cp314-win_amd64.whl
 requests
