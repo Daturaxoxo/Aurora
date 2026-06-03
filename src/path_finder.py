@@ -94,7 +94,7 @@ def _candidate_directories():
         if base:
             yield from emit(os.path.join(base, GAME_FOLDER_NAME))
 
-    for drive_letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+    for drive_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         drive = f"{drive_letter}:\\"
 
         if not os.path.exists(drive):
