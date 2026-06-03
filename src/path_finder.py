@@ -3,7 +3,12 @@ import sys
 import json
 from pathlib import Path
 from src.helpers.paths import _LAUNCHER_MAP
-from scandir_rs import Scandir
+
+fallback_scandir = False
+try:
+    from scandir_rs import Scandir
+except ImportError:
+    fallback_scandir = True
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
@@ -50,12 +55,39 @@ def validate_path(path):
 def _candidate_directories():
     checked = set()
     from src.helpers.paths import _LAUNCHER_MAP
-
+    
     def emit(path):
         p = str(Path(path))
         if p not in checked:
             checked.add(p)
             yield p
+            
+    def scan_single_dir(current_dir):
+        try:
+            entries = os.scandir(current_dir)
+        except Exception:
+            # Access denied
+            return
+
+        for dirEntry in entries:
+            try:
+                if dirEntry.name in ("$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"):
+                    continue
+                
+                if dirEntry.is_dir(follow_symlinks=False):
+                    yield from scan_single_dir(dirEntry.path)
+                
+                if any(launcher in dirEntry.name for launcher in _LAUNCHER_MAP):
+                    print("Found:", dirEntry.path)
+                    
+                    path = Path(dirEntry.path).parent
+
+                    if path not in checked:
+                        checked.add(path)
+                        yield from emit(path)
+                        
+            except Exception:
+                continue
 
     for env_var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
         base = os.environ.get(env_var)
@@ -67,18 +99,23 @@ def _candidate_directories():
 
         if not os.path.exists(drive):
             continue
+        
 
-        for dirEntry in Scandir(
-            drive,
-            dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
-            skip_hidden=True
-        ):
-            if any(launcher in dirEntry.path for launcher in _LAUNCHER_MAP):
-                path = Path(f"{drive}{dirEntry.path}").parent
+        if not fallback_scandir:
+            for dirEntry in Scandir(
+                drive,
+                dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
+                skip_hidden=True
+            ):
+                if any(launcher in dirEntry.path for launcher in _LAUNCHER_MAP):
+                    path = Path(f"{drive}{dirEntry.path}").parent
 
-                if path not in checked:
-                    checked.add(path)
-                    yield from emit(path)
+                    if path not in checked:
+                        checked.add(path)
+                        yield from emit(path)
+        else:
+            yield from scan_single_dir(drive)
+            
 
 def get_game_directory():
     try:
