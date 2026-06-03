@@ -1,7 +1,9 @@
+from functools import partial
+from typing import Dict, List, Optional
 import webbrowser
 import ctypes
 import json
-from src.gamebanana.api import NTEMod
+from src.gamebanana.api import NTEMod, NTEModFile
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -118,7 +120,12 @@ class AnimatedToggle(QWidget):
         self.animation.setStartValue(start)
         self.animation.setEndValue(end)
         self.animation.start()
-        self.parent().handle_toggle()
+        target = self.parent()
+        while target and not hasattr(target, "handle_toggle"):
+            target = target.parent();
+
+        if target:
+            target.handle_toggle();
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -1306,13 +1313,13 @@ class GameBananaMod(QFrame):
         install_btn.setObjectName("GBInstallBtn")
         install_btn.setFixedHeight(28)
         install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        install_btn.setToolTip(t("install_btn") or "Download & Install")
+        install_btn.setToolTip(t("gamebanana_install_btn") or "Download & Install")
 
         _dl_icon = QPixmap(resource_path("Bin/Assets/download.png"))
         if not _dl_icon.isNull():
             install_btn.setIcon(QIcon(_dl_icon))
             install_btn.setIconSize(QSize(13, 13))
-        install_btn.setText(t("install_btn") or "Install")
+        install_btn.setText(t("gamebanana_install_btn") or "Install")
         install_btn.clicked.connect(self._install)
 
         open_btn = QPushButton()
@@ -1320,7 +1327,7 @@ class GameBananaMod(QFrame):
         open_btn.setFixedHeight(28)
         open_btn.setFixedWidth(34)
         open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        open_btn.setToolTip("Open on GameBanana")
+        open_btn.setToolTip(t("gamebanana_open_btn") or "Open on GameBanana")
 
         _gb_icon = QPixmap(resource_path("Bin/Assets/marketplace.png"))
         if not _gb_icon.isNull():
@@ -1333,9 +1340,12 @@ class GameBananaMod(QFrame):
         body.addLayout(btn_row)
 
     def _install(self):
-        from src.logger import logger
-        logger.info(f"GameBanana install stubbed for: {self.mod.name}")
-
+        from src.gamebanana.api import get_mod_files
+        files = get_mod_files(self.mod.id)
+        self.overlay = _InstallSelectionOverlay(self.window(), files)
+        self.overlay.show()
+        self.overlay.raise_()
+    
     def _open_gamebanana(self):
         url = self.mod.mod_url
         if not url:
@@ -1404,3 +1414,139 @@ def show_image(pixmap: QPixmap, parent_widget: QWidget):
     overlay = _ImageViewerOverlay(parent_widget.window(), pixmap)
     overlay.show()
     overlay.raise_()
+
+class _InstallSelectionOverlay(QWidget):
+    def __init__(self, parent: QWidget, files: Optional[List[NTEModFile]]):
+        super().__init__(parent)
+        self.setObjectName("InstallSelectionOverlay")
+        self.setFixedSize(parent.size())
+        self.move(0, 0)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet("""
+            QWidget#InstallSelectionOverlay {
+                background: rgba(0, 0, 0, 180);
+            }
+        """)
+        
+        self.card = QFrame(self)
+        self.card.setObjectName("InstallCard")
+        self.card.setFixedWidth(460)
+        self.card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.card.setStyleSheet("""
+            QFrame#InstallCard {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+            }
+        """)
+        
+        card_layout = QVBoxLayout(self.card)
+        card_layout.setContentsMargins(24, 24, 24, 24)
+        card_layout.setSpacing(16)
+        
+        title = QLabel("Select a file to install")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6edf3; background: transparent; border: none;")
+        card_layout.addWidget(title)
+                
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical { background: #161b22; width: 6px; border-radius: 3px; }
+            QScrollBar::handle:vertical { background: #3d444d; border-radius: 3px; min-height: 20px; }
+        """)
+        
+        files_widget = QWidget()
+        files_widget.setStyleSheet("background: transparent;")
+        files_layout = QVBoxLayout(files_widget)
+        files_layout.setSpacing(8)
+        files_layout.setContentsMargins(0, 0, 0, 0)
+        
+        if files:
+            for file in files:
+                btn = QPushButton(str(file.name))
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: #238636;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        padding: 12px 16px;
+                        text-align: left;
+                    }
+                    QPushButton:hover  { background: #2ea043; }
+                    QPushButton:pressed { background: #1a6b2a; }
+                """)
+                btn.clicked.connect(
+                    partial(
+                        parent.__dict__["mod_overlay"].__dict__["gamebanana_install_zone"].install_file,
+                        file.name,
+                        file.url
+                    )
+                )
+                files_layout.addWidget(btn)
+        else:
+            empty_lbl = QLabel("No files available.")
+            empty_lbl.setStyleSheet("color: #8b949e; font-size: 13px;")
+            empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            files_layout.addWidget(empty_lbl)
+            
+        scroll.setWidget(files_widget)
+        
+        files_widget.adjustSize()
+        content_height = files_widget.sizeHint().height()
+        scroll.setFixedHeight(min(content_height, 250))
+        
+        card_layout.addWidget(scroll)
+        
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: #21262d;
+                color: #c9d1d9;
+                border: 1px solid #30363d;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 8px 24px;
+            }
+            QPushButton:hover  { background: #30363d; border-color: #8b949e; color: #e6edf3; }
+            QPushButton:pressed { background: #161b22; }
+        """)
+        cancel_btn.clicked.connect(self._close_overlay)
+        btn_row.addWidget(cancel_btn)
+        
+        card_layout.addLayout(btn_row)
+        
+        self.card.adjustSize()
+        self.card.move(
+            (self.width() - self.card.width()) // 2,
+            (self.height() - self.card.height()) // 2
+        )
+        
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(200)
+        self.anim.setStartValue(0)
+        self.anim.setEndValue(1)
+        self.show()
+        self.raise_()
+        self.anim.start()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            if not self.card.geometry().contains(e.pos()):
+                self._close_overlay()
+
+    def _close_overlay(self):
+        self.anim.setDirection(QPropertyAnimation.Direction.Backward)
+        self.anim.finished.connect(self.deleteLater)
+        self.anim.start()

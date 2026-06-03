@@ -95,6 +95,47 @@ SETTING_STYLE = """
 }
 """
 
+GB_STYLE = """
+#GameBananaBrowserOverlay {
+    background-color: #101010;
+    border: 1px solid #333333;
+    border-radius: 20px;
+}
+
+#GBModManagerHeader {
+    font-size: 24px;
+    font-weight: bold;
+    color: #D7D7D7;
+}
+
+#GBModManagerClose {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #585858;
+    font-size: 18px;
+    padding: 0px;
+}
+
+#GBModManagerClose:hover {
+    background-color: rgba(255, 255, 255, 8);
+    color: #D7D7D7;
+}
+
+#GBModManagerHeader {
+    background-color: rgba(255, 255, 255, 3);
+    border-bottom: 1px solid rgba(255, 255, 255, 8);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+}
+
+#GBModManagerTitle {
+    color: #D7D7D7;
+    font-size: 20px;
+    font-weight: 500;
+}
+"""
+
 TOAST_STYLE = """
 #ToastContainer {
     background-color: rgba(25, 20, 35, 230);

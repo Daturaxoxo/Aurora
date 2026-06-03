@@ -1,7 +1,7 @@
 import json
 import time
 from pathlib import Path
-from typing import List, Callable, Optional
+from typing import Dict, List, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -174,7 +174,7 @@ def _fetch_one(mod: dict, headers: dict) -> NTEMod:
         sub_cat = mod["_aSubCategory"].get("_sName", "")
 
     mod_url = mod.get("_sProfileUrl", "") or f"https://gamebanana.com/mods/{mod_id}"
-
+    
     return NTEMod(
         id=mod_id,
         name=mod["_sName"],
@@ -193,6 +193,7 @@ def get_nte_mods(
     force_refresh: bool = False,
     page: int = 1,
     on_mod_ready: Optional[Callable[[NTEMod], None]] = None,
+    nsfw_mods: bool = False
 ) -> Optional[List[NTEMod]]:
 
     # Cache load first
@@ -245,3 +246,48 @@ def get_nte_mods(
     except requests.exceptions.RequestException as e:
         print(f"Error communicating with the GameBanana API: {e}")
         return None
+
+class NTEModFile:
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        size: int,
+        download_count: int,
+        url: str,
+        md5: str,
+        is_archived: bool,
+        has_contents: bool
+    ):
+        self.id = id
+        self.name = name
+        self.size = size
+        self.download_count = download_count
+        self.url = url
+        self.md5 = md5
+        self.is_archived = is_archived
+        self.has_contents = has_contents
+    
+def get_mod_files(mod_id: int) -> Optional[List[NTEModFile]]:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    detail_url = (f"https://gamebanana.com/apiv12/Mod/{mod_id}/ProfilePage")
+    detail_resp = requests.get(detail_url, headers=headers, timeout=15)
+    files = []
+    if detail_resp.ok:
+        detail = detail_resp.json()
+        for file in detail.get("_aFiles", []):
+            files.append(NTEModFile(
+                id=file.get("_idRow", 0),
+                name=file.get("_sFile", ""),
+                size=file.get("_nFilesize", 0),
+                download_count=file.get("_nDownloadCount", 0),
+                url=file.get("_sDownloadUrl", ""),
+                md5=file.get("_sMd5Checksum", ""),
+                is_archived=file.get("_bIsArchived", False),
+                has_contents=file.get("_bHasContents", False)
+            ))
+        return files
+        
+    return None

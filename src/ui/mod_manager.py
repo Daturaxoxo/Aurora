@@ -2,21 +2,20 @@ import os
 import sys
 import shutil
 import subprocess
-import zipfile
-from src.utils import get_mods_path, resource_path
+from src.gamebanana.api import NTEMod
+from src.utils import download_file, get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QFrame, QLineEdit,
     QScrollArea, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QSize, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon
-from src.styles import MOD_MANAGER_STYLE, SETTING_STYLE
+from src.styles import GB_STYLE, MOD_MANAGER_STYLE
 from src.translator import t
-from src.engine import get_app_dir
-from src.ui.elements import GameBananaMod, ModCard
-
+from src.ui.elements import AnimatedToggle, GameBananaMod, ModCard
+from src import config_manager as cfg
 
 def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
@@ -147,45 +146,64 @@ class _BaseInstallZone(QFrame):
 
         return zip_dest
 
-    def _install_paths(self, paths: list[Path]):
-        _ensure_dir(self.mods_dir)
-        installed = []
+    def _install_paths(self, paths: list[str | Path]):
+            paths = [Path(p) for p in paths]
+            mods_dir = get_mods_path()
+            
+            # Point to your bundled 7za.exe
+            seven_zip_path = Path(resource_path("Bin/7z.exe"))
+            
+            installed_files = []
 
-        for src in paths:
-            if src.is_dir():
-                try:
-                    dest = self._unique_dest(self.mods_dir / src.name)
-                    shutil.copytree(src, dest)
-                    installed.append(dest)
-                except (PermissionError, OSError) as e:
-                    from src.logger import logger
-                    logger.warning(f"Could not copy folder {src.name}: {e}")
+            for path in paths:
+                if not path.exists():
                     continue
-            elif src.is_file():
-                if src.suffix.lower() == ".zip":
-                    try:
-                        zip_dest = self._extract_zip(src, self.mods_dir)
-                        installed.append(zip_dest)
-                    except zipfile.BadZipFile:
-                        from src.logger import logger
-                        logger.warning(f"Could not extract {src.name}: not a valid ZIP file.")
-                        continue
-                    except (PermissionError, OSError) as e:
-                        from src.logger import logger
-                        logger.warning(f"Could not extract {src.name}: {e}")
-                        continue
-                else:
-                    try:
-                        dest = self._unique_dest(self.mods_dir / src.name)
-                        shutil.copy2(src, dest)
-                        installed.append(dest)
-                    except (PermissionError, OSError) as e:
-                        from src.logger import logger
-                        logger.warning(f"Could not copy {src.name}: {e}")
-                        continue
 
-        if installed:
-            self.files_installed.emit(installed)
+                try:
+                    if path.is_dir():
+                        dest = mods_dir / path.name
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(path, dest)
+                        installed_files.append(path.name)
+                        
+                    elif path.suffix.lower() in (".zip", ".rar", ".7z"):
+                        if not seven_zip_path.exists():
+                            print(f"Error: Extraction tool missing at {seven_zip_path}")
+                            continue
+                            
+                        cmd = [
+                            str(seven_zip_path), 
+                            "x", 
+                            str(path), 
+                            f"-o{mods_dir}/{path.name.split('.')[0]}", 
+                            "-y"
+                        ]
+                        
+                        startupinfo = None
+                        if sys.platform == "win32":
+                            import subprocess
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                            
+                        result = subprocess.run(cmd, startupinfo=startupinfo, capture_output=True, text=True)
+                        
+                        if result.returncode == 0:
+                            installed_files.append(path.name)
+                            os.remove(path)
+                        else:
+                            print(f"Failed to extract {path.name}: {result.stderr}")
+                    
+                    else:
+                        dest = mods_dir / path.name
+                        shutil.copy2(path, dest)
+                        installed_files.append(path.name)
+                        
+                except Exception as e:
+                    print(f"Error processing {path.name}: {e}")
+
+            if installed_files:
+                self.files_installed.emit(installed_files)
 
 
 class ZipInstallZone(_BaseInstallZone):
@@ -237,7 +255,7 @@ class GameBananaInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
         super().__init__(
             mods_dir=mods_dir,
-            icon_path="Bin/Assets/install_folder.png",
+            icon_path="Bin/Assets/marketplace.png",
             title=t("install_zone_title_gamebanana"),
             choose_label=t("install_zone_choose_gamebanana"),
             parent=parent,
@@ -251,7 +269,13 @@ class GameBananaInstallZone(_BaseInstallZone):
             return
         browser = GameBananaBrowserOverlay(overlay.parent(), overlay.manager)
         browser.show()
-
+    
+    def install_file(self, filename: str, url: str):
+        file = download_file(filename, url)
+        print(file)
+        if file is None:
+            return
+        self._install_paths([Path(file)])
 
 class _ModFetcher(QObject):
     mod_ready   = pyqtSignal(object)
@@ -289,6 +313,26 @@ class _ModFetcher(QObject):
 
 
 class GameBananaBrowserOverlay(QFrame):
+    # For handling toggling NSFW mods
+    def handle_toggle(self, checked=None):
+        cfg.set(cfg.Key.SHOW_NSFW_MODS, self.toggle_nsfw_mods.isChecked())
+        
+        if self._fetcher:
+            self._fetcher.cancel()
+
+        self._all_mods.clear()
+        self._current_page = 0
+        self._has_more = True
+        self._loading = False
+
+        while self.gb_grid.count():
+            item = self.gb_grid.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        self._load_next_page(force_refresh=False)
+            
     def __init__(self, parent, mod_manager):
         super().__init__(parent)
         self.setObjectName("GameBananaBrowserOverlay")
@@ -296,8 +340,7 @@ class GameBananaBrowserOverlay(QFrame):
 
         self.setGeometry(240, 80, 800, 560)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        self.setStyleSheet(SETTING_STYLE)
-        self.setStyleSheet("background-color: #101010;")
+        self.setStyleSheet(GB_STYLE)
 
         self._all_mods: list = []
         self._current_page = 0
@@ -319,16 +362,25 @@ class GameBananaBrowserOverlay(QFrame):
         header_layout.setSpacing(12)
 
         title_col = QVBoxLayout()
-        title_col.setSpacing(2)
         lbl_title = QLabel(t("gamebanana_mods") or "GameBanana Mods")
         lbl_title.setObjectName("GBModManagerTitle")
         self._lbl_gb_status = QLabel("")
         self._lbl_gb_status.setObjectName("GBStatus")
         self._lbl_gb_status.setStyleSheet("color: #8b949e; font-size: 11px;")
         title_col.addStretch()
+        title_col.addSpacing(24)
+        
         title_col.addWidget(lbl_title)
         title_col.addWidget(self._lbl_gb_status)
         title_col.addStretch()
+        
+        lbl_nsfw_mods = QLabel(t("show_nsfw_mods") or "Show NSFW mods")
+        lbl_nsfw_mods.setStyleSheet("color: #8b949e; font-size: 11px;")
+        
+        self.toggle_nsfw_mods = AnimatedToggle(self)
+        self.toggle_nsfw_mods.setChecked(cfg.get(cfg.Key.SHOW_NSFW_MODS))
+        self.toggle_nsfw_mods.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.toggle_nsfw_mods.setToolTip(t("show_nsfw_mods_tooltip") or "Show NSFW mods")
 
         btn_clear_cache = QPushButton()
         btn_clear_cache.setObjectName("SearchActionBtn")
@@ -347,6 +399,8 @@ class GameBananaBrowserOverlay(QFrame):
 
         header_layout.addLayout(title_col)
         header_layout.addStretch()
+        header_layout.addWidget(lbl_nsfw_mods)
+        header_layout.addWidget(self.toggle_nsfw_mods)
         header_layout.addWidget(btn_clear_cache)
         header_layout.addWidget(btn_close)
         root.addWidget(header)
@@ -393,13 +447,15 @@ class GameBananaBrowserOverlay(QFrame):
 
         self._thread.start()
 
-    def _on_mod_ready(self, mod):
+    def _on_mod_ready(self, mod: NTEMod):
+        if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked():
+            return
         self._all_mods.append(mod)
         cols = max(1, (self.gb_scroll.width() - 40) // 148)
         i = len(self._all_mods) - 1
         card = GameBananaMod(mod)
         self.gb_grid.addWidget(card, i // cols, i % cols)
-
+    
     def _on_page_done(self, had_results: bool):
         self._lbl_gb_status.setText("")
         if not had_results:
@@ -591,6 +647,7 @@ class ModManagerOverlay(QFrame):
         self.folder_install_zone.files_installed.connect(self._on_files_installed)
 
         self.gamebanana_install_zone = GameBananaInstallZone(mods_path, self)
+        self.gamebanana_install_zone.files_installed.connect(self._on_files_installed)
 
         zones_row.addWidget(self.zip_install_zone)
         zones_row.addWidget(self.folder_install_zone)

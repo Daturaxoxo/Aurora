@@ -96,7 +96,15 @@
         "updater_status_script_launch": "Launching update script and exiting Aurora",
         "updater_restart_prompt": "Aurora has finished installing the new update. Please rerun Aurora.",
         "updater_update_retry": "Retry",
-        "updater_close": "Close"
+        "updater_close": "Close",
+        "gamebanana_mods": "Install GameBanana Mods",
+        "gamebanana_install_btn": "Install",
+        "gamebanana_open_btn": "Open on Gamebanana",
+        "clear_cache_tooltip": "Clear mod cache and reload",
+        "loading": "Loading...",
+        "install_zone_title_gamebanana": "Install Mod from GameBanana",
+        "install_zone_choose_gamebanana": "Choose a Mod",
+        "show_nsfw_mods": "Show NSFW mods"
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",

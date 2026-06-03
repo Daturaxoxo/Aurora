@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import urllib
 import urllib.request
+
+import requests
 from src.engine import get_app_dir
 from src.logger import logger
 from src import config_manager as cfg
@@ -39,3 +41,26 @@ def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
         path.unlink()  # remove the file so mkdir can proceed
     path.mkdir(parents=True, exist_ok=True)
+
+def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    print(f"Downloading {url}...")
+    
+    try:
+        with requests.get(url, headers=headers, stream=True) as response:
+            response.raise_for_status()
+            
+            filepath = os.path.join(dest_folder, filename)
+            
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    
+        print(f"Successfully downloaded to: {filepath}")
+        return filepath
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading the file: {e}")
+        return None
