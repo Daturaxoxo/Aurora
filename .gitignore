@@ -35,3 +35,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+.vscode
+Client
+docs
+README.md

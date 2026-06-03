@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QLineEdit,
     QScrollArea, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon
 from src.styles import MOD_MANAGER_STYLE, SETTING_STYLE
 from src.translator import t
@@ -217,8 +217,8 @@ class FolderInstallZone(_BaseInstallZone):
         super().__init__(
             mods_dir=mods_dir,
             icon_path="Bin/Assets/install_folder.png",
-            title=t("install_zone_title_folder") or "Install Mod from folder",
-            choose_label=t("install_zone_choose_folder") or "Choose a folder",
+            title=t("install_zone_title_folder"),
+            choose_label=t("install_zone_choose_folder"),
             parent=parent,
         )
 
@@ -238,8 +238,8 @@ class GameBananaInstallZone(_BaseInstallZone):
         super().__init__(
             mods_dir=mods_dir,
             icon_path="Bin/Assets/install_folder.png",
-            title=t("install_zone_title_gamebanana") or "Browse GameBanana Mods",
-            choose_label=t("install_zone_choose_gamebanana") or "Browse",
+            title=t("install_zone_title_gamebanana"),
+            choose_label=t("install_zone_choose_gamebanana"),
             parent=parent,
         )
 
@@ -251,6 +251,41 @@ class GameBananaInstallZone(_BaseInstallZone):
             return
         browser = GameBananaBrowserOverlay(overlay.parent(), overlay.manager)
         browser.show()
+
+
+class _ModFetcher(QObject):
+    mod_ready   = pyqtSignal(object)
+    page_done   = pyqtSignal(bool)
+    finished    = pyqtSignal()
+
+    def __init__(self, page: int, force_refresh: bool = False):
+        super().__init__()
+        self._page = page
+        self._force = force_refresh
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        from src.gamebanana.api import get_nte_mods
+
+        had_results = False
+
+        def _on_mod(mod):
+            if self._cancelled:
+                return
+            had_results_ref.append(True)
+            self.mod_ready.emit(mod)
+
+        had_results_ref: list = []
+        get_nte_mods(
+            force_refresh=self._force,
+            page=self._page,
+            on_mod_ready=_on_mod,
+        )
+        self.page_done.emit(bool(had_results_ref))
+        self.finished.emit()
 
 
 class GameBananaBrowserOverlay(QFrame):
@@ -268,11 +303,12 @@ class GameBananaBrowserOverlay(QFrame):
         self._current_page = 0
         self._has_more = True
         self._loading = False
+        self._thread: QThread | None = None
+        self._fetcher: _ModFetcher | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        
         header = QFrame()
         header.setObjectName("GBModManagerHeader")
         header.setFixedHeight(64)
@@ -294,6 +330,15 @@ class GameBananaBrowserOverlay(QFrame):
         title_col.addWidget(self._lbl_gb_status)
         title_col.addStretch()
 
+        btn_clear_cache = QPushButton()
+        btn_clear_cache.setObjectName("SearchActionBtn")
+        btn_clear_cache.setFixedSize(30, 30)
+        btn_clear_cache.setToolTip(t("clear_cache_tooltip") or "Clear mod cache and reload")
+        btn_clear_cache.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_clear_cache.setIcon(QIcon(resource_path("Bin/Assets/delete.png")))
+        btn_clear_cache.setIconSize(QSize(14, 14))
+        btn_clear_cache.clicked.connect(self._confirm_clear_cache)
+
         btn_close = QPushButton("✕")
         btn_close.setObjectName("GBModManagerClose")
         btn_close.setFixedSize(32, 32)
@@ -302,20 +347,18 @@ class GameBananaBrowserOverlay(QFrame):
 
         header_layout.addLayout(title_col)
         header_layout.addStretch()
+        header_layout.addWidget(btn_clear_cache)
         header_layout.addWidget(btn_close)
-
         root.addWidget(header)
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(28, 20, 28, 24)
         body_layout.setSpacing(16)
-
         self.gb_scroll = QScrollArea()
         self.gb_scroll.setWidgetResizable(True)
         self.gb_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.gb_scroll.setStyleSheet("QScrollArea { background: transparent; }")
-
         self.gb_container = QWidget()
         self.gb_container.setObjectName("GBContainer")
         self.gb_container.setStyleSheet("background: transparent;")
@@ -332,31 +375,41 @@ class GameBananaBrowserOverlay(QFrame):
 
         self._load_next_page()
 
-    def _load_next_page(self):
+    def _load_next_page(self, force_refresh: bool = False):
         if self._loading or not self._has_more:
             return
         self._loading = True
         self._current_page += 1
-
         self._lbl_gb_status.setText(t("loading") or "Loading...")
+        self._thread  = QThread()
+        self._fetcher = _ModFetcher(self._current_page, force_refresh)
+        self._fetcher.moveToThread(self._thread)
+        self._thread.started.connect(self._fetcher.run)
+        self._fetcher.mod_ready.connect(self._on_mod_ready)
+        self._fetcher.page_done.connect(self._on_page_done)
+        self._fetcher.finished.connect(self._thread.quit)
+        self._fetcher.finished.connect(self._fetcher.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
 
-        from src.gamebanana.api import get_nte_mods
-        mods = get_nte_mods(page=self._current_page)
+        self._thread.start()
 
+    def _on_mod_ready(self, mod):
+        self._all_mods.append(mod)
+        cols = max(1, (self.gb_scroll.width() - 40) // 148)
+        i = len(self._all_mods) - 1
+        card = GameBananaMod(mod)
+        self.gb_grid.addWidget(card, i // cols, i % cols)
+
+    def _on_page_done(self, had_results: bool):
         self._lbl_gb_status.setText("")
-
-        if not mods:
+        if not had_results:
             self._has_more = False
-            self._loading = False
             if not self._all_mods:
                 empty = QLabel(t("no_gamebanana_mods") or "No mods found. Check your connection.")
                 empty.setStyleSheet("color: #8b949e; font-size: 13px; border: none;")
                 empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.gb_grid.addWidget(empty, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
-            return
 
-        self._all_mods.extend(mods)
-        self._rebuild_grid()
         self._loading = False
         self._check_fill()
 
@@ -367,7 +420,7 @@ class GameBananaBrowserOverlay(QFrame):
     def _auto_load_if_needed(self):
         if self._loading or not self._has_more:
             return
-        content = self.gb_container.sizeHint().height()
+        content  = self.gb_container.sizeHint().height()
         viewport = self.gb_scroll.viewport().height()
         if content <= viewport:
             self._load_next_page()
@@ -379,17 +432,37 @@ class GameBananaBrowserOverlay(QFrame):
         if vbar.maximum() > 0 and value >= vbar.maximum() - 50:
             self._load_next_page()
 
-    def _rebuild_grid(self):
+    def _confirm_clear_cache(self):
+        from src.ui.elements import PopupDialog
+        PopupDialog(
+            parent=self.window(),
+            title=t("clear_cache_title"),
+            message=(
+                t("clear_cache_message")
+            ),
+            confirm_text=t("confirm"),
+            cancel_text=t("cancel"),
+            on_confirm=self._do_clear_cache,
+        )
+
+    def _do_clear_cache(self):
+        from src.gamebanana.api import clear_cache
+        if self._fetcher:
+            self._fetcher.cancel()
+
+        clear_cache()
+        self._all_mods.clear()
+        self._current_page = 0
+        self._has_more = True
+        self._loading = False
+
         while self.gb_grid.count():
             item = self.gb_grid.takeAt(0)
             w = item.widget()
             if w:
                 w.deleteLater()
 
-        cols = max(1, (self.gb_scroll.width() - 40) // 148)
-        for i, mod in enumerate(self._all_mods):
-            card = GameBananaMod(mod)
-            self.gb_grid.addWidget(card, i // cols, i % cols)
+        self._load_next_page(force_refresh=True)
 
 
 class ModManagerOverlay(QFrame):
@@ -552,8 +625,6 @@ class ModManagerOverlay(QFrame):
         self._lbl_mod_count.setText(f"{enabled} {TMP_desc_a} {total} {TMP_desc_b}")
 
     def refresh_list(self):
-        # Remove all items from the layout (widgets and spacers alike) so that
-        # accumulated stretch items from previous calls don't push content down.
         while self.list_layout.count():
             item = self.list_layout.takeAt(0)
             if item is None:

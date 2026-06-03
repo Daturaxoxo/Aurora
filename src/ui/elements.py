@@ -9,15 +9,12 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QLineEdit,
     QScrollArea, QGridLayout, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QColor
+from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize, QRectF
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QPen
 from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 import shutil
-
-
-# Icon Map Helpers
 
 def _custom_icons_dir() -> Path:
     d = Path(resource_path("Bin/Assets/ModImages/custom"))
@@ -40,9 +37,6 @@ def _save_icon_map(mapping: dict):
     _icon_map_path().write_text(
         json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-
-
-# Mod Image Resolution
 
 def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
     icon_map = _load_icon_map()
@@ -89,9 +83,6 @@ def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = 
 
     idx = hash(mod_folder_name) % len(images)
     return QPixmap(str(images[idx]))
-
-
-# Animated Toggle
 
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
@@ -140,9 +131,6 @@ class AnimatedToggle(QWidget):
 
         painter.setBrush(self._handle_color)
         painter.drawEllipse(self._handle_position, 3, 20, 20)
-
-
-# Mod Thumbnail Widget
 
 class ModImage(QLabel):
     RADIUS = 6
@@ -246,9 +234,6 @@ class ModImage(QLabel):
             painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
 
         painter.end()
-
-
-# Mod Card
 
 class ModCard(QFrame):
     def __init__(self, mod, manager, parent_overlay):
@@ -430,9 +415,6 @@ class ModCard(QFrame):
             self.mod.is_enabled = new_state
         self.parent_overlay._update_mod_count()
 
-
-# Icon Picker Cell
-
 class _IconCell(QFrame):
     CELL_SIZE = 72
 
@@ -509,9 +491,6 @@ class _IconCell(QFrame):
         if event.button() == Qt.MouseButton.LeftButton and self._on_select:
             self._on_select()
         super().mousePressEvent(event)
-
-
-# Icon Picker Dialog
 
 class IconPickerDialog(QWidget):
     COLS = 6
@@ -710,9 +689,6 @@ class IconPickerDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-
-# Rename Dialog
-
 class RenameDialog(QWidget):
     def __init__(self, parent, current_name: str, on_confirm=None):
         super().__init__(parent)
@@ -811,9 +787,6 @@ class RenameDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-
-# Popup Dialog
-
 class PopupDialog(QWidget):
     def __init__(self, parent, title, message, confirm_text="Confirm",
                  cancel_text="Cancel", on_confirm=None, on_cancel=None):
@@ -905,9 +878,6 @@ class PopupDialog(QWidget):
         self.anim.setDirection(QPropertyAnimation.Direction.Backward)
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
-
-
-# Aurora Overlay Window
 
 class AuroraOverlayWindow(QWidget):
     DISPLAY_MS = 6000
@@ -1031,87 +1001,363 @@ class AuroraOverlayWindow(QWidget):
             self.hide()
             self.deleteLater()
             
+class LoadingSpinner(QWidget):
+    def __init__(self, size: int = 32, color: QColor = None, parent=None):
+        super().__init__(parent)
+        self._size = size
+        self._color = color or QColor("#4493f8")
+        self._angle = 0
+        self.setFixedSize(size, size)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+
+    def start(self):
+        self._timer.start(16)
+
+    def stop(self):
+        self._timer.stop()
+
+    def _tick(self):
+        self._angle = (self._angle + 8) % 360
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.translate(self._size / 2, self._size / 2)
+        painter.rotate(self._angle)
+
+        track_pen = QPen(QColor(255, 255, 255, 30))
+        track_pen.setWidth(3)
+        track_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(track_pen)
+        r = self._size / 2 - 4
+        painter.drawEllipse(QRectF(-r, -r, r * 2, r * 2))
+
+        arc_pen = QPen(self._color)
+        arc_pen.setWidth(3)
+        arc_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(arc_pen)
+        painter.drawArc(QRectF(-r, -r, r * 2, r * 2), 0, 100 * 16)
+        painter.end()
+
+
 class GameBananaMod(QFrame):
+    CARD_W = 160
+    THUMB_H = 90
+
+    _CARD_QSS = """
+        QFrame#GameBananaModCard {
+            background: #13151a;
+            border: 1px solid #2a2d35;
+            border-radius: 10px;
+        }
+        QFrame#GameBananaModCard:hover {
+            border-color: #4493f8;
+            background: #181c24;
+        }
+
+        QLabel#GBStat {
+            color: #8b949e;
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }
+
+        QLabel#GBName {
+            color: #e6edf3;
+            font-size: 12px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }
+
+        QLabel#GBAuthor {
+            color: #8b949e;
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }
+
+        QLabel#GBCategory {
+            color: #6e7681;
+            font-size: 10px;
+            background: transparent;
+            border: none;
+        }
+
+        QLabel#GBRatingNSFW {
+            color: #f85149;
+            font-size: 10px;
+            font-weight: 700;
+            background: #3d1c1c;
+            border: 1px solid #6e2a2a;
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+        QLabel#GBRatingSFW {
+            color: #3fb950;
+            font-size: 10px;
+            font-weight: 700;
+            background: #0f2b18;
+            border: 1px solid #196130;
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+
+        QPushButton#GBInstallBtn {
+            background: #238636;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 0 8px;
+        }
+        QPushButton#GBInstallBtn:hover  { background: #2ea043; }
+        QPushButton#GBInstallBtn:pressed { background: #1a6b2a; }
+
+        QPushButton#GBOpenBtn {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 0 8px;
+        }
+        QPushButton#GBOpenBtn:hover  { background: #30363d; border-color: #4493f8; color: #e6edf3; }
+        QPushButton#GBOpenBtn:pressed { background: #161b22; }
+
+        QFrame#GBSep {
+            background: #21262d;
+        }
+    """
+
     def __init__(self, mod: NTEMod, parent=None):
         super().__init__(parent)
         self.setObjectName("GameBananaModCard")
-        self.setFixedSize(140, 172)
+        self.setFixedWidth(self.CARD_W)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.mod = mod
+        self.setStyleSheet(self._CARD_QSS)
 
-        self.setStyleSheet("""
-            QFrame#GameBananaModCard {
-                background: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 8px;
-            }
-            QFrame#GameBananaModCard:hover {
-                border-color: #4493f8;
-                background: #1c2333;
-            }
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        thumbnail_pix = QPixmap()
+        thumbnail_pix.loadFromData(mod.thumbnail)
 
         thumb = QLabel()
         thumb.setObjectName("GBThumbnail")
-        thumbnail = QPixmap()
-        thumbnail.loadFromData(mod.thumbnail)
-        thumb.setPixmap(thumbnail)
-        thumb.setCursor(Qt.CursorShape.PointingHandCursor)
-        thumb.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        thumb.setFixedSize(self.CARD_W, self.THUMB_H)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        def _thumb_click(e):
-            if e.button() == Qt.MouseButton.LeftButton:
-                show_image(thumbnail, self)
+        thumb.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        if not thumbnail_pix.isNull():
+            scaled = thumbnail_pix.scaled(
+                self.CARD_W, self.THUMB_H,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = (scaled.width()  - self.CARD_W) // 2
+            y = (scaled.height() - self.THUMB_H) // 2
+            thumb.setPixmap(scaled.copy(x, y, self.CARD_W, self.THUMB_H))
+        else:
+            thumb.setStyleSheet("background:#1c2333;")
+
+        def _thumb_click(e, pix=thumbnail_pix):
+            if e.button() == Qt.MouseButton.LeftButton and not pix.isNull():
+                show_image(pix, self)
         thumb.mousePressEvent = _thumb_click
-        
-        layout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
+
+        thumb.setStyleSheet(
+            "border-top-left-radius: 10px;"
+            "border-top-right-radius: 10px;"
+        )
+        root.addWidget(thumb)
+
+        body = QVBoxLayout()
+        body.setContentsMargins(10, 8, 10, 10)
+        body.setSpacing(6)
+        root.addLayout(body)
 
         name_lbl = QLabel(mod.name)
         name_lbl.setObjectName("GBName")
         name_lbl.setWordWrap(True)
-        name_lbl.setMaximumHeight(36)
-        name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_lbl.setStyleSheet("""
-            color: #e6edf3;
-            font-size: 12px;
-            font-weight: 500;
-            background: transparent;
-            border: none;
-            padding: 0;
-        """)
-        layout.addWidget(name_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
+        name_lbl.setMaximumHeight(38)
+        body.addWidget(name_lbl)
 
-        install_btn = QPushButton(t("install_btn") or "Install")
+        author_row = QHBoxLayout()
+        author_row.setSpacing(4)
+        author_row.setContentsMargins(0, 0, 0, 0)
+
+        author_icon = QLabel()
+        author_icon.setFixedSize(13, 13)
+        _pix_author = QPixmap(resource_path("Bin/Assets/author.png"))
+        if not _pix_author.isNull():
+            author_icon.setPixmap(
+                _pix_author.scaled(13, 13, Qt.AspectRatioMode.KeepAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation)
+            )
+        author_icon.setStyleSheet("background: transparent; border: none;")
+
+        author_lbl = QLabel(mod.author)
+        author_lbl.setObjectName("GBAuthor")
+
+        author_row.addWidget(author_icon)
+        author_row.addWidget(author_lbl)
+        author_row.addStretch()
+        body.addLayout(author_row)
+
+        sep1 = QFrame()
+        sep1.setObjectName("GBSep")
+        sep1.setFixedHeight(1)
+        body.addWidget(sep1)
+
+        cat_row = QHBoxLayout()
+        cat_row.setSpacing(5)
+        cat_row.setContentsMargins(0, 0, 0, 0)
+
+        cat_text = mod.root_category
+        if mod.sub_category:
+            cat_text = f"{mod.root_category} › {mod.sub_category}" if cat_text else mod.sub_category
+        cat_lbl = QLabel(cat_text or "—")
+        cat_lbl.setObjectName("GBCategory")
+        cat_lbl.setWordWrap(False)
+
+        if mod.is_nsfw:
+            rating_icon_path = resource_path("Bin/Assets/rating_nsfw.png")
+            rating_lbl = QLabel("NSFW")
+            rating_lbl.setObjectName("GBRatingNSFW")
+        else:
+            rating_icon_path = resource_path("Bin/Assets/rating_sfw.png")
+            rating_lbl = QLabel("SFW")
+            rating_lbl.setObjectName("GBRatingSFW")
+
+        rating_icon_lbl = QLabel()
+        rating_icon_lbl.setFixedSize(13, 13)
+        _pix_rating = QPixmap(rating_icon_path)
+        if not _pix_rating.isNull():
+            rating_icon_lbl.setPixmap(
+                _pix_rating.scaled(13, 13, Qt.AspectRatioMode.KeepAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation)
+            )
+        rating_icon_lbl.setStyleSheet("background: transparent; border: none;")
+
+        cat_row.addWidget(cat_lbl, stretch=1)
+        cat_row.addWidget(rating_icon_lbl)
+        cat_row.addWidget(rating_lbl)
+        body.addLayout(cat_row)
+
+        sep2 = QFrame()
+        sep2.setObjectName("GBSep")
+        sep2.setFixedHeight(1)
+        body.addWidget(sep2)
+
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(0)
+        stats_row.setContentsMargins(0, 0, 0, 0)
+
+        def _fmt(n: int) -> str:
+            if n >= 1_000_000:
+                return f"{n / 1_000_000:.1f}M"
+            if n >= 1_000:
+                return f"{n / 1_000:.1f}K"
+            return str(n)
+
+        def _stat_widget(icon_path: str, value: int) -> QWidget:
+            w = QWidget()
+            w.setStyleSheet("background: transparent;")
+            h = QHBoxLayout(w)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(3)
+
+            icon_lbl = QLabel()
+            icon_lbl.setFixedSize(12, 12)
+            pix = QPixmap(resource_path(icon_path))
+            if not pix.isNull():
+                icon_lbl.setPixmap(
+                    pix.scaled(12, 12, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+                )
+            icon_lbl.setStyleSheet("background: transparent; border: none;")
+
+            val_lbl = QLabel(_fmt(value))
+            val_lbl.setObjectName("GBStat")
+
+            h.addWidget(icon_lbl)
+            h.addWidget(val_lbl)
+            return w
+
+        stats_row.addWidget(_stat_widget("Bin/Assets/views.png",   mod.view_count))
+        stats_row.addStretch()
+        stats_row.addWidget(_stat_widget("Bin/Assets/download.png", mod.download_count))
+        stats_row.addStretch()
+        stats_row.addWidget(_stat_widget("Bin/Assets/like.png",    mod.like_count))
+        body.addLayout(stats_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        btn_row.setContentsMargins(0, 0, 0, 0)
+
+        install_btn = QPushButton()
         install_btn.setObjectName("GBInstallBtn")
-        install_btn.setFixedHeight(26)
+        install_btn.setFixedHeight(28)
         install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        install_btn.setStyleSheet("""
-            QPushButton {
-                background: #238636;
-                color: #ffffff;
-                border: none;
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background: #2ea043;
-            }
-            QPushButton:pressed {
-                background: #1e7a30;
-            }
-        """)
+        install_btn.setToolTip(t("install_btn") or "Download & Install")
+
+        _dl_icon = QPixmap(resource_path("Bin/Assets/download.png"))
+        if not _dl_icon.isNull():
+            install_btn.setIcon(QIcon(_dl_icon))
+            install_btn.setIconSize(QSize(13, 13))
+        install_btn.setText(t("install_btn") or "Install")
         install_btn.clicked.connect(self._install)
-        layout.addWidget(install_btn)
+
+        open_btn = QPushButton()
+        open_btn.setObjectName("GBOpenBtn")
+        open_btn.setFixedHeight(28)
+        open_btn.setFixedWidth(34)
+        open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_btn.setToolTip("Open on GameBanana")
+
+        _gb_icon = QPixmap(resource_path("Bin/Assets/marketplace.png"))
+        if not _gb_icon.isNull():
+            open_btn.setIcon(QIcon(_gb_icon))
+            open_btn.setIconSize(QSize(16, 16))
+        open_btn.clicked.connect(self._open_gamebanana)
+
+        btn_row.addWidget(install_btn, stretch=1)
+        btn_row.addWidget(open_btn)
+        body.addLayout(btn_row)
 
     def _install(self):
         from src.logger import logger
         logger.info(f"GameBanana install stubbed for: {self.mod.name}")
+
+    def _open_gamebanana(self):
+        url = self.mod.mod_url
+        if not url:
+            url = f"https://gamebanana.com/mods/{self.mod.id}"
+
+        host = self.window()
+        if host is None or host is self:
+            webbrowser.open(url)
+            return
+
+        PopupDialog(
+            parent=host,
+            title="Open GameBanana",
+            message=(
+                f"You are about to open an external link in your browser:\n\n"
+                f"{url}\n\n"
+                "Continue?"
+            ),
+            confirm_text="Open in Browser",
+            cancel_text=t("cancel") or "Cancel",
+            on_confirm=lambda: webbrowser.open(url),
+        )
 
 
 class _ImageViewerOverlay(QWidget):
