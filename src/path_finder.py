@@ -78,8 +78,6 @@ def _candidate_directories():
                     yield from scan_single_dir(dirEntry.path)
                 
                 if any(launcher in dirEntry.name for launcher in _LAUNCHER_MAP):
-                    print("Found:", dirEntry.path)
-                    
                     path = Path(dirEntry.path).parent
 
                     if path not in checked:

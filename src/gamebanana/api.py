@@ -1,11 +1,12 @@
 import json
 import time
-from pathlib import Path
-from typing import Dict, List, Callable, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import requests
 
+from pathlib import Path
+from typing import List, Callable, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from src.logger import logger
 from src.path_finder import get_app_dir
 
 CACHE_DIR = Path(get_app_dir()) / "Cache" / "GameBanana"
@@ -160,7 +161,7 @@ def _fetch_one(mod: dict, headers: dict) -> NTEMod:
             detail = detail_resp.json()
             download_count = int(detail.get("downloads", 0))
     except Exception as e:
-        print(f"Download count fetch failed for mod {mod_id}: {e}")
+        logger.error(f"Download count fetch failed for mod {mod_id}: {e}")
 
     author = "Unknown"
     if isinstance(mod.get("_aSubmitter"), dict):
@@ -212,18 +213,18 @@ def get_nte_mods(
     list_params = {"_nPage": page}
 
     try:
-        print(f"Requesting GameBanana page {page}...")
+        logger.info(f"Requesting GameBanana page {page}...")
         list_response = requests.get(list_url, params=list_params, headers=headers, timeout=15)
         list_response.raise_for_status()
         submissions = list_response.json().get("_aRecords", [])
 
         if not submissions or not isinstance(submissions, list):
-            print("No data or invalid game ID returned.")
+            logger.error("No data or invalid game ID returned.")
             return None
 
         only_mods = [item for item in submissions if item.get("_sModelName") == "Mod"]
         if not only_mods:
-            print("No actual mods found on this page.")
+            logger.info("No actual mods found on this page.")
             return None
 
         nte_mods: List[NTEMod] = []
@@ -236,7 +237,7 @@ def get_nte_mods(
                     if on_mod_ready:
                         on_mod_ready(mod)
                 except Exception as e:
-                    print(f"Mod fetch failed: {e}")
+                    logger.error(f"Mod fetch failed: {e}")
 
         if nte_mods:
             _save_page_to_cache(page, nte_mods)
@@ -244,7 +245,7 @@ def get_nte_mods(
         return nte_mods
 
     except requests.exceptions.RequestException as e:
-        print(f"Error communicating with the GameBanana API: {e}")
+        logger.error(f"Error communicating with the GameBanana API: {e}")
         return None
 
 class NTEModFile:
@@ -288,6 +289,7 @@ def get_mod_files(mod_id: int) -> Optional[List[NTEModFile]]:
                 is_archived=file.get("_bIsArchived", False),
                 has_contents=file.get("_bHasContents", False)
             ))
+        logger.info(f"Retrieved files for mod {mod_id}")
         return files
-        
+    logger.error(f"Failed to retrieve files for mod {mod_id}")
     return None

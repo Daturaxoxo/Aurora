@@ -16,6 +16,7 @@ from src.styles import GB_STYLE, MOD_MANAGER_STYLE
 from src.translator import t
 from src.ui.elements import AnimatedToggle, GameBananaMod, ModCard
 from src import config_manager as cfg
+from src.logger import logger
 
 def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
@@ -169,7 +170,7 @@ class _BaseInstallZone(QFrame):
                         
                     elif path.suffix.lower() in (".zip", ".rar", ".7z"):
                         if not seven_zip_path.exists():
-                            print(f"Error: Extraction tool missing at {seven_zip_path}")
+                            logger.error(f"Error: Extraction tool missing at {seven_zip_path}")
                             continue
                             
                         cmd = [
@@ -192,7 +193,7 @@ class _BaseInstallZone(QFrame):
                             installed_files.append(path.name)
                             os.remove(path)
                         else:
-                            print(f"Failed to extract {path.name}: {result.stderr}")
+                            logger.error(f"Failed to extract {path.name}: {result.stderr}")
                     
                     else:
                         dest = mods_dir / path.name
@@ -200,7 +201,7 @@ class _BaseInstallZone(QFrame):
                         installed_files.append(path.name)
                         
                 except Exception as e:
-                    print(f"Error processing {path.name}: {e}")
+                    logger.error(f"Error processing {path.name}: {e}")
 
             if installed_files:
                 self.files_installed.emit(installed_files)
@@ -272,8 +273,8 @@ class GameBananaInstallZone(_BaseInstallZone):
     
     def install_file(self, filename: str, url: str):
         file = download_file(filename, url)
-        print(file)
         if file is None:
+            logger.error(f"Failed to download {filename}")
             return
         self._install_paths([Path(file)])
 
