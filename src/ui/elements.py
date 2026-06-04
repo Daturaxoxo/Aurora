@@ -86,6 +86,40 @@ def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = 
     idx = hash(mod_folder_name) % len(images)
     return QPixmap(str(images[idx]))
 
+def _rounded_pixmap(pixmap: QPixmap, width: int, height: int, radius: int = 10) -> QPixmap:
+    if pixmap.isNull():
+        return QPixmap()
+
+    scaled = pixmap.scaled(
+        width, height,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+    crop_x = max(0, (scaled.width() - width) // 2)
+    crop_y = max(0, (scaled.height() - height) // 2)
+    cropped = scaled.copy(crop_x, crop_y, width, height)
+
+    rounded = QPixmap(width, height)
+    rounded.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(rounded)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    # Only round top corners to better fit mod cards
+    path.moveTo(0, radius)
+    path.quadTo(0, 0, radius, 0)
+    path.lineTo(width - radius, 0)
+    path.quadTo(width, 0, width, radius)
+    path.lineTo(width, height)
+    path.lineTo(0, height)
+    path.closeSubpath()
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, cropped)
+    painter.end()
+
+    return rounded
+
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1161,28 +1195,16 @@ class GameBananaMod(QFrame):
         thumb.setFixedSize(self.CARD_W, self.THUMB_H)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        if not thumbnail_pix.isNull():
-            scaled = thumbnail_pix.scaled(
-                self.CARD_W, self.THUMB_H,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (scaled.width()  - self.CARD_W) // 2
-            y = (scaled.height() - self.THUMB_H) // 2
-            thumb.setPixmap(scaled.copy(x, y, self.CARD_W, self.THUMB_H))
-        else:
-            thumb.setStyleSheet("background:#1c2333;")
+        thumb.setPixmap(_rounded_pixmap(thumbnail_pix, self.CARD_W, self.THUMB_H, radius=10))
+        thumb.setStyleSheet(
+            "border-top-left-radius: 10px;"
+            "border-top-right-radius: 10px;"
+        )
 
         def _thumb_click(e, pix=thumbnail_pix):
             if e.button() == Qt.MouseButton.LeftButton and not pix.isNull():
                 show_image(pix, self)
         thumb.mousePressEvent = _thumb_click
-
-        thumb.setStyleSheet(
-            "border-top-left-radius: 10px;"
-            "border-top-right-radius: 10px;"
-        )
         root.addWidget(thumb)
 
         body = QVBoxLayout()
