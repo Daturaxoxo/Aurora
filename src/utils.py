@@ -3,9 +3,12 @@ from pathlib import Path
 import sys
 import urllib
 import urllib.request
+
+import requests
 from src.engine import get_app_dir
 from src.logger import logger
 from src import config_manager as cfg
+from src.path_finder import get_local_version
 
 def resource_path(relative_path):
     try:
@@ -39,3 +42,33 @@ def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
         path.unlink()  # remove the file so mkdir can proceed
     path.mkdir(parents=True, exist_ok=True)
+
+def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
+    headers = {
+        "User-Agent": f"AuroraLauncher/{get_local_version()}",
+    }
+    logger.info(f"Downloading {url}...")
+    
+    try:
+        with requests.get(url, headers=headers, stream=True) as response:
+            response.raise_for_status()
+            
+            filepath = os.path.join(dest_folder, filename)
+            
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    
+        logger.info(f"Successfully downloaded to: {filepath}")
+        return filepath
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error downloading the file: {e}")
+        return None
+    
+def bytes_to_human_readable(num_bytes: float) -> str:
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if num_bytes < 1024.0:
+            return f"{num_bytes:.2f} {unit}"
+        num_bytes /= 1024.0
+    return f"{num_bytes:.2f} GB"

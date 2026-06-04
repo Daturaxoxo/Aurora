@@ -1,23 +1,22 @@
+from functools import partial
+from typing import Dict, List, Optional
 import webbrowser
 import ctypes
 import json
-from src.utils import resource_path
+from src.gamebanana.api import NTEMod, NTEModFile
+from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QLineEdit,
-    QScrollArea, QGridLayout, QFileDialog, QSizePolicy,
+    QScrollArea, QGridLayout, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath
+from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize, QRectF
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QPen
 from src.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
-from src.path_finder import get_app_dir
 import shutil
-
-
-# Icon Map Helpers
 
 def _custom_icons_dir() -> Path:
     d = Path(resource_path("Bin/Assets/ModImages/custom"))
@@ -40,9 +39,6 @@ def _save_icon_map(mapping: dict):
     _icon_map_path().write_text(
         json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-
-
-# Mod Image Resolution
 
 def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
     icon_map = _load_icon_map()
@@ -90,8 +86,39 @@ def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = 
     idx = hash(mod_folder_name) % len(images)
     return QPixmap(str(images[idx]))
 
+def _rounded_pixmap(pixmap: QPixmap, width: int, height: int, radius: int = 10) -> QPixmap:
+    if pixmap.isNull():
+        return QPixmap()
 
-# Animated Toggle
+    scaled = pixmap.scaled(
+        width, height,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+    crop_x = max(0, (scaled.width() - width) // 2)
+    crop_y = max(0, (scaled.height() - height) // 2)
+    cropped = scaled.copy(crop_x, crop_y, width, height)
+
+    rounded = QPixmap(width, height)
+    rounded.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(rounded)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    # Only round top corners to better fit mod cards
+    path.moveTo(0, radius)
+    path.quadTo(0, 0, radius, 0)
+    path.lineTo(width - radius, 0)
+    path.quadTo(width, 0, width, radius)
+    path.lineTo(width, height)
+    path.lineTo(0, height)
+    path.closeSubpath()
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, cropped)
+    painter.end()
+
+    return rounded
 
 class AnimatedToggle(QWidget):
     def __init__(self, parent=None):
@@ -127,7 +154,12 @@ class AnimatedToggle(QWidget):
         self.animation.setStartValue(start)
         self.animation.setEndValue(end)
         self.animation.start()
-        self.parent().handle_toggle()
+        target = self.parent()
+        while target and not hasattr(target, "handle_toggle"):
+            target = target.parent();
+
+        if target:
+            target.handle_toggle();
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -140,9 +172,6 @@ class AnimatedToggle(QWidget):
 
         painter.setBrush(self._handle_color)
         painter.drawEllipse(self._handle_position, 3, 20, 20)
-
-
-# Mod Thumbnail Widget
 
 class ModImage(QLabel):
     RADIUS = 6
@@ -246,9 +275,6 @@ class ModImage(QLabel):
             painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
 
         painter.end()
-
-
-# Mod Card
 
 class ModCard(QFrame):
     def __init__(self, mod, manager, parent_overlay):
@@ -430,9 +456,6 @@ class ModCard(QFrame):
             self.mod.is_enabled = new_state
         self.parent_overlay._update_mod_count()
 
-
-# Icon Picker Cell
-
 class _IconCell(QFrame):
     CELL_SIZE = 72
 
@@ -509,9 +532,6 @@ class _IconCell(QFrame):
         if event.button() == Qt.MouseButton.LeftButton and self._on_select:
             self._on_select()
         super().mousePressEvent(event)
-
-
-# Icon Picker Dialog
 
 class IconPickerDialog(QWidget):
     COLS = 6
@@ -710,9 +730,6 @@ class IconPickerDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-
-# Rename Dialog
-
 class RenameDialog(QWidget):
     def __init__(self, parent, current_name: str, on_confirm=None):
         super().__init__(parent)
@@ -811,9 +828,6 @@ class RenameDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-
-# Popup Dialog
-
 class PopupDialog(QWidget):
     def __init__(self, parent, title, message, confirm_text="Confirm",
                  cancel_text="Cancel", on_confirm=None, on_cancel=None):
@@ -906,9 +920,6 @@ class PopupDialog(QWidget):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
-
-# Aurora Overlay Window
-
 class AuroraOverlayWindow(QWidget):
     DISPLAY_MS = 6000
     FADE_MS    = 1000
@@ -969,7 +980,6 @@ class AuroraOverlayWindow(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        from PyQt6.QtGui import QColor
         painter.setBrush(QColor(10, 8, 18, 210))
         painter.setPen(QColor(60, 60, 80, 200))
         painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 12, 12)
@@ -1031,3 +1041,88 @@ class AuroraOverlayWindow(QWidget):
         if not self.isHidden():
             self.hide()
             self.deleteLater()
+            
+class LoadingSpinner(QWidget):
+    def __init__(self, size: int = 32, color: QColor = None, parent=None):
+        super().__init__(parent)
+        self._size = size
+        self._color = color or QColor("#4493f8")
+        self._angle = 0
+        self.setFixedSize(size, size)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+
+    def start(self):
+        self._timer.start(16)
+
+    def stop(self):
+        self._timer.stop()
+
+    def _tick(self):
+        self._angle = (self._angle + 8) % 360
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.translate(self._size / 2, self._size / 2)
+        painter.rotate(self._angle)
+
+        track_pen = QPen(QColor(255, 255, 255, 30))
+        track_pen.setWidth(3)
+        track_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(track_pen)
+        r = self._size / 2 - 4
+        painter.drawEllipse(QRectF(-r, -r, r * 2, r * 2))
+
+        arc_pen = QPen(self._color)
+        arc_pen.setWidth(3)
+        arc_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(arc_pen)
+        painter.drawArc(QRectF(-r, -r, r * 2, r * 2), 0, 100 * 16)
+        painter.end()
+
+class _ImageViewerOverlay(QWidget):
+    def __init__(self, parent: QWidget, pixmap: QPixmap):
+        super().__init__(parent)
+        self.setObjectName("DimOverlay")
+        self.setFixedSize(parent.size())
+        self.move(0, 0)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet("""
+            QWidget#DimOverlay {
+                background: rgba(0, 0, 0, 180);
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(30, 30, 30, 30)
+
+        img = QLabel()
+        img.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        img.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        max_w = min(pixmap.width(), int(parent.width() * 0.88))
+        max_h = min(pixmap.height(), int(parent.height() * 0.88))
+        scaled = pixmap.scaled(
+            max_w, max_h,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        img.setPixmap(scaled)
+
+        layout.addWidget(img)
+
+        def _dismiss(e):
+            self.close()
+        img.mousePressEvent = _dismiss
+        self.mousePressEvent = _dismiss
+
+
+def show_image(pixmap: QPixmap, parent_widget: QWidget):
+    if pixmap.isNull():
+        return
+    overlay = _ImageViewerOverlay(parent_widget.window(), pixmap)
+    overlay.show()
+    overlay.raise_()

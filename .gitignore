@@ -3,6 +3,7 @@ config.json
 /Mods/
 /Logs/
 /Bin/Assets/ModImages/
+/Cache/
 *.log
 *.aulog
 
@@ -34,3 +35,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+.vscode
+Client
+docs
+README.md

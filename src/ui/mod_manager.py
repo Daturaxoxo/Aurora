@@ -2,21 +2,19 @@ import os
 import sys
 import shutil
 import subprocess
-import zipfile
+from src.gamebanana.window import GameBananaBrowserOverlay, InstallProgressWindow
 from src.utils import get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QLineEdit,
     QScrollArea, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon
 from src.styles import MOD_MANAGER_STYLE
 from src.translator import t
-from src.engine import get_app_dir
 from src.ui.elements import ModCard
-
+from src.logger import logger
 
 def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
@@ -116,76 +114,63 @@ class _BaseInstallZone(QFrame):
             counter += 1
         return dest
 
-    def _extract_zip(self, src: Path, mods_dir: Path) -> Path:
-        with zipfile.ZipFile(src, "r") as zf:
-            entries = zf.namelist()
-            top_levels = {e.split('/')[0] for e in entries if e.strip('/')}
-            has_single_root = (
-                len(top_levels) == 1 and
-                any(e.startswith(next(iter(top_levels)) + '/') for e in entries)
-            )
+    def _install_paths(self, paths: list[str | Path]):
+            paths = [Path(p) for p in paths]
+            mods_dir = get_mods_path()
+            
+            seven_zip_path = Path(resource_path("Bin/7z.exe"))
+            
+            installed_files = []
 
-            if has_single_root:
-                root_name = next(iter(top_levels))
-                zip_dest = self._unique_dest(mods_dir / root_name)
-                zip_dest.mkdir(parents=True, exist_ok=True)
-                for member in zf.infolist():
-                    member_parts = Path(member.filename).parts[1:]
-                    if not member_parts:
-                        continue
-                    dest_path = zip_dest / Path(*member_parts)
-                    if member.is_dir():
-                        dest_path.mkdir(parents=True, exist_ok=True)
-                    else:
-                        dest_path.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(member) as src_f, open(dest_path, 'wb') as dst_f:
-                            dst_f.write(src_f.read())
-            else:
-                zip_dest = self._unique_dest(mods_dir / src.stem)
-                zip_dest.mkdir(parents=True, exist_ok=True)
-                zf.extractall(zip_dest)
-
-        return zip_dest
-
-    def _install_paths(self, paths: list[Path]):
-        _ensure_dir(self.mods_dir)
-        installed = []
-
-        for src in paths:
-            if src.is_dir():
-                try:
-                    dest = self._unique_dest(self.mods_dir / src.name)
-                    shutil.copytree(src, dest)
-                    installed.append(dest)
-                except (PermissionError, OSError) as e:
-                    from src.logger import logger
-                    logger.warning(f"Could not copy folder {src.name}: {e}")
+            for path in paths:
+                if not path.exists():
                     continue
-            elif src.is_file():
-                if src.suffix.lower() == ".zip":
-                    try:
-                        zip_dest = self._extract_zip(src, self.mods_dir)
-                        installed.append(zip_dest)
-                    except zipfile.BadZipFile:
-                        from src.logger import logger
-                        logger.warning(f"Could not extract {src.name}: not a valid ZIP file.")
-                        continue
-                    except (PermissionError, OSError) as e:
-                        from src.logger import logger
-                        logger.warning(f"Could not extract {src.name}: {e}")
-                        continue
-                else:
-                    try:
-                        dest = self._unique_dest(self.mods_dir / src.name)
-                        shutil.copy2(src, dest)
-                        installed.append(dest)
-                    except (PermissionError, OSError) as e:
-                        from src.logger import logger
-                        logger.warning(f"Could not copy {src.name}: {e}")
-                        continue
 
-        if installed:
-            self.files_installed.emit(installed)
+                try:
+                    if path.is_dir():
+                        dest = mods_dir / path.name
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(path, dest)
+                        installed_files.append(path.name)
+                        
+                    elif path.suffix.lower() in (".zip", ".rar", ".7z"):
+                        if not seven_zip_path.exists():
+                            logger.error(f"Error: Extraction tool missing at {seven_zip_path}")
+                            continue
+                            
+                        cmd = [
+                            str(seven_zip_path), 
+                            "x", 
+                            str(path), 
+                            f"-o{mods_dir}/{path.name.split('.')[0]}", 
+                            "-y"
+                        ]
+                        
+                        startupinfo = None
+                        if sys.platform == "win32":
+                            import subprocess
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                            
+                        result = subprocess.run(cmd, startupinfo=startupinfo, capture_output=True, text=True)
+                        
+                        if result.returncode == 0:
+                            installed_files.append(path.name)
+                            os.remove(path)
+                        else:
+                            logger.error(f"Failed to extract {path.name}: {result.stderr}")
+                    
+                    else:
+                        dest = mods_dir / path.name
+                        shutil.copy2(path, dest)
+                        installed_files.append(path.name)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing {path.name}: {e}")
+
+            if installed_files:
+                self.files_installed.emit(installed_files)
 
 
 class ZipInstallZone(_BaseInstallZone):
@@ -193,8 +178,8 @@ class ZipInstallZone(_BaseInstallZone):
         super().__init__(
             mods_dir=mods_dir,
             icon_path="Bin/Assets/install_zip.png",
-            title=t("install_zone_title_zip") or "Install Mod from ZIP",
-            choose_label=t("install_zone_choose_zip") or "Choose ZIP files",
+            title=t("install_zone_title_zip") or "Install Mod from Archive",
+            choose_label=t("install_zone_choose_zip") or "Choose Archive files",
             parent=parent,
         )
 
@@ -202,7 +187,7 @@ class ZipInstallZone(_BaseInstallZone):
         dialog = QFileDialog(self, "Select mod archive files")
         dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
         dialog.setNameFilters([
-            "Mod archives (*.zip)",
+            "Mod archives (*.zip *.rar *.7z)",
             "All files (*)",
         ])
 
@@ -217,8 +202,8 @@ class FolderInstallZone(_BaseInstallZone):
         super().__init__(
             mods_dir=mods_dir,
             icon_path="Bin/Assets/install_folder.png",
-            title=t("install_zone_title_folder") or "Install Mod from folder",
-            choose_label=t("install_zone_choose_folder") or "Choose a folder",
+            title=t("install_zone_title_folder"),
+            choose_label=t("install_zone_choose_folder"),
             parent=parent,
         )
 
@@ -231,6 +216,34 @@ class FolderInstallZone(_BaseInstallZone):
 
         if folder:
             self._install_paths([Path(folder)])
+
+
+class GameBananaInstallZone(_BaseInstallZone):
+    def __init__(self, mods_dir: Path, parent=None):
+        super().__init__(
+            mods_dir=mods_dir,
+            icon_path="Bin/Assets/marketplace.png",
+            title=t("install_zone_title_gamebanana"),
+            choose_label=t("install_zone_choose_gamebanana"),
+            parent=parent,
+        )
+
+    def _open_file_dialog(self):
+        overlay = self.parent()
+        while overlay is not None and not isinstance(overlay, ModManagerOverlay):
+            overlay = overlay.parent()
+        if overlay is None:
+            return
+        browser = GameBananaBrowserOverlay(overlay.parent(), overlay.manager)
+        browser.show()
+    
+    def install_file(self, filename: str, url: str):
+        win = InstallProgressWindow(filename, url)
+        win.install_finished.connect(self.files_installed.emit)
+        win.show()
+        win.start()
+        self._install_win = win
+
 
 
 class ModManagerOverlay(QFrame):
@@ -348,6 +361,7 @@ class ModManagerOverlay(QFrame):
 
         mods_path = get_mods_path()
 
+        # Install zones
         zones_row = QHBoxLayout()
         zones_row.setSpacing(12)
 
@@ -357,8 +371,12 @@ class ModManagerOverlay(QFrame):
         self.folder_install_zone = FolderInstallZone(mods_path, self)
         self.folder_install_zone.files_installed.connect(self._on_files_installed)
 
+        self.gamebanana_install_zone = GameBananaInstallZone(mods_path, self)
+        self.gamebanana_install_zone.files_installed.connect(self._on_files_installed)
+
         zones_row.addWidget(self.zip_install_zone)
         zones_row.addWidget(self.folder_install_zone)
+        zones_row.addWidget(self.gamebanana_install_zone)
 
         body_layout.addWidget(search_row)
         body_layout.addLayout(zones_row)
@@ -389,8 +407,6 @@ class ModManagerOverlay(QFrame):
         self._lbl_mod_count.setText(f"{enabled} {TMP_desc_a} {total} {TMP_desc_b}")
 
     def refresh_list(self):
-        # Remove all items from the layout (widgets and spacers alike) so that
-        # accumulated stretch items from previous calls don't push content down.
         while self.list_layout.count():
             item = self.list_layout.takeAt(0)
             if item is None:
