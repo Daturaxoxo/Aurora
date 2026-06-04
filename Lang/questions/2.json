@@ -8,7 +8,8 @@
         "pt-br": "Quais servidores são compatíveis?",
         "jp": "どのサーバーが対応していますか？",
         "nl": "Welke servers worden ondersteund?",
-        "vi": "Những máy chủ nào được hỗ trợ?"
+        "vi": "Những máy chủ nào được hỗ trợ?",
+        "fr": "Quels serveurs sont pris en charge ?"
     },
     "answer": {
         "en": [
@@ -106,6 +107,18 @@
             "\n- Centraal-Azië",
             "\n- Vasteland van China",
             "\n- Taiwan"
+        ],
+        "fr": [
+            "## Serveurs pris en charge",
+            "Les versions du lanceur prises en charge par Aurora sont listées ci-dessous :",
+            "\n- Amérique du Nord et Amérique du Sud",
+            "\n- Europe",
+            "\n- Afrique",
+            "\n- Moyen-Orient",
+            "\n- Asie du Sud-Est",
+            "\n- Asie centrale",
+            "\n- Chine continentale",
+            "\n- Taïwan"
         ]
     }
 }
