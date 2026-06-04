@@ -99,6 +99,8 @@
         "updater_close": "Close",
         "gamebanana_mods": "Install GameBanana Mods",
         "gamebanana_install_btn": "Install",
+        "gamebanana_install_title": "Select a file to install",
+        "gamebanana_install_empty": "No files available.",
         "gamebanana_open_btn": "Open on Gamebanana",
         "clear_cache_tooltip": "Clear mod cache and reload",
         "loading": "Loading...",

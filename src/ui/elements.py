@@ -4,7 +4,7 @@ import webbrowser
 import ctypes
 import json
 from src.gamebanana.api import NTEMod, NTEModFile
-from src.utils import resource_path
+from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
@@ -1364,6 +1364,15 @@ class GameBananaMod(QFrame):
     def _install(self):
         from src.gamebanana.api import get_mod_files
         files = get_mod_files(self.mod.id)
+        
+        if len(files) == 1:
+            file = files[0]
+            self.window().__dict__["mod_overlay"].__dict__["gamebanana_install_zone"].install_file(
+                file.name,
+                file.url
+            )
+            return
+        
         self.overlay = _InstallSelectionOverlay(self.window(), files)
         self.overlay.show()
         self.overlay.raise_()
@@ -1466,7 +1475,7 @@ class _InstallSelectionOverlay(QWidget):
         card_layout.setContentsMargins(24, 24, 24, 24)
         card_layout.setSpacing(16)
         
-        title = QLabel("Select a file to install")
+        title = QLabel(t("gamebanana_install_title") or "Select a file to install")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6edf3; background: transparent; border: none;")
         card_layout.addWidget(title)
@@ -1487,7 +1496,7 @@ class _InstallSelectionOverlay(QWidget):
         
         if files:
             for file in files:
-                btn = QPushButton(str(file.name))
+                btn = QPushButton(f"{file.name} ({bytes_to_human_readable(file.size)})")
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 btn.setStyleSheet("""
                     QPushButton {
@@ -1512,7 +1521,7 @@ class _InstallSelectionOverlay(QWidget):
                 )
                 files_layout.addWidget(btn)
         else:
-            empty_lbl = QLabel("No files available.")
+            empty_lbl = QLabel(t("gamebanana_install_empty") or "No files available.")
             empty_lbl.setStyleSheet("color: #8b949e; font-size: 13px;")
             empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             files_layout.addWidget(empty_lbl)
@@ -1527,7 +1536,7 @@ class _InstallSelectionOverlay(QWidget):
         
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(t("cancel") or "Cancel")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.setStyleSheet("""
             QPushButton {

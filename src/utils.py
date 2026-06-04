@@ -64,3 +64,10 @@ def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error downloading the file: {e}")
         return None
+    
+def bytes_to_human_readable(num_bytes: float) -> str:
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if num_bytes < 1024.0:
+            return f"{num_bytes:.2f} {unit}"
+        num_bytes /= 1024.0
+    return f"{num_bytes:.2f} GB"
