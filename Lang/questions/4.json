@@ -8,7 +8,8 @@
         "pt-br": "Como posso fazer sugestões?",
         "jp": "提案や要望を送るにはどうすればいいですか？",
         "nl": "Hoe kan ik suggesties doen?",
-        "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?"
+        "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?",
+        "fr": "Comment puis-je faire des suggestions ?"
     },
     "answer": {
         "en": [
@@ -66,6 +67,13 @@
             "\n- Onze Discord-server",
             "\n- GameBanana-pagina",
             "Elke andere locatie zal leiden tot vertraagde reacties of helemaal geen antwoord."
+        ],
+        "fr": [
+            "## Faire une suggestion",
+            "Endroits où faire des suggestions :",
+            "\n- Notre serveur Discord",
+            "\n- Page GameBanana",
+            "Tout autre lieu entraînera des réponses tardives, voire aucune réponse."
         ]
     }
 }
