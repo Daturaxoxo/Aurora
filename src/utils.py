@@ -8,6 +8,7 @@ import requests
 from src.engine import get_app_dir
 from src.logger import logger
 from src import config_manager as cfg
+from src.path_finder import get_local_version
 
 def resource_path(relative_path):
     try:
@@ -44,7 +45,7 @@ def _ensure_dir(path: Path):
 
 def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": f"AuroraLauncher/{get_local_version()}",
     }
     logger.info(f"Downloading {url}...")
     

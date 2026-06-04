@@ -7,7 +7,7 @@ from typing import List, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.logger import logger
-from src.path_finder import get_app_dir
+from src.path_finder import get_app_dir, get_local_version
 
 CACHE_DIR = Path(get_app_dir()) / "Cache" / "GameBanana"
 CACHE_TTL = 3600
@@ -207,7 +207,7 @@ def get_nte_mods(
             return cached
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": f"AuroraLauncher/{get_local_version()}",
     }
     list_url = "https://gamebanana.com/apiv12/Game/23012/Subfeed"
     list_params = {"_nPage": page}
@@ -271,7 +271,7 @@ class NTEModFile:
     
 def get_mod_files(mod_id: int) -> Optional[List[NTEModFile]]:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": f"AuroraLauncher/{get_local_version()}",
     }
     detail_url = (f"https://gamebanana.com/apiv12/Mod/{mod_id}/ProfilePage")
     detail_resp = requests.get(detail_url, headers=headers, timeout=15)
