@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 import webbrowser
 import ctypes
 import json
-from src.gamebanana.api import NTEMod, NTEModFile
+from src.backend.helpers.api import NTEMod, NTEModFile
 from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize, QRectF
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QPen
-from src.styles import POPUP_STYLE
+from src.frontend.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 import shutil

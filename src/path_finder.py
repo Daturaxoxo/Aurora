@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from pathlib import Path
-from src.helpers.paths import _LAUNCHER_MAP
+from src.backend.helpers.paths import LAUNCHER_MAP
 
 fallback_scandir = False
 try:
@@ -42,7 +42,7 @@ def validate_path(path):
         return False
     try:
         base = Path(path)
-        launcher_exists = any((base / launcher).exists() for launcher in _LAUNCHER_MAP)
+        launcher_exists = any((base / launcher).exists() for launcher in LAUNCHER_MAP)
         if not launcher_exists:
             return False
         htgame_found = any(True for _ in base.rglob("HTGame.exe"))
@@ -54,7 +54,6 @@ def validate_path(path):
 
 def _candidate_directories():
     checked = set()
-    from src.helpers.paths import _LAUNCHER_MAP
     
     def emit(path):
         p = str(Path(path))
@@ -77,7 +76,7 @@ def _candidate_directories():
                 if dirEntry.is_dir(follow_symlinks=False):
                     yield from scan_single_dir(dirEntry.path)
                 
-                if any(launcher in dirEntry.name for launcher in _LAUNCHER_MAP):
+                if any(launcher in dirEntry.name for launcher in LAUNCHER_MAP):
                     path = Path(dirEntry.path).parent
 
                     if path not in checked:
@@ -105,7 +104,7 @@ def _candidate_directories():
                 dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
                 skip_hidden=True
             ):
-                if any(launcher in dirEntry.path for launcher in _LAUNCHER_MAP):
+                if any(launcher in dirEntry.path for launcher in LAUNCHER_MAP):
                     path = Path(f"{drive}{dirEntry.path}").parent
 
                     if path not in checked:

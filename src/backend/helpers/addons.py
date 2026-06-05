@@ -1,33 +1,45 @@
-import stat
-import re
-import subprocess
-import os
+import stat, re, subprocess, os
 from pathlib import Path
+from src.utils import get_app_dir
+from dataclasses import dataclass
 
-# Constants
-_SECTION_HEADER = "[/Script/Engine.UserInterfaceSettings]"
-_KEY            = "ApplicationScale"
-_ENGINE_INI_PATH = Path(os.environ.get("LOCALAPPDATA", ""), "HT", "Saved_Global", "Config", "Windows", "Engine.ini")
+# Constants & Dataclasses
+SECTION_HEADER = "[/Script/Engine.UserInterfaceSettings]"
+KEY            = "ApplicationScale"
+ENGINE_INI_PATH = Path(os.environ.get("LOCALAPPDATA", ""), "HT", "Saved_Global", "Config", "Windows", "Engine.ini")
+@dataclass(frozen=True)
+class PakAddon:
+    config_key:  str
+    base_name:   str
 
-# Internal Helpers
-def _get_ini_path() -> Path:
+    @property
+    def files(self) -> list[str]:
+        return [
+            f"{self.base_name}.pak",
+            f"{self.base_name}.utoc",
+            f"{self.base_name}.ucas",
+        ]
+
+# [Helpers]
+# UI Scaling
+def get_ini_path() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expandvars("%LOCALAPPDATA%")
     return Path(local_app_data) / "HT" / "Saved_Global" / "Config" / "Windows" / "Engine.ini"
 
-def _is_readonly(path: Path) -> bool:
+def is_readonly(path: Path) -> bool:
     try:
         return not (path.stat().st_mode & stat.S_IWRITE)
     except OSError:
         return False
- 
-def _set_readonly(path: Path, readonly: bool) -> None:
+    
+def set_readonly(path: Path, readonly: bool) -> None:
     flag = "+R" if readonly else "-R"
     subprocess.run(
         ["attrib", flag, str(path)],
         shell=False, capture_output=True
     )
 
-def _strip_section(text: str) -> str:
+def strip_section(text: str) -> str:
     pattern = re.compile(
         r"\[/Script/Engine\.UserInterfaceSettings\][^\[]*",
         re.IGNORECASE,
@@ -36,9 +48,10 @@ def _strip_section(text: str) -> str:
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.rstrip("\n")
 
-# Public API
+# [Public API]
+# UI Scaling
 def get_current_scale() -> float:
-    path = _get_ini_path()
+    path = get_ini_path()
     if not path.exists():
         return 1.0
     try:
@@ -56,17 +69,17 @@ def get_current_scale() -> float:
 
 def apply_scale(scale: float) -> bool:
     scale = round(max(0.5, min(2.0, scale)), 2)
-    path  = _get_ini_path()
+    path  = get_ini_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
-            _set_readonly(path, False)
+            set_readonly(path, False)
         existing = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
-        base = _strip_section(existing)
-        new_text = base + f"\n\n{_SECTION_HEADER}\n{_KEY}={scale}\n"
+        base = strip_section(existing)
+        new_text = base + f"\n\n{SECTION_HEADER}\n{KEY}={scale}\n"
         with open(path, "w", encoding="utf-8") as f:
             f.write(new_text)
-        _set_readonly(path, True)
+        set_readonly(path, True)
         return True
 
     except Exception as e:
@@ -75,16 +88,16 @@ def apply_scale(scale: float) -> bool:
         return False
     
 def remove_scale() -> bool:
-    path = _get_ini_path()
+    path = get_ini_path()
     if not path.exists():
         return True
  
     try:
-        if _is_readonly(path):
-            _set_readonly(path, False)
+        if is_readonly(path):
+            set_readonly(path, False)
  
         existing = path.read_text(encoding="utf-8", errors="replace")
-        cleaned  = _strip_section(existing)
+        cleaned  = strip_section(existing)
         path.write_text(cleaned + "\n", encoding="utf-8")
         return True
  
@@ -92,4 +105,20 @@ def remove_scale() -> bool:
         return False
     
 def ini_path() -> Path:
-    return _get_ini_path() # Useful for logging in the UI
+    return get_ini_path() # Useful for logging in the UI
+
+# PAK Addon Manager
+PAK_ADDONS: list[PakAddon] = [
+    PakAddon(
+        config_key  = "drv_lin",       # Key.NO_DRIVE_LINE
+        base_name   = "auddl_P",
+    ),
+    PakAddon(
+        config_key  = "uid_rem",       # Key.HIDE_UID
+        base_name   = "uidrm_P",
+    ),
+   PakAddon(
+        config_key  = "nor_rem",       # Key.HIDE_NOTIF_DOTS
+        base_name   = "nrdrm_P",
+    ),
+]

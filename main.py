@@ -3,8 +3,8 @@ import ctypes
 import traceback
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
-from src.ui_main import AuroraUI
-from src.engine import AuroraEngine
+from src.frontend.ui_main import AuroraUI
+from src.backend.engine import AuroraEngine
 from src.path_finder import validate_path
 from src import config_manager as cfg
 from src.discord_rpc import DiscordRPC

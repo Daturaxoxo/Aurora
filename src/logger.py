@@ -1,14 +1,9 @@
-import logging
-import os
-import sys
+# Aurora Logger
+import logging, os
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
+from src.utils import get_app_dir
 from src import config_manager as cfg
-
-def get_app_dir():
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class ExtensiveLoggingFilter(logging.Filter):
     def filter(self, record):

@@ -8,15 +8,17 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon
 from src.utils import resource_path
-from src.styles import SETTING_STYLE
+from src.frontend.styles import SETTING_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
-from src.logger import dev_console_handler, get_app_dir
-from src.ui.elements import AnimatedToggle
-from src.helpers import ui_scaling
+from src.logger import dev_console_handler
+from src.frontend.classes.elements import AnimatedToggle
+from src.backend.helpers import addons
 import os
 from datetime import datetime
 import logging
+from src.utils import get_app_dir
+from src.discord_rpc import DiscordRPC
 
 # SETTINGS ROW
 class SettingRow(QFrame):
@@ -553,7 +555,6 @@ class SettingsOverlay(QFrame):
         self._toggle(cfg.Key.DISCORD_RPC, new_state)
         main_ui = self.parent().parent()
         if new_state:
-            from src.discord_rpc import DiscordRPC
             if hasattr(main_ui, 'rpc'):
                 main_ui.rpc.stop()
             main_ui.rpc = DiscordRPC()
@@ -577,12 +578,12 @@ class SettingsOverlay(QFrame):
  
         cfg.set(cfg.Key.UI_SCALING, scale_f)
  
-        ok = ui_scaling.apply_scale(scale_f)
+        ok = addons.apply_scale(scale_f)
         if not ok:
             from src.logger import logger
             logger.warning(
                 f"UI Scaling: failed to write Engine.ini "
-                f"({ui_scaling.ini_path()}). "
+                f"({addons.ini_path()}). "
                 "Check file permissions."
             )
 

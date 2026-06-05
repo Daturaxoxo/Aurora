@@ -2,7 +2,7 @@ import os
 import sys
 import shutil
 import subprocess
-from src.gamebanana.window import GameBananaBrowserOverlay, InstallProgressWindow
+from src.backend.helpers.window import GameBananaBrowserOverlay, InstallProgressWindow
 from src.utils import get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -11,9 +11,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon
-from src.styles import MOD_MANAGER_STYLE
+from src.frontend.styles import MOD_MANAGER_STYLE
 from src.translator import t
-from src.ui.elements import ModCard
+from src.frontend.classes.elements import ModCard
 from src.logger import logger
 
 def _ensure_dir(path: Path):

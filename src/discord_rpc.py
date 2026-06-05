@@ -86,15 +86,10 @@ class DiscordRPC(QThread):
         self._start_timestamp = int(time.time())
 
     def _get_buttons(self) -> list:
-        DISCORD_INVITE = "https://discord.gg/565jfeYsbp"
-        return [{
-                "label": "Join Discord Server",
-                "url": DISCORD_INVITE
-            },
-            {
-                "label": "Github",
-                "url": "https://github.com/Daturaxoxo/Aurora"
-            }]
+        return [
+            {"label": "Join Discord Server", "url": "https://discord.gg/565jfeYsbp"},
+            {"label": "Github",              "url": "https://github.com/Daturaxoxo/Aurora"},
+        ]
 
     def set_idle(self):
         self._queue_activity({
@@ -105,7 +100,7 @@ class DiscordRPC(QThread):
                 "large_image": "aurora_logo",
                 "large_text":  "Aurora Mod Launcher",
             },
-            "buttons": self._get_buttons()
+            "buttons": self._get_buttons(),
         })
 
     def set_launching(self):
@@ -117,7 +112,7 @@ class DiscordRPC(QThread):
                 "large_image": "aurora_logo",
                 "large_text":  "Aurora Mod Launcher",
             },
-            "buttons": self._get_buttons()
+            "buttons": self._get_buttons(),
         })
 
     def set_in_game(self):
@@ -131,14 +126,15 @@ class DiscordRPC(QThread):
                 "small_image": "playing",
                 "small_text":  "In-game",
             },
-            "buttons": self._get_buttons()
+            "buttons": self._get_buttons(),
         })
 
     def stop(self):
+        """Signal the worker to stop and return immediately — never blocks the UI thread."""
         self._stop_event.set()
-        self._clear_presence()
-        self.quit()
-        self.wait(2000)
+        # Let the worker thread handle _clear_presence and pipe teardown in run().
+        # finished() is emitted by QThread when run() returns, so callers can
+        # connect to that signal if they need to know when the thread is truly done.
 
     # Internal helpers
 
@@ -150,11 +146,8 @@ class DiscordRPC(QThread):
         if not self._connected or self._handle is None:
             return
         payload = {
-            "cmd":   "SET_ACTIVITY",
-            "args":  {
-                "pid":      os.getpid(),
-                "activity": activity,
-            },
+            "cmd":  "SET_ACTIVITY",
+            "args": {"pid": os.getpid(), "activity": activity},
             "nonce": str(uuid.uuid4()),
         }
         try:
@@ -165,6 +158,7 @@ class DiscordRPC(QThread):
             self._connected = False
 
     def _clear_presence(self):
+        """Send a null activity to Discord. Must only be called from the worker thread."""
         if not self._connected or self._handle is None:
             return
         payload = {
@@ -180,7 +174,6 @@ class DiscordRPC(QThread):
     def _connect(self) -> bool:
         try:
             self._handle = _open_pipe()
-            # Handshake
             _write_pipe(self._handle, _encode(OP_HANDSHAKE, {
                 "v":         1,
                 "client_id": self._client_id,
@@ -194,35 +187,43 @@ class DiscordRPC(QThread):
             logger.warning(f"[RPC] Connection failed: {e}", extra={'el': True})
         return False
 
-    # QThread entry point
-
-    def run(self):
-        while not self._stop_event.is_set():
-            if not self._connected:
-                if not self._connect():
-                    # Discord not running
-                    self._stop_event.wait(15)
-                    continue
-                with self._lock:
-                    pending = self._pending_activity
-                if pending:
-                    self._send_activity(pending)
-
-            # Flush pending update
-            with self._lock:
-                pending = self._pending_activity
-                self._pending_activity = None   # clear so we don't spam and cause rate limit to go grrr
-
-            if pending:
-                self._send_activity(pending)
-
-            self._stop_event.wait(1)
-
+    def _teardown(self):
+        """Clean up the pipe handle. Called at the very end of run()."""
         if self._handle:
             try:
                 _write_pipe(self._handle, _encode(OP_CLOSE, {}))
             except Exception:
                 pass
             _close_pipe(self._handle)
-            self._handle = None
+            self._handle    = None
+            self._connected = False
+
+    # QThread entry point
+
+    def run(self):
+        while not self._stop_event.is_set():
+            if not self._connected:
+                if not self._connect():
+                    # Discord not running — wait before retrying, but honour stop quickly.
+                    self._stop_event.wait(15)
+                    continue
+                # Push any activity that was queued before the connection came up.
+                with self._lock:
+                    pending = self._pending_activity
+                if pending:
+                    self._send_activity(pending)
+
+            # Flush one pending update per tick (avoids rate-limiting).
+            with self._lock:
+                pending = self._pending_activity
+                self._pending_activity = None
+
+            if pending:
+                self._send_activity(pending)
+
+            self._stop_event.wait(1)
+
+        # We're stopping: clear presence then close the pipe on this thread.
+        self._clear_presence()
+        self._teardown()
         logger.info("[RPC] Disconnected.", extra={'el': True})

@@ -3,8 +3,6 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QTextEdit, 
 )
 from src.logger import dev_console_handler, file_handler
-
-
 # DEV CONSOLE PANEL
 class DevConsolePanel(QFrame):
     def __init__(self, parent=None):

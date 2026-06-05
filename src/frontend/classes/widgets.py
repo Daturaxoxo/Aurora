@@ -5,7 +5,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QPainter
 
-
 # BACKGROUND WIDGET
 class BackgroundWidget(QWidget):
     def __init__(self, image_path, parent=None):
