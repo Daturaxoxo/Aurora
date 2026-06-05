@@ -14,8 +14,7 @@ from typing import Optional
 from PyQt6.QtCore import QThread, pyqtSignal
 from src.logger import logger
 from src.path_finder import get_local_version
-from src.utils import GetOnlineVersion, parse_version
-from src.engine import get_app_dir
+from src.utils import GetOnlineVersion, parse_version, get_app_dir
 GITHUB_OWNER = "Daturaxoxo"
 GITHUB_REPO  = "AuroraInstallation"
 ASSET_EXE    = "Aurora.exe"

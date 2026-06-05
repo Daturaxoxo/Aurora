@@ -4,7 +4,6 @@ import ctypes.wintypes
 import time
 import webbrowser
 import subprocess
-
 import psutil
 from src.utils import resource_path
 from pathlib import Path
@@ -16,21 +15,21 @@ from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, QPropertyAnimation,
 from PyQt6.QtGui import QPixmap, QIcon, QPainter, QAction
 from src.logger import logger, dev_console_handler
 from src.path_finder import validate_path, get_game_directory, get_local_version
-from src.styles import MAIN_STYLE
+from src.frontend.styles import MAIN_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
-from src.engine import get_app_dir
+from src.utils import get_app_dir
 from src.mod_manager import ModManager
-from src.ui.elements import PopupDialog, AuroraOverlayWindow
-from src.ui.settings import SettingsOverlay
+from src.frontend.classes.elements import PopupDialog, AuroraOverlayWindow
+from src.frontend.classes.settings import SettingsOverlay
 from src.utils import GetOnlineVersion, parse_version, get_mods_path
-from src.ui.dev_console import DevConsolePanel
-from src.ui.widgets import BackgroundWidget, OverlayWidget
-from src.ui.notification import ToastNotification
-from src.ui.mod_manager import ModManagerOverlay
-from src.ui.faq import FaqOverlay
-from src.ui.update_overlay import UpdateOverlay
-from src.updater import UpdateChecker
+from src.frontend.classes.dev_console import DevConsolePanel
+from src.frontend.classes.widgets import BackgroundWidget, OverlayWidget
+from src.frontend.classes.notification import ToastNotification
+from src.frontend.classes.mod_manager import ModManagerOverlay
+from src.frontend.classes.faq import FaqOverlay
+from src.frontend.classes.update_overlay import UpdateOverlay
+from src.backend.updater import UpdateChecker
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
@@ -192,7 +191,7 @@ class AuroraUI(QMainWindow):
             overlay.raise_()
         except Exception:
             logger.warning("Update Overlay failed to open; falling back to browser dialog.")
-            from src.ui.elements import PopupDialog
+            from frontend.classes.elements import PopupDialog
             PopupDialog(
                 parent=self,
                 title=t("update_available_title"),
@@ -392,7 +391,7 @@ class AuroraUI(QMainWindow):
         )
 
     def _start_drive_search(self):
-        from src.ui.drive_search import DriveSearchWindow
+        from frontend.classes.drive_search import DriveSearchWindow
         logger.info("User initiated drive search.")
         self.btn_search.setEnabled(False)
         self._search_win = DriveSearchWindow()
@@ -409,7 +408,7 @@ class AuroraUI(QMainWindow):
             logger.info(f"Drive search found NTE at: {found_path}")
             self.current_path = found_path
             cfg.set(cfg.Key.GAME_PATH, found_path)
-            from src.engine import AuroraEngine
+            from backend.engine import AuroraEngine
             self.engine = AuroraEngine(found_path, censorship_removal=cfg.get(cfg.Key.CENSORSHIP_REMOVE), no_drive_line=cfg.get(cfg.Key.NO_DRIVE_LINE))
             try:
                 self.settings_menu.path_display.setText(found_path)

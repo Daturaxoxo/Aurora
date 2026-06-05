@@ -7,22 +7,12 @@ import time
 import psutil
 from pathlib import Path
 from src.logger import logger
-from src.discord_rpc import DiscordRPC
-from src.helpers.paths import _LAUNCHER_MAP, _ALL_NTE_PROCS, detect_version, get_version_paths
+from src.utils import get_app_dir, _ensure_dir
+from src.backend.helpers.paths import LAUNCHER_MAP, NTE_PROCESS, detect_version, get_version_paths
 from src import config_manager as cfg
-from src.helpers.builtins import PAK_ADDONS
+from src.backend.helpers.addons import PAK_ADDONS
 from concurrent.futures import ThreadPoolExecutor, as_completed
 JUNK_EXTENSIONS = {'.rar', '.zip', '.7z', '.tar', '.gz'}
-
-def get_app_dir():
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-def _ensure_dir(path: Path):
-    if path.exists() and not path.is_dir():
-        path.unlink()
-    path.mkdir(parents=True, exist_ok=True)
 
 class AuroraEngine:
     def __init__(self, game_path, censorship_removal=False, no_drive_line=False):
@@ -393,7 +383,7 @@ class AuroraEngine:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             active = {p.name().lower() for p in psutil.process_iter(['name'])}
-            if _ALL_NTE_PROCS & active:
+            if NTE_PROCESS & active:
                 self._kill_nte()
                 break
             time.sleep(0.5)

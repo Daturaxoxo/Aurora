@@ -8,8 +8,8 @@ from PyQt6.QtWidgets import (
     QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGraphicsOpacityEffect, QSizePolicy,
 )
-from src.styles import POPUP_STYLE
-from src.updater import UpdateWorker
+from src.frontend.styles import POPUP_STYLE
+from src.backend.updater import UpdateWorker
 from src.logger import logger
 from src.translator import t
 

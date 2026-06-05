@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QTimer, QPropertyAnimation
 from PyQt6.QtGui import QIcon
-from src.styles import TOAST_STYLE
+from src.frontend.styles import TOAST_STYLE
 
 # TOAST NOTIFICATION
 class ToastNotification(QFrame):

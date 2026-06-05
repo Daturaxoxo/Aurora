@@ -3,12 +3,14 @@ from pathlib import Path
 import sys
 import urllib
 import urllib.request
-
 import requests
-from src.engine import get_app_dir
-from src.logger import logger
 from src import config_manager as cfg
 from src.path_finder import get_local_version
+
+def get_app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def resource_path(relative_path):
     try:
@@ -30,7 +32,7 @@ def GetOnlineVersion():
             version_info = response.read().decode('utf-8').strip()
         return version_info or "9.9.9"
     except Exception as _:
-        logger.warning("Couldn't get version information GitHub ")
+        print("WARN: Couldn't get version info from GitHub")
 
 def get_mods_path():
     if cfg.get(cfg.Key.USE_HARD_LINKS):
@@ -47,7 +49,6 @@ def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
     headers = {
         "User-Agent": f"AuroraLauncher/{get_local_version()}",
     }
-    logger.info(f"Downloading {url}...")
     
     try:
         with requests.get(url, headers=headers, stream=True) as response:
@@ -58,12 +59,10 @@ def download_file(filename: str, url: str, dest_folder: Path = get_mods_path()):
             with open(filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-                    
-        logger.info(f"Successfully downloaded to: {filepath}")
+
         return filepath
         
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error downloading the file: {e}")
         return None
     
 def bytes_to_human_readable(num_bytes: float) -> str:
