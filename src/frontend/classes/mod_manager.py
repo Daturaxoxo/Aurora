@@ -2,7 +2,7 @@ import os
 import sys
 import shutil
 import subprocess
-from src.backend.helpers.window import GameBananaBrowserOverlay, InstallProgressWindow
+from src.backend.helpers.gamebanana import GameBananaBrowserOverlay, InstallProgressWindow
 from src.utils import get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (

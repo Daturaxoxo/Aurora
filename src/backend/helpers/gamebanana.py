@@ -23,12 +23,13 @@ from PyQt6.QtWidgets import (
 )
 
 from src import config_manager as cfg
-from src.backend.helpers.api import NTEMod, NTEModFile
+from src.backend.helpers.api import NTEMod, NTEModFile, get_mod_files, clear_cache, get_nte_mods
 from src.logger import logger
 from src.frontend.styles import GB_STYLE
 from src.translator import t
 from src.frontend.classes.elements import AnimatedToggle, PopupDialog, _rounded_pixmap, show_image
 from src.utils import bytes_to_human_readable, get_mods_path, resource_path
+
 
 class _ModFetcher(QObject):
     mod_ready   = pyqtSignal(object)
@@ -45,8 +46,6 @@ class _ModFetcher(QObject):
         self._cancelled = True
 
     def run(self):
-        from backend.helpers.api import get_nte_mods
-
         had_results = False
 
         def _on_mod(mod):
@@ -253,7 +252,6 @@ class GameBananaBrowserOverlay(QFrame):
         )
 
     def _do_clear_cache(self):
-        from backend.helpers.api import clear_cache
         if self._fetcher:
             self._fetcher.cancel()
 
@@ -552,7 +550,6 @@ class GameBananaMod(QFrame):
         body.addLayout(btn_row)
 
     def _install(self):
-        from backend.helpers.api import get_mod_files
         files = get_mod_files(self.mod.id)
         
         if len(files) == 1:
