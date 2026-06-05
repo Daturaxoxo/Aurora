@@ -350,7 +350,7 @@ class SettingsOverlay(QFrame):
 
         from src.config_manager import LANG_NAMES
         self._lang_box = QComboBox()
-        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Português (Brasil)", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands", "Pусский", "Bahasa Indonesia", "Italiano"])
+        self._lang_box.addItems(["English", "中文", "日本語", "Español", "Português (Brasil)", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands", "Pусский", "Bahasa Indonesia", "Italiano", "French"])
         self._lang_box.setFixedWidth(160)
         self._lang_box.setStyleSheet("""
             QComboBox {

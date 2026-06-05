@@ -14,7 +14,8 @@ LANG_CODES = {
     "Nederlands":             "nl",
     "Pусский":                "ru",
     "Bahasa Indonesia":       "id",
-    "Italiano":               "it"
+    "Italiano":               "it",
+    "French":                 "fr"
 }
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 

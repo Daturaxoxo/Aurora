@@ -88,7 +88,7 @@ Aurora's Mod Manager supports a `mod.json` file inside your mod folder to displa
 | <img src="https://flagcdn.com/w20/gb.png" width="20"> English | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `en.json` |
 | <img src="https://flagcdn.com/w20/ru.png" width="20"> Russian | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `ru.json` | Credits: [@raperov](https://github.com/raperov) |
 | <img src="https://flagcdn.com/w20/es.png" width="20"> Spanish | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `es.json` | Credits: [@Alawapr](https://github.com/Alawapr)
-| <img src="https://flagcdn.com/w20/fr.png" width="20"> French | ![0%](https://geps.dev/progress/0?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `fr.json` | No Translation |
+| <img src="https://flagcdn.com/w20/fr.png" width="20"> French | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `fr.json` | Credits: [@GohanSword](https://github.com/GohanSword) |
 | <img src="https://flagcdn.com/w20/de.png" width="20"> German | ![1000%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `de.json` |
 | <img src="https://flagcdn.com/w20/tr.png" width="20"> Turkish | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `tr.json` |
 | <img src="https://flagcdn.com/w20/cn.png" width="20"> Chinese (Simplified) | ![100%](https://geps.dev/progress/100?dangerColor=e05d44&warningColor=dfb317&successColor=2ea44f) | `cn.json` | (Unofficial Translation) |
