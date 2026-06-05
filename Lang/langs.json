@@ -106,7 +106,8 @@
         "loading": "Loading...",
         "install_zone_title_gamebanana": "Install Mod from GameBanana",
         "install_zone_choose_gamebanana": "Choose a Mod",
-        "show_nsfw_mods": "Show NSFW mods"
+        "show_nsfw_mods": "Show NSFW mods",
+        "create_group_tooltip": "Create new mod group"
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -1172,9 +1173,9 @@
         "mod_delete_message": "Weet je zeker dat je de volgende mod wilt verwijderen?",
         "hard_links": "Hardlinks gebruiken",
         "hard_links_desc": "Gebruik hardlinks/junctions voor het beheren van mods. (NIET AANBEVOLEN)"
-	},
+    },
     "fr": {
-		"settings": "Paramètres",
+        "settings": "Paramètres",
         "general": "Général",
         "launcher": "Lanceur",
         "developer": "Développeur",

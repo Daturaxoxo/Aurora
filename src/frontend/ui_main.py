@@ -8,13 +8,13 @@ import psutil
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QSystemTrayIcon, QMenu
+    QMainWindow, QWidget, QHBoxLayout,
+    QPushButton, QLabel, QFrame, QSystemTrayIcon, QMenu
 )
-from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, QPropertyAnimation, pyqtSignal
-from PyQt6.QtGui import QPixmap, QIcon, QPainter, QAction
+from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, pyqtSignal
+from PyQt6.QtGui import QPixmap, QIcon, QAction
 from src.logger import logger, dev_console_handler
-from src.path_finder import validate_path, get_game_directory, get_local_version
+from src.path_finder import validate_path, get_game_directory
 from src.frontend.styles import MAIN_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
@@ -22,7 +22,7 @@ from src.utils import get_app_dir
 from src.mod_manager import ModManager
 from src.frontend.classes.elements import PopupDialog, AuroraOverlayWindow
 from src.frontend.classes.settings import SettingsOverlay
-from src.utils import GetOnlineVersion, parse_version, get_mods_path
+from src.utils import get_mods_path
 from src.frontend.classes.dev_console import DevConsolePanel
 from src.frontend.classes.widgets import BackgroundWidget, OverlayWidget
 from src.frontend.classes.notification import ToastNotification
