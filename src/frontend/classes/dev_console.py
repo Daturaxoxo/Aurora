@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QTextEdit, 
 )
-from src.logger import dev_console_handler, file_handler
+from src.logger import dev_console_handler
 # DEV CONSOLE PANEL
 class DevConsolePanel(QFrame):
     def __init__(self, parent=None):
@@ -51,12 +51,20 @@ class DevConsolePanel(QFrame):
         layout.addLayout(header)
         layout.addWidget(self.log_view)
 
-        # Attach to the logger and replay the session buffer
         if dev_console_handler:
-            history = file_handler.buffer if file_handler else []
-            dev_console_handler.attach(self.log_view, history)
+            dev_console_handler.attach(self.log_view)
 
     def closeEvent(self, event):
         if dev_console_handler:
             dev_console_handler.detach()
         super().closeEvent(event)
+
+    def repopulate(self, show_el: bool = False):
+        if not dev_console_handler:
+            return
+        self.log_view.clear()
+        for record in dev_console_handler.session_buffer:
+            is_el = getattr(record, 'el', False)
+            if is_el and not show_el:
+                continue
+            self.log_view.append(dev_console_handler._format_html(record))

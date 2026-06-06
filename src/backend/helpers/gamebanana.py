@@ -32,36 +32,42 @@ from src.utils import bytes_to_human_readable, get_mods_path, resource_path
 
 
 class _ModFetcher(QObject):
-    mod_ready   = pyqtSignal(object)
-    page_done   = pyqtSignal(bool)
+    mod_ready   = pyqtSignal(object, int)
+    page_done   = pyqtSignal(bool, int)
     finished    = pyqtSignal()
 
-    def __init__(self, page: int, force_refresh: bool = False):
+    def __init__(self, page: int, force_refresh: bool = False, generation: int = 0):
         super().__init__()
         self._page = page
         self._force = force_refresh
         self._cancelled = False
+        self.generation = generation
 
     def cancel(self):
         self._cancelled = True
 
     def run(self):
-        had_results = False
+        had_results_ref = []
 
         def _on_mod(mod):
             if self._cancelled:
                 return
-            had_results_ref.append(True)
-            self.mod_ready.emit(mod)
 
-        had_results_ref: list = []
-        get_nte_mods(
-            force_refresh=self._force,
-            page=self._page,
-            on_mod_ready=_on_mod,
-        )
-        self.page_done.emit(bool(had_results_ref))
-        self.finished.emit()
+            had_results_ref.append(True)
+            self.mod_ready.emit(mod, self.generation)
+
+        try:
+            get_nte_mods(
+                force_refresh=self._force,
+                page=self._page,
+                on_mod_ready=_on_mod,
+            )
+
+            if not self._cancelled:
+                self.page_done.emit(bool(had_results_ref), self.generation)
+
+        finally:
+            self.finished.emit()
 
 class GameBananaBrowserOverlay(QFrame):    
     def __init__(self, parent, mod_manager):
@@ -72,6 +78,7 @@ class GameBananaBrowserOverlay(QFrame):
         self.setGeometry(240, 80, 800, 560)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(GB_STYLE)
+        self.closeEvent = self._on_close
 
         self._all_mods: list = []
         self._current_page = 0
@@ -79,6 +86,8 @@ class GameBananaBrowserOverlay(QFrame):
         self._loading = False
         self._thread: QThread | None = None
         self._fetcher: _ModFetcher | None = None
+        self._threads: set[QThread] = set()
+        self._fetch_generation = 0
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -158,14 +167,38 @@ class GameBananaBrowserOverlay(QFrame):
 
         self.gb_scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
-        self._load_next_page()
+        self._load_next_page()   
+    
+    def _on_close(self, event):
+        self._stop_all_fetches()
+        event.accept()
+            
+    def _stop_all_fetches(self):
+        if self._fetcher:
+            self._fetcher.cancel()
+
+        for thread in list(self._threads):
+            try:
+                if thread.isRunning():
+                    thread.quit()
+                    thread.wait(5000)
+            except RuntimeError:
+                pass
+
+        self._threads.clear()
+        self._thread = None
+        self._fetcher = None
     
     # For handling toggling NSFW mods
     def handle_toggle(self, checked=None):
-        cfg.set(cfg.Key.SHOW_NSFW_MODS, self.toggle_nsfw_mods.isChecked())
-        
-        if self._fetcher:
-            self._fetcher.cancel()
+        cfg.set(
+            cfg.Key.SHOW_NSFW_MODS,
+            self.toggle_nsfw_mods.isChecked()
+        )
+
+        self._fetch_generation += 1
+
+        self._stop_all_fetches()
 
         self._all_mods.clear()
         self._current_page = 0
@@ -183,39 +216,101 @@ class GameBananaBrowserOverlay(QFrame):
     def _load_next_page(self, force_refresh: bool = False):
         if self._loading or not self._has_more:
             return
+
         self._loading = True
         self._current_page += 1
         self._lbl_gb_status.setText(t("loading") or "Loading...")
-        self._thread  = QThread()
-        self._fetcher = _ModFetcher(self._current_page, force_refresh)
-        self._fetcher.moveToThread(self._thread)
-        self._thread.started.connect(self._fetcher.run)
-        self._fetcher.mod_ready.connect(self._on_mod_ready)
-        self._fetcher.page_done.connect(self._on_page_done)
-        self._fetcher.finished.connect(self._thread.quit)
-        self._fetcher.finished.connect(self._fetcher.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
 
-        self._thread.start()
+        generation = self._fetch_generation
 
-    def _on_mod_ready(self, mod: NTEMod):
+        thread = QThread()
+        fetcher = _ModFetcher(
+            self._current_page,
+            force_refresh,
+            generation
+        )
+
+        fetcher.moveToThread(thread)
+
+        thread.started.connect(fetcher.run)
+
+        fetcher.mod_ready.connect(self._on_mod_ready)
+        fetcher.page_done.connect(self._on_page_done)
+
+        fetcher.finished.connect(thread.quit)
+        fetcher.finished.connect(fetcher.deleteLater)
+
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda t=thread: self._threads.discard(t)
+        )
+
+        self._threads.add(thread)
+
+        self._thread = thread
+        self._fetcher = fetcher
+
+        thread.start()
+    
+    def _cleanup_fetch_thread(self):
+        self._thread = None
+        self._fetcher = None
+
+    def _on_mod_ready(self, mod: NTEMod, generation: int):
+        if generation != self._fetch_generation:
+            return
+
         if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked():
             return
+
         self._all_mods.append(mod)
-        cols = max(1, (self.gb_scroll.width() - 40) // 148)
+
+        cols = max(
+            1,
+            (self.gb_scroll.width() - 40) // 148
+        )
+
         i = len(self._all_mods) - 1
+
         card = GameBananaMod(mod)
-        self.gb_grid.addWidget(card, i // cols, i % cols)
+
+        self.gb_grid.addWidget(
+            card,
+            i // cols,
+            i % cols
+        )
     
-    def _on_page_done(self, had_results: bool):
+    def _on_page_done(self, had_results: bool, generation: int):
+        if generation != self._fetch_generation:
+            return
+
         self._lbl_gb_status.setText("")
+
         if not had_results:
             self._has_more = False
+
             if not self._all_mods:
-                empty = QLabel(t("no_gamebanana_mods") or "No mods found. Check your connection.")
-                empty.setStyleSheet("color: #8b949e; font-size: 13px; border: none;")
-                empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.gb_grid.addWidget(empty, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+                empty = QLabel(
+                    t("no_gamebanana_mods")
+                    or "No mods found. Check your connection."
+                )
+
+                empty.setStyleSheet(
+                    "color: #8b949e; font-size: 13px; border: none;"
+                )
+
+                empty.setAlignment(
+                    Qt.AlignmentFlag.AlignCenter
+                )
+
+                self.gb_grid.addWidget(
+                    empty,
+                    0,
+                    0,
+                    1,
+                    1,
+                    Qt.AlignmentFlag.AlignCenter
+                )
 
         self._loading = False
         self._check_fill()
@@ -252,10 +347,12 @@ class GameBananaBrowserOverlay(QFrame):
         )
 
     def _do_clear_cache(self):
-        if self._fetcher:
-            self._fetcher.cancel()
+        self._fetch_generation += 1
+
+        self._stop_all_fetches()
 
         clear_cache()
+
         self._all_mods.clear()
         self._current_page = 0
         self._has_more = True
@@ -268,8 +365,7 @@ class GameBananaBrowserOverlay(QFrame):
                 w.deleteLater()
 
         self._load_next_page(force_refresh=True)
-        
-
+    
 
 class GameBananaMod(QFrame):
     CARD_W = 160

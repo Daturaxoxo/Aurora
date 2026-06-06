@@ -35,10 +35,7 @@ def GetOnlineVersion():
         print("WARN: Couldn't get version info from GitHub")
 
 def get_mods_path():
-    if cfg.get(cfg.Key.USE_HARD_LINKS):
-        return Path(get_app_dir()) / "Mods"
-    else:
-        return Path(cfg.get(cfg.Key.GAME_PATH)) / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
+    return Path(cfg.get(cfg.Key.GAME_PATH)) / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
     
 def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
