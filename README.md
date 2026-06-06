@@ -75,7 +75,7 @@ Aurora's Mod Manager supports a `mod.json` file inside your mod folder to displa
     "Name": "Example Mod Name",
     "Version": "1.0.0",
     "Author": "Example Author Name",
-    "Icon": "CharacterName (e.g: Mint)"
+    "Icon": "CharacterName (e.g: Mint)",
     "Optionals": {
         "Support Link": "https://patreon.com/example"
     }
