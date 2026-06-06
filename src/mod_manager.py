@@ -89,7 +89,7 @@ class ModManager:
         try:
             if mod.is_enabled:
                 # Disable: rename every .pak -> .pak.disabled
-                targets = list(folder.glob("*.pak"))
+                targets = list(folder.rglob("*.pak"))
                 if not targets:
                     logger.error(f"Cannot disable mod: no .pak files found in {folder.name}")
                     return False
