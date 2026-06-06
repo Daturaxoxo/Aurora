@@ -147,7 +147,7 @@ class ModManager:
                 logger.info(f"Mod disabled: renamed {len(targets)} file(s) in {folder.name}", extra={"el": True})
             else:
                 # Enable: rename every .pak.disabled -> .pak
-                targets = list(folder.glob("*.pak.disabled"))
+                targets = list(folder.rglob("*.pak.disabled"))
                 if not targets:
                     logger.error(f"Cannot enable mod: no .pak.disabled files found in {folder.name}")
                     return False
