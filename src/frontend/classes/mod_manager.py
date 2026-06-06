@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import subprocess
+from src.mod_manager import ModGroup
 from src.backend.helpers.gamebanana import GameBananaBrowserOverlay, InstallProgressWindow
 from src.utils import get_mods_path, resource_path
 from pathlib import Path
@@ -9,8 +10,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QLineEdit,
     QScrollArea, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QSize, QObject, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QTimer, Qt, QSize, pyqtSignal, QMimeData
+from PyQt6.QtGui import QCursor, QIcon, QDrag
 from src.frontend.styles import MOD_MANAGER_STYLE
 from src.translator import t
 from src.frontend.classes.elements import ModCard
@@ -20,7 +21,17 @@ def _ensure_dir(path: Path):
     if path.exists() and not path.is_dir():
         path.unlink()
     path.mkdir(parents=True, exist_ok=True)
-
+    
+def _unique_dest(dest: Path) -> Path:
+    if not dest.exists():
+        return dest
+    
+    counter = 2
+    original = dest
+    while dest.exists():
+        dest = original.parent / f"{original.stem} ({counter}){original.suffix}"
+        counter += 1
+    return dest
 
 class _BaseInstallZone(QFrame):
     files_installed = pyqtSignal(list)
@@ -101,19 +112,6 @@ class _BaseInstallZone(QFrame):
             self._open_file_dialog()
         super().mousePressEvent(event)
 
-    def _open_file_dialog(self):
-        raise NotImplementedError
-
-    # Helpers
-
-    def _unique_dest(self, dest: Path) -> Path:
-        counter = 2
-        original = dest
-        while dest.exists():
-            dest = original.parent / f"{original.stem} ({counter}){original.suffix}"
-            counter += 1
-        return dest
-
     def _install_paths(self, paths: list[str | Path]):
             paths = [Path(p) for p in paths]
             mods_dir = get_mods_path()
@@ -143,7 +141,7 @@ class _BaseInstallZone(QFrame):
                             str(seven_zip_path), 
                             "x", 
                             str(path), 
-                            f"-o{mods_dir}/{path.name.split('.')[0]}", 
+                            f"-o{mods_dir}/{path.name.split('.')}", 
                             "-y"
                         ]
                         
@@ -172,7 +170,6 @@ class _BaseInstallZone(QFrame):
             if installed_files:
                 self.files_installed.emit(installed_files)
 
-
 class ZipInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
         super().__init__(
@@ -196,7 +193,6 @@ class ZipInstallZone(_BaseInstallZone):
             if selected_paths:
                 self._install_paths(selected_paths)
 
-
 class FolderInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
         super().__init__(
@@ -216,7 +212,6 @@ class FolderInstallZone(_BaseInstallZone):
 
         if folder:
             self._install_paths([Path(folder)])
-
 
 class GameBananaInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
@@ -244,7 +239,217 @@ class GameBananaInstallZone(_BaseInstallZone):
         win.start()
         self._install_win = win
 
+class ModGroupWidget(QFrame):
+    AURORA_GROUP_PREFIX = "AU GRP - "
+    
+    STYLE_DEFAULT = """
+        QFrame#ModGroupWidget {
+            border: 2px dashed #3d444d;
+            border-radius: 8px;
+            background: transparent;
+            margin-bottom: 8px;
+        }
+    """
+    
+    STYLE_DRAG_HOVER = """
+        QFrame#ModGroupWidget {
+            border: 2px dashed #4493f8;
+            border-radius: 8px;
+            background: rgba(68, 147, 248, 0.05);
+            margin-bottom: 8px;
+        }
+    """
+    
+    def __init__(self, group_name="New Group", parent=None, group_folder: Path = None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setObjectName("ModGroupWidget")
+        self.setStyleSheet(self.STYLE_DEFAULT)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 12, 12, 12)
 
+        header_layout = QHBoxLayout()
+        
+        self.title_edit = QLineEdit(group_name)
+        self.title_edit.textEdited.connect(self._update_group)
+        self.title_edit.setStyleSheet("""
+            QLineEdit {
+                background: transparent;
+                border: none;
+                color: #e6edf3;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QLineEdit:focus {
+                border-bottom: 1px solid #4493f8;
+            }
+        """)
+        
+        self.btn_delete = QPushButton("✕")
+        self.btn_delete.setFixedSize(20, 20)
+        self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_delete.setStyleSheet("""
+            QPushButton { color: #848d97; border: none; background: transparent; }
+            QPushButton:hover { color: #f85149; }
+        """)
+        self.btn_delete.clicked.connect(self.delete_group)
+
+        header_layout.addWidget(self.title_edit)
+        header_layout.addStretch()
+        header_layout.addWidget(self.btn_delete)
+
+        self.main_layout.addLayout(header_layout)
+        
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(8)
+        self.main_layout.addLayout(self.content_layout)
+        
+        self.group_folder = group_folder if group_folder else _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{group_name}")
+        self.group_folder.mkdir(exist_ok=True)
+
+    def delete_group(self):
+        parent_widget = self.parentWidget()
+        mods_path = get_mods_path()
+        
+        while self.content_layout.count():
+            item = self.content_layout.takeAt(0)
+            widget = item.widget()
+            if widget and parent_widget and parent_widget.layout():
+                if isinstance(widget, ModCard):
+                    try:
+                        dest = mods_path / widget.mod.display_name
+                        if not dest.exists():
+                            shutil.move(widget.mod.folder_path, dest)
+                            widget.mod.folder_path = dest
+                    except Exception as e:
+                        logger.error(f"Failed to restore mod path on group delete: {e}")
+                
+                parent_widget.layout().addWidget(widget)
+        
+        try:
+            if self.group_folder.exists():
+                shutil.rmtree(self.group_folder, ignore_errors=True)
+        except Exception as e:
+            logger.error(f"Failed to remove group folder: {e}")
+            
+        self.deleteLater()
+    
+    def _update_group(self):
+        new_name = self.title_edit.text().strip()
+        if not new_name:
+            return
+        new_folder = _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{new_name}")
+        if new_folder != self.group_folder:
+            try:
+                self.group_folder.rename(new_folder)
+                self.group_folder = new_folder
+            except Exception as e:
+                logger.error(f"Failed to rename group folder: {e}")
+    
+    def move_mod(self, mod: ModCard):
+        try:
+            dest = self.group_folder / mod.mod.display_name
+            # Prevent attempting to move if it's already in the destination
+            if dest.exists() or mod.mod.folder_path == dest:
+                return
+            shutil.move(mod.mod.folder_path, dest)
+            mod.mod.folder_path = dest
+        except Exception as e:
+            logger.error(f"Failed to move mod to group: {e}")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-modcard"):
+            self.setStyleSheet(self.STYLE_DRAG_HOVER)
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet(self.STYLE_DEFAULT)
+        super().dragLeaveEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-modcard"):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        self.setStyleSheet(self.STYLE_DEFAULT)
+        source = event.source()
+        if source:
+            # Calculate where to insert based on vertical mouse position
+            drop_y = event.position().y()
+            insert_index = -1
+            
+            for i in range(self.content_layout.count()):
+                item = self.content_layout.itemAt(i)
+                if item.widget() and drop_y < item.widget().y() + (item.widget().height() / 2):
+                    insert_index = i
+                    break
+            
+            if insert_index == -1:
+                self.content_layout.addWidget(source)
+            else:
+                self.content_layout.insertWidget(insert_index, source)
+                
+            self.move_mod(source)
+            event.acceptProposedAction()
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        event.accept()
+
+
+class ModListContainer(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setObjectName("ScrollContent")
+        self.list_layout = QVBoxLayout(self)
+        self.list_layout.setSpacing(8)
+        self.list_layout.setContentsMargins(0, 8, 4, 150)
+        self.list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-modcard"):
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-modcard"):
+            event.acceptProposedAction()
+
+    def move_mod_out(self, mod: ModCard):
+        try:
+            mods_path = get_mods_path()
+            dest = mods_path / mod.mod.display_name
+            if dest.exists() or mod.mod.folder_path == dest:
+                return
+            shutil.move(mod.mod.folder_path, dest)
+            mod.mod.folder_path = dest
+        except Exception as e:
+            logger.error(f"Failed to move mod out of group: {e}")
+
+    def dropEvent(self, event):
+        source = event.source()
+        if source:
+            # Calculate where to insert based on vertical mouse position
+            drop_y = event.position().y()
+            insert_index = -1
+            
+            for i in range(self.list_layout.count()):
+                item = self.list_layout.itemAt(i)
+                if item.widget() and drop_y < item.widget().y() + (item.widget().height() / 2):
+                    insert_index = i
+                    break
+            
+            if insert_index == -1:
+                self.list_layout.addWidget(source)
+            else:
+                self.list_layout.insertWidget(insert_index, source)
+                
+            self.move_mod_out(source)
+            event.acceptProposedAction()
 
 class ModManagerOverlay(QFrame):
     def __init__(self, parent, mod_manager):
@@ -255,12 +460,16 @@ class ModManagerOverlay(QFrame):
         self.setGeometry(240, 80, 800, 560)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(MOD_MANAGER_STYLE)
+        
+        self._drag_scroll_timer = QTimer(self)
+        self._drag_scroll_timer.timeout.connect(self._auto_scroll_drag)
+
+        self._dragging_mod = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Header
         header = QFrame()
         header.setObjectName("ModManagerHeader")
         header.setFixedHeight(64)
@@ -293,13 +502,11 @@ class ModManagerOverlay(QFrame):
 
         root.addWidget(header)
 
-        # Body
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(28, 20, 28, 24)
         body_layout.setSpacing(16)
 
-        # Search Row
         search_row = QFrame()
         search_row.setObjectName("SearchRow")
         search_row.setFixedHeight(42)
@@ -324,6 +531,15 @@ class ModManagerOverlay(QFrame):
         divider.setFrameShape(QFrame.Shape.VLine)
         divider.setFixedHeight(22)
 
+        btn_add_group = QPushButton()
+        btn_add_group.setObjectName("AddGroup")
+        btn_add_group.setFixedSize(30, 30)
+        btn_add_group.setToolTip(t("create_group_tooltip") or "Create new group")
+        btn_add_group.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add_group.setIcon(QIcon(resource_path("Bin/Assets/add.png")))
+        btn_add_group.setIconSize(QSize(16, 16))
+        btn_add_group.clicked.connect(self._add_group)
+
         btn_refresh = QPushButton()
         btn_refresh.setObjectName("SearchActionBtn")
         btn_refresh.setFixedSize(30, 30)
@@ -345,23 +561,18 @@ class ModManagerOverlay(QFrame):
         sr_layout.addWidget(icon_lbl)
         sr_layout.addWidget(self.search_bar, 1)
         sr_layout.addWidget(divider)
+        sr_layout.addWidget(btn_add_group)
         sr_layout.addWidget(btn_refresh)
         sr_layout.addWidget(btn_folder)
 
-        # Scroll area
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.list_container = QWidget()
-        self.list_container.setObjectName("ScrollContent")
-        self.list_layout = QVBoxLayout(self.list_container)
-        self.list_layout.setSpacing(8)
-        self.list_layout.setContentsMargins(0, 0, 4, 0)
-        self.list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.list_container = ModListContainer()
+        self.list_layout = self.list_container.list_layout
         self.scroll.setWidget(self.list_container)
 
         mods_path = get_mods_path()
 
-        # Install zones
         zones_row = QHBoxLayout()
         zones_row.setSpacing(12)
 
@@ -383,7 +594,30 @@ class ModManagerOverlay(QFrame):
         body_layout.addWidget(self.scroll, 1)
 
         root.addWidget(body, 1)
+
         self.refresh_list()
+        
+    def _auto_scroll_drag(self):
+        if not self._dragging_mod:
+            return
+
+        viewport = self.scroll.viewport()
+        pos = viewport.mapFromGlobal(QCursor.pos())
+
+        margin = 50
+        speed = 7
+
+        bar = self.scroll.verticalScrollBar()
+
+        if pos.y() < margin:
+            bar.setValue(bar.value() - speed)
+
+        elif pos.y() > viewport.height() - margin:
+            bar.setValue(bar.value() + speed)    
+
+    def _add_group(self):
+        group = ModGroupWidget(parent=self.list_container)
+        self.list_layout.insertWidget(0, group)
 
     def _on_files_installed(self, paths: list):
         self.refresh_list()
@@ -398,41 +632,115 @@ class ModManagerOverlay(QFrame):
         else:
             subprocess.Popen(["xdg-open", str(mods_path)])
 
-    def _update_mod_count(self):
-        mods = self.manager.scan_mods()
-        total = len(mods)
-        enabled = sum(1 for m in mods if m.is_enabled)
-        TMP_desc_a = t("mod_manager_desc_a") or "OF"
-        TMP_desc_b = t("mod_manager_desc_b") or "ENABLED"
-        self._lbl_mod_count.setText(f"{enabled} {TMP_desc_a} {total} {TMP_desc_b}")
+    def _update_mod_count(self, groups: list[ModGroup] | None = None):
+        if groups is None:
+            groups = self.manager.scan_mods()
 
-    def refresh_list(self):
-        while self.list_layout.count():
-            item = self.list_layout.takeAt(0)
-            if item is None:
-                break
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
-        search_text = self.search_bar.text().lower()
-        mods = self.manager.scan_mods()
-        visible = [
-            m for m in mods
-            if search_text in m.display_name.lower() or search_text in m.author.lower()
+        all_mods = [
+            mod
+            for group in groups
+            for mod in group.mods
         ]
 
-        self._update_mod_count()
+        total = len(all_mods)
+        enabled = sum(1 for mod in all_mods if mod.is_enabled)
 
-        if not visible:
-            empty = QLabel("No mods found" if search_text else "No mods installed")
-            empty.setObjectName("EmptyLabel")
-            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.list_layout.addStretch()
-            self.list_layout.addWidget(empty)
-            self.list_layout.addStretch()
-            return
+        TMP_desc_a = t("mod_manager_desc_a") or "OF"
+        TMP_desc_b = t("mod_manager_desc_b") or "ENABLED"
 
-        for mod in visible:
-            card = ModCard(mod, self.manager, self)
-            self.list_layout.addWidget(card)
+        self._lbl_mod_count.setText(
+            f"{enabled} {TMP_desc_a} {total} {TMP_desc_b}"
+        )
+
+        
+    def refresh_list(self):
+        search_text = self.search_bar.text().lower().strip()
+
+        groups = self.manager.scan_mods()
+        self._update_mod_count(groups)
+
+        while self.list_layout.count():
+            item = self.list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        def setup_drag(card):
+            def press(event):
+                if event.button() == Qt.MouseButton.LeftButton:
+                    card._drag_start_pos = event.globalPosition().toPoint()
+
+            def move(event):
+                if event.buttons() & Qt.MouseButton.LeftButton and getattr(card, "_drag_start_pos", None):
+                    if (event.globalPosition().toPoint() - card._drag_start_pos).manhattanLength() >= 5:
+
+                        self._dragging_mod = True
+                        self._drag_scroll_timer.start(16)  # ~60 FPS
+
+                        drag = QDrag(card)
+                        mime = QMimeData()
+                        mime.setData("application/x-modcard", b"")
+                        drag.setMimeData(mime)
+
+                        drag.exec(Qt.DropAction.MoveAction)
+
+                        self._drag_scroll_timer.stop()
+                        self._dragging_mod = False
+                        return
+
+            card.mousePressEvent = press
+            card.mouseMoveEvent = move
+
+        visible_mods = 0
+
+        for group_data in groups:
+            group_match = (
+                bool(search_text)
+                and group_data.name
+                and search_text in group_data.name.lower()
+            )
+
+            matching_mods = []
+
+            for mod in group_data.mods:
+                mod_match = (
+                    not search_text
+                    or search_text in mod.display_name.lower()
+                    or search_text in mod.author.lower()
+                )
+
+                if mod_match or group_match:
+                    matching_mods.append(mod)
+
+            # Hide groups with no visible mods while searching
+            if search_text and not matching_mods:
+                continue
+
+            group_widget = None
+
+            if group_data.folder is not None:
+                group_widget = ModGroupWidget(
+                    group_name=group_data.name,
+                    parent=self.list_container,
+                    group_folder=group_data.folder,
+                )
+
+                self.list_layout.addWidget(group_widget)
+
+            for mod in matching_mods:
+                card = ModCard(mod, self.manager, self)
+                setup_drag(card)
+
+                visible_mods += 1
+
+                if group_widget:
+                    group_widget.content_layout.addWidget(card)
+                else:
+                    self.list_layout.addWidget(card)
+
+        if visible_mods == 0:
+            self._empty_label = QLabel(
+                "No mods found" if search_text else "No mods installed"
+            )
+            self._empty_label.setObjectName("EmptyLabel")
+            self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.list_layout.addWidget(self._empty_label)

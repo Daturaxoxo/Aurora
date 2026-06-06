@@ -1,7 +1,8 @@
 import os
 import json
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 from src.logger import logger
 from src.translator import Translator, t
 from src.utils import get_mods_path
@@ -11,12 +12,20 @@ class ModEntry:
     folder_name: str
     display_name: str
     folder_path: Path = None
+    group_name: str = None
+    group_folder: Path = None
     version: str = t("mod_manager_unknown")
     author: str = t("mod_manager_unknown")
     support_link: str = ""
     icon: str = ""
     is_enabled: bool = True
     has_json: bool = False
+    
+@dataclass
+class ModGroup:
+    name: str | None
+    folder: Path | None
+    mods: list[ModEntry] = field(default_factory=list)
 
 class ModManager:
     def __init__(self, mods_dir: Path, state_file: Path):
@@ -26,59 +35,95 @@ class ModManager:
     def mods_dir(self) -> Path:
         return get_mods_path()
 
-    def scan_mods(self) -> list[ModEntry]:
-        mods = []
+    def scan_mods(self) -> list[ModGroup]:
         if not self.mods_dir.exists():
-            return mods
+            return []
 
-        seen_paths = set()
+        group_prefix = "AU GRP - "
 
-        # Find all folders that contain a .pak or .pak.disabled file
-        for pak_file in list(self.mods_dir.rglob("*.pak")) + list(self.mods_dir.rglob("*.pak.disabled")):
-            folder = pak_file.parent
-            resolved = folder.resolve()
-            if resolved in seen_paths:
-                continue
-            seen_paths.add(resolved)
-
+        def get_mod_data(folder: Path) -> ModEntry:
             raw_name = folder.name
-            # A folder is disabled only if ALL its pak files are .pak.disabled
-            pak_files = list(folder.glob("*.pak"))
-            disabled_files = list(folder.glob("*.pak.disabled"))
-            is_enabled = len(pak_files) > 0  # has at least one active .pak
-            clean_name = raw_name.replace("_P", "")
+
+            pak_files = list(folder.rglob("*.pak"))
+            is_enabled = len(pak_files) > 0
 
             mod_data = {
                 "folder_name": raw_name,
-                "display_name": clean_name,
+                "display_name": raw_name.replace("_P", ""),
                 "folder_path": folder,
                 "is_enabled": is_enabled,
                 "version": t("mod_manager_unknown"),
                 "author": t("mod_manager_unknown"),
                 "support_link": "",
-                "has_json": False
+                "has_json": False,
             }
 
             json_path = folder / "mod.json"
+
             if json_path.exists():
                 try:
-                    with open(json_path, 'r', encoding='utf-8') as f:
+                    with open(json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        mod_data.update({
-                            "display_name": data.get("Name", mod_data["display_name"]),
-                            "version": data.get("Version", "1.0.0"),
-                            "author": data.get("Author", t("mod_manager_unknown")),
-                            "support_link": data.get("Optionals", {}).get("Support Link", ""),
-                            "icon": data.get("Icon", ""),
-                            "has_json": True
-                        })
-                except Exception as e:
-                    logger.warning(f"Failed to parse mod.json in {folder.name}: {e}")
 
-            mods.append(ModEntry(**mod_data))
-        
-        # Alphabetical sorting based on folder name
-        return sorted(mods, key=lambda x: x.display_name.lower())
+                    mod_data.update({
+                        "display_name": data.get("Name", mod_data["display_name"]),
+                        "version": data.get("Version", "1.0.0"),
+                        "author": data.get("Author", t("mod_manager_unknown")),
+                        "support_link": data.get("Optionals", {}).get("Support Link", ""),
+                        "icon": data.get("Icon", ""),
+                        "has_json": True,
+                    })
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to parse mod.json in {folder.name}: {e}"
+                    )
+
+            return ModEntry(**mod_data)
+
+        groups: list[ModGroup] = []
+
+        # Root mods
+        root_group = ModGroup(
+            name=None,
+            folder=None,
+        )
+
+        for item in self.mods_dir.iterdir():
+            if not item.is_dir():
+                continue
+
+            if item.name.startswith(group_prefix):
+                group_name = item.name.removeprefix(group_prefix)
+
+                group = ModGroup(
+                    name=group_name,
+                    folder=item,
+                )
+
+                for sub_item in item.iterdir():
+                    if not sub_item.is_dir():
+                        continue
+
+                    mod = get_mod_data(sub_item)
+                    mod.group_name = group_name
+                    mod.group_folder = item
+
+                    group.mods.append(mod)
+
+                group.mods.sort(key=lambda m: m.display_name.lower())
+                groups.append(group)
+
+            else:
+                if any(item.rglob("*.pak")) or any(item.rglob("*.pak.disabled")):
+                    root_group.mods.append(get_mod_data(item))
+
+        root_group.mods.sort(key=lambda m: m.display_name.lower())
+
+        if root_group.mods:
+            groups.insert(0, root_group)
+
+        return groups
 
     def toggle_mod(self, mod: ModEntry) -> bool:
         folder = mod.folder_path
@@ -89,7 +134,7 @@ class ModManager:
         try:
             if mod.is_enabled:
                 # Disable: rename every .pak -> .pak.disabled
-                targets = list(folder.glob("*.pak"))
+                targets = list(folder.rglob("*.pak"))
                 if not targets:
                     logger.error(f"Cannot disable mod: no .pak files found in {folder.name}")
                     return False
