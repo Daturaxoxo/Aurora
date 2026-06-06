@@ -450,9 +450,8 @@ class ModCard(QFrame):
 
     def handle_toggle(self):
         new_state = self.toggle.isChecked()
-        new_folder_name = self.manager.toggle_mod(self.mod)
-        if new_folder_name:
-            self.mod.folder_name = new_folder_name
+        success = self.manager.toggle_mod(self.mod)
+        if success:
             self.mod.is_enabled = new_state
         self.parent_overlay._update_mod_count()
 

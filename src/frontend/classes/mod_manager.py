@@ -305,7 +305,11 @@ class ModGroupWidget(QFrame):
         self.main_layout.addLayout(self.content_layout)
         
         self.group_folder = group_folder if group_folder else _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{group_name}")
-        self.group_folder.mkdir(exist_ok=True)
+        if group_folder is None:
+            self.group_folder = _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{group_name}")
+            self.group_folder.mkdir(exist_ok=True)
+        else:
+            self.group_folder = group_folder
 
     def delete_group(self):
         parent_widget = self.parentWidget()
@@ -336,8 +340,7 @@ class ModGroupWidget(QFrame):
     
     def _update_group(self):
         new_name = self.title_edit.text().strip()
-        if not new_name:
-            return
+        if not new_name: return
         new_folder = _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{new_name}")
         if new_folder != self.group_folder:
             try:
@@ -350,14 +353,12 @@ class ModGroupWidget(QFrame):
                 self.group_folder.rename(new_folder)
                 self.group_folder = new_folder
             except Exception as e:
-                logger.error(f"Failed to rename group folder: {e}")
+                logger.error(f"[_update_group] FAILED | exception={e!r}")
     
     def move_mod(self, mod: ModCard):
         try:
             dest = self.group_folder / mod.mod.display_name
-            # Prevent attempting to move if it's already in the destination
-            if dest.exists() or mod.mod.folder_path == dest:
-                return
+            if dest.exists() or mod.mod.folder_path == dest: return
             shutil.move(mod.mod.folder_path, dest)
             mod.mod.folder_path = dest
         except Exception as e:
