@@ -213,7 +213,7 @@ def get_nte_mods(
     list_params = {"_nPage": page}
 
     try:
-        logger.info(f"Requesting GameBanana page {page}...")
+        logger.info(f"Requesting GameBanana page {page}...", extra={"el": True})
         list_response = requests.get(list_url, params=list_params, headers=headers, timeout=15)
         list_response.raise_for_status()
         submissions = list_response.json().get("_aRecords", [])
@@ -237,7 +237,8 @@ def get_nte_mods(
                     if on_mod_ready:
                         on_mod_ready(mod)
                 except Exception as e:
-                    logger.error(f"Mod fetch failed: {e}")
+                    if getattr(e, "status_code", None) == 404 or getattr(getattr(e, "response", None), 'status_code', None) == 404: pass
+                    else: logger.error(f"Mod fetch failed: {e}")
 
         if nte_mods:
             _save_page_to_cache(page, nte_mods)
