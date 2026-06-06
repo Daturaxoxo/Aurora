@@ -52,7 +52,7 @@ Add the following to the newly created file:
     }
 }
 ```
-For more information about each field, [Click Me!](https://github.com/Daturaxoxo/Aurora/new/main/docs#modjson-documentation)
+For more information about each field, [Click Me!](https://github.com/Daturaxoxo/Aurora/blob/main/docs/ModDisplayFile.md#modjson-documentation)
 ### ᅠ
 ### ![](https://img.shields.io/badge/Step_3-Save_and_Test-7F77DD?style=flat-square)
 Save the file and test it by refreshing the mod manager in Aurora
@@ -68,7 +68,7 @@ If done correctly, your mod will have custom entries. Cheers!
 | 📛 `Name` | A custom display name for the mod | `"Example Mod Display Name"`
 | 🔢 `Version` | The version of the mod | `"v1.7"`
 | 👤 `Author` | The name of the mod creator | `"Example Author Name"`
-| 🖼️ `Icon` | Set a preset character icon | [All Allowed Characters](https://github.com/Daturaxoxo/Aurora/new/main/docs#allowed-character-names-for-icon-field)
+| 🖼️ `Icon` | Set a preset character icon | [All Allowed Characters](https://github.com/Daturaxoxo/Aurora/blob/main/docs/ModDisplayFile.md#allowed-character-names-for-icon-field)
 | 🔗 `Support Link` | Set a support link for the mod | `"https://gamebanana.com/mods/123456"`
 ### ᅠ
 ---
