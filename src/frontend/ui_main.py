@@ -49,15 +49,15 @@ class GameMonitorThread(QThread):
                 self.access_denied.emit()
                 return
             if result:
-                launcher_path = self.engine.game_path / self.engine._vpaths.launcher_process
+                launcher_path = self.engine.path / self.engine.gpaths.launcher_process
                 junk = getattr(self.engine, 'junk_files_found', [])
                 if junk:
                     self.junk_files_found.emit(junk)
                 logger.info("Launcher started, waiting for manual game start. (HTGame.exe)", extra={"el": True})
-                subprocess.Popen([str(launcher_path)], cwd=str(self.engine.game_path))
+                subprocess.Popen([str(launcher_path)], cwd=str(self.engine.path))
                 self.engine.on_launcher_detected = lambda: self.launcher_detected.emit()
                 self.engine.on_game_started = lambda: self.game_started.emit()
-                self.engine.monitor_game()
+                self.engine.monitor()
                 logger.info("Session was ended successfully.")
         except PermissionError:
             logger.error("Launch failed: Access Denied (missing admin privileges).")
@@ -408,8 +408,8 @@ class AuroraUI(QMainWindow):
             logger.info(f"Drive search found NTE at: {found_path}")
             self.current_path = found_path
             cfg.set(cfg.Key.GAME_PATH, found_path)
-            from backend.engine import AuroraEngine
-            self.engine = AuroraEngine(found_path, censorship_removal=cfg.get(cfg.Key.CENSORSHIP_REMOVE), no_drive_line=cfg.get(cfg.Key.NO_DRIVE_LINE))
+            from backend.engine_old import AuroraEngine
+            self.engine = AuroraEngine(found_path)
             try:
                 self.settings_menu.path_display.setText(found_path)
             except Exception:

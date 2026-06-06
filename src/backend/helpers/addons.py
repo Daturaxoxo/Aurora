@@ -7,6 +7,7 @@ from dataclasses import dataclass
 SECTION_HEADER = "[/Script/Engine.UserInterfaceSettings]"
 KEY            = "ApplicationScale"
 ENGINE_INI_PATH = Path(os.environ.get("LOCALAPPDATA", ""), "HT", "Saved_Global", "Config", "Windows", "Engine.ini")
+JUNK_EXTENSIONS = {'.rar', '.zip', '.7z', '.tar', '.gz'}
 @dataclass(frozen=True)
 class PakAddon:
     config_key:  str

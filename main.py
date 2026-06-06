@@ -39,11 +39,7 @@ def main():
     saved_path = cfg.get(cfg.Key.GAME_PATH)
     initial_path = saved_path if (saved_path and validate_path(saved_path)) else None
 
-    engine = AuroraEngine(
-        initial_path,
-        censorship_removal=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
-        no_drive_line=cfg.get(cfg.Key.NO_DRIVE_LINE)
-    ) if initial_path else None
+    engine = AuroraEngine(initial_path) if initial_path else None
     
     window = AuroraUI(engine, initial_path)
 

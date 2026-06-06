@@ -22,6 +22,7 @@ LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 # Config keys, use these instead of raw strings
 class Key:
     GAME_PATH         = "game_path"
+    ENGINE_METHOD     = "engine_method"
     LANGUAGE          = "language"
     DEV_MODE          = "dev_mode"
     CENSORSHIP_REMOVE = "csn_rem"
@@ -33,7 +34,6 @@ class Key:
     EXPORT_CONSOLE    = "export_console"
     UI_SCALING        = "ui_scaling"
     UI_MINIMIZATION   = "ui_min"
-    USE_HARD_LINKS    = "use_hard_links"
     SHOW_NSFW_MODS    = "show_nsfw_mods"
 
 DEFAULTS = {
@@ -48,8 +48,8 @@ DEFAULTS = {
     Key.EXTENSIVE_LOGGING: False,
     Key.UI_SCALING:        1.0,
     Key.UI_MINIMIZATION:   True,
-    Key.USE_HARD_LINKS:    False,
-    Key.SHOW_NSFW_MODS:    False
+    Key.SHOW_NSFW_MODS:    False,
+    Key.ENGINE_METHOD:     "0" # [0 = Default (dsound only)], [1 = Alternate (dsound + version0.dll)], [2 = Alternate 2 [dsound + dinput8.dll]]
 }
 
 def get_app_dir():

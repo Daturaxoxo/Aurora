@@ -10,14 +10,11 @@ from PyQt6.QtGui import QIcon
 from src.utils import resource_path
 from src.frontend.styles import SETTING_STYLE
 from src import config_manager as cfg
+from src.backend.helpers.paths import CN_BYPASS_METHODS, detect_version, get_version_paths
 from src.translator import Translator, t
-from src.logger import dev_console_handler
 from src.frontend.classes.elements import AnimatedToggle
 from src.backend.helpers import addons
 import os
-from datetime import datetime
-import logging
-from src.utils import get_app_dir
 from src.discord_rpc import DiscordRPC
 
 # SETTINGS ROW
@@ -238,15 +235,10 @@ class SettingsOverlay(QFrame):
         self._row_min.set_description(t("ui_minimization_desc"))
         self._row_EL.set_title(t("extensive_logging"))
         self._row_EL.set_description(t("extensive_logging_desc"))
-        self._lbl_export.setText(t("export_file_title"))
-        self._lbl_export_desc.setText(t("export_file_desc"))
-        self._btn_export_console.setText(t("export_file_button"))
         self._row_rpc.set_title(t("discord_rpc"))
         self._row_rpc.set_description(t("discord_rpc_desc"))
         self._lbl_ui_scale.setText(t("ui_scaling"))
         self._lbl_ui_scale_desc.setText(t("ui_scaling_desc"))
-        self._row_hard_links.set_title(t("hard_links"))
-        self._row_hard_links.set_description(t("hard_links_desc"))
 
     # Helpers
     def _make_page(self):
@@ -494,17 +486,13 @@ class SettingsOverlay(QFrame):
         layout.addWidget(path_card)
         layout.addSpacing(24)
 
-        # Mods
-        layout.addWidget(self._section_label("Mods"))
-        layout.addSpacing(10)
-        self._row_hard_links = SettingRow(
-            title="Use Hard Links",
-            description="",
-            checked=cfg.get(cfg.Key.USE_HARD_LINKS),
-            on_toggle=self._toggle_hard_links,
-        )
-        layout.addWidget(self._row_hard_links)
-
+        # Engine (CN only for now)
+        bypass_card = self._create_bypass_method_card()
+        if bypass_card.isVisible():
+            self._engine_section_label = self._section_label("Engine")
+            layout.addWidget(self._engine_section_label)
+            layout.addSpacing(10)
+        layout.addWidget(bypass_card)
         layout.addStretch()
 
         return page
@@ -529,27 +517,6 @@ class SettingsOverlay(QFrame):
         engine = self.parent().parent().engine
         if engine:
             engine.no_drive_line = new_state
-            
-    def _toggle_hard_links(self, new_state):
-        from src.logger import logger
-        logger.info("Toggling hard links...")
-        cfg.set(cfg.Key.USE_HARD_LINKS, new_state)
-        nte_mod_folder = Path(cfg.get(cfg.Key.GAME_PATH) + "/Client/WindowsNoEditor/HT/Content/Paks/AuroraMods")
-        aurora_mod_folder = Path(get_app_dir() + "/Mods")
-        logger.info(f"Mod folder: {aurora_mod_folder}")
-        logger.info(f"NTE mod folder: {nte_mod_folder}")
-        if new_state:
-            if nte_mod_folder.exists():
-                logger.info("Moving files from NTE mod folder to Aurora mod folder...")
-                for file in nte_mod_folder.iterdir():
-                    shutil.move(file, aurora_mod_folder)
-                shutil.rmtree(nte_mod_folder)
-        else:
-            logger.info("Moving files from Aurora mod folder to NTE mod folder...")
-            nte_mod_folder.mkdir(exist_ok=True)
-            if aurora_mod_folder.exists():
-                for file in aurora_mod_folder.iterdir():
-                    shutil.move(file, nte_mod_folder)
 
     def _toggle_rpc(self, new_state):
         self._toggle(cfg.Key.DISCORD_RPC, new_state)
@@ -609,38 +576,43 @@ class SettingsOverlay(QFrame):
             title="",
             description="",
             checked=cfg.get(cfg.Key.EXTENSIVE_LOGGING),
-            on_toggle=lambda v: self._toggle(cfg.Key.EXTENSIVE_LOGGING, v),
+            on_toggle=self._toggle_el_mode,
         )
-        export_card = QFrame()
-        export_card.setObjectName("ExportCard")
-        export_card.setFixedHeight(68)
-        export_card.setStyleSheet("""
-            #ExportCard {
+        layout.addWidget(self._row_dev)
+        layout.addSpacing(10)
+        layout.addWidget(self._row_EL)
+        layout.addSpacing(10)
+
+        # Export Telemetry card
+        telemetry_card = QFrame()
+        telemetry_card.setObjectName("TelemetryCard")
+        telemetry_card.setFixedHeight(68)
+        telemetry_card.setStyleSheet("""
+            #TelemetryCard {
                 background-color: rgba(255, 255, 255, 4);
                 border: 1px solid rgba(255, 255, 255, 7);
                 border-radius: 10px;
             }
         """)
-        export_row = QHBoxLayout(export_card)
-        export_row.setContentsMargins(20, 0, 14, 0)
-        export_row.setSpacing(12)
+        telemetry_row = QHBoxLayout(telemetry_card)
+        telemetry_row.setContentsMargins(20, 0, 14, 0)
+        telemetry_row.setSpacing(12)
 
-        # Export file button
-        export_text = QVBoxLayout()
-        export_text.setSpacing(3)
-        self._lbl_export = QLabel()
-        self._lbl_export.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
-        self._lbl_export_desc = QLabel()
-        self._lbl_export_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
-        export_text.addStretch()
-        export_text.addWidget(self._lbl_export)
-        export_text.addWidget(self._lbl_export_desc)
-        export_text.addStretch()
+        telemetry_text = QVBoxLayout()
+        telemetry_text.setSpacing(3)
+        self._lbl_telemetry = QLabel("Export Telemetry")
+        self._lbl_telemetry.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        self._lbl_telemetry_desc = QLabel("Full system snapshot with session log for bug reports")
+        self._lbl_telemetry_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        telemetry_text.addStretch()
+        telemetry_text.addWidget(self._lbl_telemetry)
+        telemetry_text.addWidget(self._lbl_telemetry_desc)
+        telemetry_text.addStretch()
 
-        self._btn_export_console = QPushButton()
-        self._btn_export_console.setFixedSize(72, 32)
-        self._btn_export_console.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_export_console.setStyleSheet("""
+        self._btn_export_telemetry = QPushButton("Export")
+        self._btn_export_telemetry.setFixedSize(72, 32)
+        self._btn_export_telemetry.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_export_telemetry.setStyleSheet("""
             QPushButton {
                 background-color: rgba(255, 255, 255, 8);
                 color: #C8C8C8;
@@ -656,16 +628,13 @@ class SettingsOverlay(QFrame):
                 background-color: rgba(255, 255, 255, 5);
             }
         """)
-        self._btn_export_console.clicked.connect(self._handle_export_console)
-        layout.addWidget(self._row_dev)
-        layout.addSpacing(10)
-        layout.addWidget(self._row_EL)
-        layout.addSpacing(10)
-        export_row.addLayout(export_text)
-        export_row.addStretch()
-        export_row.addWidget(self._btn_export_console)
+        self._btn_export_telemetry.clicked.connect(self._handle_export_telemetry)
 
-        layout.addWidget(export_card)
+        telemetry_row.addLayout(telemetry_text)
+        telemetry_row.addStretch()
+        telemetry_row.addWidget(self._btn_export_telemetry)
+
+        layout.addWidget(telemetry_card)
         layout.addStretch()
         
         return page
@@ -766,6 +735,99 @@ class SettingsOverlay(QFrame):
 
         return page
     
+    def _create_bypass_method_card(self):
+        card = QFrame()
+        card.setObjectName("BypassCard")
+        card.setFixedHeight(68)
+        card.setStyleSheet("""
+            #BypassCard {
+                background-color: rgba(255, 255, 255, 4);
+                border: 1px solid rgba(255, 255, 255, 7);
+                border-radius: 10px;
+            }
+        """)
+        row = QHBoxLayout(card)
+        row.setContentsMargins(20, 0, 20, 0)
+        row.setSpacing(16)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(3)
+        self._lbl_bypass = QLabel("旁路方法")
+        self._lbl_bypass.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        self._lbl_bypass_desc = QLabel("选择 CN 客户端的 DLL 注入方法")
+        self._lbl_bypass_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        text_col.addStretch()
+        text_col.addWidget(self._lbl_bypass)
+        text_col.addWidget(self._lbl_bypass_desc)
+        text_col.addStretch()
+
+        self._bypass_box = QComboBox()
+        self._bypass_box.setFixedWidth(160)
+        self._bypass_box.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e1e;
+                color: #C8C8C8;
+                border: 1px solid rgba(255, 255, 255, 12);
+                border-radius: 7px;
+                padding: 4px 10px;
+                font-size: 12px;
+            }
+            QComboBox:hover {
+                background-color: #2a2a2a;
+                color: #FFFFFF;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 0px;
+                background-color: transparent;
+            }
+            QComboBox::down-arrow {
+                width: 0;
+                height: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1e1e1e;
+                color: #C8C8C8;
+                border: 1px solid rgba(255, 255, 255, 12);
+                selection-background-color: rgba(255, 255, 255, 10);
+                selection-color: #FFFFFF;
+                outline: none;
+            }
+        """)
+        for key, dlls in CN_BYPASS_METHODS.items():
+            self._bypass_box.addItem(", ".join(dlls), userData=key)
+
+        saved = cfg.get(cfg.Key.ENGINE_METHOD)
+        idx = self._bypass_box.findData(saved)
+        if idx >= 0:
+            self._bypass_box.setCurrentIndex(idx)
+        self._bypass_box.currentIndexChanged.connect(self._on_bypass_method_changed)
+
+        row.addLayout(text_col)
+        row.addStretch()
+        row.addWidget(self._bypass_box)
+
+        try:
+            from pathlib import Path as _Path
+            gp = cfg.get(cfg.Key.GAME_PATH)
+            version = detect_version(_Path(gp)) if gp else None
+        except Exception:
+            version = None
+        card.setVisible(version == "cn")
+        self._bypass_card = card
+        return card
+
+    def _on_bypass_method_changed(self, index):
+        key = self._bypass_box.itemData(index)
+        if key is None:
+            return
+        cfg.set(cfg.Key.ENGINE_METHOD, key)
+        engine = self.parent().parent().engine
+        if engine:
+            engine.engine_method = key
+            engine.gpaths = get_version_paths(engine.path, engine.version, key)
+            engine.main_dlls = [slot.name for slot in engine.gpaths.dll_slots]
+
     def _toggle(self, key, new_state):
         cfg.set(key, new_state)
 
@@ -773,27 +835,20 @@ class SettingsOverlay(QFrame):
         self._toggle(cfg.Key.DEV_MODE, new_state)
         self.parent().parent().set_dev_console(new_state)
 
-    def _handle_export_console(self):
-        
-        records = getattr(dev_console_handler, 'session_buffer', [])
+    def _toggle_el_mode(self, new_state):
+        self._toggle(cfg.Key.EXTENSIVE_LOGGING, new_state)
+        if new_state:
+            main_ui = self.parent().parent()
+            console = getattr(main_ui, 'dev_console', None)
+            if console is not None:
+                console.repopulate(show_el=True)
 
-        log_dir = os.path.join(get_app_dir(), "Logs")
-        os.makedirs(log_dir, exist_ok=True)
-
-        filename = datetime.now().strftime("aurora_console_%Y-%m-%d_%H-%M-%S.aulog")
-        filepath = os.path.join(log_dir, filename)
-
-        formatter = logging.Formatter(
-            '[%(asctime)s] [%(levelname)s] %(message)s',
-            datefmt='%H:%M:%S'
-        )
+    def _handle_export_telemetry(self):
+        from src.logger import export_telemetry
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(f"--- Aurora Console Export — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n\n")
-                for record in records:
-                    f.write(formatter.format(record) + '\n')
-            self._btn_export_console.setText(t("export_file_done"))
+            export_telemetry()
+            self._btn_export_telemetry.setText("Saved!")
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(2500, lambda: self._btn_export_console.setText(t("export_file_button")))
-        except OSError:
-            self._btn_export_console.setText("Error")
+            QTimer.singleShot(2500, lambda: self._btn_export_telemetry.setText("Export"))
+        except Exception:
+            self._btn_export_telemetry.setText("Error")
