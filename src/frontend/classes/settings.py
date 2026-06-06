@@ -239,6 +239,9 @@ class SettingsOverlay(QFrame):
         self._row_rpc.set_description(t("discord_rpc_desc"))
         self._lbl_ui_scale.setText(t("ui_scaling"))
         self._lbl_ui_scale_desc.setText(t("ui_scaling_desc"))
+        self._lbl_telemetry.setText(t("export_tele_title"))
+        self._lbl_telemetry_desc.setText(t("export_tele_desc"))
+        self._btn_export_telemetry.setText(t("export_file_button"))
 
     # Helpers
     def _make_page(self):
@@ -600,16 +603,16 @@ class SettingsOverlay(QFrame):
 
         telemetry_text = QVBoxLayout()
         telemetry_text.setSpacing(3)
-        self._lbl_telemetry = QLabel("Export Telemetry")
+        self._lbl_telemetry = QLabel(t("export_tele_title"))
         self._lbl_telemetry.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
-        self._lbl_telemetry_desc = QLabel("Full system snapshot with session log for bug reports")
+        self._lbl_telemetry_desc = QLabel(t("export_tele_desc"))
         self._lbl_telemetry_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         telemetry_text.addStretch()
         telemetry_text.addWidget(self._lbl_telemetry)
         telemetry_text.addWidget(self._lbl_telemetry_desc)
         telemetry_text.addStretch()
 
-        self._btn_export_telemetry = QPushButton("Export")
+        self._btn_export_telemetry = QPushButton(t("export_tele_button"))
         self._btn_export_telemetry.setFixedSize(72, 32)
         self._btn_export_telemetry.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_export_telemetry.setStyleSheet("""
@@ -847,8 +850,8 @@ class SettingsOverlay(QFrame):
         from src.logger import export_telemetry
         try:
             export_telemetry()
-            self._btn_export_telemetry.setText("Saved!")
+            self._btn_export_telemetry.setText(t("export_file_done"))
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(2500, lambda: self._btn_export_telemetry.setText("Export"))
+            QTimer.singleShot(2500, lambda: self._btn_export_telemetry.setText(t("export_file_button")))
         except Exception:
-            self._btn_export_telemetry.setText("Error")
+            self._btn_export_telemetry.setText("Err!")

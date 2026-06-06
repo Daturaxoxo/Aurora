@@ -8,13 +8,13 @@ import psutil
 from src.utils import resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QSystemTrayIcon, QMenu
+    QMainWindow, QWidget, QHBoxLayout,
+    QPushButton, QLabel, QFrame, QSystemTrayIcon, QMenu
 )
-from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, QPropertyAnimation, pyqtSignal
-from PyQt6.QtGui import QPixmap, QIcon, QPainter, QAction
+from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, pyqtSignal
+from PyQt6.QtGui import QPixmap, QIcon, QAction
 from src.logger import logger, dev_console_handler
-from src.path_finder import validate_path, get_game_directory, get_local_version
+from src.path_finder import validate_path, get_game_directory
 from src.frontend.styles import MAIN_STYLE
 from src import config_manager as cfg
 from src.translator import Translator, t
@@ -22,10 +22,11 @@ from src.utils import get_app_dir
 from src.mod_manager import ModManager
 from src.frontend.classes.elements import PopupDialog, AuroraOverlayWindow
 from src.frontend.classes.settings import SettingsOverlay
-from src.utils import GetOnlineVersion, parse_version, get_mods_path
+from src.utils import get_mods_path
 from src.frontend.classes.dev_console import DevConsolePanel
 from src.frontend.classes.widgets import BackgroundWidget, OverlayWidget
 from src.frontend.classes.notification import ToastNotification
+from src.frontend.classes.drive_search import DriveSearchWindow
 from src.frontend.classes.mod_manager import ModManagerOverlay
 from src.frontend.classes.faq import FaqOverlay
 from src.frontend.classes.update_overlay import UpdateOverlay
@@ -391,7 +392,6 @@ class AuroraUI(QMainWindow):
         )
 
     def _start_drive_search(self):
-        from frontend.classes.drive_search import DriveSearchWindow
         logger.info("User initiated drive search.")
         self.btn_search.setEnabled(False)
         self._search_win = DriveSearchWindow()
@@ -408,7 +408,7 @@ class AuroraUI(QMainWindow):
             logger.info(f"Drive search found NTE at: {found_path}")
             self.current_path = found_path
             cfg.set(cfg.Key.GAME_PATH, found_path)
-            from backend.engine_old import AuroraEngine
+            from src.backend.engine import AuroraEngine
             self.engine = AuroraEngine(found_path)
             try:
                 self.settings_menu.path_display.setText(found_path)

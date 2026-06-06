@@ -28,7 +28,7 @@ from src.logger import logger
 from src.frontend.styles import GB_STYLE
 from src.translator import t
 from src.frontend.classes.elements import AnimatedToggle, PopupDialog, _rounded_pixmap, show_image
-from src.utils import bytes_to_human_readable, get_mods_path, resource_path
+from src.utils import bytes_to_human_readable, get_mods_path, resource_path, get_app_dir
 
 
 class _ModFetcher(QObject):
@@ -1004,7 +1004,8 @@ class _InstallWorker(QObject):
         self.install_started.emit()
 
         mods_dir       = get_mods_path()
-        seven_zip_path = Path(resource_path("Bin/7z.exe"))
+        app_dir = Path(get_app_dir())
+        seven_zip_path = app_dir / "Bin" / "7z.exe"
         installed      : list[str] = []
 
         path   = tmp_path
