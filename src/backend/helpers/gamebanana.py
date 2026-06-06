@@ -32,8 +32,8 @@ from src.utils import bytes_to_human_readable, get_mods_path, resource_path
 
 
 class _ModFetcher(QObject):
-    mod_ready   = pyqtSignal(object)
-    page_done   = pyqtSignal(bool)
+    mod_ready   = pyqtSignal(object, int)
+    page_done   = pyqtSignal(bool, int)
     finished    = pyqtSignal()
 
     def __init__(self, page: int, force_refresh: bool = False, generation: int = 0):
