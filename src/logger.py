@@ -115,6 +115,10 @@ def setup_logger():
     root_logger = logging.getLogger()
     if root_logger.handlers:
         return logging.getLogger("Aurora")
+    
+    # Suppress logs from requests
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(
