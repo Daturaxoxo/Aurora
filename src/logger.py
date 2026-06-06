@@ -327,6 +327,8 @@ class FileStatusMonitor:
         self.watch_interval: int = 10
         self.inject_snapshot: str | None = None
         self.periodic_entries: list[str] = []
+        self._periodic_reset_interval: int = 600  # 10 minutes
+        self._periodic_elapsed: int = 0
 
     def start(self):
         if self.thread and self.thread.is_alive(): return
@@ -343,10 +345,9 @@ class FileStatusMonitor:
         targets.append(("ASI plugin", asi_path))
         self.watch_targets = targets
         self.last_watch_targets = targets
-        self.inject_snapshot = self.format_watch_snapshot(
-            f"Inject — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        self.inject_snapshot = self.format_watch_snapshot(f"Inject — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.periodic_entries.clear()
+        self._periodic_elapsed = 0
 
         logging.getLogger("Aurora").info(
             f"File monitor: watching {len(targets)} injection target(s) every {self.watch_interval}s.",
@@ -381,6 +382,11 @@ class FileStatusMonitor:
 
     def _tick_watch(self):
         logger = logging.getLogger("Aurora")
+        self._periodic_elapsed += self.watch_interval
+        if self._periodic_elapsed >= self._periodic_reset_interval:
+            self.periodic_entries.clear()
+            self._periodic_elapsed = 0
+            logger.info("[File Monitor] Periodic entries cleared (Aurora clears memory every 10 minute to prevent memory buildup).", extra={'el': True})
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         entry = self.format_watch_snapshot(timestamp)
         self.periodic_entries.append(entry)

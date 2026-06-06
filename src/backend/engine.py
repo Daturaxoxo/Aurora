@@ -1,6 +1,5 @@
 # Imports
 import os, sys, shutil, subprocess, time, psutil
-from itertools import repeat
 from pathlib import Path
 from src.logger import logger, InitFatalError, file_monitor
 from src.utils import get_app_dir, _ensure_dir
@@ -190,8 +189,6 @@ class AuroraEngine:
                 if resolved in seen_folders: continue
                 seen_folders.add(resolved)
                 folders.append(folder)
-            deployed_count = 0
-            failed_mods = []
 
             # PAK Addons
             for addon in PAK_ADDONS:
@@ -218,7 +215,6 @@ class AuroraEngine:
             return False
         
     def monitor(self):
-        game_started = False
         missing = 0
         seen = False
         
@@ -234,7 +230,6 @@ class AuroraEngine:
             time.sleep(0.5)
             active = {p.name().lower() for p in psutil.process_iter(["name"])}
             if game in active:
-                game_started = True
                 logger.info(f"NTE Process ({self.gpaths.game_process}) was detected, game is running.")
                 if callable(getattr(self, "on_game_started", None)):
                     self.on_game_started()
@@ -261,8 +256,7 @@ class AuroraEngine:
             
             
         ht_procs = [p for p in psutil.process_iter(["name"]) if p.name().lower() == game]
-        if ht_procs:
-            psutil.wait_procs(ht_procs, timeout=None)
+        if ht_procs: psutil.wait_procs(ht_procs, timeout=None)
         else:
             while True:
                 time.sleep(2)
