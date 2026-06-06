@@ -341,6 +341,12 @@ class ModGroupWidget(QFrame):
         new_folder = _unique_dest(get_mods_path() / f"{self.AURORA_GROUP_PREFIX}{new_name}")
         if new_folder != self.group_folder:
             try:
+                for i in range(self.content_layout.count()):
+                    item = self.content_layout.itemAt(i)
+                    widget = item.widget()
+                    if widget and isinstance(widget, ModCard):
+                        mod = widget.mod
+                        mod.folder_path = new_folder / mod.folder_name
                 self.group_folder.rename(new_folder)
                 self.group_folder = new_folder
             except Exception as e:
