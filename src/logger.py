@@ -413,6 +413,8 @@ def setup_logger():
     log_dir = os.path.join(app_dir, "Logs")
     root_logger = logging.getLogger()
     if root_logger.handlers: return logging.getLogger("Aurora")
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(
