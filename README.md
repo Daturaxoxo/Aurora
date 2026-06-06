@@ -33,6 +33,8 @@ Aurora is an open-source community project, any help with the source code is gre
 > Unfortunately, Aurora is built to only be ran on Windows Operating Systems. Although trying to run Aurora in Linux with Wine/Proton can be possible; the engine DLL & ASI files that Aurora uses and the reliance on native Win32 system API calls might cause issues. Aurora will most likely not perform correctly when running under Wine, Proton or SteamOS.
 > 
 > Because of this, if you encounter issues while trying to run Aurora on Linux; we can't help you at the moment until a proper Linux build is created.
+>
+> **Notice June 7, 2026:** We shortly be working on Linux support. You can still try to get it working on your Linux device until then or wait for an official update with Linux support.
 
 > [!TIP]
 > It is recommened to download the following Prerequisite software to minimise errors.
