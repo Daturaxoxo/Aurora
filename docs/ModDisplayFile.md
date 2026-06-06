@@ -94,3 +94,6 @@ If done correctly, your mod will have custom entries. Cheers!
 | Baicang | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/baicang.png?raw=true" width="80"> |
 | Aurelia | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/aurelia.png?raw=true" width="80"> |
 | Skia | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/skia.png?raw=true" width="80"> |
+| Iroi | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/iroi.png?raw=true" width="80"> |
+| Chaos | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/chaos.png?raw=true" width="80"> |
+| Shinku | <img src="https://github.com/Daturaxoxo/Aurora/blob/main/Bin/Assets/ModImages/shinku.png?raw=true" width="80"> |
