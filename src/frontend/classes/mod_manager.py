@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from src.mod_manager import ModGroup
 from src.backend.helpers.gamebanana import GameBananaBrowserOverlay, InstallProgressWindow
-from src.utils import get_mods_path, resource_path
+from src.utils import get_app_dir, get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QLineEdit,
@@ -115,8 +115,9 @@ class _BaseInstallZone(QFrame):
     def _install_paths(self, paths: list[str | Path]):
             paths = [Path(p) for p in paths]
             mods_dir = get_mods_path()
+            app_dir = Path(get_app_dir())
             
-            seven_zip_path = Path(resource_path("Bin/7z.exe"))
+            seven_zip_path = app_dir / "Bin" / "7z.exe"
             
             installed_files = []
 
@@ -141,7 +142,7 @@ class _BaseInstallZone(QFrame):
                             str(seven_zip_path), 
                             "x", 
                             str(path), 
-                            f"-o{mods_dir}/{path.name.split('.')}", 
+                            f"-o{mods_dir / path.stem}", 
                             "-y"
                         ]
                         
