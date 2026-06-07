@@ -9,7 +9,8 @@
         "jp": "どのサーバーが対応していますか？",
         "nl": "Welke servers worden ondersteund?",
         "vi": "Những máy chủ nào được hỗ trợ?",
-        "fr": "Quels serveurs sont pris en charge ?"
+        "fr": "Quels serveurs sont pris en charge ?",
+        "ru": "Какие серверы поддерживаются?"
     },
     "answer": {
         "en": [
@@ -119,6 +120,18 @@
             "\n- Asie centrale",
             "\n- Chine continentale",
             "\n- Taïwan"
+        ],
+        "ru": [
+            "## Поддерживаемые серверы",
+            "Список серверов поддерживаемых лаунчером Aurora:",
+            "\n- Серерная Америка и Южная Америка",
+            "\n- Европа",
+            "\n- Африка",
+            "\n- Ближний Восток",
+            "\n- Юго-Восточная Азия",
+            "\n- Центральная Азия",
+            "\n- Материковый Китай",
+            "\n- Тайвань"
         ]
     }
 }
