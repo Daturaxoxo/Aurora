@@ -482,6 +482,9 @@ class AuroraUI(QMainWindow):
         )
 
     def _show_game_overlay(self):
+        if hasattr(self, '_poll_timer') and self._poll_timer.isActive():
+            logger.info("Another instance of overlay polling is already on, ignoring this request.", extra={"el": True});
+            return
         logger.info("HTGame.exe detected. Starting window polling...", extra={"el": True})
         
         # Initialize polling state
