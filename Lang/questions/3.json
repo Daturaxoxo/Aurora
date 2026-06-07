@@ -9,7 +9,8 @@
     "jp": "サポートを受けるにはどうすればいいですか？",
     "nl": "Hoe kan ik support krijgen?",
     "vi": "Làm thế nào để nhận được sự hỗ trợ?",
-    "fr": "Comment puis-je obtenir de l'aide ?"
+    "fr": "Comment puis-je obtenir de l'aide ?",
+    "ru": "Куда я могу обратиться за помощью?"
   },
   "answer": {
     "en": [
@@ -74,6 +75,13 @@
       "\n- Notre serveur Discord",
       "\n- Page GameBanana",
       "Tout autre manière entraînera des réponses tardives, voire aucune réponse."
+    ],
+    "ru": [
+      "## Помощь",
+      "Список адресов для обратной связи:",
+      "\n- Наш Discord сервер",
+      "\n- Страница на GameBanana",
+      "В других местах ваше сообщение получит ответ с задержкой или вообще будет проигнорировано."
     ]
   }
 }

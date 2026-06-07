@@ -1001,7 +1001,7 @@
         "updater_status_extract_zip": "Извлечение Bin.zip",
         "updater_status_script": "Подготовка скрипта обновления",
         "updater_status_script_launch": "Запуск скрипта обновления и выход из Aurora",
-        "updater_restart_prompt": "Aurora завершила установку нового обновления. Пожалуйста, перезапустите Aurora.",
+        "updater_restart_prompt": "Aurora завершила установку обновления. Пожалуйста, перезапустите Aurora.",
         "updater_update_retry": "Повторить",
         "updater_close": "Закрыть",
         "export_tele_title": "Экспорт телеметрии",
