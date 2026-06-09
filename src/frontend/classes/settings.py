@@ -10,10 +10,11 @@ from PyQt6.QtGui import QIcon
 from src.utils import resource_path
 from src.frontend.styles import SETTING_STYLE
 from src import config_manager as cfg
-from src.backend.helpers.paths import CN_BYPASS_METHODS, detect_version, get_version_paths
+from src.backend.helpers.paths import BYPASS_METHODS, detect_version, get_version_paths
 from src.translator import Translator, t
 from src.frontend.classes.elements import AnimatedToggle
 from src.backend.helpers import addons
+from src.logger import logger
 import os
 from src.discord_rpc import DiscordRPC
 
@@ -242,6 +243,9 @@ class SettingsOverlay(QFrame):
         self._lbl_telemetry.setText(t("export_tele_title"))
         self._lbl_telemetry_desc.setText(t("export_tele_desc"))
         self._btn_export_telemetry.setText(t("export_file_button"))
+        self._lbl_bypass.setText(t("engine_method_title"))
+        self._lbl_bypass_desc.setText(t("engine_method_desc"))
+        self._update_bypass_card_visibility()
 
     # Helpers
     def _make_page(self):
@@ -488,13 +492,12 @@ class SettingsOverlay(QFrame):
 
         layout.addWidget(path_card)
         layout.addSpacing(24)
-
-        # Engine (CN only for now)
+        
         bypass_card = self._create_bypass_method_card()
-        if bypass_card.isVisible():
-            self._engine_section_label = self._section_label("Engine")
-            layout.addWidget(self._engine_section_label)
-            layout.addSpacing(10)
+        self._engine_section_label = self._section_label("Engine")
+        self._engine_section_label.setVisible(bypass_card.isVisible())
+        layout.addWidget(self._engine_section_label)
+        layout.addSpacing(10)
         layout.addWidget(bypass_card)
         layout.addStretch()
 
@@ -507,7 +510,37 @@ class SettingsOverlay(QFrame):
             main_ui = self.parent().parent()
             main_ui.current_path = folder
             cfg.set(cfg.Key.GAME_PATH, folder)
+
+            engine = main_ui.engine
+            if engine:
+                try: engine.reinit(Path(folder))
+                except (FileNotFoundError, ValueError) as e: logger.warning(f"Could not reinitialize engine for new path: {e}")
+
+            self._update_bypass_card_visibility()
             main_ui.refresh_launch_state()
+
+    def _update_bypass_card_visibility(self):
+        try:
+            gp = cfg.get(cfg.Key.GAME_PATH)
+            version = detect_version(Path(gp)) if gp else None
+        except Exception: version = None
+
+        is_visible = version in BYPASS_METHODS
+        self._bypass_card.setVisible(is_visible)
+        self._engine_section_label.setVisible(is_visible)
+
+        _OPT_KEYS = ["engine_method_opt_1", "engine_method_opt_2", "engine_method_opt_3"]
+        if is_visible:
+            version_methods = BYPASS_METHODS.get(version, next(iter(BYPASS_METHODS.values())))
+            self._bypass_box.blockSignals(True)
+            self._bypass_box.clear()
+            
+            for method_key, (dlls, label_key) in version_methods.items(): self._bypass_box.addItem(t(label_key), userData=method_key)
+            
+            saved = cfg.get(cfg.Key.ENGINE_METHOD)
+            idx = self._bypass_box.findData(saved)
+            self._bypass_box.setCurrentIndex(idx if idx >= 0 else 0)
+            self._bypass_box.blockSignals(False)
 
     def _toggle_cr_mode(self, new_state):
         self._toggle(cfg.Key.CENSORSHIP_REMOVE, new_state)
@@ -755,9 +788,9 @@ class SettingsOverlay(QFrame):
 
         text_col = QVBoxLayout()
         text_col.setSpacing(3)
-        self._lbl_bypass = QLabel("旁路方法")
+        self._lbl_bypass = QLabel(t("engine_method_title"))
         self._lbl_bypass.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
-        self._lbl_bypass_desc = QLabel("选择 CN 客户端的 DLL 注入方法")
+        self._lbl_bypass_desc = QLabel(t("engine_method_desc"))
         self._lbl_bypass_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         text_col.addStretch()
         text_col.addWidget(self._lbl_bypass)
@@ -797,26 +830,26 @@ class SettingsOverlay(QFrame):
                 outline: none;
             }
         """)
-        for key, dlls in CN_BYPASS_METHODS.items():
-            self._bypass_box.addItem(", ".join(dlls), userData=key)
+        try:
+            from pathlib import Path as _Path
+            gp = cfg.get(cfg.Key.GAME_PATH)
+            version = detect_version(_Path(gp)) if gp else None
+        except Exception: version = None
+
+        _OPT_KEYS = ["engine_method_opt_1", "engine_method_opt_2", "engine_method_opt_3"]
+        version_methods = BYPASS_METHODS.get(version, next(iter(BYPASS_METHODS.values())))
+        for i, key in enumerate(version_methods): self._bypass_box.addItem(t(_OPT_KEYS[i]), userData=key)
 
         saved = cfg.get(cfg.Key.ENGINE_METHOD)
         idx = self._bypass_box.findData(saved)
-        if idx >= 0:
-            self._bypass_box.setCurrentIndex(idx)
+        if idx >= 0: self._bypass_box.setCurrentIndex(idx)
         self._bypass_box.currentIndexChanged.connect(self._on_bypass_method_changed)
 
         row.addLayout(text_col)
         row.addStretch()
         row.addWidget(self._bypass_box)
 
-        try:
-            from pathlib import Path as _Path
-            gp = cfg.get(cfg.Key.GAME_PATH)
-            version = detect_version(_Path(gp)) if gp else None
-        except Exception:
-            version = None
-        card.setVisible(version == "cn")
+        card.setVisible(version in BYPASS_METHODS)
         self._bypass_card = card
         return card
 

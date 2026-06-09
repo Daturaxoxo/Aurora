@@ -111,7 +111,12 @@
         "show_nsfw_mods": "Show NSFW mods",
         "create_group_tooltip": "Create new mod group",
         "clear_cache_title": "Clear Cache",
-        "clear_cache_message": "Are you sure you want to clear the mod cache? This will remove all downloaded mod icons and data. Mods will be reloaded after."
+        "clear_cache_message": "Are you sure you want to clear the mod cache? This will remove all downloaded mod icons and data. Mods will be reloaded after.",
+        "engine_method_title": "Engine Method",
+        "engine_method_desc": "Choose what method the engine uses for loading mods.",
+        "engine_method_opt_1": "Default",
+        "engine_method_opt_2": "Alternate",
+        "engine_method_opt_3": "Alternate [CN]"
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -225,7 +230,12 @@
         "gamebanana_install_title": "选择要安装的文件",
         "gamebanana_install_empty": "没有可用的文件。",
         "gamebanana_open_btn": "在 Gamebanana 上打开",
-        "create_group_tooltip": "创建新模组组"
+        "create_group_tooltip": "创建新模组组",
+        "engine_method_title": "引擎方法",
+        "engine_method_desc": "选择引擎加载模组的方法。",
+        "engine_method_opt_1": "默认",
+        "engine_method_opt_2": "备用",
+        "engine_method_opt_3": "备用 [CN]"
     },
     "de": {
         "settings": "Einstellungen",
@@ -338,7 +348,12 @@
         "gamebanana_install_title": "Wählen Sie eine Datei zur Installation aus",
         "gamebanana_install_empty": "Keine Dateien verfügbar.",
         "gamebanana_open_btn": "Auf GameBanana öffnen",
-        "create_group_tooltip": "Neue Mod-Gruppe erstellen"
+        "create_group_tooltip": "Neue Mod-Gruppe erstellen",
+        "engine_method_title": "Engine-Methode",
+        "engine_method_desc": "Wähle, welche Methode die Engine zum Laden von Mods verwendet.",
+        "engine_method_opt_1": "Standard",
+        "engine_method_opt_2": "Alternativ",
+        "engine_method_opt_3": "Alternativ [CN]"
     },
     "es": {
         "settings": "Opciones",
@@ -451,7 +466,12 @@
         "gamebanana_install_title": "Selecciona un archivo para instalar",
         "gamebanana_install_empty": "No hay archivos disponibles.",
         "gamebanana_open_btn": "Abrir en Gamebanana",
-        "create_group_tooltip": "Crear nuevo grupo de mods"
+        "create_group_tooltip": "Crear nuevo grupo de mods",
+        "engine_method_title": "Método del motor",
+        "engine_method_desc": "Elige el método que usa el motor para cargar mods.",
+        "engine_method_opt_1": "Por defecto",
+        "engine_method_opt_2": "Alternativo",
+        "engine_method_opt_3": "Alternativo [CN]"
     },
     "id": {
         "settings": "Pengaturan",
@@ -564,7 +584,12 @@
         "gamebanana_install_title": "Pilih file untuk diinstal",
         "gamebanana_install_empty": "Tidak ada file yang tersedia.",
         "gamebanana_open_btn": "Buka di Gamebanana",
-        "create_group_tooltip": "Buat grup mod baru"
+        "create_group_tooltip": "Buat grup mod baru",
+        "engine_method_title": "Metode Engine",
+        "engine_method_desc": "Pilih metode yang digunakan engine untuk memuat mod.",
+        "engine_method_opt_1": "Default",
+        "engine_method_opt_2": "Alternatif",
+        "engine_method_opt_3": "Alternatif [CN]"
     },
     "it": {
         "settings": "Impostazioni",
@@ -677,7 +702,12 @@
         "gamebanana_install_title": "Seleziona un file da installare",
         "gamebanana_install_empty": "Nessun file disponibile.",
         "gamebanana_open_btn": "Apri su Gamebanana",
-        "create_group_tooltip": "Crea nuovo gruppo di mod"
+        "create_group_tooltip": "Crea nuovo gruppo di mod",
+        "engine_method_title": "Metodo Motore",
+        "engine_method_desc": "Scegli quale metodo usa il motore per caricare le mod.",
+        "engine_method_opt_1": "Predefinito",
+        "engine_method_opt_2": "Alternativo",
+        "engine_method_opt_3": "Alternativo [CN]"
     },
     "jp": {
         "_status": "The Japanese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -791,7 +821,12 @@
         "gamebanana_install_title": "インストールするファイルを選択",
         "gamebanana_install_empty": "利用可能なファイルがありません。",
         "gamebanana_open_btn": "Gamebananaで開く",
-        "create_group_tooltip": "新しいMODグループを作成"
+        "create_group_tooltip": "新しいMODグループを作成",
+        "engine_method_title": "エンジン方式",
+        "engine_method_desc": "エンジンがMODをロードする方法を選択します。",
+        "engine_method_opt_1": "デフォルト",
+        "engine_method_opt_2": "代替",
+        "engine_method_opt_3": "代替 [CN]"
     },
     "pt-br": {
         "settings": "Configurações",
@@ -904,7 +939,12 @@
         "gamebanana_install_title": "Selecione um arquivo para instalar",
         "gamebanana_install_empty": "Nenhum arquivo disponível.",
         "gamebanana_open_btn": "Abrir no Gamebanana",
-        "create_group_tooltip": "Criar novo grupo de mods"
+        "create_group_tooltip": "Criar novo grupo de mods",
+        "engine_method_title": "Método do Motor",
+        "engine_method_desc": "Escolha o método que o motor usa para carregar mods.",
+        "engine_method_opt_1": "Padrão",
+        "engine_method_opt_2": "Alternativo",
+        "engine_method_opt_3": "Alternativo [CN]"
     },
     "ru": {
         "settings": "Настройки",
@@ -1017,7 +1057,12 @@
         "gamebanana_install_title": "Выберите файл для установки",
         "gamebanana_install_empty": "Нет доступных файлов.",
         "gamebanana_open_btn": "Открыть на Gamebanana",
-        "create_group_tooltip": "Создать новую группу модов"
+        "create_group_tooltip": "Создать новую группу модов",
+        "engine_method_title": "Метод движка",
+        "engine_method_desc": "Выберите метод, который движок использует для загрузки модов.",
+        "engine_method_opt_1": "По умолчанию",
+        "engine_method_opt_2": "Альтернативный",
+        "engine_method_opt_3": "Альтернативный [CN]"
     },
     "tr": {
         "settings": "Ayarlar",
@@ -1130,7 +1175,12 @@
         "gamebanana_install_title": "Yüklenecek bir dosya seçin",
         "gamebanana_install_empty": "Mevcut dosya yok.",
         "gamebanana_open_btn": "Gamebanana'da aç",
-        "create_group_tooltip": "Yeni mod grubu oluştur"
+        "create_group_tooltip": "Yeni mod grubu oluştur",
+        "engine_method_title": "Motor Yöntemi",
+        "engine_method_desc": "Aurora motorunun modları yüklemek için hangi yöntemi kullanacağını seçin.",
+        "engine_method_opt_1": "Varsayılan",
+        "engine_method_opt_2": "Alternatif",
+        "engine_method_opt_3": "Alternatif [CN]"
     },
     "vi": {
         "settings": "Cài đặt",
@@ -1243,7 +1293,12 @@
         "gamebanana_install_title": "Chọn một tệp để cài đặt",
         "gamebanana_install_empty": "Không có tệp nào có sẵn.",
         "gamebanana_open_btn": "Mở trên Gamebanana",
-        "create_group_tooltip": "Tạo nhóm mod mới"
+        "create_group_tooltip": "Tạo nhóm mod mới",
+        "engine_method_title": "Phương thức Engine",
+        "engine_method_desc": "Chọn phương thức engine sử dụng để tải mod.",
+        "engine_method_opt_1": "Mặc định",
+        "engine_method_opt_2": "Thay thế",
+        "engine_method_opt_3": "Thay thế [CN]"
     },
     "nl": {
         "settings": "Instelling",
@@ -1330,7 +1385,12 @@
         "gamebanana_install_title": "Selecteer een bestand om te installeren",
         "gamebanana_install_empty": "Geen bestanden beschikbaar.",
         "gamebanana_open_btn": "Openen op Gamebanana",
-        "create_group_tooltip": "Nieuwe mod-groep aanmaken"
+        "create_group_tooltip": "Nieuwe mod-groep aanmaken",
+        "engine_method_title": "Engine-methode",
+        "engine_method_desc": "Kies welke methode de engine gebruikt voor het laden van mods.",
+        "engine_method_opt_1": "Standaard",
+        "engine_method_opt_2": "Alternatief",
+        "engine_method_opt_3": "Alternatief [CN]"
     },
     "fr": {
         "settings": "Paramètres",
@@ -1443,6 +1503,11 @@
         "gamebanana_install_title": "Sélectionnez un fichier à installer",
         "gamebanana_install_empty": "Aucun fichier disponible.",
         "gamebanana_open_btn": "Ouvrir sur Gamebanana",
-        "create_group_tooltip": "Créer un nouveau groupe de mods"
+        "create_group_tooltip": "Créer un nouveau groupe de mods",
+        "engine_method_title": "Méthode du moteur",
+        "engine_method_desc": "Choisissez la méthode utilisée par le moteur pour charger les mods.",
+        "engine_method_opt_1": "Par défaut",
+        "engine_method_opt_2": "Alternatif",
+        "engine_method_opt_3": "Alternatif [CN]"
     }
 }

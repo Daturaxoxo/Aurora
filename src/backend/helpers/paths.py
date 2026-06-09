@@ -76,14 +76,25 @@ VERSION_SPECS: dict[str, VersionSpec] = {
         dll_names          = ("version.dll",),
     ),
 }
-CN_BYPASS_METHODS: dict[str, tuple[str, ...]] = {
-    "0": ("dsound.dll",),
-    "1": ("dsound.dll", "version0.dll"),
-    "2": ("dsound.dll", "ddraw.dll"),
+BYPASS_METHODS: dict[str, dict[str, tuple[tuple[str, ...], str]]] = {
+    VERSION_GLOBAL: {
+        "0": (("version.dll",),          "engine_method_opt_1"),
+        "1": (("dsound.dll",),            "engine_method_opt_2"),
+    },
+    VERSION_TW: {
+        "0": (("version.dll",),          "engine_method_opt_1"),
+        "1": (("dsound.dll",),            "engine_method_opt_2"),
+    },
+    VERSION_CN: {
+        "0": (("dsound.dll",),            "engine_method_opt_1"),
+        "1": (("dsound.dll", "ddraw.dll"),    "engine_method_opt_3"),
+    },
 }
 
-def get_cn_dll(method: str) -> tuple[str, ...]:
-    return CN_BYPASS_METHODS.get(method, CN_BYPASS_METHODS["0"])
+def get_bypass_dlls(version: str, method: str) -> tuple[str, ...]:
+    methods = BYPASS_METHODS.get(version, BYPASS_METHODS[VERSION_GLOBAL])
+    entry = methods.get(method, next(iter(methods.values())))
+    return entry[0]
 
 # Public API
 def get_version_paths(game_path: Path, version: str, engine_method: str = "0") -> VersionPaths:
@@ -96,7 +107,7 @@ def get_version_paths(game_path: Path, version: str, engine_method: str = "0") -
     win64    = game_path / CLIENT_WIN64
     pak_base = game_path / CLIENT_PAK_DIR
     launcher_dir = game_path / spec.launcher_subfolder
-    dll_names = get_cn_dll(engine_method) if version == VERSION_CN else spec.dll_names
+    dll_names = get_bypass_dlls(version, engine_method) if version in BYPASS_METHODS else spec.dll_names
     dll_slots = tuple(
         DllSlot(
             name     = dll_name,

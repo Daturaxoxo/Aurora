@@ -111,6 +111,36 @@ class AuroraEngine:
                     logger.info(f"Shell removed: {key}", extra={'el': True})
                 except Exception as fallback_err:
                     logger.error(f"Could not remove {key}: {fallback_err}")
+                    
+    def reinit(self, path: Path):
+        self.path        = path
+        self.version     = detect_version(self.path)
+        self.gpaths      = get_version_paths(self.path, self.version, self.engine_method)
+        self.win64       = self.gpaths.win64
+        self.pakbase     = self.gpaths.pak_base
+        self.mod_folder  = self.path / CLIENT_PAK_DIR
+        self.pakdir      = self.pakbase.parent
+        self.main_dlls   = [slot.name for slot in self.gpaths.dll_slots]
+
+        if self.version == "cn":
+            self.targets = {
+                "asi_plugin": self.gpaths.asi_plugin,
+                "ntfrmain":   self.win64 / "cnntfrmain.asi",
+                "cutils":     self.win64 / "cutils.dll",
+                "ntfrsub":    self.win64 / "cnntfrsub.dll",
+            }
+        else:
+            self.targets = {
+                "asi_plugin": self.gpaths.asi_plugin,
+                "ntfrmain":   self.win64 / "glntfrmain.asi",
+                "cutils":     self.win64 / "cutils.dll",
+            }
+
+        self.ndl_targets = {
+            f"{addon.base_name}_{fname}": self.pakbase.parent / fname
+            for addon in PAK_ADDONS
+            for fname in addon.files
+        }
 
     def inject(self):
         logger.info("Injecting into NTE...")
