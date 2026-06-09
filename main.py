@@ -1,6 +1,5 @@
-import sys
-import ctypes
-import traceback
+import sys, ctypes, traceback
+from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 from src.frontend.ui_main import AuroraUI
@@ -8,22 +7,55 @@ from src.backend.engine import AuroraEngine
 from src.path_finder import validate_path
 from src import config_manager as cfg
 from src.discord_rpc import DiscordRPC
+ARCHIVES = (
+    "\\Temp\\7z",
+    "\\Temp\\Rar$",
+    "\\Temp\\wz",
+    "\\Temp\\peazip",
+    "\\Temp\\BandZip",
+    "\\Temp\\$",
+)
+
+def check_archive_status():
+    if not getattr(sys, "frozen", False): return  # Skip development environments
+    exe_path = sys.executable.replace("/", "\\")
+    mei_path = (getattr(sys, "_MEIPASS", "") or "").replace("/", "\\")
+    in_temp = any(
+        marker.lower() in path.lower()
+        for path in (exe_path, mei_path)
+        for marker in ARCHIVES
+    )
+    exe_dir = Path(sys.executable).parent
+    probe = exe_dir / ".aurora_write_probe"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+        read_only = False
+    except OSError: read_only = True
+
+    if in_temp or read_only:
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Aurora can not launch because of the following issue:\n\n"
+            "Aurora is running inside a compressed archive file.\n\n"
+            "Please extract the archive before running.\n"
+            "This is to prevent saving errors, mod loading issues, etc.\n\n",
+            "Aurora - Prelaunch Error",
+            0x10,
+        )
+        sys.exit(1)
 
 def handle_exception(exc_type, exc_value, exc_tb):
     error = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    import ctypes
     ctypes.windll.user32.MessageBoxW(0, error, "Aurora - Fatal Error", 0x10)
     sys.exit(1)
 
 sys.excepthook = handle_exception
-
 myappid = 'datura.aurora.nte.1000'
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 def run_as_admin():
-    if ctypes.windll.shell32.IsUserAnAdmin():
-        return True
-
+    if ctypes.windll.shell32.IsUserAnAdmin(): return True
     if getattr(sys, 'frozen', False):
         exe = sys.executable
         params = " ".join(f'"{a}"' for a in sys.argv[1:])
@@ -38,9 +70,7 @@ def main():
     app = QApplication(sys.argv)
     saved_path = cfg.get(cfg.Key.GAME_PATH)
     initial_path = saved_path if (saved_path and validate_path(saved_path)) else None
-
     engine = AuroraEngine(initial_path) if initial_path else None
-    
     window = AuroraUI(engine, initial_path)
 
     if cfg.get(cfg.Key.DISCORD_RPC):
@@ -49,13 +79,10 @@ def main():
         window.rpc.start()
 
     window.show()
-    
-    # Trigger the visual drive search UI automatically if no valid path is found
-    if not initial_path:
-        QTimer.singleShot(500, window._prompt_drive_search)
+    if not initial_path: QTimer.singleShot(500, window._prompt_drive_search)
 
     sys.exit(app.exec())
 
 if __name__ == "__main__":
-    if run_as_admin():
-        main()
+    check_archive_status()
+    if run_as_admin():  main()
