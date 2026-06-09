@@ -1,8 +1,6 @@
 from functools import partial
 from typing import Dict, List, Optional
-import webbrowser
-import ctypes
-import json
+import ctypes, json, webbrowser, shutil
 from src.backend.helpers.api import NTEMod, NTEModFile
 from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
@@ -16,7 +14,6 @@ from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QPen
 from src.frontend.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
-import shutil
 
 def _custom_icons_dir() -> Path:
     d = Path(resource_path("Bin/Assets/ModImages/custom"))

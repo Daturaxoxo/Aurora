@@ -8,7 +8,7 @@ from src.utils import get_app_dir, get_mods_path, resource_path
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QLineEdit,
-    QScrollArea, QFileDialog,
+    QScrollArea, QFileDialog, QMainWindow
 )
 from PyQt6.QtCore import QTimer, Qt, QSize, pyqtSignal, QMimeData
 from PyQt6.QtGui import QCursor, QIcon, QDrag
@@ -234,7 +234,9 @@ class GameBananaInstallZone(_BaseInstallZone):
         browser.show()
     
     def install_file(self, filename: str, url: str):
-        win = InstallProgressWindow(filename, url)
+        main_win = self.window()
+        overlay_parent = main_win if isinstance(main_win, QMainWindow) else main_win
+        win = InstallProgressWindow(filename, url, overlay_parent=overlay_parent)
         win.install_finished.connect(self.files_installed.emit)
         win.show()
         win.start()
@@ -326,16 +328,13 @@ class ModGroupWidget(QFrame):
                         if not dest.exists():
                             shutil.move(widget.mod.folder_path, dest)
                             widget.mod.folder_path = dest
-                    except Exception as e:
-                        logger.error(f"Failed to restore mod path on group delete: {e}")
+                    except Exception as e: logger.error(f"Failed to restore mod path on group delete: {e}")
                 
                 parent_widget.layout().addWidget(widget)
         
         try:
-            if self.group_folder.exists():
-                shutil.rmtree(self.group_folder, ignore_errors=True)
-        except Exception as e:
-            logger.error(f"Failed to remove group folder: {e}")
+            if self.group_folder.exists(): shutil.rmtree(self.group_folder, ignore_errors=True)
+        except Exception as e: logger.error(f"Failed to remove group folder: {e}")
             
         self.deleteLater()
     
@@ -353,8 +352,7 @@ class ModGroupWidget(QFrame):
                         mod.folder_path = new_folder / mod.folder_name
                 self.group_folder.rename(new_folder)
                 self.group_folder = new_folder
-            except Exception as e:
-                logger.error(f"[_update_group] FAILED | exception={e!r}")
+            except Exception as e: logger.error(f"[_update_group] FAILED | exception={e!r}")
     
     def move_mod(self, mod: ModCard):
         try:
@@ -362,8 +360,7 @@ class ModGroupWidget(QFrame):
             if dest.exists() or mod.mod.folder_path == dest: return
             shutil.move(mod.mod.folder_path, dest)
             mod.mod.folder_path = dest
-        except Exception as e:
-            logger.error(f"Failed to move mod to group: {e}")
+        except Exception as e: logger.error(f"Failed to move mod to group: {e}")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-modcard"):

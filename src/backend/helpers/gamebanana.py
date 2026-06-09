@@ -19,7 +19,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QFrame, QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, 
-    QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+    QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget, QMainWindow
 )
 
 from src import config_manager as cfg
@@ -955,6 +955,7 @@ class _InstallWorker(QObject):
     install_started   = pyqtSignal()
     finished          = pyqtSignal(list)
     error             = pyqtSignal(str)
+    ini_warning       = pyqtSignal(str)
 
     def __init__(self, filename: str, url: str):
         super().__init__()
@@ -964,6 +965,17 @@ class _InstallWorker(QObject):
 
     def cancel(self):
         self._cancelled = True
+
+    @staticmethod
+    def _has_ini_only(folder: Path) -> bool:
+        subdirs = [p for p in folder.rglob("*") if p.is_dir()]
+        dirs_to_check = subdirs if subdirs else [folder]
+        for d in dirs_to_check:
+            files = [f for f in d.iterdir() if f.is_file()]
+            if not files: continue
+            suffixes = {f.suffix.lower() for f in files}
+            if ".ini" in suffixes and ".pak" not in suffixes: return True
+        return False
 
     def run(self):
         try:
@@ -1040,20 +1052,20 @@ class _InstallWorker(QObject):
 
                 if result.returncode == 0:
                     installed.append(path.stem)
-                    try:
-                        os.remove(path)
-                    except OSError:
-                        pass
+                    try: os.remove(path)
+                    except OSError: pass
+                    if self._has_ini_only(out_dir):
+                        self.ini_warning.emit(path.stem)
+                        shutil.rmtree(out_dir, ignore_errors=True)
+                        self.error.emit("")
+                        return
                 else:
-                    self.error.emit(
-                        f"Extraction failed for {path.name}:\n{result.stderr.strip()}"
-                    )
+                    self.error.emit(f"Extraction failed for {path.name}:\n{result.stderr.strip()}")
                     return
 
             elif path.is_dir():
                 dest = mods_dir / path.name
-                if dest.exists():
-                    shutil.rmtree(dest)
+                if dest.exists(): shutil.rmtree(dest)
                 shutil.copytree(path, dest)
                 installed.append(path.name)
 
@@ -1066,15 +1078,14 @@ class _InstallWorker(QObject):
             self.error.emit(f"Install error: {exc}")
             return
 
-        if not self._cancelled:
-            self.finished.emit(installed)
+        if not self._cancelled: self.finished.emit(installed)
 
 
 class InstallProgressWindow(QWidget):
     install_finished = pyqtSignal(list)
     cancelled        = pyqtSignal()
 
-    def __init__(self, filename: str, url: str, parent=None):
+    def __init__(self, filename: str, url: str, parent=None, overlay_parent=None):
         super().__init__(
             parent,
             Qt.WindowType.FramelessWindowHint |
@@ -1100,6 +1111,7 @@ class InstallProgressWindow(QWidget):
             geo.center().x() - _WIN_W // 2,
             geo.center().y() - _WIN_H // 2,
         )
+        self._overlay_parent = overlay_parent
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -1218,6 +1230,7 @@ class InstallProgressWindow(QWidget):
         self._worker.install_started.connect(self._on_install_started)
         self._worker.finished.connect(self._on_finished)
         self._worker.error.connect(self._on_error)
+        self._worker.ini_warning.connect(self._on_ini_warning)
 
         self._worker.finished.connect(self._thread.quit)
         self._worker.error.connect(self._thread.quit)
@@ -1253,11 +1266,32 @@ class InstallProgressWindow(QWidget):
 
     def _on_error(self, msg: str):
         self._bar.stop()
+        if not msg: return
         self._lbl_status.setText(f"Error: {msg}")
         self._lbl_detail.setText("")
         self._lbl_phase.setText("Failed")
         self._btn_cancel.setText("Close")
         logger.error(f"InstallProgressWindow error: {msg}")
+
+    def _on_ini_warning(self, folder_name: str):
+        self._bar.stop()
+        target = self._overlay_parent
+        if target:
+            popup = PopupDialog(
+                parent=target,
+                title="Incompatible Mod",
+                message=(
+                    f"\"{folder_name}\" contains only INI files and is not "
+                    "compatible with Aurora.\n\n"
+                    "Aurora only supports PAK mods. INI mods require a "
+                    "different tool and cannot be loaded by this launcher.\n\n"
+                    "The mod has been removed automatically."
+                ),
+                confirm_text="OK",
+                cancel_text="",
+            )
+            popup.raise_()
+        self.close()
 
     def _on_cancel(self):
         if self._worker:
