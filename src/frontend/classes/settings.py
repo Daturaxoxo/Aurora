@@ -45,10 +45,15 @@ class SettingRow(QFrame):
         text_col.setSpacing(3)
 
         self._lbl_title = QLabel(title)
+        self._lbl_title.setWordWrap(True)  # Fix horizontal stretching
         self._lbl_title.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
 
         self._lbl_desc = QLabel(description)
+        self._lbl_desc.setWordWrap(True)  # Fix horizontal stretching
         self._lbl_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        from PyQt6.QtWidgets import QSizePolicy
+        self._lbl_desc.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._lbl_desc.setMinimumWidth(0)
 
         text_col.addStretch()
         text_col.addWidget(self._lbl_title)
@@ -58,8 +63,7 @@ class SettingRow(QFrame):
         self.toggle = AnimatedToggle(self)
         self.toggle.setChecked(checked)
 
-        layout.addLayout(text_col)
-        layout.addStretch()
+        layout.addLayout(text_col, 1)
         layout.addWidget(self.toggle)
 
     def handle_toggle(self):
@@ -252,6 +256,7 @@ class SettingsOverlay(QFrame):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Force disable horizontal scroll shifts
         scroll.setStyleSheet("QScrollArea { background: transparent; }")
         
         page = QWidget()
@@ -341,6 +346,7 @@ class SettingsOverlay(QFrame):
         self._lbl_language.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         lang_sub = QLabel(t("language_desc"))
         self._lbl_language_desc = lang_sub
+        lang_sub.setWordWrap(True)  # Fix width limits
         lang_sub.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         lang_text.addStretch()
         lang_text.addWidget(self._lbl_language)
@@ -639,6 +645,7 @@ class SettingsOverlay(QFrame):
         self._lbl_telemetry = QLabel(t("export_tele_title"))
         self._lbl_telemetry.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_telemetry_desc = QLabel(t("export_tele_desc"))
+        self._lbl_telemetry_desc.setWordWrap(True)  # Fix width limits
         self._lbl_telemetry_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         telemetry_text.addStretch()
         telemetry_text.addWidget(self._lbl_telemetry)
@@ -720,7 +727,7 @@ class SettingsOverlay(QFrame):
 
         scale_card = QFrame()
         scale_card.setObjectName("ScaleCard")
-        scale_card.setMinimumHeight(68)
+        scale_card.setFixedHeight(68)
         scale_card.setStyleSheet("""
             #ScaleCard {
                 background-color: rgba(255, 255, 255, 4);
@@ -729,17 +736,19 @@ class SettingsOverlay(QFrame):
             }
         """)
         scale_row = QHBoxLayout(scale_card)
-        scale_row.setContentsMargins(20, 0, 20, 0)
-        scale_row.setSpacing(16)
+        scale_row.setContentsMargins(20, 0, 28, 0)
+        scale_row.setSpacing(20)
 
         scale_text = QVBoxLayout()
         scale_text.setSpacing(3)
         self._lbl_ui_scale = QLabel()
         self._lbl_ui_scale.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_ui_scale_desc = QLabel()
+        self._lbl_ui_scale_desc.setWordWrap(True)  # Fix width limits
         self._lbl_ui_scale_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
-        self._lbl_ui_scale_desc.setWordWrap(True)
-        self._lbl_ui_scale_desc.setMaximumWidth(280)
+        from PyQt6.QtWidgets import QSizePolicy as _QSP
+        self._lbl_ui_scale_desc.setSizePolicy(_QSP.Policy.Expanding, _QSP.Policy.Preferred)
+        self._lbl_ui_scale_desc.setMinimumWidth(0)
         scale_text.addStretch()
         scale_text.addWidget(self._lbl_ui_scale)
         scale_text.addWidget(self._lbl_ui_scale_desc)
@@ -750,7 +759,7 @@ class SettingsOverlay(QFrame):
         self._scale_slider.sliderReleased.connect(self._on_scale_committed)
 
         self._scale_value_lbl = QLabel(f"{initial_val}%")
-        self._scale_value_lbl.setFixedWidth(36)
+        self._scale_value_lbl.setFixedWidth(42)
         self._scale_value_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._scale_value_lbl.setStyleSheet("color: #C8A8FF; font-size: 12px; font-weight: 500; background: transparent; border: none;")
 
@@ -762,8 +771,7 @@ class SettingsOverlay(QFrame):
         layout.addSpacing(6)
         layout.addWidget(self._row_hide_dots)
         layout.addSpacing(6)
-        scale_row.addLayout(scale_text)
-        scale_row.addStretch()
+        scale_row.addLayout(scale_text, 1)
         scale_row.addWidget(self._scale_value_lbl)
         scale_row.addWidget(self._scale_slider)
         layout.addWidget(scale_card)
@@ -791,6 +799,7 @@ class SettingsOverlay(QFrame):
         self._lbl_bypass = QLabel(t("engine_method_title"))
         self._lbl_bypass.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_bypass_desc = QLabel(t("engine_method_desc"))
+        self._lbl_bypass_desc.setWordWrap(True)  # Fix width limits
         self._lbl_bypass_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         text_col.addStretch()
         text_col.addWidget(self._lbl_bypass)

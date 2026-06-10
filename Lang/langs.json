@@ -1005,7 +1005,7 @@
         "gamebanana_tooltip": "Страница на GameBanana",
         "faq_tooltip": "Часто задаваемые вопросы",
         "ui_scaling": "UI Scaling",
-        "ui_scaling_desc": "Изменяет масштаб внутриигрового интерфейса (требуется перезапуск игры). (Автор: Tayuya)",
+        "ui_scaling_desc": "Масштаб интерфейса (требуется перезапуск). Автор: Tayuya",
         "hide_uid_title": "Hide UID",
         "hide_uid_desc": "Скрывает ваш ID пользователя в игре. (Автор: Rokkudayo)",
         "hide_dots_title": "Hide Red Dots",
