@@ -12,8 +12,7 @@ if not os.path.exists(VERSION_FILE):
     print(f"FATAL: Version file not found at {VERSION_FILE}. Make sure it exists before building.")
     raise SystemExit(1)
 
-with open(VERSION_FILE, "r", encoding="utf-8") as f:
-    VERSION = f.read().strip()
+with open(VERSION_FILE, "r", encoding="utf-8") as f: VERSION = f.read().strip()
 ICON_PATH = "Bin/Assets/logo.ico"
 MAIN_SCRIPT = "main.py"
 DIST_DIR = f"./dist/{APP_NAME}_v{VERSION}"
@@ -21,8 +20,6 @@ SEP = ";" if os.name == "nt" else ":" # Should work both on Linux and Windows
 
 def run_build():
     print(f"--- Starting Production Build for {DISPLAY_NAME} v{VERSION} ---")
-
-    # 1. Clear old build artifacts
     for folder in ("./dist", "./build"):
         if os.path.exists(folder):
             shutil.rmtree(folder)
@@ -48,8 +45,7 @@ def run_build():
     ]
 
     print("Compiling executable...")
-    try:
-        subprocess.run(build_cmd, check=True)
+    try: subprocess.run(build_cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"\nFATAL: PyInstaller failed with exit code {e.returncode}.")
         print("Check the output above for the real error before proceeding.")
@@ -68,12 +64,7 @@ def run_build():
     shutil.move(src_exe, dst_exe)
 
     if os.path.exists("./Bin"):
-        shutil.copytree(
-            "./Bin",
-            os.path.join(DIST_DIR, "Bin"),
-            dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns("Assets")
-        )
+        shutil.copytree("./Bin", os.path.join(DIST_DIR, "Bin"), dirs_exist_ok=True, ignore=shutil.ignore_patterns("Assets"))
 
     zip_name = f"{APP_NAME}_v{VERSION}.zip"
     print(f"Creating archive: {zip_name}")
@@ -89,5 +80,4 @@ def run_build():
     print(f"\n✓ Build complete: {zip_name}")
     print(f"  EXE: {dst_exe}")
 
-if __name__ == "__main__":
-    run_build()
+if __name__ == "__main__": run_build()
