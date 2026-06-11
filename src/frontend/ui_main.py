@@ -31,13 +31,15 @@ from src.frontend.classes.mod_manager import ModManagerOverlay
 from src.frontend.classes.faq import FaqOverlay
 from src.frontend.classes.update_overlay import UpdateOverlay
 from src.backend.updater import UpdateChecker
+from src.backend.helpers.validation import BinReinstallThread
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
     game_started = pyqtSignal()  # emitted the moment HTGame.exe is detected
     access_denied = pyqtSignal() # emitted when AV/UAC blocks a file operation (or if the user somehow ran it without Administrator priviledges)
     launcher_detected = pyqtSignal()
-    junk_files_found = pyqtSignal(list)
+    incompatible_mods_found = pyqtSignal(list)
+    addon_warnings = pyqtSignal(list)
 
     def __init__(self, engine):
         super().__init__()
@@ -45,15 +47,18 @@ class GameMonitorThread(QThread):
 
     def run(self):
         try:
+            
             result = self.engine.inject() if self.engine else False
+            issues = self.engine.validate_mods()
+            warnings = getattr(self.engine, '_last_addon_warnings', [])
+            if issues: self.incompatible_mods_found.emit(issues)
+            if warnings: self.addon_warnings.emit(warnings)
+            
             if result == "access_denied":
                 self.access_denied.emit()
                 return
             if result:
                 launcher_path = self.engine.path / self.engine.gpaths.launcher_process
-                junk = getattr(self.engine, 'junk_files_found', [])
-                if junk:
-                    self.junk_files_found.emit(junk)
                 logger.info("Launcher started, waiting for manual game start. (HTGame.exe)", extra={"el": True})
                 subprocess.Popen([str(launcher_path)], cwd=str(self.engine.path))
                 self.engine.on_launcher_detected = lambda: self.launcher_detected.emit()
@@ -66,7 +71,6 @@ class GameMonitorThread(QThread):
         except Exception as e:
             logger.error(f"Launch failed with unexpected error: {e}", exc_info=True)
             self.access_denied.emit()
-
 
 # DRIVE SEARCH THREAD
 class DriveSearchThread(QThread):
@@ -437,7 +441,8 @@ class AuroraUI(QMainWindow):
         self.monitor_thread.finished.connect(lambda: setattr(self, 'monitor_thread', None))
         self.monitor_thread.finished.connect(self._on_session_ended)
         self.monitor_thread.game_started.connect(self._show_game_overlay)
-        self.monitor_thread.junk_files_found.connect(self._show_junk_files_popup)
+        self.monitor_thread.incompatible_mods_found.connect(self._show_incomp_mods_popup)
+        self.monitor_thread.addon_warnings.connect(self._show_addon_warnings_popup)
         self.monitor_thread.launcher_detected.connect(self._send_to_tray)
         self.monitor_thread.access_denied.connect(self._show_access_denied_popup)
         self.monitor_thread.start()
@@ -465,21 +470,76 @@ class AuroraUI(QMainWindow):
             on_confirm=None,
         )
 
-    def _show_junk_files_popup(self, filenames):
-        file_list = "\n".join(f"  • {f}" for f in filenames)
+    def _show_incomp_mods_popup(self, issues: list):
+        lines = "\n".join(f"  •  {i['name']}  –  {i['reason']}" for i in issues)
+        missing_builtins = self.engine.validate_builtins() if self.engine else []
+        show_fix = bool(missing_builtins)
+        logger.warning(f"Incompatible mods detected: {[i['name'] for i in issues]}", extra={"el": True})
+        if missing_builtins: logger.warning(f"Missing Bin files: {missing_builtins}", extra={"el": True})
+
         PopupDialog(
             parent=self.central_widget,
-            title="Unsupported Files Detected",
+            title="Incompatible Mods Detected",
             message=(
-                "The following files in your Mods folder are not valid PAK mods "
-                "and were skipped:\n\n"
-                f"{file_list}\n\n"
-                "Make sure mods are properly extracted before installing."
+                "The following mods cannot be used with Aurora and will be skipped:\n\n"
+                f"{lines}\n\n"
+                + (
+                    f"\n\nAurora also detected missing files in your Bin folder"
+                    f"({', '.join(missing_builtins)}).\n"
+                    "Click 'Fix Bin' to re-download and reinstall."
+                    if missing_builtins else ""
+                )
             ),
             confirm_text="OK",
-            cancel_text="",
+            cancel_text="Fix Bin" if show_fix else "",
             on_confirm=None,
+            on_cancel=self._start_bin_reinstall if show_fix else None,
         )
+        
+    def _show_addon_warnings_popup(self, warnings: list[str]):
+        lines = "\n".join(f"  •  {w}" for w in warnings)
+        PopupDialog(
+            parent=self.central_widget,
+            title="Addons Warning",
+            message=(
+                "The following addons were skipped because they"
+                "are either missing or corrupted in your Bin\Builtins folder:\n\n"
+                f"{lines}\n\n"
+                "These addons have been skipped. You can fix this by reinstalling "
+                "Aurora or clicking 'Fix Bin' below.\n\n"
+                "This doesn't affect you in-game. You just won't be able to use them."
+            ),
+            confirm_text="OK",
+            cancel_text="Fix Bin",
+            on_confirm=None,
+            on_cancel=self._start_bin_reinstall,
+        )
+    
+    def _start_bin_reinstall(self):
+        logger.info("User clicked 'Fix Bin', attempting to reinstall the Bins folder.")
+        self._bin_reinstall_thread = BinReinstallThread(self.engine.bin)
+        self._bin_reinstall_thread.log.connect(lambda msg: logger.info(f"{msg}", extra={"el": True}))
+        self._bin_reinstall_thread.finished.connect(self._on_bin_reinstall_finished)
+        self._bin_reinstall_thread.start()
+        ToastNotification(self.central_widget, "Downloading and reinstalling Bin files", False)
+        
+    def _on_bin_reinstall_finished(self, success: bool, error: str):
+        if success:
+            logger.info("Bin reinstall completed successfully.")
+            ToastNotification(self.central_widget, "Bin files reinstalled successfully.", False)
+        else:
+            logger.error(f"Bin reinstall failed: {error}")
+            PopupDialog(
+                parent=self.central_widget,
+                title="Reinstall Failed",
+                message=(
+                    "Aurora could not reinstall the Bin files.\n\n"
+                    f"Reason: {error}"
+                ),
+                confirm_text="OK",
+                cancel_text="",
+                on_confirm=None,
+            )
 
     def _show_game_overlay(self):
         if hasattr(self, '_poll_timer') and self._poll_timer.isActive():

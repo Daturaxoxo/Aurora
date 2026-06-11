@@ -5,7 +5,7 @@ from src.logger import logger, InitFatalError, file_monitor
 from src.utils import get_app_dir, _ensure_dir
 from src.backend.helpers.paths import LAUNCHER_MAP, NTE_PROCESS, CLIENT_PAK_DIR, detect_version, get_version_paths
 from src import config_manager as cfg
-from src.backend.helpers.addons import PAK_ADDONS, JUNK_EXTENSIONS
+from src.backend.helpers.addons import PAK_ADDONS
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Constants & Dataclasses
@@ -16,8 +16,8 @@ class AuroraEngine:
         self.path, self.crr, self.ndl, self.engine_method = Path(path), cfg.get(cfg.Key.CENSORSHIP_REMOVE), cfg.get(cfg.Key.NO_DRIVE_LINE), cfg.get(cfg.Key.ENGINE_METHOD);
         app_dir = Path(get_app_dir())
         self.bin = app_dir / "Bin"
-        if not self.bin:
-            InitFatalError(f"Aurora expects the following folder, but it doesn't exist in the app directory.\nApp Directory: {app_dir}\nExpected folder: {self.bin}");
+        self._last_addon_warnings: list[str] = []
+        if not self.bin: InitFatalError(f"Aurora expects the following folder, but it doesn't exist in the app directory.\nApp Directory: {app_dir}\nExpected folder: {self.bin}");
         
         # Variables, Constants, etc
         self.version = detect_version(self.path);
@@ -83,6 +83,19 @@ class AuroraEngine:
                     except (PermissionError, OSError):
                         logger.warning(f"{key} is still locked, Aurora Engine is waiting...", extra={'el': True})
                         time.sleep(1)
+                        
+    def validate_mods(self) -> list[dict]:
+        from src.backend.helpers.validation import validate_mods
+        return validate_mods(self.mod_folder)
+    
+    def validate_builtins(self) -> list[str]:
+        from src.backend.helpers.validation import validate_builtins
+        required = [
+            *self.main_dlls,
+            "ausigbp.asi",
+            *([dst.name for key, dst in self.targets.items() if key != "asi_plugin"] if self.crr else []),
+        ]
+        return validate_builtins(self.bin, required)
 
     def sanitize(self, spps: bool):
         logger.info("Starting system sanitation...", extra={"el": True})
@@ -101,10 +114,8 @@ class AuroraEngine:
                     os.chmod(path, 0o777)
                     path.unlink()
                 elif path.is_dir() or os.path.islink(path):
-                    if self.remove(path):
-                        logger.info(f"Removed: {key} ({path})", extra={'el': True})
-                    else:
-                        subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
+                    if self.remove(path): logger.info(f"Removed: {key} ({path})", extra={'el': True})
+                    else: subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
             except Exception:
                 try:
                     subprocess.run(f'del /F /Q "{path}"', shell=True, capture_output=True)
@@ -121,6 +132,7 @@ class AuroraEngine:
         self.mod_folder  = self.path / CLIENT_PAK_DIR
         self.pakdir      = self.pakbase.parent
         self.main_dlls   = [slot.name for slot in self.gpaths.dll_slots]
+        self._last_addon_warnings: list[str] = []
 
         if self.version == "cn":
             self.targets = {
@@ -148,17 +160,11 @@ class AuroraEngine:
         logger.info(f"Bin path:   {self.bin}", extra={'el': True})
         logger.info(f"Mods path:  {self.mod_folder}", extra={'el': True})
 
-        junk_files = []
-        if self.mod_folder.exists():
-            for file in self.mod_folder.iterdir():
-                if file.is_file() and file.suffix.lower() in JUNK_EXTENSIONS:
-                    logger.warning(f"Skipping unsupported file in Mods folder: {file.name}")
-                    junk_files.append(file.name)
-
         req_bin = [
             *[self.bin / dll for dll in self.main_dlls],
             self.bin / "ausigbp.asi",
         ]
+        addon_warnings = []
 
         if self.crr:
             req_bin += [self.bin / dst.name for key, dst in self.targets.items() if key != "asi_plugin"]
@@ -224,7 +230,11 @@ class AuroraEngine:
             for addon in PAK_ADDONS:
                 if not cfg.get(addon.config_key): continue
                 missing = [f for f in addon.files if not (self.bin / "Builtins" / f).exists()]
-                if missing: logger.error(f"PAK Addon '{addon.base_name}': missing source file(s) in Bin/Builtins: {missing}. Skipping."); continue
+                if missing:
+                    msg = f"PAK Addon '{addon.base_name}': missing Bin/Builtins file(s): {missing}"
+                    logger.error(f"{msg} [ACTION:SKIP]"); 
+                    addon_warnings.append(msg); 
+                    continue
                 try:
                     for fname in addon.files: shutil.copy(self.bin / "Builtins" / fname, self.pakdir / fname)
                     logger.info(f"PAK Addon '{addon.base_name}': copied successfully.", extra={'el': True})
@@ -234,10 +244,8 @@ class AuroraEngine:
                         self.sanitize(spps=False)
                         return "access_denied"
                     raise
-            
-            self.junk_found = junk_files
-            if file_monitor:
-                file_monitor.start_injection_watch(self.gpaths, self.targets["asi_plugin"])
+            if file_monitor: file_monitor.start_injection_watch(self.gpaths, self.targets["asi_plugin"])
+            self._last_addon_warnings = addon_warnings
             return True
         except Exception as e:
             logger.critical("FATAL: Injection failed!", exc_info=True)
