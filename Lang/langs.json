@@ -116,7 +116,18 @@
         "engine_method_desc": "Choose what method the engine uses for loading mods.",
         "engine_method_opt_1": "Default",
         "engine_method_opt_2": "Alternate",
-        "engine_method_opt_3": "Alternate [CN]"
+        "engine_method_opt_3": "Alternate [CN]",
+        "incomp_mods_title": "Incompatible Mods Detected",
+        "incomp_mods_message": "The following mods cannot be used with Aurora and will be skipped:",
+        "addons_issue_title": "Addons Warning",
+        "addons_issue_msg_a": "The following addons were skipped because they are missing from the Builtins folder:",
+        "addons_issue_msg_b": "These addons have been skipped. You can fix this by reinstalling Aurora or clicking \"Fix\" below.",
+        "addons_issue_msg_c": "This doesn't affect you in-game. You just won't be able to use them.",
+        "addons_issue_button": "Fix",
+        "addons_reinstall_title": "Bin files reinstalled successfully.",
+        "addons_reinstall_fail_title": "Reinstall Failed",
+        "addons_reinstall_fail_msg_a": "Aurora could not reinstall the Bin files.",
+        "addons_reinstall_fail_msg_b": "Reason:"
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -235,7 +246,18 @@
         "engine_method_desc": "选择引擎加载模组的方法。",
         "engine_method_opt_1": "默认",
         "engine_method_opt_2": "备用",
-        "engine_method_opt_3": "备用 [CN]"
+        "engine_method_opt_3": "备用 [CN]",
+        "incomp_mods_title": "检测到不兼容的模组",
+        "incomp_mods_message": "以下模组无法与 Aurora 一起使用，将被跳过：",
+        "addons_issue_title": "插件警告",
+        "addons_issue_msg_a": "由于 Builtins 文件夹中缺失，以下插件已被跳过：",
+        "addons_issue_msg_b": "这些插件已被跳过。您可以通过重新安装 Aurora 或点击下方的“修复”来解决此问题。",
+        "addons_issue_msg_c": "这不会影响您的游戏内体验。您只是无法使用它们。",
+        "addons_issue_button": "修复",
+        "addons_reinstall_title": "Bin 文件重新安装成功。",
+        "addons_reinstall_fail_title": "重新安装失败",
+        "addons_reinstall_fail_msg_a": "Aurora 无法重新安装 Bin 文件。",
+        "addons_reinstall_fail_msg_b": "原因："
     },
     "de": {
         "settings": "Einstellungen",
@@ -353,7 +375,18 @@
         "engine_method_desc": "Wähle, welche Methode die Engine zum Laden von Mods verwendet.",
         "engine_method_opt_1": "Standard",
         "engine_method_opt_2": "Alternativ",
-        "engine_method_opt_3": "Alternativ [CN]"
+        "engine_method_opt_3": "Alternativ [CN]",
+        "incomp_mods_title": "Inkompatible Mods erkannt",
+        "incomp_mods_message": "Die folgenden Mods können nicht mit Aurora verwendet werden und werden übersprungen:",
+        "addons_issue_title": "Erweiterungswarnung",
+        "addons_issue_msg_a": "Die folgenden Erweiterungen wurden übersprungen, da sie im Builtins-Ordner fehlen:",
+        "addons_issue_msg_b": "Diese Erweiterungen wurden übersprungen. Sie können dies beheben, indem Sie Aurora neu installieren oder unten auf „Reparieren“ klicken.",
+        "addons_issue_msg_c": "Dies hat keine Auswirkungen auf Ihr Spiel. Sie können sie nur nicht verwenden.",
+        "addons_issue_button": "Reparieren",
+        "addons_reinstall_title": "Bin-Dateien erfolgreich neu installiert.",
+        "addons_reinstall_fail_title": "Neuinstallation fehlgeschlagen",
+        "addons_reinstall_fail_msg_a": "Aurora konnte die Bin-Dateien nicht neu installieren.",
+        "addons_reinstall_fail_msg_b": "Grund:"
     },
     "es": {
         "settings": "Opciones",
@@ -471,7 +504,18 @@
         "engine_method_desc": "Elige el método que usa el motor para cargar mods.",
         "engine_method_opt_1": "Por defecto",
         "engine_method_opt_2": "Alternativo",
-        "engine_method_opt_3": "Alternativo [CN]"
+        "engine_method_opt_3": "Alternativo [CN]",
+        "incomp_mods_title": "Mods incompatibles detectados",
+        "incomp_mods_message": "Los siguientes mods no se pueden usar con Aurora y se omitirán:",
+        "addons_issue_title": "Advertencia de extensiones",
+        "addons_issue_msg_a": "Se omitieron las siguientes extensiones porque faltan en la carpeta Builtins:",
+        "addons_issue_msg_b": "Se han omitido estas extensiones. Puedes solucionar esto reinstalando Aurora o haciendo clic en \"Reparar\" a continuación.",
+        "addons_issue_msg_c": "Esto no te afecta en el juego. Simplemente no podrás usarlas.",
+        "addons_issue_button": "Reparar",
+        "addons_reinstall_title": "Archivos Bin reinstalados correctamente.",
+        "addons_reinstall_fail_title": "Reinstalación fallida",
+        "addons_reinstall_fail_msg_a": "Aurora no pudo reinstalar los archivos Bin.",
+        "addons_reinstall_fail_msg_b": "Razón:"
     },
     "id": {
         "settings": "Pengaturan",
@@ -589,7 +633,18 @@
         "engine_method_desc": "Pilih metode yang digunakan engine untuk memuat mod.",
         "engine_method_opt_1": "Default",
         "engine_method_opt_2": "Alternatif",
-        "engine_method_opt_3": "Alternatif [CN]"
+        "engine_method_opt_3": "Alternatif [CN]",
+        "incomp_mods_title": "Mod Tidak Kompatibel Terdeteksi",
+        "incomp_mods_message": "Mod berikut tidak dapat digunakan dengan Aurora dan akan dilewati:",
+        "addons_issue_title": "Peringatan Fitur Tambahan",
+        "addons_issue_msg_a": "Fitur tambahan berikut dilewati karena hilang dari folder Builtins:",
+        "addons_issue_msg_b": "Fitur tambahan ini telah dilewati. Anda dapat memperbaikinya dengan menginstal ulang Aurora atau mengklik \"Perbaiki\" di bawah.",
+        "addons_issue_msg_c": "Ini tidak memengaruhi Anda di dalam game. Anda hanya tidak akan bisa menggunakannya.",
+        "addons_issue_button": "Perbaiki",
+        "addons_reinstall_title": "File bin berhasil diinstal ulang.",
+        "addons_reinstall_fail_title": "Instal Ulang Gagal",
+        "addons_reinstall_fail_msg_a": "Aurora tidak dapat menginstal ulang file Bin.",
+        "addons_reinstall_fail_msg_b": "Alasan:"
     },
     "it": {
         "settings": "Impostazioni",
@@ -707,7 +762,18 @@
         "engine_method_desc": "Scegli quale metodo usa il motore per caricare le mod.",
         "engine_method_opt_1": "Predefinito",
         "engine_method_opt_2": "Alternativo",
-        "engine_method_opt_3": "Alternativo [CN]"
+        "engine_method_opt_3": "Alternativo [CN]",
+        "incomp_mods_title": "Rilevate Mod Incompatibili",
+        "incomp_mods_message": "Le seguenti mod non possono essere utilizzate con Aurora e saranno saltate:",
+        "addons_issue_title": "Avviso Addon",
+        "addons_issue_msg_a": "I seguenti addon sono stati saltati perché mancanti nella cartella Builtins:",
+        "addons_issue_msg_b": "Questi addon sono stati saltati. Puoi risolvere il problema reinstallando Aurora o cliccando su \"Correggi\" qui sotto.",
+        "addons_issue_msg_c": "Questo non ha impatto sul gioco. Semplicemente non sarai in grado di usarli.",
+        "addons_issue_button": "Correggi",
+        "addons_reinstall_title": "File Bin reinstallati con successo.",
+        "addons_reinstall_fail_title": "Reinstallazione Fallita",
+        "addons_reinstall_fail_msg_a": "Aurora non è riuscita a reinstallare i file Bin.",
+        "addons_reinstall_fail_msg_b": "Motivo:"
     },
     "jp": {
         "_status": "The Japanese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -826,7 +892,18 @@
         "engine_method_desc": "エンジンがMODをロードする方法を選択します。",
         "engine_method_opt_1": "デフォルト",
         "engine_method_opt_2": "代替",
-        "engine_method_opt_3": "代替 [CN]"
+        "engine_method_opt_3": "代替 [CN]",
+        "incomp_mods_title": "互換性のないMODを検出",
+        "incomp_mods_message": "以下のMODはAuroraで使用できないため、スキップされます：",
+        "addons_issue_title": "アドオンの警告",
+        "addons_issue_msg_a": "Builtinsフォルダに見つからないため、以下のアドオンはスキップされました：",
+        "addons_issue_msg_b": "これらのアドオンはスキップされました。Auroraを再インストールするか、下の「修復」をクリックすることで修正できます。",
+        "addons_issue_msg_c": "これはゲーム内には影響しません。ただ、それらを使用できなくなるだけです。",
+        "addons_issue_button": "修復",
+        "addons_reinstall_title": "Binファイルの再インストールに成功しました。",
+        "addons_reinstall_fail_title": "再インストール失敗",
+        "addons_reinstall_fail_msg_a": "AuroraはBinファイルを再インストールできませんでした。",
+        "addons_reinstall_fail_msg_b": "理由:"
     },
     "pt-br": {
         "settings": "Configurações",
@@ -944,7 +1021,18 @@
         "engine_method_desc": "Escolha o método que o motor usa para carregar mods.",
         "engine_method_opt_1": "Padrão",
         "engine_method_opt_2": "Alternativo",
-        "engine_method_opt_3": "Alternativo [CN]"
+        "engine_method_opt_3": "Alternativo [CN]",
+        "incomp_mods_title": "Mods Incompatíveis Detectados",
+        "incomp_mods_message": "Os seguintes mods não podem ser usados com o Aurora e serão ignorados:",
+        "addons_issue_title": "Aviso de Complementos",
+        "addons_issue_msg_a": "Os seguintes complementos foram ignorados porque estão ausentes na pasta Builtins:",
+        "addons_issue_msg_b": "Estes complementos foram ignorados. Você pode corrigir isso reinstalando o Aurora ou clicando em \"Corrigir\" abaixo.",
+        "addons_issue_msg_c": "Isso não afeta você no jogo. Você apenas não poderá usá-los.",
+        "addons_issue_button": "Corrigir",
+        "addons_reinstall_title": "Arquivos Bin reinstalados com sucesso.",
+        "addons_reinstall_fail_title": "Falha na Reinstalação",
+        "addons_reinstall_fail_msg_a": "O Aurora não pôde reinstalar os arquivos Bin.",
+        "addons_reinstall_fail_msg_b": "Motivo:"
     },
     "ru": {
         "settings": "Настройки",
@@ -1062,7 +1150,18 @@
         "engine_method_desc": "Выберите метод, который движок использует для загрузки модов.",
         "engine_method_opt_1": "По умолчанию",
         "engine_method_opt_2": "Альтернативный",
-        "engine_method_opt_3": "Альтернативный [CN]"
+        "engine_method_opt_3": "Альтернативный [CN]",
+        "incomp_mods_title": "Обнаружены несовместимые моды",
+        "incomp_mods_message": "Следующие моды не могут быть использованы с Aurora и будут пропущены:",
+        "addons_issue_title": "Предупреждение об аддонах",
+        "addons_issue_msg_a": "Следующие аддоны были пропущены, так как они отсутствуют в папке Builtins:",
+        "addons_issue_msg_b": "Эти аддоны были пропущены. Вы можете исправить это, переустановив Aurora или нажав «Исправить» ниже.",
+        "addons_issue_msg_c": "Это не повлияет на игровой процесс. Вы просто не сможете их использовать.",
+        "addons_issue_button": "Исправить",
+        "addons_reinstall_title": "Файлы Bin успешно переустановлены.",
+        "addons_reinstall_fail_title": "Ошибка переустановки",
+        "addons_reinstall_fail_msg_a": "Aurora не удалось переустановить файлы Bin.",
+        "addons_reinstall_fail_msg_b": "Причина:"
     },
     "tr": {
         "settings": "Ayarlar",
@@ -1180,7 +1279,18 @@
         "engine_method_desc": "Aurora motorunun modları yüklemek için hangi yöntemi kullanacağını seçin.",
         "engine_method_opt_1": "Varsayılan",
         "engine_method_opt_2": "Alternatif",
-        "engine_method_opt_3": "Alternatif [CN]"
+        "engine_method_opt_3": "Alternatif [CN]",
+        "incomp_mods_title": "Uyumsuz Modlar Tespit Edildi",
+        "incomp_mods_message": "Aşağıdaki modlar Aurora ile kullanılamaz ve atlanacaktır:",
+        "addons_issue_title": "Eklenti Uyarısı",
+        "addons_issue_msg_a": "Aşağıdaki eklentiler Builtins klasöründe eksik olduğu için atlandı:",
+        "addons_issue_msg_b": "Bu eklentiler atlandı. Bunu Aurora'yı yeniden yükleyerek veya aşağıdaki \"Düzelt\" butonuna tıklayarak düzeltebilirsiniz.",
+        "addons_issue_msg_c": "Bu durum oyun içi deneyiminizi etkilemez. Sadece onları kullanamazsınız.",
+        "addons_issue_button": "Düzelt",
+        "addons_reinstall_title": "Bin dosyaları başarıyla yeniden yüklendi.",
+        "addons_reinstall_fail_title": "Yeniden Yükleme Başarısız",
+        "addons_reinstall_fail_msg_a": "Aurora, Bin dosyalarını yeniden yükleyemedi.",
+        "addons_reinstall_fail_msg_b": "Sebep:"
     },
     "vi": {
         "settings": "Cài đặt",
@@ -1298,7 +1408,18 @@
         "engine_method_desc": "Chọn phương thức engine sử dụng để tải mod.",
         "engine_method_opt_1": "Mặc định",
         "engine_method_opt_2": "Thay thế",
-        "engine_method_opt_3": "Thay thế [CN]"
+        "engine_method_opt_3": "Thay thế [CN]",
+        "incomp_mods_title": "Phát hiện bản mod không tương thích",
+        "incomp_mods_message": "Các bản mod sau đây không thể sử dụng với Aurora và sẽ bị bỏ qua:",
+        "addons_issue_title": "Cảnh báo Tiện ích mở rộng",
+        "addons_issue_msg_a": "Các tiện ích mở rộng sau đây đã bị bỏ qua vì chúng bị thiếu trong thư mục Builtins:",
+        "addons_issue_msg_b": "Các tiện ích mở rộng này đã bị bỏ qua. Bạn có thể khắc phục điều này bằng cách cài đặt lại Aurora hoặc nhấp vào \"Sửa\" bên dưới.",
+        "addons_issue_msg_c": "Điều này không ảnh hưởng đến bạn trong trò chơi. Bạn chỉ không thể sử dụng chúng.",
+        "addons_issue_button": "Sửa",
+        "addons_reinstall_title": "Các tệp Bin đã được cài đặt lại thành công.",
+        "addons_reinstall_fail_title": "Cài đặt lại thất bại",
+        "addons_reinstall_fail_msg_a": "Aurora không thể cài đặt lại các tệp Bin.",
+        "addons_reinstall_fail_msg_b": "Lý do:"
     },
     "nl": {
         "settings": "Instelling",
@@ -1390,7 +1511,18 @@
         "engine_method_desc": "Kies welke methode de engine gebruikt voor het laden van mods.",
         "engine_method_opt_1": "Standaard",
         "engine_method_opt_2": "Alternatief",
-        "engine_method_opt_3": "Alternatief [CN]"
+        "engine_method_opt_3": "Alternatief [CN]",
+        "incomp_mods_title": "Incompatibele Mods Gedetecteerd",
+        "incomp_mods_message": "De volgende mods kunnen niet met Aurora worden gebruikt en worden overgeslagen:",
+        "addons_issue_title": "Addons Waarschuwing",
+        "addons_issue_msg_a": "De volgende addons zijn overgeslagen omdat ze ontbreken in de Builtins-map:",
+        "addons_issue_msg_b": "Deze addons zijn overgeslagen. Je kunt dit oplossen door Aurora opnieuw te installeren of hieronder op \"Repareren\" te klikken.",
+        "addons_issue_msg_c": "Dit heeft geen invloed op je in-game. Je kunt ze alleen niet gebruiken.",
+        "addons_issue_button": "Repareren",
+        "addons_reinstall_title": "Bin-bestanden succesvol opnieuw geïnstalleerd.",
+        "addons_reinstall_fail_title": "Opnieuw Installeren Mislukt",
+        "addons_reinstall_fail_msg_a": "Aurora kon de Bin-bestanden niet opnieuw installeren.",
+        "addons_reinstall_fail_msg_b": "Reden:"
     },
     "fr": {
         "settings": "Paramètres",
@@ -1508,6 +1640,17 @@
         "engine_method_desc": "Choisissez la méthode utilisée par le moteur pour charger les mods.",
         "engine_method_opt_1": "Par défaut",
         "engine_method_opt_2": "Alternatif",
-        "engine_method_opt_3": "Alternatif [CN]"
+        "engine_method_opt_3": "Alternatif [CN]",
+        "incomp_mods_title": "Mods incompatibles détectés",
+        "incomp_mods_message": "Les mods suivants ne peuvent pas être utilisés avec Aurora et seront ignorés :",
+        "addons_issue_title": "Avertissement sur les extensions",
+        "addons_issue_msg_a": "Les extensions suivantes ont été ignorées car elles sont manquantes dans le dossier Builtins :",
+        "addons_issue_msg_b": "Ces extensions ont été ignorées. Vous pouvez corriger cela en réinstallant Aurora ou en cliquant sur \"Corriger\" ci-dessous.",
+        "addons_issue_msg_c": "Cela ne vous affecte pas en jeu. Vous ne pourrez tout simplement pas les utiliser.",
+        "addons_issue_button": "Corriger",
+        "addons_reinstall_title": "Fichiers Bin réinstallés avec succès.",
+        "addons_reinstall_fail_title": "Échec de la réinstallation",
+        "addons_reinstall_fail_msg_a": "Aurora n'a pas pu réinstaller les fichiers Bin.",
+        "addons_reinstall_fail_msg_b": "Raison:"
     }
 }

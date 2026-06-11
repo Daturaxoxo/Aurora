@@ -476,47 +476,43 @@ class AuroraUI(QMainWindow):
         show_fix = bool(missing_builtins)
         logger.warning(f"Incompatible mods detected: {[i['name'] for i in issues]}", extra={"el": True})
         if missing_builtins: logger.warning(f"Missing Bin files: {missing_builtins}", extra={"el": True})
+        TMP_msg = t("incomp_mods_message")
 
         PopupDialog(
             parent=self.central_widget,
-            title="Incompatible Mods Detected",
+            title=t("incomp_mods_title"),
             message=(
-                "The following mods cannot be used with Aurora and will be skipped:\n\n"
+                TMP_msg + "\n\n"
                 f"{lines}\n\n"
-                + (
-                    f"\n\nAurora also detected missing files in your Bin folder"
-                    f"({', '.join(missing_builtins)}).\n"
-                    "Click 'Fix Bin' to re-download and reinstall."
-                    if missing_builtins else ""
-                )
             ),
-            confirm_text="OK",
-            cancel_text="Fix Bin" if show_fix else "",
+            confirm_text=t("updater_close"),
+            cancel_text="",
             on_confirm=None,
-            on_cancel=self._start_bin_reinstall if show_fix else None,
+            on_cancel=None
         )
         
     def _show_addon_warnings_popup(self, warnings: list[str]):
         lines = "\n".join(f"  •  {w}" for w in warnings)
+        TMP_msg_a = t("addons_issue_msg_a")
+        TMP_msg_b = t("addons_issue_msg_b")
+        TMP_msg_c = t("addons_issue_msg_c")
         PopupDialog(
             parent=self.central_widget,
-            title="Addons Warning",
+            title=t("addons_issue_title"),
             message=(
-                "The following addons were skipped because they"
-                "are either missing or corrupted in your Bin\Builtins folder:\n\n"
+                f"{TMP_msg_a}\n\n"
                 f"{lines}\n\n"
-                "These addons have been skipped. You can fix this by reinstalling "
-                "Aurora or clicking 'Fix Bin' below.\n\n"
-                "This doesn't affect you in-game. You just won't be able to use them."
+                f"{TMP_msg_b}\n\n"
+                f"{TMP_msg_c}\n\n"
             ),
-            confirm_text="OK",
-            cancel_text="Fix Bin",
+            confirm_text=t("updater_close"),
+            cancel_text=t("addons_issue_button"),
             on_confirm=None,
             on_cancel=self._start_bin_reinstall,
         )
     
     def _start_bin_reinstall(self):
-        logger.info("User clicked 'Fix Bin', attempting to reinstall the Bins folder.")
+        logger.info("User clicked 'Fix', attempting to reinstall the Bins folder.")
         self._bin_reinstall_thread = BinReinstallThread(self.engine.bin)
         self._bin_reinstall_thread.log.connect(lambda msg: logger.info(f"{msg}", extra={"el": True}))
         self._bin_reinstall_thread.finished.connect(self._on_bin_reinstall_finished)
@@ -526,17 +522,19 @@ class AuroraUI(QMainWindow):
     def _on_bin_reinstall_finished(self, success: bool, error: str):
         if success:
             logger.info("Bin reinstall completed successfully.")
-            ToastNotification(self.central_widget, "Bin files reinstalled successfully.", False)
+            ToastNotification(self.central_widget, t("addons_reinstall_title"), False)
         else:
             logger.error(f"Bin reinstall failed: {error}")
+            TMP_msg_a = t("addons_reinstall_fail_msg_a")
+            TMP_msg_b = t("addons_reinstall_fail_msg_b")
             PopupDialog(
                 parent=self.central_widget,
-                title="Reinstall Failed",
+                title=t("addons_reinstall_fail_title"),
                 message=(
-                    "Aurora could not reinstall the Bin files.\n\n"
-                    f"Reason: {error}"
+                    f"{TMP_msg_a}\n\n"
+                    f"{TMP_msg_b}: {error}"
                 ),
-                confirm_text="OK",
+                confirm_text=t("updater_close"),
                 cancel_text="",
                 on_confirm=None,
             )
