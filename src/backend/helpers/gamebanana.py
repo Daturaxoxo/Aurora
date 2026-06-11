@@ -514,7 +514,7 @@ class GameBananaBrowserOverlay(QFrame):
                 self._search_has_more = False
                 if not self._all_mods:
                     TMP_trans = t("gb_no_result")
-                    self._show_empty(f"{TMP_trans}: \"{self._search_query}\".")
+                    self._show_empty(f"{TMP_trans} \"{self._search_query}\".")
         else:
             self._lbl_gb_status.setText("")
             if not had_results:
