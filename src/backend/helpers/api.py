@@ -41,22 +41,18 @@ def _page_cache_path(page: int) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
-
 def _thumb_dir() -> Path:
     p = CACHE_DIR / "thumbnails"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-
 def _is_page_cached(page: int) -> bool:
     path = _page_cache_path(page)
-    if not path.exists():
-        return False
+    if not path.exists(): return False
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return time.time() - data.get("cached_at", 0) < CACHE_TTL
-    except Exception:
-        return False
+    except Exception: return False
 
 
 def _load_page_from_cache(page: int) -> Optional[List[NTEMod]]:
@@ -83,8 +79,7 @@ def _load_page_from_cache(page: int) -> Optional[List[NTEMod]]:
             )
             for entry in data.get("mods", [])
         ]
-    except Exception:
-        return None
+    except Exception: return None
 
 
 def _save_page_to_cache(page: int, mods: List[NTEMod]):
@@ -121,44 +116,26 @@ def clear_cache():
 
 def _detect_nsfw(mod: dict) -> bool:
     visibility = mod.get("_sInitialVisibility", "")
-    if visibility in ("warn", "hide"):
-        return True
-    if visibility == "show":
-        return False
+    if visibility in ("warn", "hide"): return True
+    if visibility == "show": return False
 
-    if mod.get("_bHasNsfwContent") or mod.get("_bIsNsfw"):
-        return True
+    if mod.get("_bHasNsfwContent") or mod.get("_bIsNsfw"): return True
     for key in ("_aRootCategory", "_aSubCategory"):
         cat = mod.get(key)
         if isinstance(cat, dict):
-            if "nsfw" in cat.get("_sName", "").lower():
-                return True
+            if "nsfw" in cat.get("_sName", "").lower(): return True
     return False
 
-def _fetch_one(mod: dict, headers: dict) -> NTEMod:
-    mod_id = mod["_idRow"]
-    img_files: dict = mod["_aPreviewMedia"]["_aImages"][0]
+def _fetch_one(mod: dict, headers: dict, session: requests.Session) -> NTEMod:
+    mod_id    = mod["_idRow"]
+    img_files = mod["_aPreviewMedia"]["_aImages"][0]
     n = max(k.split("e")[1] for k in img_files if "_sFile" in k and k != "_sFile")
     thumb_url = (
         f"https://images.gamebanana.com/img/ss/mods/{n}-90_"
         f"{img_files['_sFile']}"
     )
-    thumb_resp = requests.get(thumb_url, headers=headers, timeout=15)
+    thumb_resp = session.get(thumb_url, headers=headers, timeout=15)
     thumb_resp.raise_for_status()
-
-    download_count = 0
-    try:
-        detail_url = (
-            f"https://api.gamebanana.com/Core/Item/Data"
-            f"?itemtype=Mod&itemid={mod_id}"
-            f"&fields=downloads&return_keys=1&format=json_min"
-        )
-        detail_resp = requests.get(detail_url, headers=headers, timeout=15)
-        if detail_resp.ok:
-            detail = detail_resp.json()
-            download_count = int(detail.get("downloads", 0))
-    except Exception as e:
-        logger.error(f"Download count fetch failed for mod {mod_id}: {e}")
 
     author = "Unknown"
     if isinstance(mod.get("_aSubmitter"), dict):
@@ -171,20 +148,18 @@ def _fetch_one(mod: dict, headers: dict) -> NTEMod:
     if isinstance(mod.get("_aSubCategory"), dict):
         sub_cat = mod["_aSubCategory"].get("_sName", "")
 
-    mod_url = mod.get("_sProfileUrl", "") or f"https://gamebanana.com/mods/{mod_id}"
-    
     return NTEMod(
         id=mod_id,
         name=mod["_sName"],
         thumbnail=thumb_resp.content,
         author=author,
         view_count=mod.get("_nViewCount", 0),
-        download_count=download_count,
+        download_count=int(mod.get("_nDownloadCount", 0)),
         like_count=mod.get("_nLikeCount", 0),
         is_nsfw=_detect_nsfw(mod),
         root_category=root_cat,
         sub_category=sub_cat,
-        mod_url=mod_url,
+        mod_url=mod.get("_sProfileUrl", "") or f"https://gamebanana.com/mods/{mod_id}",
     )
 
 def get_nte_mods(
@@ -225,16 +200,17 @@ def get_nte_mods(
             return None
 
         nte_mods: List[NTEMod] = []
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            futures = {pool.submit(_fetch_one, m, headers): m for m in only_mods}
-            for future in as_completed(futures):
-                try:
-                    mod = future.result()
-                    nte_mods.append(mod)
-                    if on_mod_ready: on_mod_ready(mod)
-                except Exception as e:
-                    if getattr(e, "status_code", None) == 404 or getattr(getattr(e, "response", None), 'status_code', None) == 404: pass
-                    else: logger.error(f"Mod fetch failed: {e}")
+        with requests.Session() as session:
+            with ThreadPoolExecutor(max_workers=15) as pool:
+                futures = {pool.submit(_fetch_one, m, headers, session): m for m in only_mods}
+                for future in as_completed(futures):
+                    try:
+                        mod = future.result()
+                        nte_mods.append(mod)
+                        if on_mod_ready: on_mod_ready(mod)
+                    except Exception as e:
+                        if getattr(e, "status_code", None) == 404 or getattr(getattr(e, "response", None), 'status_code', None) == 404: pass
+                        else: logger.error(f"Mod fetch failed: {e}")
 
         if nte_mods:
             _save_page_to_cache(page, nte_mods)
@@ -320,8 +296,6 @@ def search_nte_mods(
     query = query.strip()
     if not query: return []
     if len(query) < 3: logger.warning(f"Search query '{query}' is too short."); return []
- 
-    # Cache hit
     if not force_refresh and _is_search_cached(query, page):
         cached = _load_search_from_cache(query, page)
         if cached is not None:
@@ -330,14 +304,18 @@ def search_nte_mods(
             return cached
  
     headers = {"User-Agent": f"AuroraLauncher/{get_local_version()}"}
-    list_url = (
-        f"https://gamebanana.com/apiv12/Game/23012/Subfeed"
-        f"?_nPage={page}&_sName={requests.utils.quote(query, safe='')}"
-    )
- 
+    list_url = "https://gamebanana.com/apiv11/Util/Search/Results"
+    list_params = {
+        "_sSearchString": query,
+        "_sModelName":    "Mod",
+        "_idGameRow":     23012,
+        "_nPage":         page,
+        "_nPerpage":      15,
+    }
+
     try:
-        logger.info( f"Searching GameBanana for '{query}' page {page}",extra={"el": True},)
-        resp = requests.get(list_url, headers=headers, timeout=15)
+        logger.info(f"Searching GameBanana for '{query}' page {page}", extra={"el": True})
+        resp = requests.get(list_url, params=list_params, headers=headers, timeout=15)
         resp.raise_for_status()
         submissions = resp.json().get("_aRecords", [])
  
@@ -348,16 +326,17 @@ def search_nte_mods(
         if not only_mods: return []
  
         nte_mods: List[NTEMod] = []
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            futures = {pool.submit(_fetch_one, m, headers): m for m in only_mods}
-            for future in as_completed(futures):
-                try:
-                    mod = future.result()
-                    nte_mods.append(mod)
-                    if on_mod_ready: on_mod_ready(mod)
-                except Exception as e:
-                    if (getattr(e, "status_code", None) == 404or getattr(getattr(e, "response", None), "status_code", None) == 404): pass
-                    else: logger.error(f"Search mod fetch failed: {e}")
+        with requests.Session() as session:
+            with ThreadPoolExecutor(max_workers=15) as pool:
+                futures = {pool.submit(_fetch_full_mod_by_id, m["_idRow"], headers, session): m for m in only_mods}
+                for future in as_completed(futures):
+                    try:
+                        mod = future.result()
+                        nte_mods.append(mod)
+                        if on_mod_ready: on_mod_ready(mod)
+                    except Exception as e:
+                        if (getattr(e, "status_code", None) == 404 or getattr(getattr(e, "response", None), "status_code", None) == 404): pass
+                        else: logger.error(f"Search mod fetch failed: {e}")
  
         if nte_mods:_save_search_to_cache(query, page, nte_mods)
         return nte_mods
@@ -365,6 +344,13 @@ def search_nte_mods(
     except requests.exceptions.RequestException as e:
         logger.error(f"GameBanana search request error: {e}")
         return None
+
+def _fetch_full_mod_by_id(mod_id: int, headers: dict, session: requests.Session) -> NTEMod:
+    profile_url = f"https://gamebanana.com/apiv11/Mod/{mod_id}/ProfilePage"
+    resp = session.get(profile_url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return _fetch_one(resp.json(), headers, session)
+
 
 class NTEModFile:
     def __init__(

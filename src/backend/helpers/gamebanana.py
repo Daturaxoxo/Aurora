@@ -17,13 +17,161 @@ from PyQt6.QtWidgets import (
 )
 from src import config_manager as cfg
 from src.backend.helpers.api import (
-    NTEMod, NTEModFile, get_mod_files, clear_cache, get_nte_mods, search_nte_mods
+    NTEMod, NTEModFile, get_mod_files, clear_cache,
+    get_nte_mods, search_nte_mods,
 )
 from src.logger import logger
 from src.frontend.styles import GB_STYLE
 from src.translator import t
 from src.frontend.classes.elements import AnimatedToggle, PopupDialog, _rounded_pixmap, show_image
 from src.utils import bytes_to_human_readable, get_mods_path, resource_path, get_app_dir
+
+# Display names, for the icons to show the display name must match the png names in \ModImages
+_NTE_CHARACTERS: list[str] = [
+    "Adler",
+    "Aurelia",
+    "Baicang",
+    "Chaos",
+    "Chiz",
+    "Daffodill",
+    "Edgar",
+    "Fadia",
+    "Haniel",
+    "Hathor",
+    "Hotori",
+    "Iroi",
+    "Jiuyuan",
+    "Lacrimosa",
+    "Mint",
+    "Nanally",
+    "Sakiri",
+    "Shinku",
+    "Skia",
+    "Female Zero",
+    "Male Zero",
+]
+
+_CHAR_CHIP_QSS = """
+    QPushButton#CharChip {
+        background:    #1c2030;
+        color:         #8b949e;
+        border:        1px solid #2a2d35;
+        border-radius: 13px;
+        font-size:     11px;
+        font-weight:   600;
+        padding:       0 10px 0 4px;
+        text-align:    left;
+    }
+    QPushButton#CharChip:hover {
+        background:  #232840;
+        border-color:#4493f8;
+        color:       #c9d1d9;
+    }
+    QPushButton#CharChip[active="true"] {
+        background:  #17304f;
+        border-color:#4493f8;
+        color:       #79c0ff;
+    }
+    QPushButton#CharChip[active="true"]:hover {
+        background: #1c3a60;
+    }
+"""
+
+class _CharacterFilterBar(QWidget):
+    filter_changed = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(46)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setStyleSheet(_CHAR_CHIP_QSS)
+
+        self._active: str = ""
+        self._chips: dict[str, QPushButton] = {}
+
+        scroll = QScrollArea(self)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea { background: transparent; border: none; }
+            QScrollBar:horizontal {
+                height: 4px;
+                background: transparent;
+                margin: 0;
+            }
+            QScrollBar::handle:horizontal {
+                background: #3a3f4b;
+                border-radius: 2px;
+                min-width: 24px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #4493f8;
+            }
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {
+                width: 0;
+            }
+        """)
+
+        inner = QWidget()
+        inner.setStyleSheet("background: transparent;")
+        row = QHBoxLayout(inner)
+        row.setContentsMargins(2, 4, 2, 4)
+        row.setSpacing(6)
+
+        for name in _NTE_CHARACTERS:
+            btn = QPushButton(f"  {name}")
+            btn.setObjectName("CharChip")
+            btn.setFixedHeight(26)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setProperty("active", "false")
+
+            icon_path = resource_path(f"Bin/Assets/ModImages/{name.lower()}.png")
+            pix = QPixmap(icon_path)
+            if not pix.isNull():
+                btn.setIcon(QIcon(pix.scaled(16, 16, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
+                btn.setIconSize(QSize(16, 16))
+
+            btn.clicked.connect(partial(self._on_chip, name))
+            row.addWidget(btn)
+            self._chips[name] = btn
+
+        row.addStretch()
+        scroll.setWidget(inner)
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(scroll)
+
+    @property
+    def active_character(self) -> str: return self._active
+
+    def clear_selection(self, *, silent: bool = True):
+        if self._active:
+            self._set_chip(self._active, False)
+            self._active = ""
+        if not silent: self.filter_changed.emit("")
+
+    def _on_chip(self, name: str):
+        if self._active == name:
+            self._set_chip(name, False)
+            self._active = ""
+            self.filter_changed.emit("")
+        else:
+            if self._active: self._set_chip(self._active, False)
+            self._set_chip(name, True)
+            self._active = name
+            self.filter_changed.emit(name)
+
+    def _set_chip(self, name: str, active: bool):
+        btn = self._chips.get(name)
+        if btn:
+            btn.setProperty("active", "true" if active else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
 class _ModFetcher(QObject):
     mod_ready = pyqtSignal(object, int)
@@ -81,6 +229,7 @@ class _SearchFetcher(QObject):
             if not self._cancelled: self.page_done.emit(bool(had_results_ref), self.generation)
         finally: self.finished.emit()
 
+
 class GameBananaBrowserOverlay(QFrame):
     def __init__(self, parent, mod_manager):
         super().__init__(parent)
@@ -91,7 +240,9 @@ class GameBananaBrowserOverlay(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(GB_STYLE)
         self.closeEvent = self._on_close
+
         self._all_mods: list            = []
+        self._cached_mods: list         = []
         self._current_page              = 0
         self._has_more                  = True
         self._loading                   = False
@@ -104,6 +255,7 @@ class GameBananaBrowserOverlay(QFrame):
         self._search_query              = ""
         self._search_page               = 0
         self._search_has_more           = True
+        self._char_filter: str          = ""
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -113,6 +265,7 @@ class GameBananaBrowserOverlay(QFrame):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
         header = QFrame()
         header.setObjectName("GBModManagerHeader")
         header.setFixedHeight(64)
@@ -204,6 +357,10 @@ class GameBananaBrowserOverlay(QFrame):
         sr_layout.addWidget(self._search_clear_btn)
         body_layout.addWidget(search_row)
 
+        self._char_filter_bar = _CharacterFilterBar()
+        self._char_filter_bar.filter_changed.connect(self._on_char_filter_changed)
+        body_layout.addWidget(self._char_filter_bar)
+
         self.gb_scroll = QScrollArea()
         self.gb_scroll.setWidgetResizable(True)
         self.gb_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -223,7 +380,7 @@ class GameBananaBrowserOverlay(QFrame):
         self.gb_scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
         self._load_next_page()
-        
+
     def _on_search_text_changed(self, text: str):
         self._search_clear_btn.setVisible(bool(text))
         stripped = text.strip()
@@ -238,7 +395,7 @@ class GameBananaBrowserOverlay(QFrame):
             self._search_timer.stop()
             self._lbl_gb_status.setText(t("gb_search_min_chars"))
             return
-        
+
         self._lbl_gb_status.setText("")
         self._search_timer.start()
 
@@ -248,13 +405,14 @@ class GameBananaBrowserOverlay(QFrame):
         if len(query) < 3: return
         if query == self._search_query and self._search_mode: return
         self._enter_search_mode(query)
+
     def _clear_search(self):
         self._search_input.clear()
 
     def _enter_search_mode(self, query: str):
-        self._search_mode  = True
-        self._search_query = query
-        self._search_page  = 0
+        self._search_mode     = True
+        self._search_query    = query
+        self._search_page     = 0
         self._search_has_more = True
 
         self._fetch_generation += 1
@@ -266,20 +424,19 @@ class GameBananaBrowserOverlay(QFrame):
         self._load_next_search_page()
 
     def _exit_search_mode(self):
-        self._search_mode  = False
-        self._search_query = ""
-        self._search_page  = 0
+        self._search_mode     = False
+        self._search_query    = ""
+        self._search_page     = 0
         self._search_has_more = True
 
         self._fetch_generation += 1
         self._stop_all_fetches()
         self._clear_grid()
-        self._all_mods.clear()
         self._current_page = 0
         self._has_more     = True
         self._loading      = False
-        self._load_next_page()
 
+        self._load_next_page()
 
     def _load_next_page(self, force_refresh: bool = False):
         if self._search_mode or self._loading or not self._has_more: return
@@ -289,20 +446,17 @@ class GameBananaBrowserOverlay(QFrame):
         self._lbl_gb_status.setText(t("loading"))
 
         generation = self._fetch_generation
-
         thread  = QThread()
         fetcher = _ModFetcher(self._current_page, force_refresh, generation)
         self._start_thread(thread, fetcher)
 
-
     def _load_next_search_page(self):
-        if not self._search_mode or self._loading or not self._search_has_more:return
+        if not self._search_mode or self._loading or not self._search_has_more: return
 
         self._loading = True
         self._search_page += 1
 
         generation = self._fetch_generation
-
         thread  = QThread()
         fetcher = _SearchFetcher(self._search_query, self._search_page, generation)
         self._start_thread(thread, fetcher)
@@ -321,15 +475,33 @@ class GameBananaBrowserOverlay(QFrame):
         self._fetcher = fetcher
         thread.start()
 
+
     def _on_mod_ready(self, mod: NTEMod, generation: int):
         if generation != self._fetch_generation: return
-        if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked(): return
+        self._cached_mods.append(mod)
+        if not self._mod_passes_filters(mod): return
 
         self._all_mods.append(mod)
-
         cols = max(1, (self.gb_scroll.width() - 40) // 148)
         i    = len(self._all_mods) - 1
         self.gb_grid.addWidget(GameBananaMod(mod), i // cols, i % cols)
+
+    def _mod_passes_filters(self, mod: NTEMod) -> bool:
+        if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked(): return False
+        if self._char_filter and mod.sub_category.lower() != self._char_filter.lower(): return False
+        return True
+
+
+    def _on_char_filter_changed(self, name: str):
+        self._char_filter = name
+        self._clear_grid(keep_cache=True)
+        for mod in self._cached_mods:
+            if not self._mod_passes_filters(mod): continue
+            self._all_mods.append(mod)
+            cols = max(1, (self.gb_scroll.width() - 40) // 148)
+            i = len(self._all_mods) - 1
+            self.gb_grid.addWidget(GameBananaMod(mod), i // cols, i % cols)
+        if not self._search_mode: self._load_next_page()
 
     def _on_page_done(self, had_results: bool, generation: int):
         if generation != self._fetch_generation: return
@@ -347,8 +519,7 @@ class GameBananaBrowserOverlay(QFrame):
             self._lbl_gb_status.setText("")
             if not had_results:
                 self._has_more = False
-                if not self._all_mods:
-                    self._show_empty(t("gb_no_mods"))
+                if not self._all_mods: self._show_empty(t("gb_no_mods"))
 
         self._check_fill()
 
@@ -359,14 +530,13 @@ class GameBananaBrowserOverlay(QFrame):
         self.gb_grid.addWidget(empty, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
 
     def _check_fill(self): QTimer.singleShot(0, self._auto_load_if_needed)
-
     def _auto_load_if_needed(self):
         if self._loading: return
         content  = self.gb_container.sizeHint().height()
         viewport = self.gb_scroll.viewport().height()
         if content <= viewport:
-            if self._search_mode: self._load_next_search_page()
-            else: self._load_next_page()
+            if self._search_mode:   self._load_next_search_page()
+            else:                   self._load_next_page()
 
     def _on_scroll(self, value: int):
         if self._loading: return
@@ -375,12 +545,13 @@ class GameBananaBrowserOverlay(QFrame):
             if self._search_mode: self._load_next_search_page()
             else: self._load_next_page()
 
-    def _clear_grid(self):
+    def _clear_grid(self, keep_cache: bool = False):
         while self.gb_grid.count():
             item = self.gb_grid.takeAt(0)
             w = item.widget()
             if w: w.deleteLater()
         self._all_mods.clear()
+        if not keep_cache: self._cached_mods.clear()
 
     def _on_close(self, event):
         self._stop_all_fetches()
@@ -410,9 +581,11 @@ class GameBananaBrowserOverlay(QFrame):
         self._search_input.clear()
         self._search_input.blockSignals(False)
         self._search_clear_btn.hide()
+        self._char_filter  = ""
+        self._char_filter_bar.clear_selection()
         self._current_page = 0
-        self._has_more     = True
-        self._loading      = False
+        self._has_more = True
+        self._loading = False
         self._load_next_page(force_refresh=False)
 
     def _confirm_clear_cache(self):
@@ -436,6 +609,8 @@ class GameBananaBrowserOverlay(QFrame):
         self._search_input.clear()
         self._search_input.blockSignals(False)
         self._search_clear_btn.hide()
+        self._char_filter  = ""
+        self._char_filter_bar.clear_selection()
         self._current_page = 0
         self._has_more     = True
         self._loading      = False
@@ -538,7 +713,6 @@ class GameBananaMod(QFrame):
         name_lbl.setMaximumHeight(38)
         body.addWidget(name_lbl)
 
-        # Author row
         author_row = QHBoxLayout()
         author_row.setSpacing(4)
         author_row.setContentsMargins(0, 0, 0, 0)
@@ -558,7 +732,6 @@ class GameBananaMod(QFrame):
         sep1 = QFrame(); sep1.setObjectName("GBSep"); sep1.setFixedHeight(1)
         body.addWidget(sep1)
 
-        # Category / rating row
         cat_row = QHBoxLayout()
         cat_row.setSpacing(5)
         cat_row.setContentsMargins(0, 0, 0, 0)

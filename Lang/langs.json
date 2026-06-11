@@ -127,7 +127,12 @@
         "addons_reinstall_title": "Bin files reinstalled successfully.",
         "addons_reinstall_fail_title": "Reinstall Failed",
         "addons_reinstall_fail_msg_a": "Aurora could not reinstall the Bin files.",
-        "addons_reinstall_fail_msg_b": "Reason:"
+        "addons_reinstall_fail_msg_b": "Reason:",
+        "gb_search_min_chars": "You must enter at least 3 letters to search.",
+        "gb_searching": "Searching for",
+        "gb_no_result": "No search results for:",
+        "gb_no_mods": "No mods found.",
+        "gb_search_title": "Search GameBanana mods..."
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -257,7 +262,12 @@
         "addons_reinstall_title": "Bin 文件重新安装成功。",
         "addons_reinstall_fail_title": "重新安装失败",
         "addons_reinstall_fail_msg_a": "Aurora 无法重新安装 Bin 文件。",
-        "addons_reinstall_fail_msg_b": "原因："
+        "addons_reinstall_fail_msg_b": "原因：",
+        "gb_search_min_chars": "您必须输入至少 3 个字母进行搜索。",
+        "gb_searching": "正在搜索",
+        "gb_no_result": "没有找到相关搜索结果：",
+        "gb_no_mods": "未找到模组。",
+        "gb_search_title": "搜索 GameBanana 模组..."
     },
     "de": {
         "settings": "Einstellungen",
@@ -386,7 +396,12 @@
         "addons_reinstall_title": "Bin-Dateien erfolgreich neu installiert.",
         "addons_reinstall_fail_title": "Neuinstallation fehlgeschlagen",
         "addons_reinstall_fail_msg_a": "Aurora konnte die Bin-Dateien nicht neu installieren.",
-        "addons_reinstall_fail_msg_b": "Grund:"
+        "addons_reinstall_fail_msg_b": "Grund:",
+        "gb_search_min_chars": "Du musst mindestens 3 Buchstaben eingeben, um zu suchen.",
+        "gb_searching": "Suchen nach",
+        "gb_no_result": "Keine Suchergebnisse für:",
+        "gb_no_mods": "Keine Mods gefunden.",
+        "gb_search_title": "GameBanana-Mods suchen..."
     },
     "es": {
         "settings": "Opciones",
@@ -515,7 +530,12 @@
         "addons_reinstall_title": "Archivos Bin reinstalados correctamente.",
         "addons_reinstall_fail_title": "Reinstalación fallida",
         "addons_reinstall_fail_msg_a": "Aurora no pudo reinstalar los archivos Bin.",
-        "addons_reinstall_fail_msg_b": "Razón:"
+        "addons_reinstall_fail_msg_b": "Razón:",
+        "gb_search_min_chars": "Debes introducir al menos 3 letras para buscar.",
+        "gb_searching": "Buscando",
+        "gb_no_result": "No hay resultados de búsqueda para:",
+        "gb_no_mods": "No se encontraron mods.",
+        "gb_search_title": "Buscar mods de GameBanana..."
     },
     "id": {
         "settings": "Pengaturan",
@@ -644,7 +664,12 @@
         "addons_reinstall_title": "File bin berhasil diinstal ulang.",
         "addons_reinstall_fail_title": "Instal Ulang Gagal",
         "addons_reinstall_fail_msg_a": "Aurora tidak dapat menginstal ulang file Bin.",
-        "addons_reinstall_fail_msg_b": "Alasan:"
+        "addons_reinstall_fail_msg_b": "Alasan:",
+        "gb_search_min_chars": "Anda harus memasukkan setidaknya 3 huruf untuk mencari.",
+        "gb_searching": "Mencari",
+        "gb_no_result": "Tidak ada hasil pencarian untuk:",
+        "gb_no_mods": "Mod tidak ditemukan.",
+        "gb_search_title": "Cari mod GameBanana..."
     },
     "it": {
         "settings": "Impostazioni",
@@ -773,7 +798,12 @@
         "addons_reinstall_title": "File Bin reinstallati con successo.",
         "addons_reinstall_fail_title": "Reinstallazione Fallita",
         "addons_reinstall_fail_msg_a": "Aurora non è riuscita a reinstallare i file Bin.",
-        "addons_reinstall_fail_msg_b": "Motivo:"
+        "addons_reinstall_fail_msg_b": "Motivo:",
+        "gb_search_min_chars": "Devi inserire almeno 3 lettere per cercare.",
+        "gb_searching": "Ricerca di",
+        "gb_no_result": "Nessun risultato di ricerca per:",
+        "gb_no_mods": "Nessuna mod trovata.",
+        "gb_search_title": "Cerca mod di GameBanana..."
     },
     "jp": {
         "_status": "The Japanese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -903,7 +933,12 @@
         "addons_reinstall_title": "Binファイルの再インストールに成功しました。",
         "addons_reinstall_fail_title": "再インストール失敗",
         "addons_reinstall_fail_msg_a": "AuroraはBinファイルを再インストールできませんでした。",
-        "addons_reinstall_fail_msg_b": "理由:"
+        "addons_reinstall_fail_msg_b": "理由:",
+        "gb_search_min_chars": "検索するには少なくとも3文字入力する必要があります。",
+        "gb_searching": "検索中：",
+        "gb_no_result": "次の検索結果は見つかりませんでした：",
+        "gb_no_mods": "MODが見つかりませんでした。",
+        "gb_search_title": "GameBanana MODを検索..."
     },
     "pt-br": {
         "settings": "Configurações",
@@ -1032,7 +1067,12 @@
         "addons_reinstall_title": "Arquivos Bin reinstalados com sucesso.",
         "addons_reinstall_fail_title": "Falha na Reinstalação",
         "addons_reinstall_fail_msg_a": "O Aurora não pôde reinstalar os arquivos Bin.",
-        "addons_reinstall_fail_msg_b": "Motivo:"
+        "addons_reinstall_fail_msg_b": "Motivo:",
+        "gb_search_min_chars": "Você deve inserir pelo menos 3 letras para pesquisar.",
+        "gb_searching": "Pesquisando por",
+        "gb_no_result": "Nenhum resultado de pesquisa para:",
+        "gb_no_mods": "Nenhum mod encontrado.",
+        "gb_search_title": "Pesquisar mods do GameBanana..."
     },
     "ru": {
         "settings": "Настройки",
@@ -1161,7 +1201,12 @@
         "addons_reinstall_title": "Файлы Bin успешно переустановлены.",
         "addons_reinstall_fail_title": "Ошибка переустановки",
         "addons_reinstall_fail_msg_a": "Aurora не удалось переустановить файлы Bin.",
-        "addons_reinstall_fail_msg_b": "Причина:"
+        "addons_reinstall_fail_msg_b": "Причина:",
+        "gb_search_min_chars": "Для поиска необходимо ввести минимум 3 буквы.",
+        "gb_searching": "Поиск",
+        "gb_no_result": "Нет результатов поиска для:",
+        "gb_no_mods": "Моды не найдены.",
+        "gb_search_title": "Поиск модов GameBanana..."
     },
     "tr": {
         "settings": "Ayarlar",
@@ -1290,7 +1335,12 @@
         "addons_reinstall_title": "Bin dosyaları başarıyla yeniden yüklendi.",
         "addons_reinstall_fail_title": "Yeniden Yükleme Başarısız",
         "addons_reinstall_fail_msg_a": "Aurora, Bin dosyalarını yeniden yükleyemedi.",
-        "addons_reinstall_fail_msg_b": "Sebep:"
+        "addons_reinstall_fail_msg_b": "Sebep:",
+        "gb_search_min_chars": "Arama yapmak için en az 3 harf girmelisiniz.",
+        "gb_searching": "Aranıyor:",
+        "gb_no_result": "Arama sonucu bulunamadı:",
+        "gb_no_mods": "Mod bulunamadı.",
+        "gb_search_title": "GameBanana modlarını ara..."
     },
     "vi": {
         "settings": "Cài đặt",
@@ -1419,7 +1469,12 @@
         "addons_reinstall_title": "Các tệp Bin đã được cài đặt lại thành công.",
         "addons_reinstall_fail_title": "Cài đặt lại thất bại",
         "addons_reinstall_fail_msg_a": "Aurora không thể cài đặt lại các tệp Bin.",
-        "addons_reinstall_fail_msg_b": "Lý do:"
+        "addons_reinstall_fail_msg_b": "Lý do:",
+        "gb_search_min_chars": "Bạn phải nhập ít nhất 3 chữ cái để tìm kiếm.",
+        "gb_searching": "Đang tìm kiếm",
+        "gb_no_result": "Không có kết quả tìm kiếm cho:",
+        "gb_no_mods": "Không tìm thấy bản mod nào.",
+        "gb_search_title": "Tìm kiếm mod GameBanana..."
     },
     "nl": {
         "settings": "Instelling",
@@ -1522,7 +1577,12 @@
         "addons_reinstall_title": "Bin-bestanden succesvol opnieuw geïnstalleerd.",
         "addons_reinstall_fail_title": "Opnieuw Installeren Mislukt",
         "addons_reinstall_fail_msg_a": "Aurora kon de Bin-bestanden niet opnieuw installeren.",
-        "addons_reinstall_fail_msg_b": "Reden:"
+        "addons_reinstall_fail_msg_b": "Reden:",
+        "gb_search_min_chars": "Je moet minimaal 3 letters invoeren om te zoeken.",
+        "gb_searching": "Zoeken naar",
+        "gb_no_result": "Geen zoekresultaten voor:",
+        "gb_no_mods": "Geen mods gevonden.",
+        "gb_search_title": "Zoeken naar GameBanana-mods..."
     },
     "fr": {
         "settings": "Paramètres",
@@ -1651,6 +1711,11 @@
         "addons_reinstall_title": "Fichiers Bin réinstallés avec succès.",
         "addons_reinstall_fail_title": "Échec de la réinstallation",
         "addons_reinstall_fail_msg_a": "Aurora n'a pas pu réinstaller les fichiers Bin.",
-        "addons_reinstall_fail_msg_b": "Raison:"
+        "addons_reinstall_fail_msg_b": "Raison:",
+        "gb_search_min_chars": "Vous devez saisir au moins 3 lettres pour effectuer une recherche.",
+        "gb_searching": "Recherche de",
+        "gb_no_result": "Aucun résultat de recherche pour :",
+        "gb_no_mods": "Aucun mod trouvé.",
+        "gb_search_title": "Rechercher des mods GameBanana..."
     }
 }
