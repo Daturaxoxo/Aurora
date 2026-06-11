@@ -1,7 +1,4 @@
-import json
-import time
-import requests
-
+import json, time, requests, re
 from pathlib import Path
 from typing import List, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -234,8 +231,7 @@ def get_nte_mods(
                 try:
                     mod = future.result()
                     nte_mods.append(mod)
-                    if on_mod_ready:
-                        on_mod_ready(mod)
+                    if on_mod_ready: on_mod_ready(mod)
                 except Exception as e:
                     if getattr(e, "status_code", None) == 404 or getattr(getattr(e, "response", None), 'status_code', None) == 404: pass
                     else: logger.error(f"Mod fetch failed: {e}")
@@ -247,6 +243,127 @@ def get_nte_mods(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error communicating with the GameBanana API: {e}")
+        return None
+    
+def _search_cache_path(query: str, page: int) -> Path:
+    safe = re.sub(r"[^\w\-]", "_", query.strip().lower())[:60]
+    p = CACHE_DIR / "search" / f"{safe}_p{page}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+ 
+def _is_search_cached(query: str, page: int) -> bool:
+    path = _search_cache_path(query, page)
+    if not path.exists(): return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return time.time() - data.get("cached_at", 0) < CACHE_TTL
+    except Exception: return False
+    
+def _load_search_from_cache(query: str, page: int) -> Optional[List[NTEMod]]:
+    try:
+        data = json.loads(_search_cache_path(query, page).read_text(encoding="utf-8"))
+        td = _thumb_dir()
+        return [
+            NTEMod(
+                id=entry["id"],
+                name=entry["name"],
+                thumbnail=(
+                    (td / f"{entry['id']}.png").read_bytes()
+                    if (td / f"{entry['id']}.png").exists()
+                    else b""
+                ),
+                author=entry.get("author", "Unknown"),
+                view_count=entry.get("view_count", 0),
+                download_count=entry.get("download_count", 0),
+                like_count=entry.get("like_count", 0),
+                is_nsfw=entry.get("is_nsfw", False),
+                root_category=entry.get("root_category", ""),
+                sub_category=entry.get("sub_category", ""),
+                mod_url=entry.get("mod_url", ""),
+            )
+            for entry in data.get("mods", [])
+        ]
+    except Exception: return None
+    
+def _save_search_to_cache(query: str, page: int, mods: List[NTEMod]):
+    td = _thumb_dir()
+    for m in mods:
+        if m.thumbnail: (td / f"{m.id}.png").write_bytes(m.thumbnail)
+    data = {
+        "cached_at": time.time(),
+        "query": query,
+        "page": page,
+        "mods": [
+            {
+                "id": m.id,
+                "name": m.name,
+                "author": m.author,
+                "view_count": m.view_count,
+                "download_count": m.download_count,
+                "like_count": m.like_count,
+                "is_nsfw": m.is_nsfw,
+                "root_category": m.root_category,
+                "sub_category": m.sub_category,
+                "mod_url": m.mod_url,
+            }
+            for m in mods
+        ],
+    }
+    _search_cache_path(query, page).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    
+def search_nte_mods(
+    query: str,
+    page: int = 1,
+    force_refresh: bool = False,
+    on_mod_ready: Optional[Callable[[NTEMod], None]] = None,
+) -> Optional[List[NTEMod]]:
+    query = query.strip()
+    if not query: return []
+    if len(query) < 3: logger.warning(f"Search query '{query}' is too short."); return []
+ 
+    # Cache hit
+    if not force_refresh and _is_search_cached(query, page):
+        cached = _load_search_from_cache(query, page)
+        if cached is not None:
+            if on_mod_ready:
+                for m in cached: on_mod_ready(m)
+            return cached
+ 
+    headers = {"User-Agent": f"AuroraLauncher/{get_local_version()}"}
+    list_url = (
+        f"https://gamebanana.com/apiv12/Game/23012/Subfeed"
+        f"?_nPage={page}&_sName={requests.utils.quote(query, safe='')}"
+    )
+ 
+    try:
+        logger.info( f"Searching GameBanana for '{query}' page {page}",extra={"el": True},)
+        resp = requests.get(list_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        submissions = resp.json().get("_aRecords", [])
+ 
+        if not submissions or not isinstance(submissions, list):
+            logger.info(f"No search results for '{query}' page {page}.")
+            return []
+        only_mods = [s for s in submissions if s.get("_sModelName") == "Mod"]
+        if not only_mods: return []
+ 
+        nte_mods: List[NTEMod] = []
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(_fetch_one, m, headers): m for m in only_mods}
+            for future in as_completed(futures):
+                try:
+                    mod = future.result()
+                    nte_mods.append(mod)
+                    if on_mod_ready: on_mod_ready(mod)
+                except Exception as e:
+                    if (getattr(e, "status_code", None) == 404or getattr(getattr(e, "response", None), "status_code", None) == 404): pass
+                    else: logger.error(f"Search mod fetch failed: {e}")
+ 
+        if nte_mods:_save_search_to_cache(query, page, nte_mods)
+        return nte_mods
+ 
+    except requests.exceptions.RequestException as e:
+        logger.error(f"GameBanana search request error: {e}")
         return None
 
 class NTEModFile:

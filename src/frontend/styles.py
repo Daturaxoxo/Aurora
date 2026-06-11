@@ -101,13 +101,13 @@ GB_STYLE = """
     border: 1px solid #333333;
     border-radius: 20px;
 }
-
+ 
 #GBModManagerHeader {
     font-size: 24px;
     font-weight: bold;
     color: #D7D7D7;
 }
-
+ 
 #GBModManagerClose {
     background-color: transparent;
     border: none;
@@ -116,23 +116,72 @@ GB_STYLE = """
     font-size: 18px;
     padding: 0px;
 }
-
+ 
 #GBModManagerClose:hover {
     background-color: rgba(255, 255, 255, 8);
     color: #D7D7D7;
 }
-
+ 
 #GBModManagerHeader {
     background-color: rgba(255, 255, 255, 3);
     border-bottom: 1px solid rgba(255, 255, 255, 8);
     border-top-left-radius: 20px;
     border-top-right-radius: 20px;
 }
-
+ 
 #GBModManagerTitle {
     color: #D7D7D7;
     font-size: 20px;
     font-weight: 500;
+}
+ 
+#GBSearchRow {
+    background-color: rgba(255, 255, 255, 4);
+    border: 1px solid rgba(255, 255, 255, 7);
+    border-radius: 12px;
+}
+ 
+#GBSearchIcon {
+    color: #484848;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    padding: 0px;
+}
+ 
+#GBSearchInput {
+    background-color: transparent;
+    border: none;
+    color: #D7D7D7;
+    font-size: 13px;
+    padding: 0px 6px;
+    selection-background-color: rgba(255, 255, 255, 15);
+}
+ 
+#GBSearchInput:focus {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+ 
+#GBSearchClear {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #484848;
+    font-size: 14px;
+    padding: 2px 4px;
+}
+ 
+#GBSearchClear:hover {
+    background-color: rgba(255, 255, 255, 10);
+    color: #D7D7D7;
+}
+ 
+#GBSearchDivider {
+    background-color: rgba(255, 255, 255, 8);
+    max-width: 1px;
+    min-width: 1px;
 }
 """
 

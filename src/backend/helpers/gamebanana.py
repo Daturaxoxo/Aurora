@@ -1,45 +1,67 @@
 from functools import partial
-import os
+import os, shutil, subprocess, sys, time, tempfile, webbrowser
 from pathlib import Path
-import shutil
-import subprocess
-import sys
 from typing import List, Optional
-import time
-import tempfile
-import webbrowser
 
 from PyQt6.QtCore import (
-    QObject, QPoint, QPointF, QPropertyAnimation, QRectF, QSize, 
+    QObject, QPoint, QPointF, QPropertyAnimation, QRectF, QSize,
     Qt, QThread, QTimer, pyqtSignal
 )
 from PyQt6.QtGui import (
-    QBrush, QColor, QIcon, QLinearGradient, QPainter, 
+    QBrush, QColor, QIcon, QLinearGradient, QPainter,
     QPainterPath, QPen, QPixmap
 )
 from PyQt6.QtWidgets import (
-    QFrame, QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, 
-    QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget, QMainWindow
+    QFrame, QGraphicsOpacityEffect, QGridLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget, QMainWindow, QApplication
 )
-
 from src import config_manager as cfg
-from src.backend.helpers.api import NTEMod, NTEModFile, get_mod_files, clear_cache, get_nte_mods
+from src.backend.helpers.api import (
+    NTEMod, NTEModFile, get_mod_files, clear_cache, get_nte_mods, search_nte_mods
+)
 from src.logger import logger
 from src.frontend.styles import GB_STYLE
 from src.translator import t
 from src.frontend.classes.elements import AnimatedToggle, PopupDialog, _rounded_pixmap, show_image
 from src.utils import bytes_to_human_readable, get_mods_path, resource_path, get_app_dir
 
-
 class _ModFetcher(QObject):
-    mod_ready   = pyqtSignal(object, int)
-    page_done   = pyqtSignal(bool, int)
-    finished    = pyqtSignal()
+    mod_ready = pyqtSignal(object, int)
+    page_done = pyqtSignal(bool, int)
+    finished  = pyqtSignal()
 
     def __init__(self, page: int, force_refresh: bool = False, generation: int = 0):
         super().__init__()
-        self._page = page
+        self._page  = page
         self._force = force_refresh
+        self._cancelled = False
+        self.generation = generation
+
+    def cancel(self): self._cancelled = True
+
+    def run(self):
+        had_results_ref = []
+
+        def _on_mod(mod):
+            if self._cancelled: return
+            had_results_ref.append(True)
+            self.mod_ready.emit(mod, self.generation)
+
+        try:
+            get_nte_mods(force_refresh=self._force, page=self._page, on_mod_ready=_on_mod)
+            if not self._cancelled: self.page_done.emit(bool(had_results_ref), self.generation)
+        finally: self.finished.emit()
+
+
+class _SearchFetcher(QObject):
+    mod_ready = pyqtSignal(object, int)
+    page_done = pyqtSignal(bool, int)
+    finished  = pyqtSignal()
+
+    def __init__(self, query: str, page: int, generation: int = 0):
+        super().__init__()
+        self._query = query
+        self._page  = page
         self._cancelled = False
         self.generation = generation
 
@@ -50,26 +72,16 @@ class _ModFetcher(QObject):
         had_results_ref = []
 
         def _on_mod(mod):
-            if self._cancelled:
-                return
-
+            if self._cancelled: return
             had_results_ref.append(True)
             self.mod_ready.emit(mod, self.generation)
 
         try:
-            get_nte_mods(
-                force_refresh=self._force,
-                page=self._page,
-                on_mod_ready=_on_mod,
-            )
+            search_nte_mods(query=self._query, page=self._page, on_mod_ready=_on_mod,)
+            if not self._cancelled: self.page_done.emit(bool(had_results_ref), self.generation)
+        finally: self.finished.emit()
 
-            if not self._cancelled:
-                self.page_done.emit(bool(had_results_ref), self.generation)
-
-        finally:
-            self.finished.emit()
-
-class GameBananaBrowserOverlay(QFrame):    
+class GameBananaBrowserOverlay(QFrame):
     def __init__(self, parent, mod_manager):
         super().__init__(parent)
         self.setObjectName("GameBananaBrowserOverlay")
@@ -79,15 +91,24 @@ class GameBananaBrowserOverlay(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(GB_STYLE)
         self.closeEvent = self._on_close
+        self._all_mods: list            = []
+        self._current_page              = 0
+        self._has_more                  = True
+        self._loading                   = False
+        self._thread: QThread | None    = None
+        self._fetcher                   = None
+        self._threads: set[QThread]     = set()
+        self._fetch_generation          = 0
 
-        self._all_mods: list = []
-        self._current_page = 0
-        self._has_more = True
-        self._loading = False
-        self._thread: QThread | None = None
-        self._fetcher: _ModFetcher | None = None
-        self._threads: set[QThread] = set()
-        self._fetch_generation = 0
+        self._search_mode               = False
+        self._search_query              = ""
+        self._search_page               = 0
+        self._search_has_more           = True
+
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(400)
+        self._search_timer.timeout.connect(self._commit_search)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -102,30 +123,29 @@ class GameBananaBrowserOverlay(QFrame):
         header_layout.setSpacing(12)
 
         title_col = QVBoxLayout()
-        lbl_title = QLabel(t("gamebanana_mods") or "GameBanana Mods")
+        lbl_title = QLabel(t("gamebanana_mods"))
         lbl_title.setObjectName("GBModManagerTitle")
         self._lbl_gb_status = QLabel("")
         self._lbl_gb_status.setObjectName("GBStatus")
         self._lbl_gb_status.setStyleSheet("color: #8b949e; font-size: 11px;")
         title_col.addStretch()
         title_col.addSpacing(24)
-        
         title_col.addWidget(lbl_title)
         title_col.addWidget(self._lbl_gb_status)
         title_col.addStretch()
-        
-        lbl_nsfw_mods = QLabel(t("show_nsfw_mods") or "Show NSFW mods")
+
+        lbl_nsfw_mods = QLabel(t("show_nsfw_mods"))
         lbl_nsfw_mods.setStyleSheet("color: #8b949e; font-size: 11px;")
-        
+
         self.toggle_nsfw_mods = AnimatedToggle(self)
         self.toggle_nsfw_mods.setChecked(cfg.get(cfg.Key.SHOW_NSFW_MODS))
         self.toggle_nsfw_mods.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.toggle_nsfw_mods.setToolTip(t("show_nsfw_mods_tooltip") or "Show NSFW mods")
+        self.toggle_nsfw_mods.setToolTip(t("show_nsfw_mods_tooltip"))
 
         btn_clear_cache = QPushButton()
         btn_clear_cache.setObjectName("SearchActionBtn")
         btn_clear_cache.setFixedSize(30, 30)
-        btn_clear_cache.setToolTip(t("clear_cache_tooltip") or "Clear mod cache and reload")
+        btn_clear_cache.setToolTip(t("clear_cache_tooltip"))
         btn_clear_cache.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_clear_cache.setIcon(QIcon(resource_path("Bin/Assets/delete.png")))
         btn_clear_cache.setIconSize(QSize(14, 14))
@@ -145,10 +165,45 @@ class GameBananaBrowserOverlay(QFrame):
         header_layout.addWidget(btn_close)
         root.addWidget(header)
 
+        # Body
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(28, 20, 28, 24)
-        body_layout.setSpacing(16)
+        body_layout.setContentsMargins(28, 16, 28, 24)
+        body_layout.setSpacing(12)
+
+        # Search bar
+        search_row = QFrame()
+        search_row.setObjectName("GBSearchRow")
+        search_row.setFixedHeight(42)
+        search_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+
+        sr_layout = QHBoxLayout(search_row)
+        sr_layout.setContentsMargins(14, 0, 8, 0)
+        sr_layout.setSpacing(6)
+
+        search_icon = QLabel()
+        search_icon.setObjectName("GBSearchIcon")
+        search_icon.setFixedSize(18, 18)
+        search_icon.setPixmap(QIcon(resource_path("Bin/Assets/search.png")).pixmap(16, 16))
+
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("GBSearchInput")
+        self._search_input.setPlaceholderText(t("gb_search_title"))
+        self._search_input.textChanged.connect(self._on_search_text_changed)
+
+        self._search_clear_btn = QPushButton("✕")
+        self._search_clear_btn.setObjectName("GBSearchClear")
+        self._search_clear_btn.setFixedSize(24, 24)
+        self._search_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._search_clear_btn.setToolTip("Clear search")
+        self._search_clear_btn.clicked.connect(self._clear_search)
+        self._search_clear_btn.hide()
+
+        sr_layout.addWidget(search_icon)
+        sr_layout.addWidget(self._search_input, 1)
+        sr_layout.addWidget(self._search_clear_btn)
+        body_layout.addWidget(search_row)
+
         self.gb_scroll = QScrollArea()
         self.gb_scroll.setWidgetResizable(True)
         self.gb_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -167,180 +222,204 @@ class GameBananaBrowserOverlay(QFrame):
 
         self.gb_scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
-        self._load_next_page()   
-    
+        self._load_next_page()
+        
+    def _on_search_text_changed(self, text: str):
+        self._search_clear_btn.setVisible(bool(text))
+        stripped = text.strip()
+
+        if not stripped:
+            self._search_timer.stop()
+            self._lbl_gb_status.setText("")
+            if self._search_mode: self._exit_search_mode()
+            return
+
+        if len(stripped) < 3:
+            self._search_timer.stop()
+            self._lbl_gb_status.setText(t("gb_search_min_chars"))
+            return
+        
+        self._lbl_gb_status.setText("")
+        self._search_timer.start()
+
+    def _commit_search(self):
+        query = self._search_input.text().strip()
+        if not query: return
+        if len(query) < 3: return
+        if query == self._search_query and self._search_mode: return
+        self._enter_search_mode(query)
+    def _clear_search(self):
+        self._search_input.clear()
+
+    def _enter_search_mode(self, query: str):
+        self._search_mode  = True
+        self._search_query = query
+        self._search_page  = 0
+        self._search_has_more = True
+
+        self._fetch_generation += 1
+        self._stop_all_fetches()
+        self._clear_grid()
+
+        TMP_trans = t("searching")
+        self._lbl_gb_status.setText(f"{TMP_trans} \"{query}\"")
+        self._load_next_search_page()
+
+    def _exit_search_mode(self):
+        self._search_mode  = False
+        self._search_query = ""
+        self._search_page  = 0
+        self._search_has_more = True
+
+        self._fetch_generation += 1
+        self._stop_all_fetches()
+        self._clear_grid()
+        self._all_mods.clear()
+        self._current_page = 0
+        self._has_more     = True
+        self._loading      = False
+        self._load_next_page()
+
+
+    def _load_next_page(self, force_refresh: bool = False):
+        if self._search_mode or self._loading or not self._has_more: return
+
+        self._loading = True
+        self._current_page += 1
+        self._lbl_gb_status.setText(t("loading"))
+
+        generation = self._fetch_generation
+
+        thread  = QThread()
+        fetcher = _ModFetcher(self._current_page, force_refresh, generation)
+        self._start_thread(thread, fetcher)
+
+
+    def _load_next_search_page(self):
+        if not self._search_mode or self._loading or not self._search_has_more:return
+
+        self._loading = True
+        self._search_page += 1
+
+        generation = self._fetch_generation
+
+        thread  = QThread()
+        fetcher = _SearchFetcher(self._search_query, self._search_page, generation)
+        self._start_thread(thread, fetcher)
+
+    def _start_thread(self, thread: QThread, fetcher):
+        fetcher.moveToThread(thread)
+        thread.started.connect(fetcher.run)
+        fetcher.mod_ready.connect(self._on_mod_ready)
+        fetcher.page_done.connect(self._on_page_done)
+        fetcher.finished.connect(thread.quit)
+        fetcher.finished.connect(fetcher.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda t=thread: self._threads.discard(t))
+        self._threads.add(thread)
+        self._thread  = thread
+        self._fetcher = fetcher
+        thread.start()
+
+    def _on_mod_ready(self, mod: NTEMod, generation: int):
+        if generation != self._fetch_generation: return
+        if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked(): return
+
+        self._all_mods.append(mod)
+
+        cols = max(1, (self.gb_scroll.width() - 40) // 148)
+        i    = len(self._all_mods) - 1
+        self.gb_grid.addWidget(GameBananaMod(mod), i // cols, i % cols)
+
+    def _on_page_done(self, had_results: bool, generation: int):
+        if generation != self._fetch_generation: return
+
+        self._loading = False
+
+        if self._search_mode:
+            self._lbl_gb_status.setText(f"\"{self._search_query}\"" if had_results else "")
+            if not had_results:
+                self._search_has_more = False
+                if not self._all_mods:
+                    TMP_trans = t("gb_no_result")
+                    self._show_empty(f"{TMP_trans}: \"{self._search_query}\".")
+        else:
+            self._lbl_gb_status.setText("")
+            if not had_results:
+                self._has_more = False
+                if not self._all_mods:
+                    self._show_empty(t("gb_no_mods"))
+
+        self._check_fill()
+
+    def _show_empty(self, message: str):
+        empty = QLabel(message)
+        empty.setStyleSheet("color: #8b949e; font-size: 13px; border: none;")
+        empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.gb_grid.addWidget(empty, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+
+    def _check_fill(self): QTimer.singleShot(0, self._auto_load_if_needed)
+
+    def _auto_load_if_needed(self):
+        if self._loading: return
+        content  = self.gb_container.sizeHint().height()
+        viewport = self.gb_scroll.viewport().height()
+        if content <= viewport:
+            if self._search_mode: self._load_next_search_page()
+            else: self._load_next_page()
+
+    def _on_scroll(self, value: int):
+        if self._loading: return
+        vbar = self.gb_scroll.verticalScrollBar()
+        if vbar.maximum() > 0 and value >= vbar.maximum() - 50:
+            if self._search_mode: self._load_next_search_page()
+            else: self._load_next_page()
+
+    def _clear_grid(self):
+        while self.gb_grid.count():
+            item = self.gb_grid.takeAt(0)
+            w = item.widget()
+            if w: w.deleteLater()
+        self._all_mods.clear()
+
     def _on_close(self, event):
         self._stop_all_fetches()
         event.accept()
-            
-    def _stop_all_fetches(self):
-        if self._fetcher:
-            self._fetcher.cancel()
 
+    def _stop_all_fetches(self):
+        self._search_timer.stop()
+        if self._fetcher: self._fetcher.cancel()
         for thread in list(self._threads):
             try:
                 if thread.isRunning():
                     thread.quit()
                     thread.wait(5000)
-            except RuntimeError:
-                pass
-
+            except RuntimeError: pass
         self._threads.clear()
-        self._thread = None
+        self._thread  = None
         self._fetcher = None
-    
-    # For handling toggling NSFW mods
+
     def handle_toggle(self, checked=None):
-        cfg.set(
-            cfg.Key.SHOW_NSFW_MODS,
-            self.toggle_nsfw_mods.isChecked()
-        )
-
+        cfg.set(cfg.Key.SHOW_NSFW_MODS, self.toggle_nsfw_mods.isChecked())
         self._fetch_generation += 1
-
         self._stop_all_fetches()
-
-        self._all_mods.clear()
+        self._clear_grid()
+        self._search_mode  = False
+        self._search_query = ""
+        self._search_input.blockSignals(True)
+        self._search_input.clear()
+        self._search_input.blockSignals(False)
+        self._search_clear_btn.hide()
         self._current_page = 0
-        self._has_more = True
-        self._loading = False
-
-        while self.gb_grid.count():
-            item = self.gb_grid.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
+        self._has_more     = True
+        self._loading      = False
         self._load_next_page(force_refresh=False)
-
-    def _load_next_page(self, force_refresh: bool = False):
-        if self._loading or not self._has_more:
-            return
-
-        self._loading = True
-        self._current_page += 1
-        self._lbl_gb_status.setText(t("loading") or "Loading...")
-
-        generation = self._fetch_generation
-
-        thread = QThread()
-        fetcher = _ModFetcher(
-            self._current_page,
-            force_refresh,
-            generation
-        )
-
-        fetcher.moveToThread(thread)
-
-        thread.started.connect(fetcher.run)
-
-        fetcher.mod_ready.connect(self._on_mod_ready)
-        fetcher.page_done.connect(self._on_page_done)
-
-        fetcher.finished.connect(thread.quit)
-        fetcher.finished.connect(fetcher.deleteLater)
-
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(
-            lambda t=thread: self._threads.discard(t)
-        )
-
-        self._threads.add(thread)
-
-        self._thread = thread
-        self._fetcher = fetcher
-
-        thread.start()
-    
-    def _cleanup_fetch_thread(self):
-        self._thread = None
-        self._fetcher = None
-
-    def _on_mod_ready(self, mod: NTEMod, generation: int):
-        if generation != self._fetch_generation:
-            return
-
-        if mod.is_nsfw and not self.toggle_nsfw_mods.isChecked():
-            return
-
-        self._all_mods.append(mod)
-
-        cols = max(
-            1,
-            (self.gb_scroll.width() - 40) // 148
-        )
-
-        i = len(self._all_mods) - 1
-
-        card = GameBananaMod(mod)
-
-        self.gb_grid.addWidget(
-            card,
-            i // cols,
-            i % cols
-        )
-    
-    def _on_page_done(self, had_results: bool, generation: int):
-        if generation != self._fetch_generation:
-            return
-
-        self._lbl_gb_status.setText("")
-
-        if not had_results:
-            self._has_more = False
-
-            if not self._all_mods:
-                empty = QLabel(
-                    t("no_gamebanana_mods")
-                    or "No mods found. Check your connection."
-                )
-
-                empty.setStyleSheet(
-                    "color: #8b949e; font-size: 13px; border: none;"
-                )
-
-                empty.setAlignment(
-                    Qt.AlignmentFlag.AlignCenter
-                )
-
-                self.gb_grid.addWidget(
-                    empty,
-                    0,
-                    0,
-                    1,
-                    1,
-                    Qt.AlignmentFlag.AlignCenter
-                )
-
-        self._loading = False
-        self._check_fill()
-
-    def _check_fill(self):
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, self._auto_load_if_needed)
-
-    def _auto_load_if_needed(self):
-        if self._loading or not self._has_more:
-            return
-        content  = self.gb_container.sizeHint().height()
-        viewport = self.gb_scroll.viewport().height()
-        if content <= viewport:
-            self._load_next_page()
-
-    def _on_scroll(self, value):
-        if self._loading or not self._has_more:
-            return
-        vbar = self.gb_scroll.verticalScrollBar()
-        if vbar.maximum() > 0 and value >= vbar.maximum() - 50:
-            self._load_next_page()
 
     def _confirm_clear_cache(self):
         PopupDialog(
             parent=self.window(),
             title=t("clear_cache_title"),
-            message=(
-                t("clear_cache_message")
-            ),
+            message=t("clear_cache_message"),
             confirm_text=t("confirm"),
             cancel_text=t("cancel"),
             on_confirm=self._do_clear_cache,
@@ -348,27 +427,22 @@ class GameBananaBrowserOverlay(QFrame):
 
     def _do_clear_cache(self):
         self._fetch_generation += 1
-
         self._stop_all_fetches()
-
         clear_cache()
-
-        self._all_mods.clear()
+        self._clear_grid()
+        self._search_mode  = False
+        self._search_query = ""
+        self._search_input.blockSignals(True)
+        self._search_input.clear()
+        self._search_input.blockSignals(False)
+        self._search_clear_btn.hide()
         self._current_page = 0
-        self._has_more = True
-        self._loading = False
-
-        while self.gb_grid.count():
-            item = self.gb_grid.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
+        self._has_more     = True
+        self._loading      = False
         self._load_next_page(force_refresh=True)
-    
 
 class GameBananaMod(QFrame):
-    CARD_W = 160
+    CARD_W  = 160
     THUMB_H = 90
 
     _CARD_QSS = """
@@ -381,82 +455,47 @@ class GameBananaMod(QFrame):
             border-color: #4493f8;
             background: #181c24;
         }
-
         QLabel#GBStat {
-            color: #8b949e;
-            font-size: 11px;
-            background: transparent;
-            border: none;
+            color: #8b949e; font-size: 11px;
+            background: transparent; border: none;
         }
-
         QLabel#GBName {
-            color: #e6edf3;
-            font-size: 12px;
-            font-weight: 700;
-            background: transparent;
-            border: none;
+            color: #e6edf3; font-size: 12px; font-weight: 700;
+            background: transparent; border: none;
         }
-
         QLabel#GBAuthor {
-            color: #8b949e;
-            font-size: 11px;
-            background: transparent;
-            border: none;
+            color: #8b949e; font-size: 11px;
+            background: transparent; border: none;
         }
-
         QLabel#GBCategory {
-            color: #6e7681;
-            font-size: 10px;
-            background: transparent;
-            border: none;
+            color: #6e7681; font-size: 10px;
+            background: transparent; border: none;
         }
-
         QLabel#GBRatingNSFW {
-            color: #f85149;
-            font-size: 10px;
-            font-weight: 700;
-            background: #3d1c1c;
-            border: 1px solid #6e2a2a;
-            border-radius: 4px;
-            padding: 1px 5px;
+            color: #f85149; font-size: 10px; font-weight: 700;
+            background: #3d1c1c; border: 1px solid #6e2a2a;
+            border-radius: 4px; padding: 1px 5px;
         }
         QLabel#GBRatingSFW {
-            color: #3fb950;
-            font-size: 10px;
-            font-weight: 700;
-            background: #0f2b18;
-            border: 1px solid #196130;
-            border-radius: 4px;
-            padding: 1px 5px;
+            color: #3fb950; font-size: 10px; font-weight: 700;
+            background: #0f2b18; border: 1px solid #196130;
+            border-radius: 4px; padding: 1px 5px;
         }
-
         QPushButton#GBInstallBtn {
-            background: #238636;
-            color: #ffffff;
-            border: none;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 0 8px;
+            background: #238636; color: #ffffff;
+            border: none; border-radius: 6px;
+            font-size: 11px; font-weight: 700; padding: 0 8px;
         }
         QPushButton#GBInstallBtn:hover  { background: #2ea043; }
         QPushButton#GBInstallBtn:pressed { background: #1a6b2a; }
-
         QPushButton#GBOpenBtn {
-            background: #21262d;
-            color: #c9d1d9;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            padding: 0 8px;
+            background: #21262d; color: #c9d1d9;
+            border: 1px solid #30363d; border-radius: 6px;
+            font-size: 11px; font-weight: 600; padding: 0 8px;
         }
         QPushButton#GBOpenBtn:hover  { background: #30363d; border-color: #4493f8; color: #e6edf3; }
         QPushButton#GBOpenBtn:pressed { background: #161b22; }
-
-        QFrame#GBSep {
-            background: #21262d;
-        }
+        QFrame#GBSep { background: #21262d; }
     """
 
     def __init__(self, mod: NTEMod, parent=None):
@@ -471,6 +510,7 @@ class GameBananaMod(QFrame):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
         thumbnail_pix = QPixmap()
         thumbnail_pix.loadFromData(mod.thumbnail)
 
@@ -480,14 +520,10 @@ class GameBananaMod(QFrame):
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb.setCursor(Qt.CursorShape.PointingHandCursor)
         thumb.setPixmap(_rounded_pixmap(thumbnail_pix, self.CARD_W, self.THUMB_H, radius=10))
-        thumb.setStyleSheet(
-            "border-top-left-radius: 10px;"
-            "border-top-right-radius: 10px;"
-        )
+        thumb.setStyleSheet("border-top-left-radius: 10px; border-top-right-radius: 10px;")
 
         def _thumb_click(e, pix=thumbnail_pix):
-            if e.button() == Qt.MouseButton.LeftButton and not pix.isNull():
-                show_image(pix, self)
+            if e.button() == Qt.MouseButton.LeftButton and not pix.isNull(): show_image(pix, self)
         thumb.mousePressEvent = _thumb_click
         root.addWidget(thumb)
 
@@ -502,53 +538,41 @@ class GameBananaMod(QFrame):
         name_lbl.setMaximumHeight(38)
         body.addWidget(name_lbl)
 
+        # Author row
         author_row = QHBoxLayout()
         author_row.setSpacing(4)
         author_row.setContentsMargins(0, 0, 0, 0)
-
         author_icon = QLabel()
         author_icon.setFixedSize(13, 13)
         _pix_author = QPixmap(resource_path("Bin/Assets/author.png"))
         if not _pix_author.isNull():
-            author_icon.setPixmap(
-                _pix_author.scaled(13, 13, Qt.AspectRatioMode.KeepAspectRatio,
-                                   Qt.TransformationMode.SmoothTransformation)
-            )
+            author_icon.setPixmap(_pix_author.scaled(13, 13, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         author_icon.setStyleSheet("background: transparent; border: none;")
-
         author_lbl = QLabel(mod.author)
         author_lbl.setObjectName("GBAuthor")
-
         author_row.addWidget(author_icon)
         author_row.addWidget(author_lbl)
         author_row.addStretch()
         body.addLayout(author_row)
 
-        sep1 = QFrame()
-        sep1.setObjectName("GBSep")
-        sep1.setFixedHeight(1)
+        sep1 = QFrame(); sep1.setObjectName("GBSep"); sep1.setFixedHeight(1)
         body.addWidget(sep1)
 
+        # Category / rating row
         cat_row = QHBoxLayout()
         cat_row.setSpacing(5)
         cat_row.setContentsMargins(0, 0, 0, 0)
-
         cat_text = mod.root_category
-        if mod.sub_category:
-            cat_text = f"{mod.root_category} › {mod.sub_category}" if cat_text else mod.sub_category
+        if mod.sub_category: cat_text = f"{mod.root_category} › {mod.sub_category}" if cat_text else mod.sub_category
         cat_lbl = QLabel(cat_text or "—")
         cat_lbl.setObjectName("GBCategory")
         cat_lbl.setWordWrap(False)
-
         if mod.is_nsfw:
             rating_icon_path = resource_path("Bin/Assets/rating_nsfw.png")
-            rating_lbl = QLabel("NSFW")
-            rating_lbl.setObjectName("GBRatingNSFW")
+            rating_lbl = QLabel("NSFW"); rating_lbl.setObjectName("GBRatingNSFW")
         else:
             rating_icon_path = resource_path("Bin/Assets/rating_sfw.png")
-            rating_lbl = QLabel("SFW")
-            rating_lbl.setObjectName("GBRatingSFW")
-
+            rating_lbl = QLabel("SFW"); rating_lbl.setObjectName("GBRatingSFW")
         rating_icon_lbl = QLabel()
         rating_icon_lbl.setFixedSize(13, 13)
         _pix_rating = QPixmap(rating_icon_path)
@@ -558,37 +582,25 @@ class GameBananaMod(QFrame):
                                    Qt.TransformationMode.SmoothTransformation)
             )
         rating_icon_lbl.setStyleSheet("background: transparent; border: none;")
-
         cat_row.addWidget(cat_lbl, stretch=1)
         cat_row.addWidget(rating_icon_lbl)
         cat_row.addWidget(rating_lbl)
         body.addLayout(cat_row)
 
-        sep2 = QFrame()
-        sep2.setObjectName("GBSep")
-        sep2.setFixedHeight(1)
+        sep2 = QFrame(); sep2.setObjectName("GBSep"); sep2.setFixedHeight(1)
         body.addWidget(sep2)
 
-        stats_row = QHBoxLayout()
-        stats_row.setSpacing(0)
-        stats_row.setContentsMargins(0, 0, 0, 0)
-
+        # Stats row
         def _fmt(n: int) -> str:
-            if n >= 1_000_000:
-                return f"{n / 1_000_000:.1f}M"
-            if n >= 1_000:
-                return f"{n / 1_000:.1f}K"
+            if n >= 1_000_000: return f"{n / 1_000_000:.1f}M"
+            if n >= 1_000:     return f"{n / 1_000:.1f}K"
             return str(n)
 
         def _stat_widget(icon_path: str, value: int) -> QWidget:
-            w = QWidget()
-            w.setStyleSheet("background: transparent;")
+            w = QWidget(); w.setStyleSheet("background: transparent;")
             h = QHBoxLayout(w)
-            h.setContentsMargins(0, 0, 0, 0)
-            h.setSpacing(3)
-
-            icon_lbl = QLabel()
-            icon_lbl.setFixedSize(12, 12)
+            h.setContentsMargins(0, 0, 0, 0); h.setSpacing(3)
+            icon_lbl = QLabel(); icon_lbl.setFixedSize(12, 12)
             pix = QPixmap(resource_path(icon_path))
             if not pix.isNull():
                 icon_lbl.setPixmap(
@@ -596,31 +608,28 @@ class GameBananaMod(QFrame):
                                Qt.TransformationMode.SmoothTransformation)
                 )
             icon_lbl.setStyleSheet("background: transparent; border: none;")
-
-            val_lbl = QLabel(_fmt(value))
-            val_lbl.setObjectName("GBStat")
-
-            h.addWidget(icon_lbl)
-            h.addWidget(val_lbl)
+            val_lbl = QLabel(_fmt(value)); val_lbl.setObjectName("GBStat")
+            h.addWidget(icon_lbl); h.addWidget(val_lbl)
             return w
 
-        stats_row.addWidget(_stat_widget("Bin/Assets/views.png",   mod.view_count))
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(0); stats_row.setContentsMargins(0, 0, 0, 0)
+        stats_row.addWidget(_stat_widget("Bin/Assets/views.png",    mod.view_count))
         stats_row.addStretch()
         stats_row.addWidget(_stat_widget("Bin/Assets/download.png", mod.download_count))
         stats_row.addStretch()
-        stats_row.addWidget(_stat_widget("Bin/Assets/like.png",    mod.like_count))
+        stats_row.addWidget(_stat_widget("Bin/Assets/like.png",     mod.like_count))
         body.addLayout(stats_row)
 
+        # Buttons
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(6)
-        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(6); btn_row.setContentsMargins(0, 0, 0, 0)
 
         install_btn = QPushButton()
         install_btn.setObjectName("GBInstallBtn")
         install_btn.setFixedHeight(28)
         install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         install_btn.setToolTip(t("gamebanana_install_btn") or "Download & Install")
-
         _dl_icon = QPixmap(resource_path("Bin/Assets/download.png"))
         if not _dl_icon.isNull():
             install_btn.setIcon(QIcon(_dl_icon))
@@ -630,11 +639,9 @@ class GameBananaMod(QFrame):
 
         open_btn = QPushButton()
         open_btn.setObjectName("GBOpenBtn")
-        open_btn.setFixedHeight(28)
-        open_btn.setFixedWidth(34)
+        open_btn.setFixedHeight(28); open_btn.setFixedWidth(34)
         open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         open_btn.setToolTip(t("gamebanana_open_btn") or "Open on GameBanana")
-
         _gb_icon = QPixmap(resource_path("Bin/Assets/marketplace.png"))
         if not _gb_icon.isNull():
             open_btn.setIcon(QIcon(_gb_icon))
@@ -647,36 +654,28 @@ class GameBananaMod(QFrame):
 
     def _install(self):
         files = get_mod_files(self.mod.id)
-        
         if len(files) == 1:
             file = files[0]
             self.window().__dict__["mod_overlay"].__dict__["gamebanana_install_zone"].install_file(
-                file.name,
-                file.url
+                file.name, file.url
             )
             return
-        
         self.overlay = _InstallSelectionOverlay(self.window(), files)
         self.overlay.show()
         self.overlay.raise_()
-    
-    def _open_gamebanana(self):
-        url = self.mod.mod_url
-        if not url:
-            url = f"https://gamebanana.com/mods/{self.mod.id}"
 
+    def _open_gamebanana(self):
+        url  = self.mod.mod_url or f"https://gamebanana.com/mods/{self.mod.id}"
         host = self.window()
         if host is None or host is self:
             webbrowser.open(url)
             return
-
         PopupDialog(
             parent=host,
             title="Open GameBanana",
             message=(
                 f"You are about to open an external link in your browser:\n\n"
-                f"{url}\n\n"
-                "Continue?"
+                f"{url}\n\nContinue?"
             ),
             confirm_text="Open in Browser",
             cancel_text=t("cancel") or "Cancel",
@@ -690,12 +689,8 @@ class _InstallSelectionOverlay(QWidget):
         self.setFixedSize(parent.size())
         self.move(0, 0)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        self.setStyleSheet("""
-            QWidget#InstallSelectionOverlay {
-                background: rgba(0, 0, 0, 180);
-            }
-        """)
-        
+        self.setStyleSheet("""QWidget#InstallSelectionOverlay { background: rgba(0, 0, 0, 180); }""")
+
         self.card = QFrame(self)
         self.card.setObjectName("InstallCard")
         self.card.setFixedWidth(460)
@@ -707,16 +702,19 @@ class _InstallSelectionOverlay(QWidget):
                 border-radius: 12px;
             }
         """)
-        
+
         card_layout = QVBoxLayout(self.card)
         card_layout.setContentsMargins(24, 24, 24, 24)
         card_layout.setSpacing(16)
-        
-        title = QLabel(t("gamebanana_install_title") or "Select a file to install")
+
+        title = QLabel(t("gamebanana_install_title"))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6edf3; background: transparent; border: none;")
+        title.setStyleSheet(
+            "font-size: 16px; font-weight: bold; color: #e6edf3;"
+            "background: transparent; border: none;"
+        )
         card_layout.addWidget(title)
-                
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("""
@@ -724,27 +722,23 @@ class _InstallSelectionOverlay(QWidget):
             QScrollBar:vertical { background: #161b22; width: 6px; border-radius: 3px; }
             QScrollBar::handle:vertical { background: #3d444d; border-radius: 3px; min-height: 20px; }
         """)
-        
+
         files_widget = QWidget()
         files_widget.setStyleSheet("background: transparent;")
         files_layout = QVBoxLayout(files_widget)
         files_layout.setSpacing(8)
         files_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         if files:
             for file in files:
                 btn = QPushButton(f"{file.name} ({bytes_to_human_readable(file.size)})")
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 btn.setStyleSheet("""
                     QPushButton {
-                        background: #238636;
-                        color: #ffffff;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 13px;
-                        font-weight: 600;
-                        padding: 12px 16px;
-                        text-align: left;
+                        background: #238636; color: #ffffff;
+                        border: none; border-radius: 6px;
+                        font-size: 13px; font-weight: 600;
+                        padding: 12px 16px; text-align: left;
                     }
                     QPushButton:hover  { background: #2ea043; }
                     QPushButton:pressed { background: #1a6b2a; }
@@ -753,7 +747,7 @@ class _InstallSelectionOverlay(QWidget):
                     partial(
                         parent.__dict__["mod_overlay"].__dict__["gamebanana_install_zone"].install_file,
                         file.name,
-                        file.url
+                        file.url,
                     )
                 )
                 files_layout.addWidget(btn)
@@ -762,57 +756,46 @@ class _InstallSelectionOverlay(QWidget):
             empty_lbl.setStyleSheet("color: #8b949e; font-size: 13px;")
             empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             files_layout.addWidget(empty_lbl)
-            
+
         scroll.setWidget(files_widget)
-        
         files_widget.adjustSize()
-        content_height = files_widget.sizeHint().height()
-        scroll.setFixedHeight(min(content_height, 250))
-        
+        scroll.setFixedHeight(min(files_widget.sizeHint().height(), 250))
         card_layout.addWidget(scroll)
-        
+
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel_btn = QPushButton(t("cancel") or "Cancel")
+        cancel_btn = QPushButton(t("cancel"))
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.setStyleSheet("""
             QPushButton {
-                background: #21262d;
-                color: #c9d1d9;
-                border: 1px solid #30363d;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 600;
-                padding: 8px 24px;
+                background: #21262d; color: #c9d1d9;
+                border: 1px solid #30363d; border-radius: 6px;
+                font-size: 13px; font-weight: 600; padding: 8px 24px;
             }
             QPushButton:hover  { background: #30363d; border-color: #8b949e; color: #e6edf3; }
             QPushButton:pressed { background: #161b22; }
         """)
         cancel_btn.clicked.connect(self._close_overlay)
         btn_row.addWidget(cancel_btn)
-        
         card_layout.addLayout(btn_row)
-        
+
         self.card.adjustSize()
         self.card.move(
             (self.width() - self.card.width()) // 2,
-            (self.height() - self.card.height()) // 2
+            (self.height() - self.card.height()) // 2,
         )
-        
+
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
         self.anim.setDuration(200)
         self.anim.setStartValue(0)
         self.anim.setEndValue(1)
-        self.show()
-        self.raise_()
-        self.anim.start()
+        self.show(); self.raise_(); self.anim.start()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
-            if not self.card.geometry().contains(e.pos()):
-                self._close_overlay()
+            if not self.card.geometry().contains(e.pos()): self._close_overlay()
 
     def _close_overlay(self):
         self.anim.setDirection(QPropertyAnimation.Direction.Backward)
@@ -857,6 +840,7 @@ QPushButton#CancelBtn:pressed {{
 }}
 """
 
+
 class _SmartProgressBar(QWidget):
     _TRACK_H   = 3
     _GLOW_FRAC = 0.38
@@ -869,7 +853,6 @@ class _SmartProgressBar(QWidget):
         self._progress      = 0.0
         self._pos           = 0.0
         self._last_tick     = time.monotonic()
-
         self._timer = QTimer(self)
         self._timer.setInterval(16)
         self._timer.timeout.connect(self._tick)
@@ -877,8 +860,7 @@ class _SmartProgressBar(QWidget):
     def start_indeterminate(self):
         self._indeterminate = True
         self._last_tick     = time.monotonic()
-        if not self._timer.isActive():
-            self._timer.start()
+        if not self._timer.isActive(): self._timer.start()
 
     def set_progress(self, value: float):
         self._indeterminate = False
@@ -887,8 +869,7 @@ class _SmartProgressBar(QWidget):
             self._timer.stop()
         self.update()
 
-    def stop(self):
-        self._timer.stop()
+    def stop(self): self._timer.stop()
 
     def _tick(self):
         now             = time.monotonic()
@@ -900,23 +881,18 @@ class _SmartProgressBar(QWidget):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
         w, h = self.width(), self._TRACK_H
         y    = (self.height() - h) // 2
-
         p.setPen(Qt.PenStyle.NoPen)
         track = QPainterPath()
         track.addRoundedRect(QRectF(0, y, w, h), h / 2, h / 2)
         p.fillPath(track, QBrush(QColor(40, 40, 40)))
-
         accent = QColor(_ACCENT_FULL)
-
         if self._indeterminate:
             frac   = self._GLOW_FRAC
             center = self._pos
             x0     = (center - frac / 2) * w
             x1     = (center + frac / 2) * w
-
             grad        = QLinearGradient(QPointF(x0, 0), QPointF(x1, 0))
             transparent = QColor(accent); transparent.setAlpha(0)
             dim         = QColor(accent); dim.setAlpha(90)
@@ -925,28 +901,23 @@ class _SmartProgressBar(QWidget):
             grad.setColorAt(0.5,  accent)
             grad.setColorAt(0.75, dim)
             grad.setColorAt(1.0,  transparent)
-
             p.save()
             p.setClipPath(track)
             p.fillRect(int(x0), y, int(x1 - x0) + 1, h, QBrush(grad))
             p.restore()
-
         else:
             fill_w = w * self._progress
             if fill_w > 0:
                 fill = QPainterPath()
                 fill.addRoundedRect(QRectF(0, y, fill_w, h), h / 2, h / 2)
-
                 grad = QLinearGradient(QPointF(0, 0), QPointF(fill_w, 0))
                 dim  = QColor(accent); dim.setAlpha(160)
                 grad.setColorAt(0.0, dim)
                 grad.setColorAt(1.0, accent)
-
                 p.save()
                 p.setClipPath(track)
                 p.fillPath(fill, QBrush(grad))
                 p.restore()
-
         p.end()
 
 
@@ -963,8 +934,7 @@ class _InstallWorker(QObject):
         self._url       = url
         self._cancelled = False
 
-    def cancel(self):
-        self._cancelled = True
+    def cancel(self): self._cancelled = True
 
     @staticmethod
     def _has_ini_only(folder: Path) -> bool:
@@ -978,78 +948,50 @@ class _InstallWorker(QObject):
         return False
 
     def run(self):
-        try:
-            self._download_and_install()
+        try: self._download_and_install()
         except Exception as exc:
-            if not self._cancelled:
-                self.error.emit(str(exc))
+            if not self._cancelled: self.error.emit(str(exc))
 
     def _download_and_install(self):
         import requests
-
         tmp_dir  = Path(tempfile.gettempdir()) / "nte_mod_install"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         tmp_path = tmp_dir / self._filename
-
         try:
             resp = requests.get(self._url, stream=True, timeout=30)
             resp.raise_for_status()
         except requests.RequestException as exc:
             self.error.emit(f"Download failed: {exc}")
             return
-
         total = int(resp.headers.get("content-length", 0))
         done  = 0
-
         with open(tmp_path, "wb") as fh:
             for chunk in resp.iter_content(chunk_size=65_536):
-                if self._cancelled:
-                    return
+                if self._cancelled: return
                 if chunk:
                     fh.write(chunk)
                     done += len(chunk)
                     self.download_progress.emit(done, total)
-
-        if self._cancelled:
-            return
-
+        if self._cancelled: return
         self.install_started.emit()
-
         mods_dir       = get_mods_path()
-        app_dir = Path(get_app_dir())
+        app_dir        = Path(get_app_dir())
         seven_zip_path = app_dir / "Bin" / "7z.exe"
-        installed      : list[str] = []
-
+        installed: list[str] = []
         path   = tmp_path
         suffix = path.suffix.lower()
-
         try:
             if suffix in (".zip", ".rar", ".7z"):
                 if not seven_zip_path.exists():
                     self.error.emit(f"Extraction tool missing: {seven_zip_path}")
                     return
-
                 out_dir = mods_dir / path.stem
-                cmd     = [
-                    str(seven_zip_path),
-                    "x",
-                    str(path),
-                    f"-o{out_dir}",
-                    "-y",
-                ]
-
+                cmd     = [str(seven_zip_path), "x", str(path), f"-o{out_dir}", "-y"]
                 startupinfo = None
                 if sys.platform == "win32":
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-                result = subprocess.run(
-                    cmd,
-                    startupinfo=startupinfo,
-                    capture_output=True,
-                    text=True,
-                )
-
+                result = subprocess.run(cmd, startupinfo=startupinfo, capture_output=True, text=True)
                 if result.returncode == 0:
                     installed.append(path.stem)
                     try: os.remove(path)
@@ -1062,23 +1004,20 @@ class _InstallWorker(QObject):
                 else:
                     self.error.emit(f"Extraction failed for {path.name}:\n{result.stderr.strip()}")
                     return
-
             elif path.is_dir():
                 dest = mods_dir / path.name
                 if dest.exists(): shutil.rmtree(dest)
                 shutil.copytree(path, dest)
                 installed.append(path.name)
-
             else:
                 dest = mods_dir / path.name
                 shutil.copy2(path, dest)
                 installed.append(path.name)
-
         except Exception as exc:
             self.error.emit(f"Install error: {exc}")
             return
-
-        if not self._cancelled: self.finished.emit(installed)
+        if not self._cancelled:
+            self.finished.emit(installed)
 
 
 class InstallProgressWindow(QWidget):
@@ -1096,21 +1035,14 @@ class InstallProgressWindow(QWidget):
         self.setFixedSize(_WIN_W, _WIN_H)
         self.setObjectName("InstallProgressWindow")
         self.setStyleSheet(_WINDOW_STYLE)
-
         self._filename : str                   = filename
         self._url      : str                   = url
         self._worker   : _InstallWorker | None = None
         self._thread   : QThread        | None = None
         self._old_pos  : QPoint         | None = None
-
         self._build_ui()
-
-        from PyQt6.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
-        self.move(
-            geo.center().x() - _WIN_W // 2,
-            geo.center().y() - _WIN_H // 2,
-        )
+        self.move(geo.center().x() - _WIN_W // 2, geo.center().y() - _WIN_H // 2)
         self._overlay_parent = overlay_parent
 
     def _build_ui(self):
@@ -1118,27 +1050,18 @@ class InstallProgressWindow(QWidget):
         root.setContentsMargins(28, 24, 28, 20)
         root.setSpacing(0)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(10)
-
+        top_row = QHBoxLayout(); top_row.setSpacing(10)
         lbl_icon = QLabel()
         _pix = QPixmap(resource_path("Bin/Assets/install_zip.png"))
         if not _pix.isNull():
-            lbl_icon.setPixmap(
-                _pix.scaled(
-                    20, 20,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
+            lbl_icon.setPixmap(_pix.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio,
+                                           Qt.TransformationMode.SmoothTransformation))
         lbl_icon.setFixedSize(20, 20)
-
         lbl_title = QLabel("Installing Mod")
         lbl_title.setStyleSheet(
             f"color: {_TEXT_PRI}; font-size: 15px; font-weight: 600;"
             " font-family: 'Segoe UI', system-ui, sans-serif;"
         )
-
         btn_close = QPushButton()
         btn_close.setIcon(QIcon(resource_path("Bin/Assets/close.png")))
         btn_close.setIconSize(QSize(24, 24))
@@ -1146,18 +1069,12 @@ class InstallProgressWindow(QWidget):
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.setStyleSheet(
             "QPushButton { background: transparent; border: none; }"
-            "QPushButton:hover { background-color: rgba(255,255,255,20);"
-            "                    border-radius: 5px; }"
+            "QPushButton:hover { background-color: rgba(255,255,255,20); border-radius: 5px; }"
         )
         btn_close.clicked.connect(self._on_cancel)
-
-        top_row.addWidget(lbl_icon)
-        top_row.addWidget(lbl_title)
-        top_row.addStretch()
-        top_row.addWidget(btn_close)
-
-        root.addLayout(top_row)
-        root.addSpacing(6)
+        top_row.addWidget(lbl_icon); top_row.addWidget(lbl_title)
+        top_row.addStretch(); top_row.addWidget(btn_close)
+        root.addLayout(top_row); root.addSpacing(6)
 
         self._lbl_filename = QLabel(self._filename)
         self._lbl_filename.setStyleSheet(
@@ -1165,8 +1082,7 @@ class InstallProgressWindow(QWidget):
             " font-family: 'Consolas', 'Cascadia Code', monospace;"
         )
         self._lbl_filename.setFixedHeight(14)
-        root.addWidget(self._lbl_filename)
-        root.addSpacing(16)
+        root.addWidget(self._lbl_filename); root.addSpacing(16)
 
         self._lbl_status = QLabel("Preparing download…")
         self._lbl_status.setStyleSheet(
@@ -1174,12 +1090,10 @@ class InstallProgressWindow(QWidget):
             " font-family: 'Segoe UI', system-ui, sans-serif;"
         )
         self._lbl_status.setWordWrap(True)
-        root.addWidget(self._lbl_status)
-        root.addSpacing(12)
+        root.addWidget(self._lbl_status); root.addSpacing(12)
 
         self._bar = _SmartProgressBar(self)
-        root.addWidget(self._bar)
-        root.addSpacing(8)
+        root.addWidget(self._bar); root.addSpacing(8)
 
         self._lbl_detail = QLabel("")
         self._lbl_detail.setStyleSheet(
@@ -1187,64 +1101,48 @@ class InstallProgressWindow(QWidget):
             " font-family: 'Segoe UI', system-ui, sans-serif;"
         )
         self._lbl_detail.setFixedHeight(14)
-        root.addWidget(self._lbl_detail)
-
-        root.addStretch()
+        root.addWidget(self._lbl_detail); root.addStretch()
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet(
-            "background-color: rgba(255,255,255,6); border: none; max-height: 1px;"
-        )
-        root.addWidget(divider)
-        root.addSpacing(12)
+        divider.setStyleSheet("background-color: rgba(255,255,255,6); border: none; max-height: 1px;")
+        root.addWidget(divider); root.addSpacing(12)
 
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(0)
-
+        bottom_row = QHBoxLayout(); bottom_row.setSpacing(0)
         self._lbl_phase = QLabel("Downloading")
         self._lbl_phase.setStyleSheet(
             f"color: {_TEXT_MUTED}; font-size: 11px;"
             " font-family: 'Segoe UI', system-ui, sans-serif;"
         )
-
         self._btn_cancel = QPushButton("Cancel")
         self._btn_cancel.setObjectName("CancelBtn")
         self._btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_cancel.clicked.connect(self._on_cancel)
-
-        bottom_row.addWidget(self._lbl_phase)
-        bottom_row.addStretch()
+        bottom_row.addWidget(self._lbl_phase); bottom_row.addStretch()
         bottom_row.addWidget(self._btn_cancel)
-
         root.addLayout(bottom_row)
 
     def start(self):
         self._worker = _InstallWorker(self._filename, self._url)
         self._thread = QThread()
         self._worker.moveToThread(self._thread)
-
         self._thread.started.connect(self._worker.run)
-
         self._worker.download_progress.connect(self._on_download_progress)
         self._worker.install_started.connect(self._on_install_started)
         self._worker.finished.connect(self._on_finished)
         self._worker.error.connect(self._on_error)
         self._worker.ini_warning.connect(self._on_ini_warning)
-
         self._worker.finished.connect(self._thread.quit)
         self._worker.error.connect(self._thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
-
         self._thread.start()
 
     def _on_download_progress(self, done: int, total: int):
         if total > 0:
             frac = done / total
             self._bar.set_progress(frac)
-            pct  = int(frac * 100)
-            self._lbl_status.setText(f"Downloading… {pct}%")
+            self._lbl_status.setText(f"Downloading… {int(frac * 100)}%")
             self._lbl_detail.setText(
                 f"{bytes_to_human_readable(done)}  /  {bytes_to_human_readable(total)}"
             )
@@ -1271,7 +1169,7 @@ class InstallProgressWindow(QWidget):
         self._lbl_detail.setText("")
         self._lbl_phase.setText("Failed")
         self._btn_cancel.setText("Close")
-        logger.error(f"InstallProgressWindow error: {msg}")
+        logger.error(f"Install PW error: {msg}")
 
     def _on_ini_warning(self, folder_name: str):
         self._bar.stop()
@@ -1287,15 +1185,14 @@ class InstallProgressWindow(QWidget):
                     "different tool and cannot be loaded by this launcher.\n\n"
                     "The mod has been removed automatically."
                 ),
-                confirm_text="OK",
+                confirm_text=t("confirm"),
                 cancel_text="",
             )
             popup.raise_()
         self.close()
 
     def _on_cancel(self):
-        if self._worker:
-            self._worker.cancel()
+        if self._worker: self._worker.cancel()
         if self._thread and self._thread.isRunning():
             self._thread.quit()
         self._bar.stop()
@@ -1318,22 +1215,15 @@ class InstallProgressWindow(QWidget):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(QColor(_BG)))
         p.drawRoundedRect(self.rect(), 16, 16)
-
-        pen = QPen(QColor(_BORDER))
-        pen.setWidth(1)
-        p.setPen(pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
+        pen = QPen(QColor(_BORDER)); pen.setWidth(1)
+        p.setPen(pen); p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 15, 15)
-
         glow = QLinearGradient(QPointF(0, 0), QPointF(0, 40))
         glow.setColorAt(0.0, QColor(200, 168, 255, 18))
         glow.setColorAt(1.0, QColor(200, 168, 255, 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(glow))
+        p.setPen(Qt.PenStyle.NoPen); p.setBrush(QBrush(glow))
         p.drawRoundedRect(self.rect(), 16, 16)
-
         p.end()
