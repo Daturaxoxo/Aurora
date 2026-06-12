@@ -8,7 +8,8 @@ class DevConsolePanel(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("DevConsole")
-        self.setFixedHeight(180)
+        s = getattr(parent.window() if parent else None, '_s', 1.0) if parent else 1.0
+        self.setFixedHeight(int(180 * s))
         self.setStyleSheet("""
             #DevConsole {
                 background-color: rgba(10, 8, 18, 220);

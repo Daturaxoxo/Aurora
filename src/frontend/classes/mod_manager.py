@@ -108,8 +108,7 @@ class _BaseInstallZone(QFrame):
         layout.addLayout(sub_row)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._open_file_dialog()
+        if event.button() == Qt.MouseButton.LeftButton: self._open_file_dialog()
         super().mousePressEvent(event)
 
     def _install_paths(self, paths: list[str | Path]):
@@ -191,8 +190,7 @@ class ZipInstallZone(_BaseInstallZone):
 
         if dialog.exec():
             selected_paths = [Path(p) for p in dialog.selectedFiles()]
-            if selected_paths:
-                self._install_paths(selected_paths)
+            if selected_paths: self._install_paths(selected_paths)
 
 class FolderInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
@@ -211,8 +209,7 @@ class FolderInstallZone(_BaseInstallZone):
             "",
         )
 
-        if folder:
-            self._install_paths([Path(folder)])
+        if folder: self._install_paths([Path(folder)])
 
 class GameBananaInstallZone(_BaseInstallZone):
     def __init__(self, mods_dir: Path, parent=None):
@@ -226,11 +223,10 @@ class GameBananaInstallZone(_BaseInstallZone):
 
     def _open_file_dialog(self):
         overlay = self.parent()
-        while overlay is not None and not isinstance(overlay, ModManagerOverlay):
-            overlay = overlay.parent()
-        if overlay is None:
-            return
-        browser = GameBananaBrowserOverlay(overlay.parent(), overlay.manager)
+        while overlay is not None and not isinstance(overlay, ModManagerOverlay): overlay = overlay.parent()
+        if overlay is None: return
+        s = getattr(self.window(), '_s', 1.0)
+        browser = GameBananaBrowserOverlay(overlay.parent(), overlay.manager, scale=s)
         browser.show()
     
     def install_file(self, filename: str, url: str):
@@ -457,12 +453,13 @@ class ModListContainer(QWidget):
             event.acceptProposedAction()
 
 class ModManagerOverlay(QFrame):
-    def __init__(self, parent, mod_manager):
+    def __init__(self, parent, mod_manager, scale: float=1.0):
         super().__init__(parent)
         self.setObjectName("ModManagerOverlay")
         self.manager = mod_manager
 
-        self.setGeometry(240, 80, 800, 560)
+        s=scale
+        self.setGeometry(int(240 * s), int(80 * s), int(800 * s), int(560 * s))
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(MOD_MANAGER_STYLE)
         

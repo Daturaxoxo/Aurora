@@ -231,12 +231,14 @@ class _SearchFetcher(QObject):
 
 
 class GameBananaBrowserOverlay(QFrame):
-    def __init__(self, parent, mod_manager):
+    def __init__(self, parent, mod_manager, scale: float=1.0):
         super().__init__(parent)
         self.setObjectName("GameBananaBrowserOverlay")
         self.manager = mod_manager
 
+        s=scale
         self.setGeometry(240, 80, 800, 560)
+        self.setGeometry(int(240*s), int(80*s), int(800*s), int(560*s))
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(GB_STYLE)
         self.closeEvent = self._on_close

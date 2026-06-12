@@ -268,11 +268,12 @@ _SECTION_LABEL_STYLE = "color: #484848; font-size: 11px; font-weight: 600; lette
 
 
 class FaqOverlay(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, scale: float=1.0):
         super().__init__(parent)
+        s = scale
         self.setObjectName("FaqContainer")
-        self.setFixedSize(800, 500)
-        self.move(240, 110)
+        self.setFixedSize(int(800*s), int(500*s))
+        self.move(int(240*s), int(110*s))
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(_OVERLAY_STYLE)
         self.hide()

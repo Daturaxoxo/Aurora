@@ -16,6 +16,20 @@ ARCHIVES = (
     "\\Temp\\$",
 )
 
+def compute_scale(base_w=1920, base_h=1080) -> float:
+    app = QApplication.instance()
+    screen = app.primaryScreen() if app else None
+    if screen is None:
+        return 1.0
+
+    geo = screen.geometry()
+    scale_w = geo.width() / base_w
+    scale_h = geo.height() / base_h
+    raw = min(scale_w, scale_h)
+
+    snapped = round(raw * 4) / 4
+    return max(0.75, min(2.5, snapped))
+
 def check_archive_status():
     if not getattr(sys, "frozen", False): return  # Skip development environments
     exe_path = sys.executable.replace("/", "\\")
@@ -68,10 +82,11 @@ def run_as_admin():
 
 def main():
     app = QApplication(sys.argv)
+    scale = compute_scale()
     saved_path = cfg.get(cfg.Key.GAME_PATH)
     initial_path = saved_path if (saved_path and validate_path(saved_path)) else None
     engine = AuroraEngine(initial_path) if initial_path else None
-    window = AuroraUI(engine, initial_path)
+    window = AuroraUI(engine, initial_path, scale=scale)
 
     if cfg.get(cfg.Key.DISCORD_RPC):
         window.rpc = DiscordRPC()

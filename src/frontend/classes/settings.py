@@ -109,11 +109,13 @@ _SECTION_LABEL_STYLE = "color: #484848; font-size: 11px; font-weight: 600; lette
 _PAGE_TITLE_STYLE    = "color: #D7D7D7; font-size: 20px; font-weight: 500;"
 
 class SettingsOverlay(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, scale: float=1.0):
         super().__init__(parent)
+        s = scale
+        W, H = int(800*s), int(500*s)
         self.setObjectName("SettingsContainer")
-        self.setFixedSize(800, 500)
-        self.move(240, 110)
+        self.setFixedSize(W, H)
+        self.move(int(240*s), int(110*s))
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setStyleSheet(SETTING_STYLE)
         self.hide()
@@ -144,7 +146,7 @@ class SettingsOverlay(QFrame):
 
         top_bar.setParent(self)
         top_bar.move(0, 0)
-        top_bar.resize(800, 44)
+        top_bar.resize(W, int(44*s))
 
         # Sidebar + content body
         body = QWidget()
@@ -156,7 +158,7 @@ class SettingsOverlay(QFrame):
         # Sidebar
         sidebar = QFrame()
         sidebar.setObjectName("SettingsSidebar")
-        sidebar.setFixedWidth(180)
+        sidebar.setFixedWidth(int(180*s))
         sidebar.setStyleSheet(_SIDEBAR_STYLE)
 
         sidebar_layout = QVBoxLayout(sidebar)
@@ -198,8 +200,7 @@ class SettingsOverlay(QFrame):
         top_bar.raise_()
 
         # Connect side buttons
-        for i, b in enumerate(self._sidebar_btns):
-            b.clicked.connect(lambda _, idx=i: self._switch_page(idx))
+        for i, b in enumerate(self._sidebar_btns): b.clicked.connect(lambda _, idx=i: self._switch_page(idx))
         self._switch_page(0)
 
         Translator.language_changed.connect(self.retranslate_ui)

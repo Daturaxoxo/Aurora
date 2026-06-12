@@ -82,16 +82,20 @@ class DriveSearchThread(QThread):
 
 # MAIN UI
 class AuroraUI(QMainWindow):
-    def __init__(self, engine, current_path):
+    def __init__(self, engine, current_path, scale: float = 1.0):
         super().__init__()
         self.engine = engine
         self.current_path = current_path
         self.old_pos = None
         self._search_thread = None
         self.is_valid = validate_path(self.current_path) if self.current_path else False
+        self._s = scale
+        s = self._s
+        self._W = int(1280 * s)
+        self._H = int(720 * s)
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setFixedSize(1280, 720)
+        self.setFixedSize(self._W, self._H)
         self.setStyleSheet(MAIN_STYLE)
         self.setWindowTitle("Aurora Launcher")
         self.setWindowIcon(QIcon(resource_path("Bin/Assets/logo.ico")))
@@ -105,15 +109,15 @@ class AuroraUI(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.bg_widget = BackgroundWidget(resource_path("Bin/Assets/background.jpg"), self.central_widget)
-        self.bg_widget.setGeometry(0, 0, 1280, 720)
+        self.bg_widget.setGeometry(0, 0, self._W, self._H)
         self.bg_widget.lower()
 
         self._overlay = OverlayWidget(self.central_widget)
-        self._overlay.setGeometry(0, 0, 1280, 720)
+        self._overlay.setGeometry(0, 0, self._W, self._H)
 
         self.top_bar = QFrame(self.central_widget)
         self.top_bar.setObjectName("TopBar")
-        self.top_bar.setGeometry(0, 0, 1280, 60)
+        self.top_bar.setGeometry(0, 0, self._W, int(60 * s))
         self.setup_top_bar()
 
         self.setup_bottom_bar()
@@ -125,10 +129,10 @@ class AuroraUI(QMainWindow):
         self.top_bar.raise_()
         self._bottom_bar.raise_()
 
-        self.settings_menu = SettingsOverlay(self.central_widget)
+        self.settings_menu = SettingsOverlay(self.central_widget, scale=s)
         self.btn_settings.clicked.connect(self.toggle_settings)
 
-        self.faq_overlay = FaqOverlay(self.central_widget)
+        self.faq_overlay = FaqOverlay(self.central_widget, scale=s)
         self.btn_faq.clicked.connect(self.toggle_faq)
 
         if cfg.get(cfg.Key.DEV_MODE):
@@ -175,7 +179,7 @@ class AuroraUI(QMainWindow):
         if hasattr(self, 'mod_overlay') and self.mod_overlay.isVisible():
             self.mod_overlay.hide()
         else:
-            self.mod_overlay = ModManagerOverlay(self, self.mod_manager)
+            self.mod_overlay = ModManagerOverlay(self, self.mod_manager, scale=self._s)
             self.mod_overlay.show()
             self.mod_overlay.raise_()
     
@@ -216,37 +220,43 @@ class AuroraUI(QMainWindow):
     # Top Bar
     def setup_top_bar(self):
         tb_layout = QHBoxLayout(self.top_bar)
-        tb_layout.setContentsMargins(15, 0, 15, 0)
+        tb_layout.setContentsMargins(int(10 * self._s), 0, int(15 * self._s), 0)
+        tb_layout.setSpacing(0)
+        icon_big = int(32 * self._s)
+        icon_small = int(24 * self._s)
 
         self.btn_settings = QPushButton()
         self.btn_settings.setIcon(QIcon(resource_path("Bin/Assets/settings.png")))
-        self.btn_settings.setIconSize(QSize(32, 32))
+        self.btn_settings.setIconSize(QSize(icon_big, icon_big))
         self.btn_settings.setToolTip(t("settings_tooltip"))
 
         self.btn_faq = QPushButton()
         self.btn_faq.setIcon(QIcon(resource_path("Bin/Assets/question.png")))
-        self.btn_faq.setIconSize(QSize(32, 32))
+        self.btn_faq.setIconSize(QSize(icon_big, icon_big))
         self.btn_faq.setToolTip(t("faq_tooltip"))
 
         self.logo = QLabel()
         logo_pix = QPixmap(resource_path("Bin/Assets/logo1024_wn.png"))
         if not logo_pix.isNull():
             self.logo.setPixmap(logo_pix.scaled(
-                40, 40,
+                int(40 * self._s), int(40 * self._s),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             ))
 
         self.btn_min = QPushButton()
         self.btn_min.setIcon(QIcon(resource_path("Bin/Assets/minimise.png")))
-        self.btn_min.setIconSize(QSize(24, 24))
+        self.btn_min.setIconSize(QSize(icon_small, icon_small))
         self.btn_min.clicked.connect(self.showMinimized)
 
         self.btn_close = QPushButton()
         self.btn_close.setIcon(QIcon(resource_path("Bin/Assets/close.png")))
-        self.btn_close.setIconSize(QSize(24, 24))
+        self.btn_close.setIconSize(QSize(icon_small, icon_small))
         self.btn_close.clicked.connect(self._on_close)
 
+
+        btn_sq = int(60 * self._s)
+        for btn in (self.btn_settings, self.btn_faq, self.btn_min, self.btn_close): btn.setFixedSize(btn_sq, btn_sq)
         tb_layout.addWidget(self.btn_settings)
         tb_layout.addWidget(self.btn_faq)
         tb_layout.addStretch()
@@ -257,10 +267,12 @@ class AuroraUI(QMainWindow):
 
     # Bottom Bar
     def setup_bottom_bar(self):
-        BOTTOM_H = 90
+        BOTTOM_H = int(90 * self._s)
         self._bottom_bar = QWidget(self.central_widget)
-        self._bottom_bar.setGeometry(0, 720 - BOTTOM_H, 1280, BOTTOM_H)
+        self._bottom_bar.setGeometry(0, self._H - BOTTOM_H, self._W, BOTTOM_H)
         self._bottom_bar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        s = self._s
+        icon_sz = int(42 * s)
 
         bottom_layout = QHBoxLayout(self._bottom_bar)
         bottom_layout.setContentsMargins(30, 15, 30, 20)
@@ -298,20 +310,22 @@ class AuroraUI(QMainWindow):
         self.btn_search = QPushButton()
         self.btn_search.setObjectName("SearchButton")
         self.btn_search.setIcon(QIcon(resource_path("Bin/Assets/refresh.png")))
-        self.btn_search.setIconSize(QSize(28, 28))
-        self.btn_search.setFixedSize(60, 60)
+        self.btn_search.setIconSize(QSize(int(28*s), int(28*s)))
+        self.btn_search.setFixedSize(int(60*s), int(60*s))
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._prompt_drive_search)
         self.btn_search.setToolTip(t("search_tooltip"))
-        if self.is_valid:
-            self.btn_search.hide()
-        else:
-            self.btn_search.show()
+        if self.is_valid: self.btn_search.hide()
+        else: self.btn_search.show()
 
         self.btn_launch = QPushButton()
         self.btn_launch.setObjectName("LaunchButton")
-        self.btn_launch.setFixedSize(240, 60)
-        self.btn_launch.setIconSize(QSize(28, 28))
+        self.btn_launch.setMinimumWidth(int(240 * s))
+        self.btn_launch.setFixedHeight(int(60 * s))
+        self.btn_launch.setIconSize(QSize(int(28*s), int(28*s)))
+        font = self.btn_launch.font()
+        font.setPixelSize(int(15 * s))
+        self.btn_launch.setFont(font)
         if self.is_valid:
             self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/checkmark.png")))
             self.btn_launch.setEnabled(True)
@@ -322,6 +336,8 @@ class AuroraUI(QMainWindow):
             self.btn_launch.setText(f"    {t('launch_invalid')}")
         self.btn_launch.clicked.connect(self.handle_launch)
 
+        for btn in (self.btn_folder, self.btn_coffee, self.btn_discord, self.btn_gamebanana): btn.setIconSize(QSize(icon_sz, icon_sz))
+        bottom_layout.setContentsMargins(int(30*s), int(15*s), int(30*s), int(20*s))
         bottom_layout.addWidget(self.btn_coffee)
         bottom_layout.addWidget(self.btn_folder)
         bottom_layout.addWidget(self.btn_discord)
@@ -351,18 +367,17 @@ class AuroraUI(QMainWindow):
     def set_dev_console(self, enabled: bool):
         console_h = self._dev_console.height()
         if enabled:
-            total_h = 720 + console_h
-            self.setFixedSize(1280, total_h)
-            self.bg_widget.setGeometry(0, 0, 1280, 720)
-            self._overlay.setGeometry(0, 0, 1280, 720)
-            self._dev_console.setGeometry(0, 720, 1280, console_h)
+            self.setFixedSize(self._W, self._H+ console_h)
+            self.bg_widget.setGeometry(0, 0, self._W, self._H)
+            self._overlay.setGeometry(0, 0, self._W, self._H)
+            self._dev_console.setGeometry(0, self._H, self._W, console_h)
             self._dev_console.show()
             self._dev_console.raise_()
         else:
             self._dev_console.hide()
             if dev_console_handler:
                 dev_console_handler.detach()
-            self.setFixedSize(1280, 720)
+            self.setFixedSize(self._W, self._H)
             self.bg_widget.setGeometry(0, 0, 1280, 720)
             self._overlay.setGeometry(0, 0, 1280, 720)
 

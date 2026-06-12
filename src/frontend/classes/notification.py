@@ -12,7 +12,8 @@ class ToastNotification(QFrame):
     def __init__(self, parent, message, is_error=False):
         super().__init__(parent)
         self.setObjectName("ToastContainer")
-        self.setFixedSize(340, 70)
+        s = getattr(parent.window(), '_s', 1.0)
+        self.setFixedSize(int(340 * s), int(70 * s))
         self.setStyleSheet(TOAST_STYLE)
         self.move(parent.width() - self.width() - 20, 30)
 
