@@ -698,7 +698,6 @@ class GameBananaMod(QFrame):
         self.setFixedWidth(self.CARD_W)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setCursor(Qt.CursorShape.ArrowCursor)
-        self.mod = mod
         self.setStyleSheet(self._CARD_QSS)
 
         root = QVBoxLayout(self)
