@@ -1,18 +1,16 @@
 # Aurora Logger
-import logging, os, platform, threading, time, shutil, ctypes, subprocess
+import logging, os, platform, threading, time, shutil, ctypes, subprocess, psutil, json
 from datetime import datetime, timezone
 from PyQt6.QtCore import QObject, pyqtSignal
 from src.utils import get_app_dir
 from src import config_manager as cfg
 from pathlib import Path
-from src.backend.helpers.paths import CLIENT_PAK_DIR
-from pathlib import Path
+from src.path_finder import get_local_version
 from src.backend.helpers.paths import detect_version, get_version_paths, CLIENT_PAK_DIR
 
 class ExtensiveLoggingFilter(logging.Filter):
     def filter(self, record):
-        if getattr(record, 'el', False):
-            return cfg.get(cfg.Key.EXTENSIVE_LOGGING)
+        if getattr(record, 'el', False): return cfg.get(cfg.Key.EXTENSIVE_LOGGING)
         return True
     
 class ErrorTriggeredFileHandler(logging.Handler):
@@ -98,10 +96,69 @@ class DevConsoleHandler(logging.Handler):
         msg    = self.formatter.format(record).replace("<", "&lt;").replace(">", "&gt;")
         return f'<span style="color:{colour}">{msg}</span>'
 
-def collect_system_info() -> str:
+def _collect_cpu_info() -> str:
     try:
-        from src.path_finder import get_local_version
-        aurora_version = get_local_version()
+        physical = psutil.cpu_count(logical=False) or "<unknown>"
+        logical  = psutil.cpu_count(logical=True)  or "<unknown>"
+    except Exception: physical, logical = "<unknown>", "<unknown>"
+
+    model = "<unknown>"
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance Win32_Processor).Name"],
+            capture_output=True, text=True, timeout=8
+        )
+        name = result.stdout.strip()
+        if name: model = name
+    except Exception: pass
+
+    return f"{model} | Cores: {physical} | Threads: {logical}"
+
+
+def _collect_gpu_info() -> str:
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM | "
+             "ConvertTo-Json -Compress"],
+            capture_output=True, text=True, timeout=8
+        )
+        raw = result.stdout.strip()
+        if not raw: return "<could not collect>"
+
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            data = [data]
+
+        best = max(data, key=lambda d: d.get("AdapterRAM") or 0)
+        name      = best.get("Name") or "<unknown>"
+        vram_raw  = best.get("AdapterRAM")
+        vram_str  = f"{int(vram_raw) / (1024**3):.1f} GB" if vram_raw else "<unknown>"
+        return f"{name} | VRAM: {vram_str}"
+    except Exception: return "<could not collect>"
+
+
+def _collect_ram_info() -> str:
+    try:
+        total = psutil.virtual_memory().total
+        return f"{total / (1024**3):.1f} GB"
+    except Exception: pass
+    try:
+        result = subprocess.run(
+            ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.splitlines():
+            if line.strip().lower().startswith("totalphysicalmemory="):
+                raw = line.split("=", 1)[1].strip()
+                if raw.isdigit(): return f"{int(raw) / (1024**3):.1f} GB"
+    except Exception: pass
+    return "<could not collect>"
+
+
+def collect_system_info() -> str:
+    try: aurora_version = get_local_version()
     except Exception: aurora_version = "<unknown>"
     lines = [
         "=== System Information ===",
@@ -113,6 +170,9 @@ def collect_system_info() -> str:
         f"Timezone (local): {datetime.now().astimezone().tzname()} "
         f"(UTC{datetime.now(timezone.utc).astimezone().strftime('%z')})",
         f"Hostname        : {platform.node()}",
+        f"CPU             : {_collect_cpu_info()}",
+        f"GPU             : {_collect_gpu_info()}",
+        f"Memory          : {_collect_ram_info()}",
     ]
     return '\n'.join(lines)
 
@@ -169,8 +229,7 @@ def collect_environment() -> str:
 
     try:
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
+            ["powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
             capture_output=True, text=True, timeout=5
         )
         val = result.stdout.strip().lower()
@@ -251,11 +310,96 @@ def format_session_log(records: list[logging.LogRecord]) -> str:
     return '\n'.join(lines)
 
 
+def collect_inject_mod_info() -> str:
+    lines = []
+    game_path_str = cfg.get(cfg.Key.GAME_PATH) or ""
+    if not game_path_str:
+        lines.append("  Mods Loaded : <game path not set>")
+        return '\n'.join(lines)
+
+    mod_folder = Path(game_path_str) / CLIENT_PAK_DIR
+    if not mod_folder.is_dir():
+        lines.append("  Mods Loaded : <AuroraMods folder not found>")
+        return '\n'.join(lines)
+
+    incompatible: list[str] = []
+    valid_mods:   list[Path] = []
+    loose_paks:   list[Path] = []
+
+    ARCHIVE_EXTS = {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"}
+    INI_EXTS     = {".ini"}
+
+    for item in mod_folder.iterdir():
+        if item.is_dir(): valid_mods.append(item)
+        elif item.is_file():
+            ext = item.suffix.lower()
+            if ext in ARCHIVE_EXTS: incompatible.append(f"{item.name}  [archive: must be extracted into a subfolder]")
+            elif ext in INI_EXTS: incompatible.append(f"{item.name}  [INI files are not supported by Aurora]")
+            elif ext == ".pak":
+                loose_paks.append(item)
+                incompatible.append(f"{item.name}  [loose .pak — must be inside a subfolder]")
+
+    total   = len(valid_mods)
+    loaded  = sum(1 for m in valid_mods if any(m.rglob("*.pak")))
+    lines.append(f"  Mods Loaded       : {loaded}/{total}")
+
+    if incompatible: lines.append(f"  Incompatible mods : {', '.join(incompatible)}")
+    else: lines.append(f"  Incompatible mods : none")
+
+    if valid_mods:
+        lines.append("  Loaded mods       :")
+        for mod_dir in sorted(valid_mods, key=lambda p: p.name.lower()):
+            paks     = list(mod_dir.rglob("*.pak"))
+            pak_count = len(paks)
+            has_mdf  = any(
+                f.suffix.lower() in (".json", ".toml", ".txt", ".png", ".jpg")
+                and f.stem.lower() in ("mod", "modinfo", "aurora", "aurora_mod")
+                for f in mod_dir.rglob("*")
+            )
+            lines.append(
+                f"    - {mod_dir.name}"
+                f" | PAK Files inside: {pak_count}"
+                f" | Has Mod Display File: {str(has_mdf).upper()}"
+            )
+    return '\n'.join(lines)
+
+
+def collect_snapshot_addon_info() -> str:
+    from src.backend.helpers.addons import PAK_ADDONS
+    lines = []
+
+    active_addons: list[tuple[str, list[tuple[str, str]]]] = []
+    for addon in PAK_ADDONS:
+        try: enabled = cfg.get(addon.config_key)
+        except Exception: enabled = False
+        if not enabled: continue
+        builtins_dir = Path(get_app_dir()) / "Bin" / "Builtins"
+        file_statuses = []
+        for fname in addon.files:
+            fpath = builtins_dir / fname
+            status = "EXISTS" if fpath.exists() else "MISSING"
+            file_statuses.append((fname, status))
+        active_addons.append((addon.base_name, file_statuses))
+
+    using_addons = bool(active_addons)
+    lines.append(f"  Using Builtin Addons: {str(using_addons).upper()}")
+
+    if using_addons:
+        lines.append("  Builtin Addons Used :")
+        for addon_name, file_statuses in active_addons:
+            status_parts = ", ".join(f"{fname}: {s}" for fname, s in file_statuses)
+            lines.append(f"    - {addon_name} | File Status: {status_parts}")
+
+    return '\n'.join(lines)
+
+
 def format_file_status_sections() -> str:
     sections = []
     inject = getattr(file_monitor, 'inject_snapshot', None) if file_monitor else None
     sections.append("===== File Status [INJECT] =====")
     sections.append(inject if inject else "  <no injection recorded this session>")
+    try: sections.append(collect_inject_mod_info())
+    except Exception as exc: sections.append(f"  Mod info: <could not collect — {exc}>")
     sections.append("")
     sections.append("===== File Status [PERIODIC] =====")
     periodic = getattr(file_monitor, 'periodic_entries', []) if file_monitor else []
@@ -263,7 +407,7 @@ def format_file_status_sections() -> str:
     else: sections.append("  <no periodic entries recorded this session>")
     sections.append("")
     sections.append("===== File Status [SNAPSHOT] =====")
-    watch_targets = getattr(file_monitor, '_last_watch_targets', None) if file_monitor else None
+    watch_targets = getattr(file_monitor, 'last_watch_targets', None) if file_monitor else None
     if watch_targets:
         lines = []
         for label, path in watch_targets:
@@ -281,6 +425,8 @@ def format_file_status_sections() -> str:
     else:
         snapshot = collect_file_status()
         sections.append(snapshot.replace("=== File Status (snapshot at export time) ===\n", ""))
+    try: sections.append(collect_snapshot_addon_info())
+    except Exception as exc: sections.append(f"  Addon info: <could not collect> </{exc}>")
 
     return '\n'.join(sections)
 
@@ -314,6 +460,11 @@ def export_telemetry(out_path: str | None = None) -> str:
 
     content = '\n'.join(sections)
     with open(out_path, 'w', encoding='utf-8') as f: f.write(content)
+    
+    # Open \Logs folder
+    try: subprocess.Popen(["explorer", log_dir])
+    except Exception: pass
+
     return out_path
 
 class FileStatusMonitor:
