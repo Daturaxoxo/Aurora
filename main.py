@@ -6,6 +6,7 @@ from src.frontend.ui_main import AuroraUI
 from src.backend.engine import AuroraEngine
 from src.path_finder import validate_path
 from src import config_manager as cfg
+from src.logger import logger
 from src.discord_rpc import DiscordRPC
 ARCHIVES = (
     "\\Temp\\7z",
@@ -19,14 +20,11 @@ ARCHIVES = (
 def compute_scale(base_w=1920, base_h=1080) -> float:
     app = QApplication.instance()
     screen = app.primaryScreen() if app else None
-    if screen is None:
-        return 1.0
-
+    if screen is None: return 1.0
     geo = screen.geometry()
     scale_w = geo.width() / base_w
     scale_h = geo.height() / base_h
     raw = min(scale_w, scale_h)
-
     snapped = round(raw * 4) / 4
     return max(0.75, min(2.5, snapped))
 

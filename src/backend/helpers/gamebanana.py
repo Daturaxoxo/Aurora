@@ -482,10 +482,9 @@ class GameBananaBrowserOverlay(QFrame):
         if generation != self._fetch_generation: return
         self._cached_mods.append(mod)
         if not self._mod_passes_filters(mod): return
-
         self._all_mods.append(mod)
         cols = max(1, (self.gb_scroll.width() - 40) // 148)
-        i    = len(self._all_mods) - 1
+        i = len(self._all_mods) - 1
         self.gb_grid.addWidget(GameBananaMod(mod), i // cols, i % cols)
 
     def _mod_passes_filters(self, mod: NTEMod) -> bool:
@@ -571,6 +570,24 @@ class GameBananaBrowserOverlay(QFrame):
         self._threads.clear()
         self._thread  = None
         self._fetcher = None
+        
+    def hideEvent(self, event):
+        self._stop_all_fetches()
+        self._clear_grid()
+        for mod in self._cached_mods: mod.thumbnail = b""
+        self._cached_mods.clear()
+        self._current_page  = 0
+        self._has_more      = True
+        self._loading       = False
+        self._search_mode   = False
+        self._search_query  = ""
+        self._search_page   = 0
+        self._search_has_more = True
+        super().hideEvent(event)
+        
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._all_mods and not self._loading: self._load_next_page()
 
     def handle_toggle(self, checked=None):
         cfg.set(cfg.Key.SHOW_NSFW_MODS, self.toggle_nsfw_mods.isChecked())
