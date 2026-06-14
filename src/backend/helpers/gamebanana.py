@@ -694,6 +694,7 @@ class GameBananaMod(QFrame):
 
     def __init__(self, mod: NTEMod, parent=None):
         super().__init__(parent)
+        self.mod = mod
         self.setObjectName("GameBananaModCard")
         self.setFixedWidth(self.CARD_W)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
