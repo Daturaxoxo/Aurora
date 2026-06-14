@@ -435,6 +435,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "aurora"
+version = "2.0.0"
+dependencies = [
+ "backend",
+ "image",
+ "shared",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
 name = "auto_enums"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -497,7 +508,7 @@ dependencies = [
 
 [[package]]
 name = "backend"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "shared",
 ]
@@ -2707,17 +2718,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mod-launcher"
-version = "0.1.0"
-dependencies = [
- "backend",
- "image",
- "shared",
- "slint",
- "slint-build",
-]
-
-[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4077,7 +4077,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.0"
+version = "2.0.0"
 
 [[package]]
 name = "shlex"

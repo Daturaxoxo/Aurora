@@ -1,7 +1,7 @@
 [package]
 name = "aurora"
 version = "2.0.0"
-edition = "2026"
+edition = "2021"
 
 [dependencies]
 slint = { version = "1.9", features = ["backend-winit"] }
