@@ -124,11 +124,15 @@ class AuroraEngine:
                     logger.error(f"Could not remove {key}: {fallback_err}")
                     
     def reinit(self, path: Path):
-        self.path        = path
-        self.version     = detect_version(self.path)
-        self.gpaths      = get_version_paths(self.path, self.version, self.engine_method)
-        self.win64       = self.gpaths.win64
-        self.pakbase     = self.gpaths.pak_base
+        new_path    = Path(path)
+        new_version = detect_version(new_path)
+        new_gpaths  = get_version_paths(new_path, new_version, self.engine_method)
+
+        self.path    = new_path
+        self.version = new_version
+        self.gpaths  = new_gpaths
+        self.win64   = self.gpaths.win64
+        self.pakbase = self.gpaths.pak_base
         self.mod_folder  = self.path / CLIENT_PAK_DIR
         self.pakdir      = self.pakbase.parent
         self.main_dlls   = [slot.name for slot in self.gpaths.dll_slots]

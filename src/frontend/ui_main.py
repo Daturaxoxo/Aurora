@@ -434,19 +434,17 @@ class AuroraUI(QMainWindow):
             except Exception:
                 pass
             self.refresh_launch_state()
-            ToastNotification(self.central_widget, t("toast_game_found"), False)
+            ToastNotification(self.central_widget, t("toast_game_found"), False, "success")
         else:
             logger.warning("Aurora did not find NTE using Drive Search.")
-            ToastNotification(self.central_widget, t("toast_game_not_found"), True)
-
-
+            ToastNotification(self.central_widget, t("toast_game_not_found"), "", "error")
 
     # LAUNCH
     def handle_launch(self):
         logger.info("Launch button was clicked, initialising engine...", extra={"el": True})
         if not self.engine:
             logger.warning("Launch aborted: Engine not initialized.")
-            ToastNotification(self.central_widget, t("toast_engine_error"), True)
+            ToastNotification(self.central_widget, t("toast_engine_error"), "error")
             return
         logger.info(f"Target Path: {self.current_path}", extra={"el": True})
         self.btn_launch.setEnabled(False)
@@ -467,7 +465,7 @@ class AuroraUI(QMainWindow):
         self.monitor_thread.game_started.connect(lambda: hasattr(self, 'rpc') and self.rpc.set_in_game())
         self.monitor_thread.finished.connect(lambda: hasattr(self, 'rpc') and self.rpc.set_idle())
 
-        ToastNotification(self.central_widget, t("toast_launching"), False)
+        ToastNotification(self.central_widget, t("toast_launching"), False, "info")
 
     def _show_access_denied_popup(self):
         self.refresh_launch_state()
@@ -532,12 +530,12 @@ class AuroraUI(QMainWindow):
         self._bin_reinstall_thread.log.connect(lambda msg: logger.info(f"{msg}", extra={"el": True}))
         self._bin_reinstall_thread.finished.connect(self._on_bin_reinstall_finished)
         self._bin_reinstall_thread.start()
-        ToastNotification(self.central_widget, "Downloading and reinstalling Bin files", False)
+        ToastNotification(self.central_widget, "Downloading and reinstalling Bin files", False, "info")
         
     def _on_bin_reinstall_finished(self, success: bool, error: str):
         if success:
             logger.info("Bin reinstall completed successfully.")
-            ToastNotification(self.central_widget, t("addons_reinstall_title"), False)
+            ToastNotification(self.central_widget, t("addons_reinstall_title"), False, "success")
         else:
             logger.error(f"Bin reinstall failed: {error}")
             TMP_msg_a = t("addons_reinstall_fail_msg_a")

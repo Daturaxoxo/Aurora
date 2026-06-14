@@ -512,19 +512,22 @@ class SettingsOverlay(QFrame):
 
     def _handle_browse(self):
         folder = QFileDialog.getExistingDirectory(self, t("game_directory"))
-        if folder:
-            self.path_display.setText(folder)
-            main_ui = self.parent().parent()
-            main_ui.current_path = folder
-            cfg.set(cfg.Key.GAME_PATH, folder)
+        if not folder: return
 
-            engine = main_ui.engine
-            if engine:
-                try: engine.reinit(Path(folder))
-                except (FileNotFoundError, ValueError) as e: logger.warning(f"Could not reinitialize engine for new path: {e}")
+        main_ui = self.parent().parent()
+        engine  = main_ui.engine
 
-            self._update_bypass_card_visibility()
-            main_ui.refresh_launch_state()
+        self.path_display.setText(folder)
+        main_ui.current_path = folder
+
+        if engine:
+            try:
+                engine.reinit(Path(folder))
+                cfg.set(cfg.Key.GAME_PATH, folder)
+            except (FileNotFoundError, ValueError) as e: logger.warning(f"Could not reinitialize engine for new path: {e}")
+
+        self._update_bypass_card_visibility()
+        main_ui.refresh_launch_state()
 
     def _update_bypass_card_visibility(self):
         try:

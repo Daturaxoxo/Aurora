@@ -187,15 +187,29 @@ GB_STYLE = """
 
 TOAST_STYLE = """
 #ToastContainer {
-    background-color: rgba(25, 20, 35, 230);
-    border: 1px solid #4B4B4B;
+    background: #1b1e30;
+    border: 0.5px solid rgba(255, 255, 255, 0.07);
     border-radius: 10px;
 }
-#ToastMessage {
-    color: #D7D7D7;
-    font-size: 14px;
-    font-weight: 500;
+#ToastIcon_success { background: #0d2e1a; color: #4ade80; border-radius: 8px; }
+#ToastIcon_error   { background: #2e0f0f; color: #f87171; border-radius: 8px; }
+#ToastIcon_info    { background: #0d1e3a; color: #60a5fa; border-radius: 8px; }
+#ToastTitle_success { color: #86efac; }
+#ToastTitle_error   { color: #fca5a5; }
+#ToastTitle_info    { color: #93c5fd; }
+#ToastSubtitle { color: #6b7394; }
+#ToastDismiss {
+    background: transparent;
+    border: none;
+    color: #3d4160;
+    font-size: 11px;
+    padding: 0;
 }
+#ToastDismiss:hover { color: #6b7394; }
+#ToastDrainTrack    { background: rgba(255, 255, 255, 0.05); border-radius: 0 0 10px 10px; }
+#ToastDrain_success { background: #22c55e; border-radius: 0 0 0 10px; }
+#ToastDrain_error   { background: #ef4444; border-radius: 0 0 0 10px; }
+#ToastDrain_info    { background: #3b82f6; border-radius: 0 0 0 10px; }
 """
 
 POPUP_STYLE = """
