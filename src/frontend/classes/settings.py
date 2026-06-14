@@ -1,12 +1,12 @@
 from pathlib import Path
-import shutil
-
+import shutil, os
 from PyQt6.QtWidgets import (
-    QLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QComboBox, QStackedWidget, QFileDialog, QSlider
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import QThread, Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon
+from src.frontend.classes.notification import ToastNotification
 from src.utils import resource_path
 from src.frontend.styles import SETTING_STYLE
 from src import config_manager as cfg
@@ -14,8 +14,7 @@ from src.backend.helpers.paths import BYPASS_METHODS, detect_version, get_versio
 from src.translator import Translator, t
 from src.frontend.classes.elements import AnimatedToggle
 from src.backend.helpers import addons
-from src.logger import logger
-import os
+from src.logger import logger, export_telemetry
 from src.discord_rpc import DiscordRPC
 
 # SETTINGS ROW
@@ -649,7 +648,7 @@ class SettingsOverlay(QFrame):
         self._lbl_telemetry = QLabel(t("export_tele_title"))
         self._lbl_telemetry.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_telemetry_desc = QLabel(t("export_tele_desc"))
-        self._lbl_telemetry_desc.setWordWrap(True)  # Fix width limits
+        self._lbl_telemetry_desc.setWordWrap(True)
         self._lbl_telemetry_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         telemetry_text.addStretch()
         telemetry_text.addWidget(self._lbl_telemetry)
@@ -675,7 +674,7 @@ class SettingsOverlay(QFrame):
                 background-color: rgba(255, 255, 255, 5);
             }
         """)
-        self._btn_export_telemetry.clicked.connect(self._handle_export_telemetry)
+        self._btn_export_telemetry.clicked.connect(self.start_telemetry)
 
         telemetry_row.addLayout(telemetry_text)
         telemetry_row.addStretch()
@@ -891,13 +890,29 @@ class SettingsOverlay(QFrame):
             console = getattr(main_ui, 'dev_console', None)
             if console is not None:
                 console.repopulate(show_el=True)
+                
+    def start_telemetry(self):
+        ToastNotification(self.parent(), "Exporting telemetry...", False, "info")
+        self._export_thread = ExportThread()
+        self._export_thread.success.connect(self.export_success)
+        self._export_thread.failure.connect(self.export_failure)
+        self._export_thread.start()
 
-    def _handle_export_telemetry(self):
-        from src.logger import export_telemetry
+    def export_success(self):
+        ToastNotification(self.parent(), "Exported telemetry data", False, "success")
+        self._btn_export_telemetry.setText(t("export_file_done"))
+        QTimer.singleShot(2500, lambda: self._btn_export_telemetry.setText(t("export_file_button")))
+
+    def export_failure(self):
+        self._btn_export_telemetry.setText("Err!")
+        ToastNotification(self.parent(), "Failed to export telemetry data", False, "error")
+
+class ExportThread(QThread):
+    success = pyqtSignal()
+    failure = pyqtSignal()
+
+    def run(self):
         try:
             export_telemetry()
-            self._btn_export_telemetry.setText(t("export_file_done"))
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(2500, lambda: self._btn_export_telemetry.setText(t("export_file_button")))
-        except Exception:
-            self._btn_export_telemetry.setText("Err!")
+            self.success.emit()
+        except Exception: self.failure.emit()
