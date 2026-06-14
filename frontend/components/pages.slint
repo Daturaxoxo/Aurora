@@ -1,0 +1,35 @@
+import { Button } from "std-widgets.slint";
+
+export component SettingsPage inherits Rectangle {
+    background: #111119f2;
+    border-radius: 8px;
+    
+    callback close-settings();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 15px;
+        alignment: start;
+
+        HorizontalLayout {
+            alignment: space-between;
+            Text {
+                text: "blaaablaablaaaa";
+                color: #ffffff;
+                font-size: 18px;
+                font-weight: 600;
+            }
+            Button {
+                text: "Back";
+                width: 60px;
+                clicked => { root.close-settings(); }
+            }
+        }
+
+        Text {
+            text: "blablablablublublublobloblo";
+            color: #a6adc8;
+            wrap: word-wrap;
+        }
+    }
+}

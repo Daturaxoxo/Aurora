@@ -1,0 +1,13 @@
+[package]
+name = "aurora"
+version = "2.0.0"
+edition = "2026"
+
+[dependencies]
+slint = { version = "1.9", features = ["backend-winit"] }
+backend = { path = "../backend" }
+shared = { path = "../shared" }
+
+[build-dependencies]
+slint-build = { version = "1.9" }
+image = "0.25"

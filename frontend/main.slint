@@ -1,0 +1,123 @@
+import { SettingsPage } from "components/pages.slint";
+
+export component MainWindow inherits Window {
+    no-frame: true;
+    background: transparent;
+
+    callback minimize-clicked();
+    callback close-clicked();
+    callback window-dragged(length, length);
+
+    in-out property <bool> show-settings: false;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: @image-url("../production/assets/background.jpg");
+        image-fit: cover;
+    }
+
+    VerticalLayout {
+        alignment: start;
+        padding: 0px;
+
+        Rectangle {
+            height: 50px;
+            width: 100%;
+            background: #000000cc;
+
+            // DRAG ZONE
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                moved => {
+                    if (self.pressed) {
+                        root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                    }
+                }
+            }
+
+            // FOREGROUND LAYER FOR BUTTONS
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+
+                // LEFT-SIDE: SETTINGS
+                HorizontalLayout {
+                    alignment: start;
+                    width: 30%;
+                    VerticalLayout {
+                        alignment: center;
+                        Image {
+                            source: @image-url("../production/assets/processed/settings.png");
+                            width: 22px;
+                            height: 22px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            TouchArea { clicked => { root.show-settings = true; } }
+                        }
+                    }
+                }
+
+                // LOGO
+                HorizontalLayout {
+                    alignment: center;
+                    width: 40%;
+                    VerticalLayout {
+                        alignment: center;
+                        Image {
+                            source: @image-url("../production/assets/processed/logo.png");
+                            width: 26px;
+                            height: 26px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                        }
+                    }
+                }
+
+                // RIGHT-SIDE: MIN & CLOSE
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 20px;
+                    width: 30%;
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            spacing: 20px;
+                            Image {
+                                source: @image-url("../production/assets/processed/minimize.png");
+                                width: 18px;
+                                height: 18px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                                TouchArea { clicked => { root.minimize-clicked(); } }
+                            }
+                            Image {
+                                source: @image-url("../production/assets/processed/close.png");
+                                width: 18px;
+                                height: 18px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                                TouchArea { clicked => { root.close-clicked(); } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            VerticalLayout {
+                padding: 30px;
+            }
+        }
+    }
+
+    if (root.show-settings) : SettingsPage {
+        x: 20px;
+        y: 65px;
+        width: parent.width - 40px;
+        height: parent.height - 85px;
+        close-settings => { root.show-settings = false; }
+    }
+}
