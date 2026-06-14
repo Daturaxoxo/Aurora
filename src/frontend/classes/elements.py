@@ -1,6 +1,6 @@
 from functools import partial
 from typing import Dict, List, Optional
-import ctypes, json, webbrowser, shutil
+import ctypes, json, webbrowser, shutil, os
 from src.backend.helpers.api import NTEMod, NTEModFile
 from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
@@ -15,58 +15,47 @@ from src.frontend.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 
-def _custom_icons_dir() -> Path:
-    d = Path(resource_path("Bin/Assets/ModImages/custom"))
+def custom_icons_dir() -> Path:
+    d = Path(os.environ["APPDATA"]) / "Aurora" / "UserData" / "icons"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
-def _icon_map_path() -> Path:
-    return _custom_icons_dir() / "_icon_map.json"
+def icon_map_path() -> Path: return custom_icons_dir() / "icon_map.json"
 
-def _load_icon_map() -> dict:
-    p = _icon_map_path()
+def load_icon_map() -> dict:
+    p = icon_map_path()
     if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+        try: return json.loads(p.read_text(encoding="utf-8"))
+        except Exception: pass
     return {}
 
-def _save_icon_map(mapping: dict):
-    _icon_map_path().write_text(
-        json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+def _save_icon_map(mapping: dict): icon_map_path().write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
-    icon_map = _load_icon_map()
+    icon_map = load_icon_map()
     if mod_folder_name in icon_map:
         entry = icon_map[mod_folder_name]
         if entry.startswith("builtin:"):
             builtin_path = Path(resource_path("Bin/Assets/ModImages")) / entry[len("builtin:"):]
-            if builtin_path.exists():
-                return QPixmap(str(builtin_path))
+            if builtin_path.exists(): return QPixmap(str(builtin_path))
         else:
-            custom_path = _custom_icons_dir() / entry
-            if custom_path.exists():
-                return QPixmap(str(custom_path))
+            custom_path = custom_icons_dir() / entry
+            if custom_path.exists(): return QPixmap(str(custom_path))
 
     if mod_icon:
         icon_filename = f"{mod_icon.lower()}.png"
         images_dir = Path(resource_path("Bin/Assets/ModImages"))
         for img_path in images_dir.iterdir():
-            if img_path.name.lower() == icon_filename:
-                return QPixmap(str(img_path))
+            if img_path.name.lower() == icon_filename: return QPixmap(str(img_path))
 
     images_dir = Path(resource_path("Bin/Assets/ModImages"))
-    if not images_dir.exists():
-        return QPixmap()
+    if not images_dir.exists(): return QPixmap()
 
     images = sorted(
         p for p in images_dir.iterdir()
         if p.suffix.lower() in (".png", ".jpg", ".jpeg") and p.is_file()
     )
-    if not images:
-        return QPixmap()
+    if not images: return QPixmap()
 
     name_lower = mod_display_name.lower()
     best_match = None
@@ -77,21 +66,15 @@ def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = 
             best_match = img_path
             best_length = len(character)
 
-    if best_match:
-        return QPixmap(str(best_match))
+    if best_match: return QPixmap(str(best_match))
 
     idx = hash(mod_folder_name) % len(images)
     return QPixmap(str(images[idx]))
 
 def _rounded_pixmap(pixmap: QPixmap, width: int, height: int, radius: int = 10) -> QPixmap:
-    if pixmap.isNull():
-        return QPixmap()
+    if pixmap.isNull(): return QPixmap()
 
-    scaled = pixmap.scaled(
-        width, height,
-        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-        Qt.TransformationMode.SmoothTransformation,
-    )
+    scaled = pixmap.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
 
     crop_x = max(0, (scaled.width() - width) // 2)
     crop_y = max(0, (scaled.height() - height) // 2)
@@ -103,7 +86,6 @@ def _rounded_pixmap(pixmap: QPixmap, width: int, height: int, radius: int = 10) 
     painter = QPainter(rounded)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     path = QPainterPath()
-    # Only round top corners to better fit mod cards
     path.moveTo(0, radius)
     path.quadTo(0, 0, radius, 0)
     path.lineTo(width - radius, 0)
@@ -152,11 +134,9 @@ class AnimatedToggle(QWidget):
         self.animation.setEndValue(end)
         self.animation.start()
         target = self.parent()
-        while target and not hasattr(target, "handle_toggle"):
-            target = target.parent();
+        while target and not hasattr(target, "handle_toggle"): target = target.parent();
 
-        if target:
-            target.handle_toggle();
+        if target: target.handle_toggle();
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -230,11 +210,11 @@ class ModImage(QLabel):
 
     def _apply_icon(self, icon_path: Path | None, card):
         if icon_path is None:
-            mapping = _load_icon_map()
+            mapping = load_icon_map()
             mapping.pop(self._mod_folder_name, None)
             _save_icon_map(mapping)
         else:
-            mapping = _load_icon_map()
+            mapping = load_icon_map()
             name = str(icon_path)
             if not name.startswith("builtin:"):
                 name = icon_path.name
@@ -643,7 +623,7 @@ class IconPickerDialog(QWidget):
         self._grid.addWidget(add_cell, r, c)
 
         # Custom Icons
-        custom_dir = _custom_icons_dir()
+        custom_dir = custom_icons_dir()
         custom_images = sorted(
             p for p in custom_dir.iterdir()
             if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and p.is_file()
@@ -687,10 +667,10 @@ class IconPickerDialog(QWidget):
         if not file_path:
             return
         src = Path(file_path)
-        dest = _custom_icons_dir() / src.name
+        dest = custom_icons_dir() / src.name
         counter = 2
         while dest.exists():
-            dest = _custom_icons_dir() / f"{src.stem}_{counter}{src.suffix}"
+            dest = custom_icons_dir() / f"{src.stem}_{counter}{src.suffix}"
             counter += 1
         try:
             shutil.copy2(src, dest)
@@ -711,7 +691,7 @@ class IconPickerDialog(QWidget):
 
     def _delete_custom(self, path: Path):
         try:
-            mapping = _load_icon_map()
+            mapping = load_icon_map()
             for key, val in list(mapping.items()):
                 if val == path.name:
                     del mapping[key]
