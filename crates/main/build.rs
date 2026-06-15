@@ -1,13 +1,15 @@
-use std::fs;
-use std::path::{Path};
 use image::imageops::FilterType;
+use std::fs;
+use std::path::Path;
 
 fn main() {
     let assets = Path::new("../../production/assets");
     let processed = Path::new("../../production/assets/processed");
     let _ = fs::remove_dir_all(processed);
     fs::create_dir_all(processed).unwrap();
-    if assets.exists() {process_directory(assets, assets, processed)}
+    if assets.exists() {
+        process_directory(assets, assets, processed)
+    }
     slint_build::compile("../../frontend/main.slint").unwrap();
 }
 
@@ -15,7 +17,9 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
     for entry in fs::read_dir(current_source).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path == target_base {continue}
+        if path == target_base {
+            continue;
+        }
 
         let relative = path.strip_prefix(root_source).unwrap();
         let dest_path = target_base.join(relative);
@@ -35,7 +39,9 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
 
                     if let Ok(img) = image::open(&path) {
                         let scaled = img.resize(64, 64, FilterType::Lanczos3);
-                        scaled.save(&dest_path).expect("Failed to save downsampled asset");
+                        scaled
+                            .save(&dest_path)
+                            .expect("Failed to save downsampled asset");
                     } else {
                         fs::copy(&path, &dest_path).unwrap();
                     }
