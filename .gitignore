@@ -1,7 +1,7 @@
 /target/
 **/*.rs.bk
 cargo-home/
-Cargo.lock
+*.lock
 
 .slint-cache/
 
@@ -20,3 +20,4 @@ Desktop.ini
 *.swp
 
 *.log
+config.json

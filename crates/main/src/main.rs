@@ -1,19 +1,19 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 slint::include_modules!();
+
+use display_info::DisplayInfo;
 
 fn main() -> Result<(), slint::PlatformError> {
     let window = MainWindow::new()?;
     let slint_window = window.window();
-    let monitor_size = slint_window.size();
-    let mut target_w = 1280.0;
-    let mut target_h = 720.0;
+    let monitor_size = get_monitor_size().unwrap();
 
     if monitor_size.width < 1366 {
-        target_w = 960.0;
-        target_h = 540.0
+        slint_window.set_size(slint::PhysicalSize::new(960, 540));
+    } else {
+        slint_window.set_size(slint::PhysicalSize::new(1280, 720));
     }
-    slint_window.set_size(slint::PhysicalSize::new(target_w as u32, target_h as u32));
 
     // DRAGGING
     let window_weak = window.as_weak();
@@ -43,4 +43,8 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     window.run()
+}
+
+fn get_monitor_size() -> Option<DisplayInfo> {
+    DisplayInfo::all().unwrap().into_iter().find(|display| display.is_primary)
 }

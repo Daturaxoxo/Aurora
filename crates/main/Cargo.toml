@@ -4,10 +4,11 @@ version = "2.0.0"
 edition = "2021"
 
 [dependencies]
-slint = { version = "1.9", features = ["backend-winit"] }
+slint = { version = "1.16.1", features = ["backend-winit"] }
 backend = { path = "../backend" }
 shared = { path = "../shared" }
+display-info = "0.5"
 
 [build-dependencies]
-slint-build = { version = "1.9" }
+slint-build = { version = "1.16.1" }
 image = "0.25"
