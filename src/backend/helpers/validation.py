@@ -12,6 +12,8 @@ from src.logger import logger
 from src.backend.helpers.addons import PAK_ADDONS
 from src.backend.updater import _api_download_url, _download, ASSET_BIN
 ARCHIVE_EXTENSIONS: frozenset[str] = frozenset({".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",})
+IGNORED_INI_FILES: frozenset[str] = frozenset({"desktop.ini",})
+
 def validate_mods(mod_folder: Path) -> list[dict]:
     issues: list[dict] = []
     if not mod_folder.exists(): return issues
@@ -32,6 +34,7 @@ def validate_mods(mod_folder: Path) -> list[dict]:
 
         elif entry.is_dir():
             for ini_file in entry.rglob("*.ini"):
+                if ini_file.name.lower() in IGNORED_INI_FILES: continue
                 issues.append({
                     "name":   f"{entry.name}/{ini_file.name}",
                     "reason": "INI mod: This mod is made for 3DMigoto, not Aurora.",

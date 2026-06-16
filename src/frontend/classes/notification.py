@@ -2,11 +2,17 @@ from src.utils import resource_path
 from PyQt6.QtWidgets import (
     QHBoxLayout, QVBoxLayout,
     QLabel, QFrame, QPushButton,
-    QGraphicsOpacityEffect,
+    QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import QTimer, QPropertyAnimation, QRect, Qt
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import QTimer, QPropertyAnimation, QRectF, Qt, QEasingCurve, QVariantAnimation
+from PyQt6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor
 from src.frontend.styles import TOAST_STYLE
+
+TOAST_DRAIN_COLORS = {
+    "success": QColor("#22c55e"),
+    "error": QColor("#ef4444"),
+    "info": QColor("#3b82f6"),
+}
 
 # TOAST NOTIFICATION
 class ToastNotification(QFrame):
@@ -16,6 +22,9 @@ class ToastNotification(QFrame):
         s = getattr(parent.window(), '_s', 1.0)
         self._s = s
         self._fading = False
+        self._kind = kind
+        self._drain_progress = 1.0
+        self._drain_h = max(2, int(2 * s))
 
         self.setFixedWidth(int(300 * s))
         self.setStyleSheet(TOAST_STYLE)
@@ -71,27 +80,17 @@ class ToastNotification(QFrame):
         body_row.addWidget(dismiss, alignment=Qt.AlignmentFlag.AlignTop)
 
         outer.addLayout(body_row)
-
-        drain_track = QFrame()
-        drain_track.setFixedHeight(int(2 * s))
-        drain_track.setObjectName("ToastDrainTrack")
-        outer.addWidget(drain_track)
+        outer.addSpacing(self._drain_h)
 
         self.adjustSize()
         self.move(parent.width() - self.width() - int(20 * s), int(30 * s))
 
-        bar_h = int(2 * s)
-        bar_y = self.height() - bar_h
-        bar_w = self.width()
-        self._drain = QFrame(self)
-        self._drain.setObjectName(f"ToastDrain_{kind}")
-        self._drain.setGeometry(0, bar_y, bar_w, bar_h)
-        self._drain.raise_()
-
-        self._drain_anim = QPropertyAnimation(self._drain, b"geometry")
+        self._drain_anim = QVariantAnimation(self)
         self._drain_anim.setDuration(4000)
-        self._drain_anim.setStartValue(QRect(0, bar_y, bar_w, bar_h))
-        self._drain_anim.setEndValue(QRect(0, bar_y, 0, bar_h))
+        self._drain_anim.setStartValue(1.0)
+        self._drain_anim.setEndValue(0.0)
+        self._drain_anim.setEasingCurve(QEasingCurve.Type.Linear)
+        self._drain_anim.valueChanged.connect(self.set_drain_progress)
 
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
@@ -105,6 +104,35 @@ class ToastNotification(QFrame):
         self.anim.start()
         self._drain_anim.start()
         QTimer.singleShot(4000, self.fade_out)
+
+    def set_drain_progress(self, value):
+        self._drain_progress = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        radius = int(10 * self._s)
+
+        clip_path = QPainterPath()
+        clip_path.addRoundedRect(QRectF(self.rect()), radius, radius)
+        painter.setClipPath(clip_path)
+
+        y = self.height() - self._drain_h
+        full_width = float(self.width())
+
+        painter.fillRect(
+            QRectF(0, y, full_width, self._drain_h),
+            QColor(255, 255, 255, 13),
+        )
+
+        painter.fillRect(
+            QRectF(0, y, full_width * self._drain_progress, self._drain_h),
+            TOAST_DRAIN_COLORS.get(self._kind, TOAST_DRAIN_COLORS["info"]),
+        )
 
     def fade_out(self):
         if self._fading: return

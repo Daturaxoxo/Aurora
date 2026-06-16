@@ -112,7 +112,7 @@ class AuroraUI(QMainWindow):
         self.bg_widget.setGeometry(0, 0, self._W, self._H)
         self.bg_widget.lower()
 
-        self._overlay = OverlayWidget(self.central_widget)
+        self._overlay = OverlayWidget(self.central_widget, scale=self._s)
         self._overlay.setGeometry(0, 0, self._W, self._H)
 
         self.top_bar = QFrame(self.central_widget)
@@ -315,6 +315,7 @@ class AuroraUI(QMainWindow):
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._prompt_drive_search)
         self.btn_search.setToolTip(t("search_tooltip"))
+        self.btn_search.setStyleSheet(f"#SearchButton {{ border-radius: {int(60 * self._s) // 2}px; }}")
         if self.is_valid: self.btn_search.hide()
         else: self.btn_search.show()
 
@@ -323,6 +324,7 @@ class AuroraUI(QMainWindow):
         self.btn_launch.setMinimumWidth(int(240 * s))
         self.btn_launch.setFixedHeight(int(60 * s))
         self.btn_launch.setIconSize(QSize(int(28*s), int(28*s)))
+        self.btn_launch.setStyleSheet(f"#LaunchButton {{ border-radius: {int(60 * self._s) // 2}px; }}")
         font = self.btn_launch.font()
         font.setPixelSize(int(15 * s))
         self.btn_launch.setFont(font)
@@ -444,7 +446,7 @@ class AuroraUI(QMainWindow):
         logger.info("Launch button was clicked, initialising engine...", extra={"el": True})
         if not self.engine:
             logger.warning("Launch aborted: Engine not initialized.")
-            ToastNotification(self.central_widget, t("toast_engine_error"), "error")
+            ToastNotification(self.central_widget, t("toast_engine_error"), "", "error")
             return
         logger.info(f"Target Path: {self.current_path}", extra={"el": True})
         self.btn_launch.setEnabled(False)

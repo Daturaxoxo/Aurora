@@ -27,12 +27,12 @@ class BackgroundWidget(QWidget):
         painter.end()
 
 
-# OVERLAY WIDGET
 class OverlayWidget(QWidget):
-    TOP_BAR_HEIGHT = 60
+    BASE_TOP_BAR_HEIGHT = 60
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, scale: float = 1.0):
         super().__init__(parent)
+        self.TOP_BAR_HEIGHT = int(self.BASE_TOP_BAR_HEIGHT * scale)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
