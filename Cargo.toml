@@ -1,3 +1,6 @@
 [workspace]
 members = ["crates/main", "crates/backend", "crates/shared"]
 resolver = "2"
+
+[workspace.dependencies]
+log = "0.4"
