@@ -75,8 +75,6 @@ def _candidate_directories():
         if not os.path.exists(drive): continue
         
         has_avx2 = validate_cpu()
-        from src.logger import logger
-        logger.info(has_avx2)
         if has_avx2:
             from scandir_rs import Scandir
             for dirEntry in Scandir(
