@@ -1,7 +1,6 @@
 import os, sys, json, ctypes
 from pathlib import Path
 from src.backend.helpers.paths import LAUNCHER_MAP
-from scandir_rs import Scandir
 PF_AVX2 = 40
 
 def validate_cpu():
@@ -32,14 +31,11 @@ def validate_path(path):
     try:
         base = Path(path)
         launcher_exists = any((base / launcher).exists() for launcher in LAUNCHER_MAP)
-        if not launcher_exists:
-            return False
+        if not launcher_exists: return False
         htgame_found = any(True for _ in base.rglob("HTGame.exe"))
         return htgame_found
 
-    except (OSError, ValueError):
-        # Handles UNC paths, permission errors, or malformed paths to prevent any issues in the future.
-        return False
+    except (OSError, ValueError): return False
 
 def _candidate_directories():
     checked = set()
@@ -78,8 +74,11 @@ def _candidate_directories():
 
         if not os.path.exists(drive): continue
         
-
-        if validate_cpu():
+        has_avx2 = validate_cpu()
+        from src.logger import logger
+        logger.info(has_avx2)
+        if has_avx2:
+            from scandir_rs import Scandir
             for dirEntry in Scandir(
                 drive,
                 dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
@@ -91,8 +90,7 @@ def _candidate_directories():
                     if path not in checked:
                         checked.add(path)
                         yield from emit(path)
-        else:
-            yield from scan_single_dir(drive)
+        else: yield from scan_single_dir(drive)
             
 
 def get_game_directory():
