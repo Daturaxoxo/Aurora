@@ -3,15 +3,23 @@
 slint::include_modules!();
 
 use display_info::DisplayInfo;
+use log::info;
+use shared::logger::Logger;
 
 fn main() -> Result<(), slint::PlatformError> {
+    Logger::init().unwrap_or_else(|e| {
+        panic!("Logger failed to initialize: {}", e);
+    });
+    
     let window = MainWindow::new()?;
     let slint_window = window.window();
     let monitor_size = get_monitor_size().unwrap();
 
     if monitor_size.width < 1366 {
+        info!("Setting window size to 960x540");
         slint_window.set_size(slint::PhysicalSize::new(960, 540));
     } else {
+        info!("Setting window size to 1280x720");
         slint_window.set_size(slint::PhysicalSize::new(1280, 720));
     }
 
