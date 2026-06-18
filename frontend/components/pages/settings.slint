@@ -1,0 +1,316 @@
+import { Palette } from "../../global.slint";
+
+component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled();
+
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? #10b981 : #3f3f46; 
+    
+    animate background { duration: 150ms; }
+
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ffffff;
+        x: root.checked ? parent.width - self.width - 4px : 4px;
+        
+        animate x { duration: 150ms; easing: ease-out; }
+    }
+
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+}
+
+// DROPDOWN
+component Dropdown inherits Rectangle {
+    in property <[string]> options: ["English", "Türkçe", "简体中文", "Español"];
+    in-out property <int> selected-index: 0;
+    in-out property <bool> opened: false;
+
+    width: 140px;
+    height: 32px;
+    background: @linear-gradient(135deg, #ffffff10 0%, #ffffff05 100%);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #ffffff18;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        alignment: space-between;
+        
+        Text {
+            text: root.options[root.selected-index];
+            color: Palette.text-primary;
+            font-size: 13px;
+            font-family: "Segoe UI";
+            vertical-alignment: center;
+        }
+        
+        VerticalLayout {
+            alignment: center;
+            Image {
+                source: @image-url("../../../production/assets/processed/down.png");
+                width: 16px;
+                height: 16px;
+                image-rendering: smooth;
+                image-fit: contain;
+                opacity: 0.7;
+            }
+        }
+    }
+
+    TouchArea {
+        clicked => { 
+            root.opened = !root.opened;
+            if (root.opened) { popup.show(); }
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: parent.height + 4px;
+        width: parent.width;
+
+        Rectangle {
+            background: #1e1e24;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: #3f3f46;
+
+            VerticalLayout {
+                padding: 4px;
+                spacing: 2px;
+                for option[index] in root.options : Rectangle {
+                    height: 28px;
+                    border-radius: 4px;
+                    background: item-ta.has-hover ? #ffffff10 : transparent;
+
+                    Text {
+                        text: option;
+                        x: 8px;
+                        color: Palette.text-primary;
+                        font-size: 13px;
+                        font-family: "Segoe UI";
+                        vertical-alignment: center;
+                    }
+
+                    item-ta := TouchArea {
+                        clicked => {
+                            root.selected-index = index;
+                            root.opened = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// TABS
+component TabButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked();
+
+    height: 38px;
+    border-radius: 8px;
+    background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
+
+    animate background { duration: 120ms; }
+    
+    ta := TouchArea { clicked => { root.clicked(); } }
+
+    Text {
+        text: root.text;
+        x: 16px;
+        color: root.active ? Palette.text-primary : (ta.has-hover ? Palette.text-primary : Palette.text-secondary);
+        font-size: 14px;
+        font-weight: root.active ? 600 : 400;
+        font-family: "Segoe UI";
+        vertical-alignment: center;
+        
+        animate color { duration: 120ms; }
+    }
+}
+
+// SETTING CARD
+component SettingCard inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+
+    background: @linear-gradient(135deg, #ffffff08 0%, #ffffff03 100%);
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: @linear-gradient(135deg, #ffffff15 0%, #ffffff05 100%);
+
+    HorizontalLayout {
+        padding: 16px; 
+        padding-right: 20px;
+        alignment: space-between;
+        
+        VerticalLayout {
+            spacing: 4px;
+            alignment: center;
+            
+            Text {
+                text: root.title;
+                color: Palette.text-primary;
+                font-size: 14px;
+                font-weight: 600;
+                font-family: "Segoe UI";
+            }
+            Text {
+                text: root.subtitle;
+                color: #cbd5e1;
+                font-size: 12px;
+                wrap: word-wrap;
+                font-family: "Segoe UI";
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            @children
+        }
+    }
+}
+
+// MAIN SETTINGS PAGE
+export component SettingsPage inherits Rectangle {
+    callback close-settings();
+    in-out property <int> active-tab: 0; 
+
+    background: Palette.glass-background;
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+    drop-shadow-color: Palette.shadow-color;
+    drop-shadow-blur: 25px;
+    drop-shadow-offset-y: 10px;
+
+    HorizontalLayout {
+        padding: 24px; 
+        spacing: 32px;
+
+        // LEFT COLUMN: SIDEBAR
+        VerticalLayout {
+            width: 180px;
+            spacing: 8px;
+            alignment: start;
+
+            VerticalLayout {
+                padding-left: 8px;
+                padding-bottom: 12px;
+                Text {
+                    text: "SETTINGS";
+                    color: Palette.text-secondary;
+                    font-size: 11px;
+                    font-weight: 700;
+                    font-family: "Segoe UI";
+                }
+            }
+
+            TabButton { text: "General"; active: root.active-tab == 0; clicked => { root.active-tab = 0; } }
+            TabButton { text: "Launcher"; active: root.active-tab == 1; clicked => { root.active-tab = 1; } }
+            TabButton { text: "Addons"; active: root.active-tab == 2; clicked => { root.active-tab = 2; } }
+            TabButton { text: "Developer"; active: root.active-tab == 3; clicked => { root.active-tab = 3; } }
+        }
+
+        // RIGHT COLUMN: PAGES
+        VerticalLayout {
+            spacing: 20px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                
+                Text {
+                    text: root.active-tab == 0 ? "General" :
+                          root.active-tab == 1 ? "Launcher" :
+                          root.active-tab == 2 ? "Addons" : "Developer";
+                    color: Palette.text-primary;
+                    font-size: 22px;
+                    font-weight: 700;
+                    font-family: "Segoe UI";
+                }
+
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 6px;
+                    background: ta.has-hover ? #ffffff10 : transparent;
+                    
+                    animate background { duration: 100ms; }
+                    
+                    Image {
+                        source: @image-url("../../../production/assets/processed/close.png");
+                        width: 22px;
+                        height: 22px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        opacity: ta.has-hover ? 1.0 : 0.7;
+                        animate opacity { duration: 100ms; }
+                    }
+
+                    ta := TouchArea { clicked => { root.close-settings(); } }
+                }
+            }
+
+            // TAB 0: GENERAL
+            if root.active-tab == 0 : VerticalLayout {
+                spacing: 24px;
+                alignment: start;
+
+                VerticalLayout {
+                    spacing: 10px;
+                    Text { text: "APPEARANCE"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                    
+                    SettingCard {
+                        title: "Language";
+                        subtitle: "Interface display language";
+                        
+                        Dropdown {}
+                    }
+
+                    SettingCard {
+                        title: "Interface Minimization";
+                        subtitle: "Closes the launcher window after the game process initializes.";
+                        
+                        ToggleSwitch { checked: false; }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 10px;
+                    Text { text: "INTEGRATION"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+
+                    SettingCard {
+                        title: "Discord RPC";
+                        subtitle: "Toggle the in-built Rich Presence configuration status.";
+
+                        ToggleSwitch { checked: true; }
+                    }
+                }
+            }
+
+            if root.active-tab == 1 : VerticalLayout { Text { text: "b"; color: Palette.text-secondary; font-family: "Segoe UI"; } }
+            if root.active-tab == 2 : VerticalLayout { Text { text: "a"; color: Palette.text-secondary; font-family: "Segoe UI"; } }
+            if root.active-tab == 3 : VerticalLayout { 
+                Text { 
+                    text: "brooobrobrobro pls send me robuxxxx"; 
+                    color: #a7f3d0; 
+                    font-size: 13px;
+                    font-family: "Consolas"; 
+                } 
+            }
+        }
+    }
+}

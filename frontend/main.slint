@@ -1,8 +1,40 @@
-import { SettingsPage } from "components/pages.slint";
+import { SettingsPage } from "components/pages/settings.slint";
+import { Palette } from "global.slint";
+
+component IconButton inherits Rectangle {
+    in property <image> source;
+    in property <length> icon-size: 18px;
+    in property <bool> active: false;
+    callback clicked();
+
+    width: root.icon-size + 12px;
+    height: root.icon-size + 12px;
+    border-radius: 6px;
+    
+    background: root.active ? #ffffff16 : (ta.has-hover ? #ffffff0c : transparent);
+    
+    animate background { duration: 120ms; }
+
+    Image {
+        source: root.source;
+        width: root.icon-size;
+        height: root.icon-size;
+        image-rendering: smooth;
+        image-fit: contain;
+        opacity: root.active ? 1.0 : (ta.has-hover ? 1.0 : 0.75);
+        
+        animate opacity { duration: 120ms; }
+    }
+
+    ta := TouchArea {clicked => { root.clicked() }}
+}
 
 export component MainWindow inherits Window {
     no-frame: true;
     background: transparent;
+    resize-border-width: 6px;
+    min-width: 960px;
+    min-height: 540px;
 
     callback minimize-clicked();
     callback close-clicked();
@@ -10,129 +42,133 @@ export component MainWindow inherits Window {
 
     in-out property <bool> show-settings: false;
 
-    Image {
+    Rectangle {
         width: 100%;
         height: 100%;
-        source: @image-url("../production/assets/background.jpg");
-        image-fit: cover;
-    }
 
-    VerticalLayout {
-        alignment: start;
-        padding: 0px;
-
-        Rectangle {
-            height: 50px;
+        // Background Image
+        Image {
             width: 100%;
-            background: #000000cc;
+            height: 100%;
+            source: @image-url("../production/assets/background.jpg");
+            image-fit: cover;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
 
-            // DRAG ZONE
-            TouchArea {
+        // Backgroud dimming
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: @linear-gradient(180deg, #00000044 0%, #00000088 100%);
+        }
+
+        VerticalLayout {
+            alignment: start;
+            padding: 0px;
+
+            // Top Bar
+            Rectangle {
+                height: Palette.topbar-height;
                 width: 100%;
-                height: 100%;
-                moved => {
-                    if (self.pressed) {
-                        root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                background: Palette.glass-background;
+                border-width: 0px;
+                drop-shadow-color: Palette.shadow-color;
+                drop-shadow-blur: 15px;
+                drop-shadow-offset-y: 4px;
+
+                // Window Drag Area
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    moved => {
+                        if (self.pressed) {
+                            root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                        }
+                    }
+                }
+
+                // Foreground Header Layout
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+
+                    // LEFT-SIDE: SETTINGS
+                    HorizontalLayout {
+                        alignment: start;
+                        width: 30%;
+                        VerticalLayout {
+                            alignment: center;
+                            IconButton {
+                                source: @image-url("../production/assets/processed/settings.png");
+                                icon-size: 22px;
+                                active: root.show-settings;
+                                clicked => { root.show-settings = !root.show-settings; }
+                            }
+                        }
+                    }
+
+                    // CENTER: LOGO
+                    HorizontalLayout {
+                        alignment: center;
+                        width: 40%;
+                        VerticalLayout {
+                            alignment: center;
+                            Image {
+                                source: @image-url("../production/assets/processed/logo.png");
+                                width: 32px;
+                                height: 32px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                            }
+                        }
+                    }
+
+                    // RIGHT-SIDE: MINIMIZE & CLOSE BUTTONS
+                    HorizontalLayout {
+                        alignment: end;
+                        width: 30%;
+                        VerticalLayout {
+                            alignment: center;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                IconButton {
+                                    source: @image-url("../production/assets/processed/minimize.png");
+                                    icon-size: 22px;
+                                    clicked => { root.minimize-clicked(); }
+                                }
+                                IconButton {
+                                    source: @image-url("../production/assets/processed/close.png");
+                                    icon-size: 22px;
+                                    clicked => { root.close-clicked(); }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            // FOREGROUND LAYER FOR BUTTONS
-            HorizontalLayout {
-                padding-left: 20px;
-                padding-right: 20px;
-
-                // LEFT-SIDE: SETTINGS
-                HorizontalLayout {
-                    alignment: start;
-                    width: 30%;
-                    VerticalLayout {
-                        alignment: center;
-                        Image {
-                            source: @image-url("../production/assets/processed/settings.png");
-                            width: 22px;
-                            height: 22px;
-                            image-rendering: smooth;
-                            image-fit: contain;
-                            TouchArea {
-                                clicked => {
-                                    root.show-settings = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // LOGO
-                HorizontalLayout {
-                    alignment: center;
-                    width: 40%;
-                    VerticalLayout {
-                        alignment: center;
-                        Image {
-                            source: @image-url("../production/assets/processed/logo.png");
-                            width: 26px;
-                            height: 26px;
-                            image-rendering: smooth;
-                            image-fit: contain;
-                        }
-                    }
-                }
-
-                // RIGHT-SIDE: MIN & CLOSE
-                HorizontalLayout {
-                    alignment: end;
-                    spacing: 20px;
-                    width: 30%;
-                    VerticalLayout {
-                        alignment: center;
-                        HorizontalLayout {
-                            spacing: 20px;
-                            Image {
-                                source: @image-url("../production/assets/processed/minimize.png");
-                                width: 18px;
-                                height: 18px;
-                                image-rendering: smooth;
-                                image-fit: contain;
-                                TouchArea {
-                                    clicked => {
-                                        root.minimize-clicked();
-                                    }
-                                }
-                            }
-
-                            Image {
-                                source: @image-url("../production/assets/processed/close.png");
-                                width: 18px;
-                                height: 18px;
-                                image-rendering: smooth;
-                                image-fit: contain;
-                                TouchArea {
-                                    clicked => {
-                                        root.close-clicked();
-                                    }
-                                }
-                            }
-                        }
-                    }
+            // Dashboard Content Area [idk if we will ever use this!!!]
+            Rectangle {
+                VerticalLayout {
+                    padding: 30px;
                 }
             }
         }
 
         Rectangle {
-            VerticalLayout {
-                padding: 30px;
-            }
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-color: Palette.glass-border;
         }
-    }
 
-    if (root.show-settings): SettingsPage {
-        x: 20px;
-        y: 65px;
-        width: parent.width - 40px;
-        height: parent.height - 85px;
-        close-settings => {
-            root.show-settings = false;
+        if (root.show-settings) : SettingsPage {
+            x: 20px;
+            y: Palette.topbar-height + 15px;
+            width: parent.width - 40px;
+            height: parent.height - (Palette.topbar-height + 35px);
+            close-settings => { root.show-settings = false; }
         }
     }
 }
