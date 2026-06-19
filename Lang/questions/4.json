@@ -3,6 +3,7 @@
         "en": "How can I make suggestions?",
         "tr": "Nasıl öneride bulunabilirim?",
         "cn": "如何提出建议？",
+        "zh-TW": "如何提出建議？",
         "de": "Wie kann ich Vorschläge einreichen?",
         "es": "¿Cómo puedo hacer sugerencias?",
         "pt-br": "Como posso fazer sugestões?",
@@ -33,6 +34,13 @@
             "\n- 我们的 Discord 服务器",
             "\n- GameBanana 页面",
             "在任何其他地方提问都可能导致回复延迟或根本得不到回复。"
+        ],
+        "zh-TW": [
+            "## 提出建議",
+            "您可以透過以下管道提出建議：",
+            "\n- 我們的 Discord 伺服器",
+            "\n- GameBanana 頁面",
+            "若在其他地方回報問題，可能會導致回覆延遲或完全得不到回應。"
         ],
         "de": [
             "## Vorschläge einreichen",

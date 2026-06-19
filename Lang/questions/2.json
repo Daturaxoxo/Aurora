@@ -3,6 +3,7 @@
         "en": "What servers are supported?",
         "tr": "Hangi sunucular destekleniyor?",
         "cn": "支持哪些服务器？",
+        "zh-TW": "支援哪些伺服器？",
         "de": "Welche Server werden unterstützt?",
         "es": "¿Qué servidores están soportados?",
         "pt-br": "Quais servidores são compatíveis?",
@@ -48,6 +49,18 @@
             "\n- 中亚",
             "\n- 中国大陆",
             "\n- 台湾"
+        ],
+        "zh-TW": [
+            "## 支援的伺服器",
+            "Aurora 支援的伺服器版本如下所示：",
+            "\n- 北美洲與南美洲",
+            "\n- 歐洲",
+            "\n- 非洲",
+            "\n- 中東",
+            "\n- 東南亞",
+            "\n- 中亞",
+            "\n- 中國大陸",
+            "\n- 台灣"
         ],
         "de": [
             "## Unterstützte Server",
