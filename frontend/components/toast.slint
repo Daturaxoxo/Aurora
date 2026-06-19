@@ -1,0 +1,143 @@
+import { Palette } from "../global.slint";
+
+export component WindowToast inherits Rectangle {
+    in property <bool> active;
+    in property <string> text;
+    in property <string> kind: "success";
+    in property <duration> timeout: 4000ms;
+    callback close();
+
+    private property <float> progress: 1.0;
+    private property <bool> showing: false;
+    private property <bool> arm-fade-in: false;
+
+    opacity: 0.0;
+    visible: self.opacity > 0.001;
+
+    animate opacity { duration: 200ms; easing: ease-in-out; }
+
+    states [
+        visible when root.showing : {opacity: 1.0;}
+    ]
+
+    changed active => {
+        if (root.active) {
+            root.showing = false;
+            root.progress = 1.0;
+            root.arm-fade-in = true;
+        } else {
+            root.arm-fade-in = false;
+            root.showing = false;
+        }
+    }
+
+    Timer {
+        interval: 16ms;
+        running: root.arm-fade-in;
+        triggered => {
+            root.arm-fade-in = false;
+            root.showing = true;
+        }
+    }
+
+    Timer {
+        interval: 16ms;
+        running: root.active;
+        triggered => {
+            root.progress -= 0.016 / (root.timeout / 1000ms);
+            if (root.progress <= 0.0) {
+                root.progress = 0.0;
+                root.close();
+            }
+        }
+    }
+
+    width: 340px;
+    height: 64px;
+
+    background: Palette.glass-background;
+    border-color: Palette.glass-border;
+    border-width: 1px;
+    border-radius: 10px;
+    clip: true;
+
+    drop-shadow-color: Palette.shadow-color;
+    drop-shadow-blur: 16px;
+    drop-shadow-offset-y: 6px;
+
+    property <color> drain-color:
+        root.kind == "success" ? #22c55e :
+        (root.kind == "error" ? #ef4444 : #3b82f6);
+
+    property <image> status-icon:
+        root.kind == "success" ? @image-url("../../production/assets/processed/success.png") :
+        (root.kind == "error" ? @image-url("../../production/assets/processed/error.png") :
+        @image-url("../../production/assets/processed/info.png"));
+
+    HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height - 2px;
+        padding: 12px;
+        spacing: 12px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            Image {
+                source: root.status-icon;
+                width: 22px;
+                height: 22px;
+                image-fit: contain;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text {
+                text: root.text;
+                color: Palette.text-primary;
+                font-size: 13px;
+                font-weight: 500;
+                wrap: word-wrap;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                background: ta.has-hover ? #ffffff14 : transparent;
+                animate background { duration: 100ms; }
+                Image {
+                    source: @image-url("../../production/assets/processed/close.png");
+                    width: 16px;
+                    height: 16px;
+                    opacity: ta.has-hover ? 1.0 : 0.7;
+                    animate opacity { duration: 100ms; }
+                }
+                ta := TouchArea { clicked => { root.close(); } }
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0px;
+        y: root.height - 2px;
+        width: root.width;
+        height: 2px;
+        background: #ffffff0d;
+
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width * root.progress;
+            height: 100%;
+            background: root.drain-color;
+        }
+    }
+}

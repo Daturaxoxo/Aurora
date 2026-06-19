@@ -5,6 +5,8 @@ slint::include_modules!();
 use display_info::DisplayInfo;
 use log::info;
 use shared::logger::Logger;
+mod classes;
+use classes::toast::ToastHandler;
 
 fn main() -> Result<(), slint::PlatformError> {
     Logger::init().unwrap_or_else(|e| {
@@ -49,6 +51,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = w.hide();
         }
     });
+    ToastHandler::setup(window.as_weak());
 
     window.run()
 }

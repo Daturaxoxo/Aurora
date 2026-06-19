@@ -1,0 +1,90 @@
+import { Palette } from "../global.slint";
+
+export component PopupDialog inherits Rectangle {
+    in property <bool> active;
+    in property <string> title;
+    in property <string> message;
+    
+    callback confirm();
+    callback cancel();
+
+    width: 100%;
+    height: 100%;
+    
+    background: root.active ? #00000066 : transparent;
+    animate background { duration: 150ms; }
+    
+    visible: root.active || modal-box.opacity > 0.01;
+    TouchArea {}
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            
+            modal-box := Rectangle {
+                width: 440px;
+                background: Palette.glass-background;
+                border-color: Palette.glass-border;
+                border-width: 1px;
+                border-radius: 12px;
+                drop-shadow-color: Palette.shadow-color;
+                drop-shadow-blur: 24px;
+                drop-shadow-offset-y: 8px;
+
+                opacity: root.active ? 1.0 : 0.0;
+                animate opacity { duration: 150ms; easing: ease-in-out; }
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 18px;
+
+                    Text {
+                        text: root.title;
+                        font-size: 18px;
+                        font-weight: 700;
+                        color: Palette.text-primary;
+                    }
+
+                    Text {
+                        text: root.message;
+                        font-size: 13px;
+                        color: Palette.text-secondary;
+                        wrap: word-wrap;
+                    }
+
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 12px;
+
+                        Rectangle {
+                            width: 100px;
+                            height: 34px;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            background: ta-cancel.has-hover ? #ffffff10 : transparent;
+                            animate background { duration: 100ms; }
+
+                            Text { text: "Cancel"; color: Palette.text-secondary; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            ta-cancel := TouchArea { clicked => { root.cancel(); } }
+                        }
+
+                        Rectangle {
+                            width: 100px;
+                            height: 34px;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            background: ta-confirm.has-hover ? #ffffff20 : #ffffff0c;
+                            animate background { duration: 100ms; }
+
+                            Text { text: "Confirm"; color: Palette.text-primary; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            ta-confirm := TouchArea { clicked => { root.confirm(); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
