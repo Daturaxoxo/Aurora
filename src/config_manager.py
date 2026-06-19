@@ -5,7 +5,8 @@ import json
 LANG_CODES = {
     "English":                "en",
     "Türkçe":                 "tr",
-    "中文":                   "cn",
+    "简体中文":               "cn",
+    "繁體中文":               "zh-TW",
     "日本語":                 "jp",
     "Español":                "es",
     "Português (Brasil)":     "pt-br",
