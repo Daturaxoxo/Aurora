@@ -3,6 +3,7 @@
     "en": "How can I get support?",
     "tr": "Nasıl destek alabilirim?",
     "cn": "如何获取支持？",
+    "zh-TW": "如何獲得技術支援？",
     "de": "Wie kann ich Support erhalten?",
     "es": "¿Cómo puedo obtener soporte?",
     "pt-br": "Como posso obter suporte?",
@@ -33,6 +34,13 @@
       "\n- 我们的 Discord 服务器",
       "\n- GameBanana 页面",
       "在任何其他地方提问都可能导致回复延迟或根本得不到回复。"
+    ],
+    "zh-TW": [
+      "## 取得技術支援",
+      "您可以透過以下管道取得協助：",
+      "\n- 我們的 Discord 伺服器",
+      "\n- GameBanana 頁面",
+      "若在其他地方回報問題，可能會導致回覆延遲或完全得不到回應。"
     ],
     "de": [
       "## Support erhalten",

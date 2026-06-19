@@ -9,7 +9,7 @@ If your language doesn't exist and isn't translated in Aurora yet, create suppor
 > [!IMPORTANT]
 > **Step 1:** Edit `src\config_manager.py`, add your language to the `LANG_CODES` array.
 > 
-> **Step 2:** Edit `src\ui\settings.py`, find the language dropdown (named `self._lang_box`) and add your language there.
+> **Step 2:** Edit `src\frontend\classes\settings.py`, find the language dropdown (named `self._lang_box`) and add your language there.
 > 
 > **Step 3:** Add your own language's section to `Lang\langs.json`. Translate the items in there.
 >
