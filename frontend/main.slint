@@ -72,7 +72,9 @@ export component MainWindow inherits Window {
         VerticalLayout {
             alignment: start;
             padding: 0px;
+            height: 100%;
 
+            // Top Bar
             Rectangle {
                 height: Palette.topbar-height;
                 width: 100%;
@@ -148,7 +150,9 @@ export component MainWindow inherits Window {
                 }
             }
 
+            // Main Content Area (Expands to fill available space)
             Rectangle {
+                vertical-stretch: 1.0;
                 VerticalLayout {
                     padding: 30px;
                     spacing: 20px;
@@ -186,6 +190,105 @@ export component MainWindow inherits Window {
 
                             Text { text: "Test Popup"; color: #ffffff; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
                             ta-dialog := TouchArea { clicked => { root.dialog-active = true; } }
+                        }
+                    }
+                }
+            }
+
+        }
+
+        // Launch Button
+        Rectangle {
+            height: 60px;
+            width: 240px;
+            x: parent.width - self.width - 16px;
+            y: parent.height - self.height - 14px;
+            background: Palette.glass-background;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: Palette.shadow-color;
+            drop-shadow-blur: 15px;
+            drop-shadow-offset-y: 4px;
+            clip: true;
+
+            HorizontalLayout {
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: launch-ta.has-hover ? #ffffff12 : transparent;
+                    animate background { duration: 120ms; }
+
+                    launch-ta := TouchArea {} 
+
+                    HorizontalLayout {
+                        padding-left: 20px;
+                        padding-right: 12px; 
+                        spacing: 12px;
+                        alignment: start;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 20px;
+                                height: 20px;
+                                border-radius: 10px;
+                                background: #ffffff;
+
+                                Path {
+                                    x: 4px;
+                                    y: 5px;
+                                    width: 12px;
+                                    height: 10px;
+                                    viewbox-x: 0;
+                                    viewbox-y: 0;
+                                    viewbox-width: 14;
+                                    viewbox-height: 12;
+                                    commands: "M1 6 L5 10 L13 1";
+                                    stroke: #111111;
+                                    stroke-width: 2px;
+                                    fill: transparent;
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: "Launch";
+                                color: #ffffff;
+                                font-size: 15px;
+                                font-weight: 700;
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 1px;
+                    background: Palette.glass-border;
+                }
+
+                Rectangle {
+                    width: 42px;
+                    background: menu-ta.has-hover ? #ffffff12 : transparent;
+                    animate background { duration: 120ms; }
+
+                    menu-ta := TouchArea {}
+
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            alignment: center;
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 4px;
+                                for _ in [0, 1, 2]: Rectangle {
+                                    width: 4px;
+                                    height: 4px;
+                                    border-radius: 2px;
+                                    background: #ffffffcc;
+                                }
+                            }
                         }
                     }
                 }
