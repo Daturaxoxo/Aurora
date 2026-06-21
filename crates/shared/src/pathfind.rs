@@ -1,21 +1,15 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use scandir::Walk;
 
-use crate::config::{Config, load_config, save_config};
+use log::*;
 
-const GAME_FOLDER_NAME: &str = "Neverness To Everness";
+use crate::{
+    classes::info::{GAME_FOLDER_NAME, LAUNCHER_MAP},
+    config::{load_config, save_config, Config},
+};
 
-const VERSION_GLOBAL: &str = "global";
-const VERSION_CN: &str = "cn";
-const VERSION_TW: &str = "tw";
-const LAUNCHER_MAP: [(&str, &str); 3] = [
-    ("NTEGlobalLauncher.exe", VERSION_GLOBAL),
-    ("NTELauncher.exe", VERSION_CN),
-    ("NTETWLauncher.exe", VERSION_TW),
-];
-
-fn validate_game_path(path: &str) -> Result<bool, std::io::Error> {
+fn validate_game_path(path: &PathBuf) -> Result<bool, std::io::Error> {
     let path = fs::canonicalize(path);
     if path.is_err() {
         return Ok(false);
@@ -37,7 +31,7 @@ fn validate_game_path(path: &str) -> Result<bool, std::io::Error> {
     Ok(game_found)
 }
 
-fn candidate_directories() -> Vec<String> {
+fn candidate_directories() -> Vec<PathBuf> {
     const BLACKLISTED_DIRECTORIES: [&str; 5] = [
         "$RECYCLE.BIN",
         "System Volume Information",
@@ -51,11 +45,21 @@ fn candidate_directories() -> Vec<String> {
             continue;
         }
 
-        let entries = Walk::new(format!("{}:\\", drive_letter), None).unwrap().dir_exclude(Some(BLACKLISTED_DIRECTORIES.iter().map(|s| s.to_string()).collect())).follow_links(false).collect().unwrap();
-        
+        let entries = Walk::new(format!("{}:\\", drive_letter), None)
+            .unwrap()
+            .dir_exclude(Some(
+                BLACKLISTED_DIRECTORIES
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            ))
+            .follow_links(false)
+            .collect()
+            .unwrap();
+
         for dir in entries.dirs() {
             if dir.contains(GAME_FOLDER_NAME) {
-                candidates.push(format!("{}:\\{}", drive_letter, dir));
+                candidates.push(PathBuf::from(format!("{}:\\{}", drive_letter, dir)));
             }
         }
     }
@@ -63,22 +67,22 @@ fn candidate_directories() -> Vec<String> {
     candidates
 }
 
-pub fn get_game_directory() -> Result<String, std::io::Error> {
+pub fn get_game_directory() -> Result<PathBuf, std::io::Error> {
     let path = load_config()?.game_path();
     if validate_game_path(&path)? {
-        return Ok(path);
+        return Ok(PathBuf::from(&path));
     } else {
-        // TODO: Log
+        warn!("Game directory {} not valid", path.display());
     }
 
     for candidate in candidate_directories() {
         if validate_game_path(&candidate)? {
             save_config(Config::new(candidate.clone()))?;
-            return Ok(candidate);
+            return Ok(PathBuf::from(&candidate));
         }
     }
 
-    eprintln!("Game directory not found");
+    error!("Game directory not found");
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,

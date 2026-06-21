@@ -1,5 +1,5 @@
-use slint::Weak;
 use crate::MainWindow;
+use slint::Weak;
 
 pub struct ToastHandler;
 

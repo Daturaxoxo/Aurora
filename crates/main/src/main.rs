@@ -12,7 +12,7 @@ fn main() -> Result<(), slint::PlatformError> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {}", e);
     });
-    
+
     let window = MainWindow::new()?;
     let slint_window = window.window();
     let monitor_size = get_monitor_size().unwrap();
@@ -57,5 +57,8 @@ fn main() -> Result<(), slint::PlatformError> {
 }
 
 fn get_monitor_size() -> Option<DisplayInfo> {
-    DisplayInfo::all().unwrap().into_iter().find(|display| display.is_primary)
+    DisplayInfo::all()
+        .unwrap()
+        .into_iter()
+        .find(|display| display.is_primary)
 }
