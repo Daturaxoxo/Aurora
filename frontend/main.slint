@@ -325,6 +325,13 @@ export component MainWindow inherits Window {
             background: root.dialog-active ? #000000aa : #00000000;
             title: "Apply Changes?";
             message: "Are you sure you want to write these modifications into your game files?";
+            confirm-delay: 0;
+            required-count: 2;
+            checkbox-items: [
+                { label: "I agree to the Terms of Service", required: true, checked: false },
+                { label: "aaaa2", required: false, checked: false },
+                { label: "aa3", required: true, checked: false },
+            ];
             confirm => { root.dialog-active = false; }
             cancel => { root.dialog-active = false; }
         }
