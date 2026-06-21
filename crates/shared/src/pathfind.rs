@@ -10,11 +10,9 @@ use crate::{
 };
 
 fn validate_game_path(path: &PathBuf) -> Result<bool, std::io::Error> {
-    let path = fs::canonicalize(path);
-    if path.is_err() {
+    if !path.exists() {
         return Ok(false);
     }
-    let path = path.unwrap();
 
     for launcher in LAUNCHER_MAP {
         let launcher_path = path.join(launcher.0);
@@ -70,7 +68,7 @@ fn candidate_directories() -> Vec<PathBuf> {
 pub fn get_game_directory() -> Result<PathBuf, std::io::Error> {
     let path = load_config()?.game_path();
     if validate_game_path(&path)? {
-        return Ok(PathBuf::from(&path));
+        return Ok(path);
     } else {
         warn!("Game directory {} not valid", path.display());
     }
@@ -78,7 +76,7 @@ pub fn get_game_directory() -> Result<PathBuf, std::io::Error> {
     for candidate in candidate_directories() {
         if validate_game_path(&candidate)? {
             save_config(Config::new(candidate.clone()))?;
-            return Ok(PathBuf::from(&candidate));
+            return Ok(candidate);
         }
     }
 
