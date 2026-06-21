@@ -1,15 +1,15 @@
 use std::{fs, path::PathBuf};
 
-use scandir::Walk;
-
+use anyhow::{anyhow, Result};
 use log::*;
+use scandir::Walk;
 
 use crate::{
     classes::info::{GAME_FOLDER_NAME, LAUNCHER_MAP},
     config::{load_config, save_config, Config},
 };
 
-fn validate_game_path(path: &PathBuf) -> Result<bool, std::io::Error> {
+fn validate_game_path(path: &PathBuf) -> Result<bool> {
     if !path.exists() {
         return Ok(false);
     }
@@ -65,7 +65,7 @@ fn candidate_directories() -> Vec<PathBuf> {
     candidates
 }
 
-pub fn get_game_directory() -> Result<PathBuf, std::io::Error> {
+pub fn get_game_directory() -> Result<PathBuf> {
     let path = load_config()?.game_path();
     if validate_game_path(&path)? {
         return Ok(path);
@@ -82,8 +82,5 @@ pub fn get_game_directory() -> Result<PathBuf, std::io::Error> {
 
     error!("Game directory not found");
 
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        "Game directory not found",
-    ))
+    Err(anyhow!("Game directory not found"))
 }

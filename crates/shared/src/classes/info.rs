@@ -5,6 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::{anyhow, Result};
+
 pub const GAME_FOLDER_NAME: &str = "Neverness To Everness";
 
 pub const CLIENT_WIN64: &str = "Client/WindowsNoEditor/HT/Binaries/Win64";
@@ -179,9 +181,9 @@ pub fn get_version_paths(
     }
 }
 
-pub fn detect_version(game_path: &Path) -> Result<Version, String> {
+pub fn detect_version(game_path: &Path) -> Result<Version> {
     if !game_path.exists() {
-        return Err(format!(
+        return Err(anyhow!(
             "Aurora couldn't find the game path: {}",
             game_path.display()
         ));
@@ -194,7 +196,7 @@ pub fn detect_version(game_path: &Path) -> Result<Version, String> {
     }
 
     let checked: Vec<&str> = LAUNCHER_MAP.iter().map(|(exe, _)| *exe).collect();
-    Err(format!(
+    Err(anyhow!(
         "Could not detect NTE version in '{}'. None of the expected launchers were found: {:?}",
         game_path.display(),
         checked

@@ -4,3 +4,4 @@ resolver = "2"
 
 [workspace.dependencies]
 log = "0.4"
+anyhow = "1.0"

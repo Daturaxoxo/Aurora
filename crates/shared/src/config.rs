@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_FILE: &str = "config.json";
@@ -19,14 +20,14 @@ impl Config {
     }
 }
 
-pub fn save_config(config: Config) -> Result<(), std::io::Error> {
+pub fn save_config(config: Config) -> Result<()> {
     let serialized = serde_json::to_string(&config).unwrap();
     std::fs::write(CONFIG_FILE, serialized)?;
 
     Ok(())
 }
 
-pub fn load_config() -> Result<Config, std::io::Error> {
+pub fn load_config() -> Result<Config> {
     let serialized = std::fs::read_to_string(CONFIG_FILE);
     if serialized.is_err() {
         return Ok(Config::default());
