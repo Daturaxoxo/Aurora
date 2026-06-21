@@ -6,7 +6,7 @@ use scandir::Walk;
 
 use crate::{
     classes::info::{GAME_FOLDER_NAME, LAUNCHER_MAP},
-    config::{load_config, save_config, Config},
+    config::{get, key, set},
 };
 
 fn validate_game_path(path: &PathBuf) -> Result<bool> {
@@ -66,7 +66,10 @@ fn candidate_directories() -> Vec<PathBuf> {
 }
 
 pub fn get_game_directory() -> Result<PathBuf> {
-    let path = load_config()?.game_path();
+    let path = get(key::GAME_PATH)
+        .as_str()
+        .ok_or(anyhow!("Game directory not found"))?
+        .into();
     if validate_game_path(&path)? {
         return Ok(path);
     } else {
@@ -75,7 +78,7 @@ pub fn get_game_directory() -> Result<PathBuf> {
 
     for candidate in candidate_directories() {
         if validate_game_path(&candidate)? {
-            save_config(Config::new(candidate.clone()))?;
+            set(key::GAME_PATH, candidate.clone().display().to_string());
             return Ok(candidate);
         }
     }
