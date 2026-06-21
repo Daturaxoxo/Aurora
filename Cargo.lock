@@ -4469,6 +4469,7 @@ dependencies = [
 name = "shared"
 version = "2.0.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "env_filter",
  "env_logger",

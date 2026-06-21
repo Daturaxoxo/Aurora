@@ -81,12 +81,16 @@ impl Log for Logger {
         stdout.reset().expect("Failed to reset stdout");
         write!(&mut stdout, "{}", record.args()).unwrap();
 
-        let name = format!("{}-{}.log", LOG_FILE, timestamp.replace(":", "-").replace(" ", "-"));
+        let name = format!(
+            "{}-{}.log",
+            LOG_FILE,
+            timestamp.replace(":", "-").replace(" ", "-")
+        );
         let path = path::Path::new(&name);
         let _ = fs::create_dir_all(path.parent().unwrap());
         if fs::metadata(&name).is_err() && fs::File::create(&name).is_err() {
-                println!("Failed to create log file");
-                return;
+            println!("Failed to create log file");
+            return;
         }
 
         let mut file = fs::OpenOptions::new()

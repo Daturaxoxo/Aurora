@@ -13,3 +13,5 @@ env_logger = "0.11"
 env_filter = "1.0"
 chrono = "0.4"
 termcolor = "1.4"
+
+anyhow = { workspace = true }

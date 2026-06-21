@@ -1,35 +1,107 @@
-use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 
-const CONFIG_FILE: &str = "config.json";
+use serde_json::{json, Map, Value};
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct Config {
-    pub game_path: String,
+pub const LANGS: &[(&str, &str)] = &[
+    ("English", "en"),
+    ("Türkçe", "tr"),
+    ("简体中文", "cn"),
+    ("繁體中文", "zh-TW"),
+    ("日本語", "jp"),
+    ("Español", "es"),
+    ("Português (Brasil)", "pt-br"),
+    ("Deutsch", "de"),
+    ("Tiếng Việt", "vi"),
+    ("Nederlands", "nl"),
+    ("Pусский", "ru"),
+    ("Bahasa Indonesia", "id"),
+    ("Italiano", "it"),
+    ("French", "fr"),
+];
+
+pub fn get_lang_code(name: &str) -> Option<&'static str> {
+    LANGS.iter().find(|(n, _)| *n == name).map(|(_, c)| *c)
 }
 
-impl Config {
-    pub fn new(game_path: String) -> Self {
-        Self { game_path }
-    }
+pub fn get_lang_name(code: &str) -> Option<&'static str> {
+    LANGS.iter().find(|(_, c)| *c == code).map(|(n, _)| *n)
+}
 
-    pub fn game_path(&self) -> String {
-        self.game_path.clone()
+pub mod key {
+    pub const GAME_PATH: &str = "game_path";
+    pub const ENGINE_METHOD: &str = "engine_method";
+    pub const LANGUAGE: &str = "language";
+    pub const DEV_MODE: &str = "dev_mode";
+    pub const CENSORSHIP_REMOVE: &str = "csn_rem";
+    pub const NO_DRIVE_LINE: &str = "drv_lin";
+    pub const HIDE_UID: &str = "uid_rem";
+    pub const HIDE_NOTIF_DOTS: &str = "nor_rem";
+    pub const DISCORD_RPC: &str = "discord_rpc";
+    pub const EXTENSIVE_LOGGING: &str = "extensive_logging";
+    pub const EXPORT_CONSOLE: &str = "export_console";
+    pub const UI_SCALING: &str = "ui_scaling";
+    pub const UI_MINIMIZATION: &str = "ui_min";
+    pub const SHOW_NSFW_MODS: &str = "show_nsfw_mods";
+}
+
+fn default_value(k: &str) -> Value {
+    match k {
+        key::GAME_PATH => json!(""),
+        key::LANGUAGE => json!("en"),
+        key::DEV_MODE => json!(false),
+        key::CENSORSHIP_REMOVE => json!(true),
+        key::NO_DRIVE_LINE => json!(false),
+        key::HIDE_UID => json!(true),
+        key::HIDE_NOTIF_DOTS => json!(false),
+        key::DISCORD_RPC => json!(true),
+        key::EXTENSIVE_LOGGING => json!(false),
+        key::UI_SCALING => json!(1.0),
+        key::UI_MINIMIZATION => json!(true),
+        key::SHOW_NSFW_MODS => json!(false),
+        // [0 = Default (dsound only)]
+        // [1 = Alternate (dsound + version.dll)]
+        // [2 = Alternate 2 (dsound + dinput8.dll)]
+        key::ENGINE_METHOD => json!("0"),
+        _ => Value::Null,
     }
 }
 
-pub fn save_config(config: Config) -> Result<(), std::io::Error> {
-    let serialized = serde_json::to_string(&config).unwrap();
-    std::fs::write(CONFIG_FILE, serialized)?;
-
-    Ok(())
+fn config_file_path() -> PathBuf {
+    env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|dir| dir.to_path_buf()))
+        .unwrap_or_else(|| env::current_dir().unwrap_or_default())
+        .join("config.json")
 }
 
-pub fn load_config() -> Result<Config, std::io::Error> {
-    let serialized = std::fs::read_to_string(CONFIG_FILE);
-    if serialized.is_err() {
-        return Ok(Config::default());
+fn load_raw() -> Map<String, Value> {
+    fs::read_to_string(config_file_path())
+        .ok()
+        .and_then(|contents| serde_json::from_str(&contents).ok())
+        .and_then(|val| match val {
+            Value::Object(map) => Some(map),
+            _ => None,
+        })
+        .unwrap_or_default() // Falls back to an empty Map automatically
+}
+
+fn save_raw(data: &Map<String, Value>) {
+    if let Ok(json_string) = serde_json::to_string_pretty(data) {
+        let _ = fs::write(config_file_path(), json_string);
     }
-    let config: Config = serde_json::from_str(&serialized?)?;
-    
-    Ok(config)
+}
+
+pub fn get(k: &str) -> Value {
+    load_raw()
+        .get(k)
+        .cloned()
+        .unwrap_or_else(|| default_value(k))
+}
+
+pub fn set(k: &str, value: impl Into<Value>) {
+    let mut data = load_raw();
+    data.insert(k.to_string(), value.into());
+    save_raw(&data);
 }

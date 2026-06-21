@@ -6,4 +6,5 @@ pub mod utils;
 pub mod classes {
     pub mod api;
     pub mod export;
+    pub mod info;
 }
