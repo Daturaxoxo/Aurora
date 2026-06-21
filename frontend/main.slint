@@ -42,6 +42,7 @@ export component MainWindow inherits Window {
     callback close-clicked();
     callback window-dragged(length, length);
     callback trigger-test-toast();
+    callback bottom-icon-clicked(int);   // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
 
     in-out property <bool> show-settings: false;
     in-out property <bool> toast-active: false;
@@ -150,7 +151,7 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // Main Content Area (Expands to fill available space)
+            // Main Content Area
             Rectangle {
                 vertical-stretch: 1.0;
                 VerticalLayout {
@@ -195,6 +196,66 @@ export component MainWindow inherits Window {
                 }
             }
 
+        }
+
+        // Icon Row
+        Rectangle {
+            height: 60px;
+            width: bottom-icon-row.preferred-width + 16px * 2;
+            x: 16px;
+            y: parent.height - self.height - 14px;
+            background: Palette.glass-background;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: Palette.shadow-color;
+            drop-shadow-blur: 15px;
+            drop-shadow-offset-y: 4px;
+
+            bottom-icon-row := HorizontalLayout {
+                x: 16px;
+                y: 0px;
+                width: self.preferred-width;
+                height: parent.height;
+                spacing: 4px;
+                alignment: start;
+
+                VerticalLayout {
+                    alignment: center;
+                    IconButton {
+                        source: @image-url("../production/assets/processed/menu.png");
+                        icon-size: 32px;
+                        clicked => { root.bottom-icon-clicked(0); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    IconButton {
+                        source: @image-url("../production/assets/processed/mod_manager.png");
+                        icon-size: 32px;
+                        clicked => { root.bottom-icon-clicked(1); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    IconButton {
+                        source: @image-url("../production/assets/processed/discord.png");
+                        icon-size: 32px;
+                        clicked => { root.bottom-icon-clicked(2); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    IconButton {
+                        source: @image-url("../production/assets/processed/marketplace.png");
+                        icon-size: 32px;
+                        clicked => { root.bottom-icon-clicked(3); }
+                    }
+                }
+            }
         }
 
         // Launch Button
@@ -325,7 +386,7 @@ export component MainWindow inherits Window {
             background: root.dialog-active ? #000000aa : #00000000;
             title: "Apply Changes?";
             message: "Are you sure you want to write these modifications into your game files?";
-            confirm-delay: 0;
+            confirm-delay: 5;
             required-count: 2;
             checkbox-items: [
                 { label: "I agree to the Terms of Service", required: true, checked: false },
