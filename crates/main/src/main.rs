@@ -7,6 +7,7 @@ use log::info;
 use shared::logger::Logger;
 mod classes;
 use classes::toast::ToastHandler;
+use classes::buttons::ButtonHandler;
 
 fn main() -> Result<(), slint::PlatformError> {
     Logger::init().unwrap_or_else(|e| {
@@ -52,6 +53,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     ToastHandler::setup(window.as_weak());
+    ButtonHandler::setup(window.as_weak());
 
     window.run()
 }

@@ -70,9 +70,9 @@ export component WindowToast inherits Rectangle {
         (root.kind == "error" ? #ef4444 : #3b82f6);
 
     property <image> status-icon:
-        root.kind == "success" ? @image-url("../../production/assets/processed/success.png") :
-        (root.kind == "error" ? @image-url("../../production/assets/processed/error.png") :
-        @image-url("../../production/assets/processed/info.png"));
+        root.kind == "success" ? @image-url("../../production/icons/processed/success.png") :
+        (root.kind == "error" ? @image-url("../../production/icons/processed/error.png") :
+        @image-url("../../production/icons/processed/info.png"));
 
     HorizontalLayout {
         x: 0px;
@@ -114,7 +114,7 @@ export component WindowToast inherits Rectangle {
                 background: ta.has-hover ? #ffffff14 : transparent;
                 animate background { duration: 100ms; }
                 Image {
-                    source: @image-url("../../production/assets/processed/close.png");
+                    source: @image-url("../../production/icons/processed/close.png");
                     width: 16px;
                     height: 16px;
                     opacity: ta.has-hover ? 1.0 : 0.7;

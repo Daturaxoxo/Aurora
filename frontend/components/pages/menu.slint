@@ -1,0 +1,188 @@
+import { Palette } from "../../global.slint";
+
+struct MenuItem {
+    name: string,
+    icon: image,
+}
+
+export component MenuPage inherits Rectangle {
+    callback close-menu();
+    callback menu-item-clicked(int);
+
+    in property <[MenuItem]> items: [
+        { name: "Screenshot Manager",      icon: @image-url("../../../production/icons/menu/camera.png") },
+        { name: "Music Manager",      icon: @image-url("../../../production/icons/menu/music.png") },
+        { name: "Movie Manager",   icon: @image-url("../../../production/icons/menu/movie.png") },
+        { name: "Third Party Modules",   icon: @image-url("../../../production/icons/menu/dll.png") },
+        { name: "Addons",   icon: @image-url("../../../production/icons/menu/addons.png") },
+    ];
+    background: #00000066;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.close-menu(); }
+    }
+
+    panel := Rectangle {
+        width: 480px;
+        height: panel-layout.preferred-height + 32px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Palette.glass-background;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+        drop-shadow-color: #00000099;
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 12px;
+
+        TouchArea { width: 100%; height: 100%; }
+
+        panel-layout := VerticalLayout {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            padding: 24px;
+            spacing: 20px;
+
+            // Header
+            HorizontalLayout {
+                alignment: space-between;
+
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: "Aurora Menu";
+                        color: #ffffff;
+                        font-size: 17px;
+                        font-weight: 700;
+                    }
+                }
+
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../production/icons/close.png");
+                        width: 18px;
+                        height: 18px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    close-ta := TouchArea {
+                        clicked => { root.close-menu(); }
+                    }
+                }
+            }
+
+            // Divider
+            Rectangle {
+                height: 1px;
+                background: Palette.glass-border;
+            }
+
+            // Grid
+            HorizontalLayout {
+                spacing: 12px;
+
+                VerticalLayout {
+                    spacing: 12px;
+                    for i in [0, 2, 4]: Rectangle {
+                        height: 100px;
+                        visible: i < root.items.length;
+                        background: ta-left.has-hover ? #ffffff12 : #ffffff08;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: ta-left.has-hover ? #ffffff28 : Palette.glass-border;
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        ta-left := TouchArea {
+                            enabled: i < root.items.length;
+                            clicked => { root.menu-item-clicked(i); }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            padding: 16px;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Image {
+                                    source: root.items[i].icon;
+                                    width: 32px;
+                                    height: 32px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    opacity: ta-left.has-hover ? 1.0 : 0.8;
+                                    animate opacity { duration: 120ms; }
+                                }
+                            }
+                            Text {
+                                text: root.items[i].name;
+                                color: #ffffffdd;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 12px;
+                    for i in [1, 3, 5]: Rectangle {
+                        height: 100px;
+                        visible: i < root.items.length;
+                        background: ta-right.has-hover ? #ffffff12 : #ffffff08;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: ta-right.has-hover ? #ffffff28 : Palette.glass-border;
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        ta-right := TouchArea {
+                            enabled: i < root.items.length;
+                            clicked => { root.menu-item-clicked(i); }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            padding: 16px;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Image {
+                                    source: root.items[i].icon;
+                                    width: 32px;
+                                    height: 32px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    opacity: ta-right.has-hover ? 1.0 : 0.8;
+                                    animate opacity { duration: 120ms; }
+                                }
+                            }
+                            Text {
+                                text: root.items[i].name;
+                                color: #ffffffdd;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
