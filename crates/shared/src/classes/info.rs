@@ -80,6 +80,17 @@ pub enum BypassMethod {
     DDraw,
 }
 
+impl fmt::Display for BypassMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            BypassMethod::Version => "version.dll",
+            BypassMethod::DSound => "dsound.dll",
+            BypassMethod::DDraw => "ddraw.dll",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl BypassMethod {
     pub fn to_dll_names(&self, version: Version) -> Vec<&'static str> {
         match self {
@@ -92,6 +103,21 @@ impl BypassMethod {
                 }
             }
             BypassMethod::DDraw => vec!["ddraw.dll"],
+        }
+    }
+
+    pub fn from_num(i: impl Into<i64>, version: Version) -> Result<BypassMethod> {
+        let i = i.into();
+        match i {
+            0 => Ok(BypassMethod::Version),
+            1 => {
+                if version == Version::CN {
+                    Ok(BypassMethod::DSound)
+                } else {
+                    Ok(BypassMethod::DDraw)
+                }
+            }
+            _ => Err(anyhow!("Invalid bypass method: {}", i)),
         }
     }
 }
@@ -201,4 +227,25 @@ pub fn detect_version(game_path: &Path) -> Result<Version> {
         game_path.display(),
         checked
     ))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Target {
+    AsiPlugin,
+    CNntfrmain,
+    GLntfrmain,
+    Cutils,
+    Ntfrsub,
+}
+
+impl Target {
+    pub fn as_file(&self) -> &'static str {
+        match self {
+            Target::AsiPlugin => "ausigbp.asi",
+            Target::CNntfrmain => "cnntfrmain.asi",
+            Target::GLntfrmain => "glntfrmain.asi",
+            Target::Cutils => "cutils.dll",
+            Target::Ntfrsub => "cnntfrsub.dll",
+        }
+    }
 }
