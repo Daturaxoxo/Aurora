@@ -3,13 +3,19 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    let assets = Path::new("../../production/assets");
-    let processed = Path::new("../../production/assets/processed");
-    let _ = fs::remove_dir_all(processed);
-    fs::create_dir_all(processed).unwrap();
-    if assets.exists() {
-        process_directory(assets, assets, processed)
+    let pairs = [
+        ("../../production/assets", "../../production/assets/processed"),
+        ("../../production/icons",  "../../production/icons/processed"),
+    ];
+
+    for (source, processed) in pairs.map(|(s, p)| (Path::new(s), Path::new(p))) {
+        if source.exists() {
+            let _ = fs::remove_dir_all(processed);
+            fs::create_dir_all(processed).unwrap();
+            process_directory(source, source, processed);
+        }
     }
+    
     slint_build::compile("../../frontend/main.slint").unwrap();
 }
 

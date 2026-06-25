@@ -1,7 +1,7 @@
 import { Palette } from "../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 
-// REUSABLE TOGGLE SWITCH COMPONENT
+// TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
     in-out property <bool> checked;
     callback toggled();
@@ -31,7 +31,7 @@ component ToggleSwitch inherits Rectangle {
     }
 }
 
-// REUSABLE INTERACTIVE ACCENT SLIDER COMPONENT
+// SLIDER COMPONENT
 component PremiumSlider inherits Rectangle {
     in-out property <float> value: 0.55; 
     in property <string> text-value: "100%";
@@ -104,7 +104,7 @@ component PremiumSlider inherits Rectangle {
     }
 }
 
-// REUSABLE INTERACTIVE DROPDOWN COMPONENT
+// DROPDOWN COMPONENT
 component Dropdown inherits Rectangle {
     in property <[string]> options: ["English", "Türkçe", "简体中文", "Español"];
     in-out property <int> selected-index: 0;
@@ -112,10 +112,10 @@ component Dropdown inherits Rectangle {
 
     width: 140px;
     height: 32px;
-    background: @linear-gradient(135deg, #ffffff10 0%, #ffffff05 100%);
+    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
     border-radius: 6px;
     border-width: 1px;
-    border-color: #ffffff18;
+    border-color: Palette.glass-border;
 
     HorizontalLayout {
         padding-left: 12px;
@@ -133,9 +133,9 @@ component Dropdown inherits Rectangle {
         VerticalLayout {
             alignment: center;
             Image {
-                source: @image-url("../../../production/assets/processed/down.png");
-                width: 10px;
-                height: 10px;
+                source: @image-url("../../../production/icons/down.png");
+                width: 16px;
+                height: 16px;
                 image-rendering: smooth;
                 image-fit: contain;
                 opacity: 0.7;
@@ -190,7 +190,7 @@ component Dropdown inherits Rectangle {
     }
 }
 
-// REUSABLE SIDEBAR TAB BUTTON
+// TAB BUTTON COMPONENT
 component TabButton inherits Rectangle {
     in property <string> text;
     in property <bool> active;
@@ -217,15 +217,15 @@ component TabButton inherits Rectangle {
     }
 }
 
-// GLASSMORPHIC SETTING DISPLAY CARD
+// SETTING CARD
 component SettingCard inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
 
-    background: @linear-gradient(135deg, #ffffff08 0%, #ffffff03 100%);
+    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
     border-radius: 12px;
     border-width: 1px;
-    border-color: @linear-gradient(135deg, #ffffff15 0%, #ffffff05 100%);
+    border-color: Palette.glass-border;
 
     HorizontalLayout {
         padding: 16px; 
@@ -289,12 +289,12 @@ component TabPage inherits Rectangle {
     @children
 }
 
-// MAIN SETTINGS VIEW OVERLAY
+// MAIN
 export component SettingsPage inherits Rectangle {
     callback close-settings();
     in-out property <int> active-tab: 0; 
 
-    background: Palette.glass-background;
+    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -357,7 +357,7 @@ export component SettingsPage inherits Rectangle {
                     animate background { duration: 100ms; }
                     
                     Image {
-                        source: @image-url("../../../production/assets/processed/close.png");
+                        source: @image-url("../../../production/icons/processed/close.png");
                         width: 14px;
                         height: 14px;
                         horizontal-alignment: center;

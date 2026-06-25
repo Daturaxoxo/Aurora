@@ -1,27 +1,98 @@
 import { Palette } from "../global.slint";
 
+export struct CheckboxItem {
+    label: string,
+    required: bool,
+}
+
 export component PopupDialog inherits Rectangle {
     in property <bool> active;
     in property <string> title;
     in property <string> message;
-    
+    in property <int> confirm-delay: 0;
+    in property <[CheckboxItem]> checkbox-items: [];
+    in property <int> required-count: 0;
+    out property <bool> checked-0: false;
+    out property <bool> checked-1: false;
+    out property <bool> checked-2: false;
+    out property <bool> checked-3: false;
+
     callback confirm();
     callback cancel();
 
+    private property <int> countdown: 0;
+    private property <float> countdown-frac: 0.0;
+    private property <bool> timer-ready: false;
+
+    private property <int> required-checked-count:
+        (checkbox-items.length > 0 && checkbox-items[0].required && checked-0 ? 1 : 0) +
+        (checkbox-items.length > 1 && checkbox-items[1].required && checked-1 ? 1 : 0) +
+        (checkbox-items.length > 2 && checkbox-items[2].required && checked-2 ? 1 : 0) +
+        (checkbox-items.length > 3 && checkbox-items[3].required && checked-3 ? 1 : 0);
+
+    private property <bool> all-required-checked:
+        root.required-count == 0 || root.required-checked-count >= root.required-count;
+
+    private property <bool> confirm-ready: root.timer-ready && root.all-required-checked;
+
+    changed active => {
+        if (root.active) {
+            root.countdown = root.confirm-delay;
+            root.countdown-frac = 0.0;
+            root.timer-ready = root.confirm-delay <= 0;
+            root.checked-0 = false;
+            root.checked-1 = false;
+            root.checked-2 = false;
+            root.checked-3 = false;
+        }
+    }
+
+    Timer {
+        interval: 16ms;
+        running: root.active && !root.timer-ready;
+        triggered => {
+            root.countdown-frac += 0.016;
+            if (root.countdown-frac >= 1.0) {
+                root.countdown-frac -= 1.0;
+                root.countdown -= 1;
+                if (root.countdown <= 0) {
+                    root.countdown = 0;
+                    root.timer-ready = true;
+                }
+            }
+        }
+    }
+
     width: 100%;
     height: 100%;
-    
+
     background: root.active ? #00000066 : transparent;
     animate background { duration: 150ms; }
-    
+
     visible: root.active || modal-box.opacity > 0.01;
     TouchArea {}
+
+    // Helpers
+    function is-checked(i: int) -> bool {
+        if (i == 0) { return root.checked-0; }
+        if (i == 1) { return root.checked-1; }
+        if (i == 2) { return root.checked-2; }
+        if (i == 3) { return root.checked-3; }
+
+        return root.checked-3;
+    }
+    function set-checked(i: int, val: bool) {
+        if (i == 0) { root.checked-0 = val; }
+        if (i == 1) { root.checked-1 = val; }
+        if (i == 2) { root.checked-2 = val; }
+        if (i == 3) { root.checked-3 = val; }
+    }
 
     VerticalLayout {
         alignment: center;
         HorizontalLayout {
             alignment: center;
-            
+
             modal-box := Rectangle {
                 width: 440px;
                 background: Palette.glass-background;
@@ -39,6 +110,7 @@ export component PopupDialog inherits Rectangle {
                     padding: 24px;
                     spacing: 18px;
 
+                    // Title
                     Text {
                         text: root.title;
                         font-size: 18px;
@@ -46,6 +118,7 @@ export component PopupDialog inherits Rectangle {
                         color: Palette.text-primary;
                     }
 
+                    // Message
                     Text {
                         text: root.message;
                         font-size: 13px;
@@ -53,10 +126,78 @@ export component PopupDialog inherits Rectangle {
                         wrap: word-wrap;
                     }
 
+                    // Checkbox
+                    if root.checkbox-items.length > 0 : VerticalLayout {
+                        spacing: 10px;
+
+                        for item[i] in root.checkbox-items : Rectangle {
+                            height: 20px;
+
+                            HorizontalLayout {
+                                width: parent.width;
+                                height: parent.height;
+                                spacing: 10px;
+                                alignment: start;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 16px;
+                                        height: 16px;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: root.is-checked(i)
+                                            ? (item.required ? #ffffff88 : #ffffff55)
+                                            : (item.required ? #ffffff44 : #ffffff22);
+                                        background: root.is-checked(i) ? #ffffff18 : transparent;
+                                        animate background { duration: 120ms; }
+                                        animate border-color { duration: 120ms; }
+
+                                        if root.is-checked(i) : Path {
+                                            x: 2px;
+                                            y: 3px;
+                                            width: 12px;
+                                            height: 10px;
+                                            viewbox-x: 0;
+                                            viewbox-y: 0;
+                                            viewbox-width: 12;
+                                            viewbox-height: 10;
+                                            commands: "M1 5 L4 8 L11 1";
+                                            stroke: Palette.text-primary;
+                                            stroke-width: 1.8px;
+                                            fill: transparent;
+                                        }
+                                    }
+                                }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        text: item.label;
+                                        font-size: 12px;
+                                        color: item.required ? Palette.text-secondary : #ffffff55;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+
+                            TouchArea {
+                                width: parent.width;
+                                height: parent.height;
+                                clicked => {
+                                    root.set-checked(i, !root.is-checked(i));
+                                }
+                            }
+                        }
+                    }
+
+                    // Buttons
                     HorizontalLayout {
                         alignment: end;
                         spacing: 12px;
 
+                        // Cancel
                         Rectangle {
                             width: 100px;
                             height: 34px;
@@ -70,17 +211,34 @@ export component PopupDialog inherits Rectangle {
                             ta-cancel := TouchArea { clicked => { root.cancel(); } }
                         }
 
+                        // Confirm
                         Rectangle {
                             width: 100px;
                             height: 34px;
                             border-radius: 6px;
                             border-width: 1px;
-                            border-color: Palette.glass-border;
-                            background: ta-confirm.has-hover ? #ffffff20 : #ffffff0c;
+                            border-color: root.confirm-ready ? Palette.glass-border : #ffffff18;
+                            background: root.confirm-ready
+                                ? (ta-confirm.has-hover ? #ffffff20 : #ffffff0c)
+                                : #ffffff05;
                             animate background { duration: 100ms; }
+                            animate border-color { duration: 200ms; }
 
-                            Text { text: "Confirm"; color: Palette.text-primary; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            ta-confirm := TouchArea { clicked => { root.confirm(); } }
+                            Text {
+                                text: root.timer-ready
+                                    ? "Confirm"
+                                    : "(" + root.countdown + ") Confirm";
+                                color: root.confirm-ready ? Palette.text-primary : #ffffff33;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                animate color { duration: 200ms; }
+                            }
+                            ta-confirm := TouchArea {
+                                enabled: root.confirm-ready;
+                                clicked => { root.confirm(); }
+                            }
                         }
                     }
                 }
