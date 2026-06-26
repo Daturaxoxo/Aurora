@@ -1,7 +1,7 @@
 import { SettingsPage } from "components/pages/settings.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
-import { PopupDialog } from "components/popup.slint";
+import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 
 component IconButton inherits Rectangle {
@@ -39,23 +39,53 @@ export component MainWindow inherits Window {
     min-width: 960px;
     min-height: 540px;
 
+    // General Callbacks
     callback minimize-clicked();
     callback close-clicked();
     callback window-dragged(length, length);
-    callback trigger-test-toast();
-    callback bottom-icon-clicked(int);   // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
-    callback launch-menu-action(int);    // indexes: 0 = Repair, 1 = Check Updates, 2 = Desktop Shortcut, 3 = Open Mods Folder
+    callback bottom-icon-clicked(int); // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
 
+    // [PROPERTIES]
+
+    // Page Properties
     in-out property <bool> show-settings: false;
     in-out property <bool> show-menu: false;
-
-    in-out property <bool> toast-active: false;
-    in-out property <bool> dialog-active: false;
+    
+    // Launch Menu Properties
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
+    callback launch-menu-action(int); // indexes: 0 = Repair, 1 = Check Updates, 2 = Desktop Shortcut, 3 = Open Mods Folder
+    
+    // Toast Properties
+    in-out property <bool> toast-active: false;
     in-out property <string> toast-text: "";
     in-out property <string> toast-kind: "success";
     in-out property <float> toast-progress: 1.0;
+    callback trigger-toast();
+
+    // Popup Dialog Properties
+    in-out property <bool> popup-active: false;
+    in-out property <string> popup-id: "";
+    in-out property <string> popup-title: "";
+    in-out property <string> popup-message: "";
+    in-out property <int> popup-confirm-delay: 0;
+    in-out property <int> popup-required-count: 0;
+    in-out property <[CheckboxItem]> popup-checkboxes: [];
+    callback popup-confirm-callback(string);
+    callback popup-cancel-callback(string);
+
+    // [HELPER FUNCTIONS]
+
+    // Popup Dialog Helpers
+    function reset-popup() {
+        root.popup-active = false;
+        root.popup-id = "";
+        root.popup-title = "";
+        root.popup-message = "";
+        root.popup-confirm-delay = 0;
+        root.popup-required-count = 0;
+        root.popup-checkboxes = [];
+    }
 
     Rectangle {
         width: 100%;
@@ -181,7 +211,7 @@ export component MainWindow inherits Window {
                             Text { text: "Test Toast"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
                             ta-toast := TouchArea { 
                                 clicked => { 
-                                    root.trigger-test-toast();
+                                    root.trigger-toast();
                                 } 
                             }
                         }
@@ -196,7 +226,39 @@ export component MainWindow inherits Window {
                             animate background { duration: 100ms; }
 
                             Text { text: "Test Popup"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            ta-dialog := TouchArea { clicked => { root.dialog-active = true; } }
+                            ta-dialog := TouchArea {
+                                clicked => {
+                                    root.popup-id = "apply-changes";
+                                    root.popup-title = "Apply Changes?";
+                                    root.popup-message = "Do you understand this will lead to SERIOUS consequences...!";
+                                    root.popup-checkboxes = [
+                                        { label: "I agree to the terms of service", required: true, checked: false }
+                                    ];
+                                    root.popup-confirm-delay = 5;
+                                    root.popup-required-count = 1;
+                                    root.popup-active = true;
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: 150px;
+                            height: 38px;
+                            background: ta-dialog0.has-hover ? #ffffff14 : Palette.glass-background;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            animate background { duration: 100ms; }
+
+                            Text { text: "Second poupup"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            ta-dialog0 := TouchArea {
+                                clicked => {
+                                    root.popup-id = "second-popup";
+                                    root.popup-title = "bomb venezuela?";
+                                    root.popup-message = "this will give us oil!";
+                                    root.popup-active = true;
+                                }
+                            }
                         }
                     }
                 }
@@ -601,19 +663,15 @@ export component MainWindow inherits Window {
         }
 
         dialog-widget := PopupDialog {
-            active: root.dialog-active;
-            background: root.dialog-active ? #000000aa : #00000000;
-            title: "Apply Changes?";
-            message: "Are you sure you want to write these modifications into your game files?";
-            confirm-delay: 5;
-            required-count: 2;
-            checkbox-items: [
-                { label: "I agree to the Terms of Service", required: true, checked: false },
-                { label: "aaaa2", required: false, checked: false },
-                { label: "aa3", required: true, checked: false },
-            ];
-            confirm => { root.dialog-active = false; }
-            cancel => { root.dialog-active = false; }
+            active: root.popup-active;
+            background: root.popup-active ? #000000aa : #00000000;
+            title: root.popup-title;
+            message: root.popup-message;
+            confirm-delay: root.popup-confirm-delay;
+            required-count: root.popup-required-count;
+            checkbox-items: root.popup-checkboxes;
+            confirm => { root.popup-confirm-callback(root.popup-id); reset-popup() }
+            cancel => { root.popup-cancel-callback(root.popup-id); reset-popup() }
         }
     }
 }
