@@ -9,6 +9,7 @@ backend = { path = "../backend" }
 shared = { path = "../shared" }
 display-info = "0.5"
 log = { workspace = true }
+anyhow = { workspace = true }
 
 [build-dependencies]
 slint-build = { version = "1.16.1" }

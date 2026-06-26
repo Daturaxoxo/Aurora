@@ -488,6 +488,7 @@ dependencies = [
 name = "aurora"
 version = "2.0.0"
 dependencies = [
+ "anyhow",
  "backend",
  "display-info",
  "image",

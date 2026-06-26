@@ -2,14 +2,16 @@
 
 slint::include_modules!();
 
+use anyhow::Result;
 use display_info::DisplayInfo;
 use log::info;
+
 use shared::logger::Logger;
 mod classes;
 use classes::buttons::ButtonHandler;
 use classes::toast::ToastHandler;
 
-fn main() -> Result<(), slint::PlatformError> {
+fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });
@@ -56,7 +58,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
 
-    window.run()
+    Ok(window.run()?)
 }
 
 fn get_monitor_size() -> Option<DisplayInfo> {
