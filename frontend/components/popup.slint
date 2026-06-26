@@ -3,6 +3,7 @@ import { Palette } from "../global.slint";
 export struct CheckboxItem {
     label: string,
     required: bool,
+    checked: bool,
 }
 
 export component PopupDialog inherits Rectangle {
@@ -10,12 +11,8 @@ export component PopupDialog inherits Rectangle {
     in property <string> title;
     in property <string> message;
     in property <int> confirm-delay: 0;
-    in property <[CheckboxItem]> checkbox-items: [];
+    in-out property <[CheckboxItem]> checkbox-items: [];
     in property <int> required-count: 0;
-    out property <bool> checked-0: false;
-    out property <bool> checked-1: false;
-    out property <bool> checked-2: false;
-    out property <bool> checked-3: false;
 
     callback confirm();
     callback cancel();
@@ -25,10 +22,10 @@ export component PopupDialog inherits Rectangle {
     private property <bool> timer-ready: false;
 
     private property <int> required-checked-count:
-        (checkbox-items.length > 0 && checkbox-items[0].required && checked-0 ? 1 : 0) +
-        (checkbox-items.length > 1 && checkbox-items[1].required && checked-1 ? 1 : 0) +
-        (checkbox-items.length > 2 && checkbox-items[2].required && checked-2 ? 1 : 0) +
-        (checkbox-items.length > 3 && checkbox-items[3].required && checked-3 ? 1 : 0);
+        (checkbox-items.length > 0 && checkbox-items[0].required && checkbox-items[0].checked ? 1 : 0) +
+        (checkbox-items.length > 1 && checkbox-items[1].required && checkbox-items[1].checked ? 1 : 0) +
+        (checkbox-items.length > 2 && checkbox-items[2].required && checkbox-items[2].checked ? 1 : 0) +
+        (checkbox-items.length > 3 && checkbox-items[3].required && checkbox-items[3].checked ? 1 : 0);
 
     private property <bool> all-required-checked:
         root.required-count == 0 || root.required-checked-count >= root.required-count;
@@ -40,10 +37,10 @@ export component PopupDialog inherits Rectangle {
             root.countdown = root.confirm-delay;
             root.countdown-frac = 0.0;
             root.timer-ready = root.confirm-delay <= 0;
-            root.checked-0 = false;
-            root.checked-1 = false;
-            root.checked-2 = false;
-            root.checked-3 = false;
+            root.checkbox-items[0].checked = false;
+            root.checkbox-items[1].checked = false;
+            root.checkbox-items[2].checked = false;
+            root.checkbox-items[3].checked = false;
         }
     }
 
@@ -71,22 +68,6 @@ export component PopupDialog inherits Rectangle {
 
     visible: root.active || modal-box.opacity > 0.01;
     TouchArea {}
-
-    // Helpers
-    function is-checked(i: int) -> bool {
-        if (i == 0) { return root.checked-0; }
-        if (i == 1) { return root.checked-1; }
-        if (i == 2) { return root.checked-2; }
-        if (i == 3) { return root.checked-3; }
-
-        return root.checked-3;
-    }
-    function set-checked(i: int, val: bool) {
-        if (i == 0) { root.checked-0 = val; }
-        if (i == 1) { root.checked-1 = val; }
-        if (i == 2) { root.checked-2 = val; }
-        if (i == 3) { root.checked-3 = val; }
-    }
 
     VerticalLayout {
         alignment: center;
@@ -146,14 +127,14 @@ export component PopupDialog inherits Rectangle {
                                         height: 16px;
                                         border-radius: 4px;
                                         border-width: 1px;
-                                        border-color: root.is-checked(i)
+                                        border-color: root.checkbox-items[i].checked
                                             ? (item.required ? #ffffff88 : #ffffff55)
                                             : (item.required ? #ffffff44 : #ffffff22);
-                                        background: root.is-checked(i) ? #ffffff18 : transparent;
+                                        background: root.checkbox-items[i].checked ? #ffffff18 : transparent;
                                         animate background { duration: 120ms; }
                                         animate border-color { duration: 120ms; }
 
-                                        if root.is-checked(i) : Path {
+                                        if root.checkbox-items[i].checked : Path {
                                             x: 2px;
                                             y: 3px;
                                             width: 12px;
@@ -186,7 +167,7 @@ export component PopupDialog inherits Rectangle {
                                 width: parent.width;
                                 height: parent.height;
                                 clicked => {
-                                    root.set-checked(i, !root.is-checked(i));
+                                    root.checkbox-items[i].checked = !root.checkbox-items[i].checked;
                                 }
                             }
                         }
