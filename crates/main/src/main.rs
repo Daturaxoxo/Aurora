@@ -56,7 +56,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
-    PopupHandler::setup(window.as_weak());
+    PopupHandler::setup(&window.as_weak());
 
     window.run()
 }

@@ -2,7 +2,7 @@ use crate::MainWindow;
 pub struct PopupHandler;
 
 impl PopupHandler {
-    pub fn setup(window: slint::Weak<MainWindow>) {
+    pub fn setup(window: &slint::Weak<MainWindow>) {
         let w = window.clone();
         window.unwrap().on_popup_confirm_callback(move |id| {
             if let Some(_w) = w.upgrade() {
