@@ -8,6 +8,7 @@ use shared::logger::Logger;
 mod classes;
 use classes::toast::ToastHandler;
 use classes::buttons::ButtonHandler;
+use classes::popup::PopupHandler;
 
 fn main() -> Result<(), slint::PlatformError> {
     Logger::init().unwrap_or_else(|e| {
@@ -42,7 +43,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let window_weak = window.as_weak();
     window.on_minimize_clicked(move || {
         if let Some(w) = window_weak.upgrade() {
-            w.window().set_minimized(true)
+            w.window().set_minimized(true);
         }
     });
 
@@ -54,6 +55,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(window.as_weak());
+    PopupHandler::setup(window.as_weak());
 
     window.run()
 }

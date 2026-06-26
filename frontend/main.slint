@@ -307,7 +307,16 @@ export component MainWindow inherits Window {
                         IconButton {
                             source: @image-url("../production/icons/discord.png");
                             icon-size: 28px;
-                            clicked => { root.bottom-icon-clicked(2); }
+                            clicked => {
+                                root.popup-id = "discord-popup";
+                                root.popup-title = "Join Discord?";
+                                root.popup-message = "Join our Discord server to keep in touch with future updates, sneakpeeks and ask questions!";
+                                root.popup-required-count = 1;
+                                root.popup-checkboxes = [
+                                    { label: "I agree that I am over 13 years old.", required: true, checked: false }
+                                ];
+                                root.popup-active = true;
+                            }
                         }
                     }
 
@@ -316,7 +325,12 @@ export component MainWindow inherits Window {
                         IconButton {
                             source: @image-url("../production/icons/gamebanana.png");
                             icon-size: 28px;
-                            clicked => { root.bottom-icon-clicked(3); }
+                            clicked => { 
+                                root.popup-id = "gamebanana-popup";
+                                root.popup-title = "Open GameBanana?";
+                                root.popup-message = "GameBanana is our mod hosting site partner where you can get mods to use on the game.";
+                                root.popup-active = true;
+                            }
                         }
                     }
                 }
