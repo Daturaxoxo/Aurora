@@ -63,7 +63,7 @@ fn default_value(k: &str) -> Value {
         // [0 = Default (dsound only)]
         // [1 = Alternate (dsound + version.dll)]
         // [2 = Alternate 2 (dsound + dinput8.dll)]
-        key::ENGINE_METHOD => json!("0"),
+        key::ENGINE_METHOD => json!(0),
         _ => Value::Null,
     }
 }

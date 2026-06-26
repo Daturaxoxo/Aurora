@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 shared = { path = "../shared" }
+log = { workspace = true }
+anyhow = { workspace = true }
+regex = "1.12.4"
+rayon = "1.12"
+sysinfo = "0.39"
+scandir = { workspace = true }

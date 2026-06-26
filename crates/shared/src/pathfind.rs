@@ -9,6 +9,7 @@ use crate::{
     config::{get, key, set},
 };
 
+#[allow(clippy::ptr_arg)]
 fn validate_game_path(path: &PathBuf) -> Result<bool> {
     if !path.exists() {
         return Ok(false);
@@ -29,7 +30,7 @@ fn validate_game_path(path: &PathBuf) -> Result<bool> {
     Ok(game_found)
 }
 
-fn candidate_directories() -> Vec<PathBuf> {
+fn candidate_directories() -> Result<Vec<PathBuf>> {
     const BLACKLISTED_DIRECTORIES: [&str; 5] = [
         "$RECYCLE.BIN",
         "System Volume Information",
@@ -43,8 +44,7 @@ fn candidate_directories() -> Vec<PathBuf> {
             continue;
         }
 
-        let entries = Walk::new(format!("{}:\\", drive_letter), None)
-            .unwrap()
+        let entries = Walk::new(format!("{}:\\", drive_letter), None)?
             .dir_exclude(Some(
                 BLACKLISTED_DIRECTORIES
                     .iter()
@@ -52,8 +52,7 @@ fn candidate_directories() -> Vec<PathBuf> {
                     .collect(),
             ))
             .follow_links(false)
-            .collect()
-            .unwrap();
+            .collect()?;
 
         for dir in entries.dirs() {
             if dir.contains(GAME_FOLDER_NAME) {
@@ -62,7 +61,7 @@ fn candidate_directories() -> Vec<PathBuf> {
         }
     }
 
-    candidates
+    Ok(candidates)
 }
 
 pub fn get_game_directory() -> Result<PathBuf> {
@@ -76,7 +75,7 @@ pub fn get_game_directory() -> Result<PathBuf> {
         warn!("Game directory {} not valid", path.display());
     }
 
-    for candidate in candidate_directories() {
+    for candidate in candidate_directories()? {
         if validate_game_path(&candidate)? {
             set(key::GAME_PATH, candidate.clone().display().to_string());
             return Ok(candidate);
