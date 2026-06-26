@@ -43,28 +43,28 @@ pub enum Version {
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Version::Global => "global",
-            Version::CN => "cn",
-            Version::TW => "tw",
+            Self::Global => "global",
+            Self::CN => "cn",
+            Self::TW => "tw",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
 impl Version {
-    pub fn spec(&self) -> VersionSpec {
+    pub const fn spec(&self) -> VersionSpec {
         match self {
-            Version::Global => VersionSpec {
+            Self::Global => VersionSpec {
                 launcher_subfolder: "NTEGlobal",
                 launcher_process: "NTEGlobalLauncher.exe",
                 helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe"],
             },
-            Version::CN => VersionSpec {
+            Self::CN => VersionSpec {
                 launcher_subfolder: "NTELauncher",
                 launcher_process: "NTELauncher.exe",
                 helper_processes: &["NTEGame.exe"],
             },
-            Version::TW => VersionSpec {
+            Self::TW => VersionSpec {
                 launcher_subfolder: "NTETW",
                 launcher_process: "NTETWLauncher.exe",
                 helper_processes: &["NTETWGame.exe"],
@@ -83,41 +83,41 @@ pub enum BypassMethod {
 impl fmt::Display for BypassMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            BypassMethod::Version => "version.dll",
-            BypassMethod::DSound => "dsound.dll",
-            BypassMethod::DDraw => "ddraw.dll",
+            Self::Version => "version.dll",
+            Self::DSound => "dsound.dll",
+            Self::DDraw => "ddraw.dll",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
 impl BypassMethod {
     pub fn to_dll_names(&self, version: Version) -> Vec<&'static str> {
         match self {
-            BypassMethod::Version => vec!["version.dll"],
-            BypassMethod::DSound => {
+            Self::Version => vec!["version.dll"],
+            Self::DSound => {
                 if version == Version::CN {
                     vec!["dsound.dll", "ddraw.dll"]
                 } else {
                     vec!["dsound.dll"]
                 }
             }
-            BypassMethod::DDraw => vec!["ddraw.dll"],
+            Self::DDraw => vec!["ddraw.dll"],
         }
     }
 
-    pub fn from_num(i: impl Into<i64>, version: Version) -> Result<BypassMethod> {
+    pub fn from_num(i: impl Into<i64>, version: Version) -> Result<Self> {
         let i = i.into();
         match i {
-            0 => Ok(BypassMethod::Version),
+            0 => Ok(Self::Version),
             1 => {
                 if version == Version::CN {
-                    Ok(BypassMethod::DSound)
+                    Ok(Self::DSound)
                 } else {
-                    Ok(BypassMethod::DDraw)
+                    Ok(Self::DDraw)
                 }
             }
-            _ => Err(anyhow!("Invalid bypass method: {}", i)),
+            _ => Err(anyhow!("Invalid bypass method: {i}")),
         }
     }
 }
@@ -239,13 +239,13 @@ pub enum Target {
 }
 
 impl Target {
-    pub fn as_file(&self) -> &'static str {
+    pub const fn as_file(&self) -> &'static str {
         match self {
-            Target::AsiPlugin => "ausigbp.asi",
-            Target::CNntfrmain => "cnntfrmain.asi",
-            Target::GLntfrmain => "glntfrmain.asi",
-            Target::Cutils => "cutils.dll",
-            Target::Ntfrsub => "cnntfrsub.dll",
+            Self::AsiPlugin => "ausigbp.asi",
+            Self::CNntfrmain => "cnntfrmain.asi",
+            Self::GLntfrmain => "glntfrmain.asi",
+            Self::Cutils => "cutils.dll",
+            Self::Ntfrsub => "cnntfrsub.dll",
         }
     }
 }

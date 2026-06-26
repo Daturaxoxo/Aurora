@@ -3,7 +3,7 @@ use std::fs::{self};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use log::*;
+use log::error;
 use regex::{Regex, RegexBuilder};
 
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
@@ -16,13 +16,15 @@ pub struct PakAddon {
 }
 
 impl PakAddon {
-    pub fn new(config_key: String, base_name: String) -> Self {
+    #[must_use]
+    pub const fn new(config_key: String, base_name: String) -> Self {
         Self {
             config_key,
             base_name,
         }
     }
 
+    #[must_use]
     pub fn files(&self) -> Vec<String> {
         vec![
             format!("{}.pak", self.base_name),
@@ -31,27 +33,28 @@ impl PakAddon {
         ]
     }
 
-    pub fn get_pak_addons() -> Vec<PakAddon> {
+    #[must_use]
+    pub fn get_pak_addons() -> Vec<Self> {
         vec![
             // Key.NO_DRIVE_LINE
-            PakAddon::new("drv_lin".to_string(), "auddl_P".to_string()),
+            Self::new("drv_lin".to_string(), "auddl_P".to_string()),
             // Key.HIDE_UID
-            PakAddon::new("uid_rem".to_string(), "uidrm_P".to_string()),
+            Self::new("uid_rem".to_string(), "uidrm_P".to_string()),
             // Key.HIDE_NOTIF_DOTS
-            PakAddon::new("nor_rem".to_string(), "nrdrm_P".to_string()),
+            Self::new("nor_rem".to_string(), "nrdrm_P".to_string()),
         ]
     }
 }
 
+#[must_use]
 pub fn get_ini_path() -> PathBuf {
     let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
     PathBuf::from(local_app_data).join("HT/Saved_Global/Config/Windows/Engine.ini")
 }
 
+#[must_use]
 pub fn is_readonly(path: &Path) -> bool {
-    fs::metadata(path)
-        .map(|m| m.permissions().readonly())
-        .unwrap_or(false)
+    fs::metadata(path).is_ok_and(|m| m.permissions().readonly())
 }
 
 pub fn set_readonly(path: &Path, readonly: bool) {
@@ -112,6 +115,7 @@ pub fn get_current_scale() -> f64 {
     1.0
 }
 
+#[must_use]
 pub fn apply_scale(scale: f64) -> bool {
     // Original python code: scale = round(max(0.5, min(2.0, scale)), 2)
     let scale = scale.clamp(0.5, 2.0);
@@ -128,20 +132,21 @@ pub fn apply_scale(scale: f64) -> bool {
 
     let existing = fs::read_to_string(&path).unwrap_or_default();
     let base = strip_section(&existing);
-    let new_text = format!("{}\n\n{}\n{}={}\n", base, SECTION_HEADER, KEY, scale);
+    let new_text = format!("{base}\n\n{SECTION_HEADER}\n{KEY}={scale}\n");
 
     match fs::write(&path, new_text) {
-        Ok(_) => {
+        Ok(()) => {
             set_readonly(&path, true);
             true
         }
         Err(e) => {
-            error!("engine_ini.apply_scale failed: {}", e);
+            error!("engine_ini.apply_scale failed: {e}");
             false
         }
     }
 }
 
+#[must_use]
 pub fn remove_scale() -> bool {
     let path = get_ini_path();
     if !path.exists() {
@@ -152,15 +157,13 @@ pub fn remove_scale() -> bool {
         set_readonly(&path, false);
     }
 
-    match fs::read_to_string(&path) {
-        Ok(existing) => {
-            let cleaned = strip_section(&existing);
-            fs::write(&path, format!("{}\n", cleaned)).is_ok()
-        }
-        Err(_) => false,
-    }
+    fs::read_to_string(&path).is_ok_and(|existing| {
+        let cleaned = strip_section(&existing);
+        fs::write(&path, format!("{cleaned}\n")).is_ok()
+    })
 }
 
+#[must_use]
 pub fn ini_path() -> PathBuf {
     get_ini_path()
 }

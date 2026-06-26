@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use serde_json::{json, Map, Value};
@@ -48,18 +49,20 @@ pub mod key {
 
 fn default_value(k: &str) -> Value {
     match k {
+        key::CENSORSHIP_REMOVE | key::HIDE_UID | key::DISCORD_RPC | key::UI_MINIMIZATION => {
+            json!(true)
+        }
+
+        key::DEV_MODE
+        | key::NO_DRIVE_LINE
+        | key::HIDE_NOTIF_DOTS
+        | key::EXTENSIVE_LOGGING
+        | key::SHOW_NSFW_MODS => {
+            json!(false)
+        }
         key::GAME_PATH => json!(""),
         key::LANGUAGE => json!("en"),
-        key::DEV_MODE => json!(false),
-        key::CENSORSHIP_REMOVE => json!(true),
-        key::NO_DRIVE_LINE => json!(false),
-        key::HIDE_UID => json!(true),
-        key::HIDE_NOTIF_DOTS => json!(false),
-        key::DISCORD_RPC => json!(true),
-        key::EXTENSIVE_LOGGING => json!(false),
         key::UI_SCALING => json!(1.0),
-        key::UI_MINIMIZATION => json!(true),
-        key::SHOW_NSFW_MODS => json!(false),
         // [0 = Default (dsound only)]
         // [1 = Alternate (dsound + version.dll)]
         // [2 = Alternate 2 (dsound + dinput8.dll)]
@@ -71,7 +74,7 @@ fn default_value(k: &str) -> Value {
 fn config_file_path() -> PathBuf {
     env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|dir| dir.to_path_buf()))
+        .and_then(|p| p.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| env::current_dir().unwrap_or_default())
         .join("config.json")
 }

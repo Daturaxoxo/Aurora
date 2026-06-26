@@ -40,15 +40,15 @@ fn candidate_directories() -> Result<Vec<PathBuf>> {
     ];
     let mut candidates = Vec::new();
     for drive_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().map(|c| c.to_string()) {
-        if fs::metadata(format!("{}:\\", drive_letter)).is_err() {
+        if fs::metadata(format!("{drive_letter}:\\")).is_err() {
             continue;
         }
 
-        let entries = Walk::new(format!("{}:\\", drive_letter), None)?
+        let entries = Walk::new(format!("{drive_letter}:\\"), None)?
             .dir_exclude(Some(
                 BLACKLISTED_DIRECTORIES
                     .iter()
-                    .map(|s| s.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect(),
             ))
             .follow_links(false)
@@ -56,7 +56,7 @@ fn candidate_directories() -> Result<Vec<PathBuf>> {
 
         for dir in entries.dirs() {
             if dir.contains(GAME_FOLDER_NAME) {
-                candidates.push(PathBuf::from(format!("{}:\\{}", drive_letter, dir)));
+                candidates.push(PathBuf::from(format!("{drive_letter}:\\{dir}")));
             }
         }
     }
@@ -67,17 +67,17 @@ fn candidate_directories() -> Result<Vec<PathBuf>> {
 pub fn get_game_directory() -> Result<PathBuf> {
     let path = get(key::GAME_PATH)
         .as_str()
-        .ok_or(anyhow!("Game directory not found"))?
+        .ok_or_else(|| anyhow!("Game directory not found"))?
         .into();
     if validate_game_path(&path)? {
         return Ok(path);
-    } else {
-        warn!("Game directory {} not valid", path.display());
     }
+
+    warn!("Game directory {} not valid", path.display());
 
     for candidate in candidate_directories()? {
         if validate_game_path(&candidate)? {
-            set(key::GAME_PATH, candidate.clone().display().to_string());
+            set(key::GAME_PATH, candidate.display().to_string());
             return Ok(candidate);
         }
     }

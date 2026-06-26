@@ -6,13 +6,13 @@ use display_info::DisplayInfo;
 use log::info;
 use shared::logger::Logger;
 mod classes;
-use classes::toast::ToastHandler;
 use classes::buttons::ButtonHandler;
 use classes::popup::PopupHandler;
+use classes::toast::ToastHandler;
 
 fn main() -> Result<(), slint::PlatformError> {
     Logger::init().unwrap_or_else(|e| {
-        panic!("Logger failed to initialize: {}", e);
+        panic!("Logger failed to initialize: {e}");
     });
 
     let window = MainWindow::new()?;
@@ -32,6 +32,7 @@ fn main() -> Result<(), slint::PlatformError> {
     window.on_window_dragged(move |delta_x, delta_y| {
         if let Some(w) = window_weak.upgrade() {
             let logical_pos = w.window().position();
+            #[allow(clippy::cast_precision_loss)]
             w.window()
                 .set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
                     logical_pos.x as f32 + delta_x,
@@ -54,7 +55,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     ToastHandler::setup(window.as_weak());
-    ButtonHandler::setup(window.as_weak());
+    ButtonHandler::setup(&window.as_weak());
     PopupHandler::setup(window.as_weak());
 
     window.run()
