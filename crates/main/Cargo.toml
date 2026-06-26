@@ -8,6 +8,7 @@ slint = { version = "1.16.1", features = ["backend-winit"] }
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 display-info = "0.5"
+open = "5"
 log = { workspace = true }
 anyhow = { workspace = true }
 

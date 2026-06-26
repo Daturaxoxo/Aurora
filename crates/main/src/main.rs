@@ -9,6 +9,7 @@ use log::info;
 use shared::logger::Logger;
 mod classes;
 use classes::buttons::ButtonHandler;
+use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
 
 fn main() -> Result<()> {
@@ -57,6 +58,7 @@ fn main() -> Result<()> {
     });
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
+    PopupHandler::setup(window.as_weak());
 
     Ok(window.run()?)
 }
