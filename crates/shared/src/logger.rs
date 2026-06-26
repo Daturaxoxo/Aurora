@@ -69,7 +69,7 @@ impl Log for Logger {
             log::Level::Info => set_stdout_color!(79, 184, 150, stdout),
             log::Level::Debug => set_stdout_color!(0, 255, 255, stdout),
             log::Level::Trace => set_stdout_color!(0, 0, 255, stdout),
-        };
+        }
         write!(&mut stdout, " {} ", record.level()).unwrap();
 
         stdout.reset().expect("Failed to reset stdout");
@@ -81,11 +81,7 @@ impl Log for Logger {
         stdout.reset().expect("Failed to reset stdout");
         write!(&mut stdout, "{}", record.args()).unwrap();
 
-        let name = format!(
-            "{}-{}.log",
-            LOG_FILE,
-            timestamp.replace(":", "-").replace(" ", "-")
-        );
+        let name = format!("{}-{}.log", LOG_FILE, timestamp.replace([':', ' '], "-"));
         let path = path::Path::new(&name);
         let _ = fs::create_dir_all(path.parent().unwrap());
         if fs::metadata(&name).is_err() && fs::File::create(&name).is_err() {

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
-use log::*;
+use log::{debug, error, info, trace, warn};
 use rayon::prelude::*;
 use shared::classes::info::{
     detect_version, get_version_paths, BypassMethod, Target, Version, VersionPaths, CLIENT_PAK_DIR,
@@ -42,28 +42,28 @@ impl AuroraEngine {
 
         let app_dir = env::current_exe()
             .ok()
-            .and_then(|p| p.parent().map(|dir| dir.to_path_buf()))
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .unwrap_or_else(|| env::current_dir().unwrap_or_default());
         trace!("App dir: {}", app_dir.display());
 
         let crr: bool = get(key::CENSORSHIP_REMOVE)
             .as_bool()
-            .ok_or(anyhow!("Error when reading config: CENSORSHIP_REMOVE",))?;
-        trace!("CRR: {}", crr);
+            .ok_or_else(|| anyhow!("Error when reading config: CENSORSHIP_REMOVE"))?;
+        trace!("CRR: {crr}");
 
         let ndl: bool = get(key::NO_DRIVE_LINE)
             .as_bool()
-            .ok_or(anyhow!("Error when reading config: NO_DRIVE_LINE"))?;
-        trace!("NDL: {}", ndl);
+            .ok_or_else(|| anyhow!("Error when reading config: NO_DRIVE_LINE"))?;
+        trace!("NDL: {ndl}");
 
         let version = detect_version(&game_path)?;
-        trace!("Game version: {}", version);
+        trace!("Game version: {version}");
 
         let engine_method = get(key::ENGINE_METHOD)
             .as_i64()
-            .ok_or(anyhow!("Error when reading config: ENGINE_METHOD"))?;
+            .ok_or_else(|| anyhow!("Error when reading config: ENGINE_METHOD"))?;
         let engine_method = BypassMethod::from_num(engine_method, version)?;
-        trace!("Engine method: {}", engine_method);
+        trace!("Engine method: {engine_method}");
 
         let bin_path = app_dir.join("Bin");
         trace!("Bin path: {}", bin_path.display());
@@ -75,16 +75,13 @@ impl AuroraEngine {
         }
 
         let gpaths = get_version_paths(&game_path, version, engine_method);
-        trace!("Game paths: {:#?}", gpaths);
+        trace!("Game paths: {gpaths:#?}");
         let win64 = gpaths.win64.clone();
         let pak_base = gpaths.pak_base.clone();
         let mod_folder = game_path.join(CLIENT_PAK_DIR);
         let pak_parent = pak_base
             .parent()
-            .ok_or(anyhow!(
-                "Engine could not find paks folder: {}",
-                pak_base.display()
-            ))?
+            .ok_or_else(|| anyhow!("Engine could not find paks folder: {}", pak_base.display()))?
             .to_path_buf();
         let main_dlls: Vec<String> = gpaths.dll_slots.iter().map(|s| s.name.clone()).collect();
         trace!("Main DLLs: {}", main_dlls.join(", "));
@@ -117,7 +114,7 @@ impl AuroraEngine {
                 ));
             }
         }
-        debug!("NDL targets: {:?}", ndl_targets);
+        debug!("NDL targets: {ndl_targets:?}");
 
         Ok(Self {
             game_path,
@@ -165,7 +162,7 @@ impl AuroraEngine {
                         p.1.exe()
                             .unwrap()
                             .file_name()
-                            .ok_or(anyhow!("Error getting file name"))
+                            .ok_or_else(|| anyhow!("Error getting file name"))
                             .unwrap()
                             == *t
                     })
@@ -176,11 +173,11 @@ impl AuroraEngine {
         for process in processes {
             for p in process {
                 let name = p.1.exe().unwrap().display();
-                trace!("Killing process {}", name);
+                trace!("Killing process {name}");
                 if p.1.kill() {
-                    info!("Process {} killed", name);
+                    info!("Process {name} killed");
                 } else {
-                    error!("Process {} could not be killed", name);
+                    error!("Process {name} could not be killed");
                 }
             }
         }
@@ -193,14 +190,13 @@ impl AuroraEngine {
                     // check if file is in use
                     match OpenOptions::new().write(true).open(&dll_path) {
                         Ok(_) => {
-                            trace!("{} is not locked", k);
+                            trace!("{k} is not locked");
                             break;
                         }
                         Err(e) => {
-                            trace!("{} is locked: {}", k, e);
-                            warn!("{} is still locked, Aurora Engine is waiting...", k);
+                            trace!("{k} is locked: {e}");
+                            warn!("{k} is still locked, Aurora Engine is waiting...");
                             std::thread::sleep(Duration::from_millis(300));
-                            continue;
                         }
                     }
                 }
@@ -287,7 +283,7 @@ impl AuroraEngine {
         self.pak_dir = self
             .pak_base
             .parent()
-            .ok_or(anyhow!("Pak base has no parent"))?
+            .ok_or_else(|| anyhow!("Pak base has no parent"))?
             .to_path_buf();
         self.main_dlls = new_gpaths
             .dll_slots
@@ -325,16 +321,18 @@ impl AuroraEngine {
                     file_name.clone(),
                     self.pak_base
                         .parent()
-                        .ok_or(anyhow!("Pak base has no parent"))?
+                        .ok_or_else(|| anyhow!("Pak base has no parent"))?
                         .join(file_name)
                         .to_str()
-                        .ok_or(anyhow!("Failed to get file name"))?
+                        .ok_or_else(|| anyhow!("Failed to get file name"))?
                         .to_string(),
                 ));
             }
         }
 
-        todo!()
+        self.ndl_targets = ndl_targets;
+
+        Ok(())
     }
 
     pub fn inject(&mut self) -> Result<()> {
@@ -375,12 +373,12 @@ impl AuroraEngine {
             let src = self.bin_path.join(
                 dst_path
                     .file_name()
-                    .ok_or(anyhow!("Failed to get file name"))?,
+                    .ok_or_else(|| anyhow!("Failed to get file name"))?,
             );
             ensure_dir(
                 dst_path
                     .parent()
-                    .ok_or(anyhow!("Failed to get parent"))?
+                    .ok_or_else(|| anyhow!("Failed to get parent"))?
                     .to_path_buf(),
             )?;
             copies.push((src, dst_path));
@@ -403,25 +401,18 @@ impl AuroraEngine {
             })?;
 
         info!("Initializing Signature Bypasser...");
-        fs::copy(
-            self.bin_path.join(Target::AsiPlugin.as_file()),
-            self.targets
-                .iter()
-                .find(|t| t.0 == Target::AsiPlugin)
-                .ok_or(anyhow!("Failed to find AsiPlugin"))?
-                .1
-                // TODO remove clone
-                .clone(),
-        )?;
+
+        let dst = &self
+            .targets
+            .iter()
+            .find(|t| t.0 == Target::AsiPlugin)
+            .ok_or_else(|| anyhow!("Failed to find AsiPlugin"))?
+            .1;
+        fs::copy(self.bin_path.join(Target::AsiPlugin.as_file()), dst)?;
         trace!(
             "Copied {} to {}",
             self.bin_path.join(Target::AsiPlugin.as_file()).display(),
-            self.targets
-                .iter()
-                .find(|t| t.0 == Target::AsiPlugin)
-                .ok_or(anyhow!("Failed to find AsiPlugin"))?
-                .1
-                .display()
+            dst.display()
         );
 
         // Censorship remover
@@ -460,7 +451,10 @@ impl AuroraEngine {
 
         let mut addon_warnings = vec![];
         for addon in PakAddon::get_pak_addons() {
-            if !get(&addon.config_key).as_bool().ok_or(anyhow!(""))? {
+            if !get(&addon.config_key)
+                .as_bool()
+                .ok_or_else(|| anyhow!(""))?
+            {
                 continue;
             }
             let mut missing = vec![];
@@ -476,7 +470,7 @@ impl AuroraEngine {
                     addon.base_name,
                     missing.join(", ")
                 );
-                error!("{}", msg);
+                error!("{msg}");
                 addon_warnings.push(msg);
                 continue;
             }
@@ -604,20 +598,12 @@ impl AuroraEngine {
                     ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
                 );
 
-                let active = system
-                    .processes()
-                    .iter()
-                    .filter(|(_, p)| {
-                        if p.exe().is_none() || p.exe().unwrap().is_empty() {
-                            return false;
-                        }
-
-                        let exe = p.exe().unwrap().to_string_lossy().to_lowercase();
-                        exe.ends_with(&game_process)
+                if !system.processes().iter().any(|(_, p)| {
+                    p.exe().is_some_and(|path| {
+                        let exe_str = path.to_string_lossy().to_lowercase();
+                        !exe_str.is_empty() && exe_str.ends_with(&game_process)
                     })
-                    .collect::<Vec<_>>();
-
-                if active.is_empty() {
+                }) {
                     break;
                 }
 
@@ -627,7 +613,7 @@ impl AuroraEngine {
             let proc = ht_procs[0];
             proc.1
                 .wait()
-                .ok_or(anyhow!("Could not wait for NTE process"))?;
+                .ok_or_else(|| anyhow!("Could not wait for NTE process"))?;
         }
 
         info!("NTE was closed, initializing clean-up process...");
@@ -642,25 +628,16 @@ impl AuroraEngine {
                 ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
             );
 
-            let active = system
-                .processes()
-                .iter()
-                .filter(|(_, p)| {
-                    if p.exe().is_none() || p.exe().unwrap().is_empty() {
-                        return false;
-                    }
-
-                    let exe = p.exe().unwrap().to_string_lossy().to_lowercase();
-                    NTE_PROCESSES.iter().any(|p| exe == *p)
+            if !system.processes().iter().any(|(_, p)| {
+                p.exe().is_some_and(|path| {
+                    let exe_str = path.to_string_lossy().to_lowercase();
+                    !exe_str.is_empty() && NTE_PROCESSES.iter().any(|target| exe_str == *target)
                 })
-                .collect::<Vec<_>>();
-
-            if active.is_empty() {
+            }) {
                 needs_kill = false;
                 break;
-            } else {
-                needs_kill = true;
             }
+            needs_kill = true;
             thread::sleep(Duration::from_millis(500));
         }
 

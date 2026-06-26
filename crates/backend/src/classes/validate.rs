@@ -14,7 +14,8 @@ pub struct Issue {
 }
 
 impl Issue {
-    pub fn new(file: String, issue: String) -> Self {
+    #[must_use]
+    pub const fn new(file: String, issue: String) -> Self {
         Self { file, issue }
     }
 }
@@ -33,23 +34,23 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
         let extension = &path
             .extension()
             .and_then(|os| os.to_str())
-            .ok_or(anyhow!("Could not get file extension"))?;
+            .ok_or_else(|| anyhow!("Could not get file extension"))?;
         if entry.file_type()?.is_file() {
             let name = entry
                 .path()
                 .to_str()
-                .ok_or(anyhow!("Could not get file path"))?
+                .ok_or_else(|| anyhow!("Could not get file path"))?
                 .to_string();
             if ARCHIVE_EXTENSIONS.contains(extension) {
                 issues.push(Issue::new(
                     name,
                     "Archive File: You must extract the mod first".to_string(),
-                ))
+                ));
             } else if !MOD_EXTENSIONS.contains(extension) {
                 issues.push(Issue::new(
                     name,
-                    format!("Unsupported file type ({})", extension),
-                ))
+                    format!("Unsupported file type ({extension})"),
+                ));
             }
         } else if entry.file_type()?.is_dir() {
             let toc = Walk::new(entry.path(), None)?.collect()?;
@@ -58,9 +59,9 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
                     continue;
                 }
                 issues.push(Issue::new(
-                    format!("{:#?}/{:#?}", entry.file_name(), file),
+                    format!("{}/{file:#?}", entry.file_name().display()),
                     "INI mod: This mod is made for 3DMigoto, not Aurora.".to_string(),
-                ))
+                ));
             }
             for arc in fs::read_dir(entry.path())? {
                 let arc = arc?;
@@ -68,15 +69,19 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
                     && ARCHIVE_EXTENSIONS.contains(
                         &arc.path()
                             .extension()
-                            .ok_or(anyhow!("Could not get file extension"))?
+                            .ok_or_else(|| anyhow!("Could not get file extension"))?
                             .to_str()
                             .unwrap(),
                     )
                 {
                     issues.push(Issue::new(
-                        format!("{:#?}/{:#?}", entry.file_name(), arc.file_name()),
+                        format!(
+                            "{}/{}",
+                            entry.file_name().display(),
+                            arc.file_name().display()
+                        ),
                         "Nested archive: Extract the inner mod first".to_string(),
-                    ))
+                    ));
                 }
             }
         }
