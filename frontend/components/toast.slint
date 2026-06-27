@@ -16,9 +16,7 @@ export component WindowToast inherits Rectangle {
 
     animate opacity { duration: 200ms; easing: ease-in-out; }
 
-    states [
-        visible when root.showing : {opacity: 1.0;}
-    ]
+    states [visible when root.showing : {opacity: 1.0;}]
 
     changed active => {
         if (root.active) {
@@ -53,12 +51,12 @@ export component WindowToast inherits Rectangle {
     }
 
     width: 340px;
-    height: 64px;
+    height: self.preferred-height;
 
     background: Palette.glass-background;
     border-color: Palette.glass-border;
     border-width: 1px;
-    border-radius: 10px;
+    border-radius: 8px;
     clip: true;
 
     drop-shadow-color: Palette.shadow-color;
@@ -74,70 +72,75 @@ export component WindowToast inherits Rectangle {
         (root.kind == "error" ? @image-url("../../production/icons/processed/error.png") :
         @image-url("../../production/icons/processed/info.png"));
 
-    HorizontalLayout {
-        x: 0px;
-        y: 0px;
-        width: root.width;
-        height: root.height - 2px;
-        padding: 12px;
-        spacing: 12px;
-        alignment: space-between;
+    // FIXED: Wrap everything in a VerticalLayout without explicit height constraints
+    VerticalLayout {
+        HorizontalLayout {
+            padding: 14px;
+            spacing: 14px;
+            alignment: space-between;
 
-        VerticalLayout {
-            alignment: center;
-            Image {
-                source: root.status-icon;
-                width: 22px;
-                height: 22px;
-                image-fit: contain;
-            }
-        }
-
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 1;
-            Text {
-                text: root.text;
-                color: Palette.text-primary;
-                font-size: 13px;
-                font-weight: 500;
-                wrap: word-wrap;
-            }
-        }
-
-        VerticalLayout {
-            alignment: center;
-            Rectangle {
-                width: 20px;
-                height: 20px;
-                border-radius: 4px;
-                background: ta.has-hover ? #ffffff14 : transparent;
-                animate background { duration: 100ms; }
-                Image {
-                    source: @image-url("../../production/icons/processed/close.png");
-                    width: 16px;
-                    height: 16px;
-                    opacity: ta.has-hover ? 1.0 : 0.7;
-                    animate opacity { duration: 100ms; }
+            HorizontalLayout {
+                spacing: 12px;
+                horizontal-stretch: 1;
+                
+                VerticalLayout {
+                    alignment: center;
+                    Image {
+                        source: root.status-icon;
+                        width: 22px;
+                        height: 22px;
+                        image-fit: contain;
+                    }
+                    // Removed the leftover red placeholder rectangle
                 }
-                ta := TouchArea { clicked => { root.close(); } }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: root.text;
+                        color: #ffffff;
+                        font-size: 13px;
+                        font-family: "Segoe UI";
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 4px;
+                    background: ta.has-hover ? #ffffff14 : transparent;
+                    animate background { duration: 100ms; }
+                    Image {
+                        source: @image-url("../../production/icons/processed/close.png");
+                        width: 16px;
+                        height: 16px;
+                        opacity: ta.has-hover ? 1.0 : 0.7;
+                        animate opacity { duration: 100ms; }
+                    }
+                    ta := TouchArea { clicked => { root.close(); } }
+                }
             }
         }
-    }
 
-    Rectangle {
-        x: 0px;
-        y: root.height - 2px;
-        width: root.width;
-        height: 2px;
-        background: #ffffff0d;
-
+        // Progress bar sits naturally underneath the content row
         Rectangle {
-            x: 0px;
-            y: 0px;
-            width: parent.width * root.progress;
-            height: 100%;
-            background: root.drain-color;
+            height: 2px;
+            background: #ffffff0d;
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.width * root.progress;
+                height: 100%;
+                background: root.drain-color;
+            }
         }
     }
 }

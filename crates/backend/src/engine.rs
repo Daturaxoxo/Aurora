@@ -486,6 +486,11 @@ impl AuroraEngine {
 
         self.last_addon_warnings = addon_warnings;
 
+        let launcher_exe = self.game_path.join(self.gpaths.launcher_process);
+        info!("Launching NTE: {}", launcher_exe.display());
+        std::process::Command::new(&launcher_exe)
+            .spawn()
+            .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
         Ok(())
     }
 
@@ -557,7 +562,9 @@ impl AuroraEngine {
                 }
             }
 
-            if !seen && !launcher_found_this_tick {
+            if !launcher_found_this_tick {
+                if !seen {continue}
+
                 missing += 1;
                 if missing == 1 {
                     warn!("NTE Launcher process not detected");
@@ -581,9 +588,7 @@ impl AuroraEngine {
             .processes()
             .iter()
             .filter(|(_, p)| {
-                if p.exe().is_none() || p.exe().unwrap().is_empty() {
-                    return false;
-                }
+                if p.exe().is_none() || p.exe().unwrap().is_empty() {return false}
 
                 let exe = p.exe().unwrap().to_string_lossy().to_lowercase();
                 exe == game_process
@@ -603,9 +608,7 @@ impl AuroraEngine {
                         let exe_str = path.to_string_lossy().to_lowercase();
                         !exe_str.is_empty() && exe_str.ends_with(&game_process)
                     })
-                }) {
-                    break;
-                }
+                }) {break}
 
                 thread::sleep(Duration::from_millis(500));
             }

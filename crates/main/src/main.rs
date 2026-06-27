@@ -2,20 +2,28 @@
 
 slint::include_modules!();
 
+mod classes;
+mod bridge;
+
 use anyhow::Result;
 use display_info::DisplayInfo;
 use log::info;
 
 use shared::logger::Logger;
-mod classes;
+
 use classes::buttons::ButtonHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
+
+use bridge::Bridge;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });
+
+    #[cfg(target_os = "linux")]
+    ensure_root();
 
     let window = MainWindow::new()?;
     let slint_window = window.window();
@@ -60,6 +68,7 @@ fn main() -> Result<()> {
     ButtonHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
 
+    Bridge::setup(&window.as_weak());
     Ok(window.run()?)
 }
 
@@ -68,4 +77,19 @@ fn get_monitor_size() -> Option<DisplayInfo> {
         .unwrap()
         .into_iter()
         .find(|display| display.is_primary)
+}
+
+#[cfg(target_os = "linux")]
+fn ensure_root() {
+    if unsafe { libc::getuid() } == 0 {return}
+
+    let exe = std::env::current_exe().expect("Could not get exe path");
+    std::process::exit(
+        std::process::Command::new("pkexec")
+            .arg(exe)
+            .status()
+            .expect("Failed to launch pkexec")
+            .code()
+            .unwrap_or(1),
+    );
 }
