@@ -17,7 +17,8 @@ use classes::toast::ToastHandler;
 
 use bridge::Bridge;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });

@@ -4,7 +4,7 @@ pub mod modmanager;
 pub mod pathfind;
 pub mod utils;
 pub mod classes {
-    pub mod api;
     pub mod export;
+    pub mod gamebanana;
     pub mod info;
 }
