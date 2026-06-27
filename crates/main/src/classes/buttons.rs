@@ -1,8 +1,8 @@
 use crate::MainWindow;
-use shared::pathfind::get_game_directory;
 use log::error;
 #[cfg(target_os = "windows")]
 use mslnk::ShellLink;
+use shared::pathfind::get_game_directory;
 
 pub struct ButtonHandler;
 
@@ -16,7 +16,7 @@ impl ButtonHandler {
                     0 => w.set_show_menu(!w.get_show_menu()),
                     1 => {} // undone: mod manager
                     2 => {} // handled by popup.rs: open discord
-                    3 => {}// handled by popup.rs: open gamebanana
+                    3 => {} // handled by popup.rs: open gamebanana
                     _ => {}
                 }
             }
@@ -50,7 +50,7 @@ impl ButtonHandler {
 
     fn repair_aurora(_window: &slint::Weak<MainWindow>) {
         // NOTE: When finishing up, change _window to window (prefixed with _ right now to make sure we don't get any warnings since its not being used) -Daturas
-        /* 
+        /*
             Repair Aurora: Used to repair any issues with the application and clean up anything unnecessary
             Pre-Repair: Creates a Popup Dialog
             - 1. Checkbox: Validate Aurora Files | Should Repair validate Bin and Builtins?
@@ -78,7 +78,8 @@ impl ButtonHandler {
     }
 
     fn add_desktop_shortcut(window: &slint::Weak<MainWindow>) {
-        #[cfg(target_os = "windows")] {
+        #[cfg(target_os = "windows")]
+        {
             let result = (|| -> anyhow::Result<()> {
                 let exe = std::env::current_exe()?;
 
@@ -92,7 +93,7 @@ impl ButtonHandler {
                 link.set_working_dir(
                     exe.parent()
                         .and_then(|p| p.to_str())
-                        .map(|s| s.to_string())
+                        .map(std::string::ToString::to_string),
                 );
                 link.create_lnk(&shortcut)?;
 
@@ -115,7 +116,8 @@ impl ButtonHandler {
             }
         }
 
-        #[cfg(not(target_os = "windows"))] // we can add an alternative some time if you want alawapr -Daturas
+        #[cfg(not(target_os = "windows"))]
+        // we can add an alternative some time if you want alawapr -Daturas
         {
             if let Some(w) = window.upgrade() {
                 w.set_toast_text("Shortcuts are only supported on Windows.".into());

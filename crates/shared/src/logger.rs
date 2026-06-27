@@ -19,7 +19,7 @@ impl Logger {
         builder.filter_module("mslnk", log::LevelFilter::Off);
 
         let startup_timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
-        let log_file_path = format!("{}-{}.log", LOG_FILE, startup_timestamp);
+        let log_file_path = format!("{LOG_FILE}-{startup_timestamp}.log");
 
         let path = Path::new(&log_file_path);
         if let Some(p) = path.parent() {
@@ -50,7 +50,9 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        if !self.inner.matches(record) {return;}
+        if !self.inner.matches(record) {
+            return;
+        }
         macro_rules! set_stdout_color {
             ($r: expr, $g: expr, $b: expr, $stdout: ident) => {
                 $stdout

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
-use log::{debug, error, info, trace, warn};
+use log::*;
 use rayon::prelude::*;
 use shared::classes::info::{
     detect_version, get_version_paths, BypassMethod, Target, Version, VersionPaths, CLIENT_PAK_DIR,
@@ -562,7 +562,9 @@ impl AuroraEngine {
             }
 
             if !launcher_found_this_tick {
-                if !seen {continue}
+                if !seen {
+                    continue;
+                }
 
                 missing += 1;
                 if missing == 1 {
@@ -587,7 +589,9 @@ impl AuroraEngine {
             .processes()
             .iter()
             .filter(|(_, p)| {
-                if p.exe().is_none() || p.exe().unwrap().is_empty() {return false}
+                if p.exe().is_none() || p.exe().unwrap().is_empty() {
+                    return false;
+                }
 
                 let exe = p.exe().unwrap().to_string_lossy().to_lowercase();
                 exe == game_process
@@ -607,7 +611,9 @@ impl AuroraEngine {
                         let exe_str = path.to_string_lossy().to_lowercase();
                         !exe_str.is_empty() && exe_str.ends_with(&game_process)
                     })
-                }) {break}
+                }) {
+                    break;
+                }
 
                 thread::sleep(Duration::from_millis(500));
             }
