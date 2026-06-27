@@ -4,8 +4,11 @@ use std::path::Path;
 
 fn main() {
     let pairs = [
-        ("../../production/assets", "../../production/assets/processed"),
-        ("../../production/icons",  "../../production/icons/processed"),
+        (
+            "../../production/assets",
+            "../../production/assets/processed",
+        ),
+        ("../../production/icons", "../../production/icons/processed"),
     ];
 
     for (source, processed) in pairs.map(|(s, p)| (Path::new(s), Path::new(p))) {
@@ -15,7 +18,7 @@ fn main() {
             process_directory(source, source, processed);
         }
     }
-    
+
     slint_build::compile("../../frontend/main.slint").unwrap();
 
     #[cfg(target_os = "windows")]

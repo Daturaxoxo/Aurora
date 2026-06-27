@@ -1,8 +1,8 @@
-use std::sync::mpsc;
-use anyhow::{Result};
-use log::{error, info};
 use crate::engine::AuroraEngine;
+use anyhow::Result;
+use log::{error, info};
 use shared::pathfind::get_game_directory;
+use std::sync::mpsc;
 
 pub enum EngineCommand {
     Launch,
@@ -30,7 +30,11 @@ impl EngineHandler {
             let game_path = match get_game_directory() {
                 Ok(p) => p,
                 Err(e) => {
-                    evt_tx.send(EngineEvent::LaunchFailed(format!("Game path not found: {e}"))).ok();
+                    evt_tx
+                        .send(EngineEvent::LaunchFailed(format!(
+                            "Game path not found: {e}"
+                        )))
+                        .ok();
                     return;
                 }
             };

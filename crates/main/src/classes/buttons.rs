@@ -2,7 +2,7 @@ use crate::MainWindow;
 use log::error;
 #[cfg(target_os = "windows")]
 use mslnk::ShellLink;
-use shared::pathfind::get_game_directory;
+use shared::{classes::info::CLIENT_PAK_DIR, pathfind::get_game_directory};
 
 pub struct ButtonHandler;
 
@@ -39,7 +39,7 @@ impl ButtonHandler {
     fn open_mods_folder() {
         match get_game_directory() {
             Ok(path) => {
-                let mods_path = path.join("Client/WindowsNoEditor/HT/Content/Paks/AuroraMods");
+                let mods_path = path.join(CLIENT_PAK_DIR);
                 if let Err(e) = open::that(&mods_path) {
                     error!("Failed to open mods folder: {e}");
                 }

@@ -2,8 +2,8 @@
 
 slint::include_modules!();
 
-mod classes;
 mod bridge;
+mod classes;
 
 use anyhow::Result;
 use display_info::DisplayInfo;
@@ -82,7 +82,9 @@ fn get_monitor_size() -> Option<DisplayInfo> {
 
 #[cfg(target_os = "linux")]
 fn ensure_root() {
-    if unsafe { libc::getuid() } == 0 {return}
+    if unsafe { libc::getuid() } == 0 {
+        return;
+    }
 
     let exe = std::env::current_exe().expect("Could not get exe path");
     std::process::exit(
