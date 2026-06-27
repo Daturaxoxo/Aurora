@@ -8,6 +8,7 @@ slint = { version = "1.16.1", features = ["backend-winit"] }
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 display-info = "0.5"
+dirs = "6"
 open = "5"
 log = { workspace = true }
 anyhow = { workspace = true }
@@ -19,6 +20,9 @@ image = "0.25"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winresource = "0.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+mslnk = "0.1"
 
 [lints.clippy]
 enum_glob_use = "warn"

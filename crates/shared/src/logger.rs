@@ -16,6 +16,7 @@ pub struct Logger {
 impl Logger {
     fn new() -> Self {
         let mut builder = Builder::from_env(FILTER_ENV);
+        builder.filter_module("mslnk", log::LevelFilter::Off);
 
         let startup_timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
         let log_file_path = format!("{}-{}.log", LOG_FILE, startup_timestamp);
@@ -49,6 +50,7 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
+        if !self.inner.matches(record) {return;}
         macro_rules! set_stdout_color {
             ($r: expr, $g: expr, $b: expr, $stdout: ident) => {
                 $stdout

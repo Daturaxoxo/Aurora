@@ -4,8 +4,6 @@ use std::env;
 use std::path::PathBuf;
 use tokio::fs;
 
-use log::*;
-
 const CACHE_TTL_SECONDS: u64 = 3600;
 
 #[derive(Serialize, Deserialize)]
