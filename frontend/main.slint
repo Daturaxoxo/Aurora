@@ -44,13 +44,18 @@ export component MainWindow inherits Window {
     callback close-clicked();
     callback window-dragged(length, length);
     callback bottom-icon-clicked(int); // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
-
+    
     // [PROPERTIES]
 
     // Page Properties
     in-out property <bool> show-settings: false;
     in-out property <bool> show-menu: false;
     
+    // Launch Button Properties
+    in-out property <string> launch-button-text: "Launch";
+    in-out property <bool> launch-disabled: false;
+    callback launch-clicked();
+
     // Launch Menu Properties
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
@@ -407,7 +412,10 @@ export component MainWindow inherits Window {
                     background: launch-ta.has-hover ? #ffffff12 : transparent;
                     animate background { duration: 120ms; }
 
-                    launch-ta := TouchArea {} 
+                    launch-ta := TouchArea {
+                        enabled: !root.launch-disabled;
+                        clicked => { root.launch-clicked(); }
+                    } 
 
                     HorizontalLayout {
                         padding-left: 20px;
@@ -421,7 +429,8 @@ export component MainWindow inherits Window {
                                 width: 20px;
                                 height: 20px;
                                 border-radius: 10px;
-                                background: #ffffff;
+                                background: root.launch-disabled ? #ffffff55 : #ffffff;
+                                animate background { duration: 200ms; }
 
                                 Path {
                                     x: 4px;
@@ -443,8 +452,8 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Text {
-                                text: "Launch";
-                                color: #ffffff;
+                                text: root.launch-button-text;
+                                color: root.launch-disabled ? #ffffff66 : #ffffff;
                                 font-family: "Segoe UI";
                                 font-size: 15px;
                                 font-weight: 700;
