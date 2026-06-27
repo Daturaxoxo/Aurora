@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path};
+use std::{fs, io::Write, path::Path};
 
 use env_filter::{Builder, Filter};
 
@@ -10,14 +10,24 @@ const LOG_FILE: &str = "Logs/aurora";
 
 pub struct Logger {
     inner: Filter,
+    log_file_path: String,
 }
 
 impl Logger {
     fn new() -> Self {
         let mut builder = Builder::from_env(FILTER_ENV);
 
+        let startup_timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
+        let log_file_path = format!("{}-{}.log", LOG_FILE, startup_timestamp);
+
+        let path = Path::new(&log_file_path);
+        if let Some(p) = path.parent() {
+            let _ = fs::create_dir_all(p);
+        }
+
         Self {
             inner: builder.build(),
+            log_file_path,
         }
     }
 
@@ -47,7 +57,7 @@ impl Log for Logger {
             };
         }
 
-        let timestamp = chrono::Utc::now().format("%d-%m-%Y %H:%M:%S").to_string();
+        let timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
         set_stdout_color!(131, 141, 140, stdout);
         write!(&mut stdout, "[").unwrap();
@@ -80,21 +90,16 @@ impl Log for Logger {
 
         stdout.reset().expect("Failed to reset stdout");
         write!(&mut stdout, "{}", record.args()).unwrap();
-
-        let name = format!("{}-{}.log", LOG_FILE, timestamp.replace([':', ' '], "-"));
-        let path = path::Path::new(&name);
-        let _ = fs::create_dir_all(path.parent().unwrap());
-        if fs::metadata(&name).is_err() && fs::File::create(&name).is_err() {
-            println!("Failed to create log file");
-            return;
-        }
-
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .open(&name)
-            .expect("Failed to open log file");
-        writeln!(file, "{str}").unwrap();
         println!();
+
+        dbg!(&self.log_file_path);
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_file_path)
+            .expect("Failed to open log file");
+
+        writeln!(file, "{str}").unwrap();
     }
 
     fn flush(&self) {}
