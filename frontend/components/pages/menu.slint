@@ -10,11 +10,23 @@ export component MenuPage inherits Rectangle {
     callback menu-item-clicked(int);
 
     in property <[MenuItem]> items: [
-        { name: "Screenshot Manager",      icon: @image-url("../../../production/icons/menu/camera.png") },
-        { name: "Music Manager",      icon: @image-url("../../../production/icons/menu/music.png") },
-        { name: "Movie Manager",   icon: @image-url("../../../production/icons/menu/movie.png") },
-        { name: "Third Party Modules",   icon: @image-url("../../../production/icons/menu/dll.png") },
-        { name: "Addons",   icon: @image-url("../../../production/icons/menu/addons.png") },
+        {
+            name: "Screenshot Manager",
+            icon: @image-url("../../../production/icons/menu/camera.png")
+        },
+        {
+            name: "Music Manager",
+            icon: @image-url("../../../production/icons/menu/music.png")
+        },
+        {
+            name: "Movie Manager",
+            icon: @image-url("../../../production/icons/menu/movie.png")
+        },
+        {
+            name: "Third Party Modules",
+            icon: @image-url("../../../production/icons/menu/dll.png")
+        },
+        { name: "Addons", icon: @image-url("../../../production/icons/menu/addons.png") },
     ];
     background: #00000066;
 
@@ -37,7 +49,10 @@ export component MenuPage inherits Rectangle {
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 12px;
 
-        TouchArea { width: 100%; height: 100%; }
+        TouchArea {
+            width: 100%;
+            height: 100%;
+        }
 
         panel-layout := VerticalLayout {
             x: 0px;
@@ -127,6 +142,7 @@ export component MenuPage inherits Rectangle {
                                     animate opacity { duration: 120ms; }
                                 }
                             }
+
                             Text {
                                 text: root.items[i].name;
                                 color: #ffffffdd;
@@ -172,6 +188,7 @@ export component MenuPage inherits Rectangle {
                                     animate opacity { duration: 120ms; }
                                 }
                             }
+
                             Text {
                                 text: root.items[i].name;
                                 color: #ffffffdd;

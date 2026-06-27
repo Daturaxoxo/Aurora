@@ -67,7 +67,7 @@ export component PopupDialog inherits Rectangle {
     animate background { duration: 150ms; }
 
     visible: root.active || modal-box.opacity > 0.01;
-    TouchArea {}
+    TouchArea { }
 
     VerticalLayout {
         alignment: center;
@@ -85,7 +85,10 @@ export component PopupDialog inherits Rectangle {
                 drop-shadow-offset-y: 8px;
 
                 opacity: root.active ? 1.0 : 0.0;
-                animate opacity { duration: 150ms; easing: ease-in-out; }
+                animate opacity {
+                    duration: 150ms;
+                    easing: ease-in-out;
+                }
 
                 VerticalLayout {
                     padding: 24px;
@@ -108,10 +111,10 @@ export component PopupDialog inherits Rectangle {
                     }
 
                     // Checkbox
-                    if root.checkbox-items.length > 0 : VerticalLayout {
+                    if root.checkbox-items.length > 0: VerticalLayout {
                         spacing: 10px;
 
-                        for item[i] in root.checkbox-items : Rectangle {
+                        for item[i] in root.checkbox-items: Rectangle {
                             height: 20px;
 
                             HorizontalLayout {
@@ -134,7 +137,7 @@ export component PopupDialog inherits Rectangle {
                                         animate background { duration: 120ms; }
                                         animate border-color { duration: 120ms; }
 
-                                        if root.checkbox-items[i].checked : Path {
+                                        if root.checkbox-items[i].checked: Path {
                                             x: 2px;
                                             y: 3px;
                                             width: 12px;
@@ -188,8 +191,18 @@ export component PopupDialog inherits Rectangle {
                             background: ta-cancel.has-hover ? #ffffff10 : transparent;
                             animate background { duration: 100ms; }
 
-                            Text { text: "Cancel"; color: Palette.text-secondary; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            ta-cancel := TouchArea { clicked => { root.cancel(); } }
+                            Text {
+                                text: "Cancel";
+                                color: Palette.text-secondary;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            ta-cancel := TouchArea {
+                                clicked => { root.cancel(); }
+                            }
                         }
 
                         // Confirm
@@ -216,6 +229,7 @@ export component PopupDialog inherits Rectangle {
                                 vertical-alignment: center;
                                 animate color { duration: 200ms; }
                             }
+
                             ta-confirm := TouchArea {
                                 enabled: root.confirm-ready;
                                 clicked => { root.confirm(); }

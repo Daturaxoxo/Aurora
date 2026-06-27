@@ -9,8 +9,8 @@ component ToggleSwitch inherits Rectangle {
     width: 44px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? #10b981 : #3f3f46; 
-    
+    background: root.checked ? #10b981 : #3f3f46;
+
     animate background { duration: 150ms; }
 
     Rectangle {
@@ -19,8 +19,11 @@ component ToggleSwitch inherits Rectangle {
         border-radius: 8px;
         background: #ffffff;
         x: root.checked ? parent.width - self.width - 4px : 4px;
-        
-        animate x { duration: 150ms; easing: ease-out; }
+
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
     }
 
     TouchArea {
@@ -33,7 +36,7 @@ component ToggleSwitch inherits Rectangle {
 
 // SLIDER COMPONENT
 component PremiumSlider inherits Rectangle {
-    in-out property <float> value: 0.55; 
+    in-out property <float> value: 0.55;
     in property <string> text-value: "100%";
 
     width: 210px;
@@ -69,9 +72,9 @@ component PremiumSlider inherits Rectangle {
                 height: 5px;
                 y: (parent.height - self.height) / 2;
                 x: 0px;
-                background: slider-ta.has-hover ? #c084fc : #a78bfa; 
+                background: slider-ta.has-hover ? #c084fc : #a78bfa;
                 border-radius: 2.5px;
-                
+
                 animate background { duration: 100ms; }
             }
 
@@ -84,10 +87,10 @@ component PremiumSlider inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 border-width: 1px;
                 border-color: #ffffff20;
-                
+
                 animate background { duration: 100ms; }
             }
-            
+
             slider-ta := TouchArea {
                 width: 100%;
                 height: 100%;
@@ -121,7 +124,7 @@ component Dropdown inherits Rectangle {
         padding-left: 12px;
         padding-right: 12px;
         alignment: space-between;
-        
+
         Text {
             text: root.options[root.selected-index];
             color: Palette.text-primary;
@@ -129,7 +132,7 @@ component Dropdown inherits Rectangle {
             font-family: "Segoe UI";
             vertical-alignment: center;
         }
-        
+
         VerticalLayout {
             alignment: center;
             Image {
@@ -144,7 +147,7 @@ component Dropdown inherits Rectangle {
     }
 
     TouchArea {
-        clicked => { 
+        clicked => {
             root.opened = !root.opened;
             if (root.opened) { popup.show(); }
         }
@@ -164,7 +167,7 @@ component Dropdown inherits Rectangle {
             VerticalLayout {
                 padding: 4px;
                 spacing: 2px;
-                for option[index] in root.options : Rectangle {
+                for option[index] in root.options: Rectangle {
                     height: 28px;
                     border-radius: 4px;
                     background: item-ta.has-hover ? #ffffff10 : transparent;
@@ -201,8 +204,10 @@ component TabButton inherits Rectangle {
     background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
 
     animate background { duration: 120ms; }
-    
-    ta := TouchArea { clicked => { root.clicked(); } }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
 
     Text {
         text: root.text;
@@ -228,14 +233,14 @@ component SettingCard inherits Rectangle {
     border-color: Palette.glass-border;
 
     HorizontalLayout {
-        padding: 16px; 
+        padding: 16px;
         padding-right: 20px;
         alignment: space-between;
-        
+
         VerticalLayout {
             spacing: 4px;
             alignment: center;
-            
+
             Text {
                 text: root.title;
                 color: Palette.text-primary;
@@ -243,6 +248,7 @@ component SettingCard inherits Rectangle {
                 font-weight: 600;
                 font-family: "Segoe UI";
             }
+
             Text {
                 text: root.subtitle;
                 color: #cbd5e1;
@@ -258,6 +264,7 @@ component SettingCard inherits Rectangle {
         }
     }
 }
+
 component TabPage inherits Rectangle {
     in property <bool> active;
 
@@ -266,22 +273,34 @@ component TabPage inherits Rectangle {
     visible: root.opacity > 0.01;
 
     states [
-        active-state when root.active : {
+        active-state when root.active: {
             opacity: 1.0;
             y: 0px;
-            
             in {
-                animate opacity { duration: 200ms; easing: ease-in-out; delay: 5ms; }
-                animate y { duration: 200ms; easing: ease-in-out; delay: 5ms; }
+                animate opacity {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
+                animate y {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
             }
         }
-        inactive-state when !root.active : {
+        inactive-state when !root.active: {
             opacity: 0.0;
             y: 6px;
-
             in {
-                animate opacity { duration: 100ms; easing: ease-in-out; }
-                animate y { duration: 100ms; easing: ease-in-out; }
+                animate opacity {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
+                animate y {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
             }
         }
     ]
@@ -292,7 +311,7 @@ component TabPage inherits Rectangle {
 // MAIN
 export component SettingsPage inherits Rectangle {
     callback close-settings();
-    in-out property <int> active-tab: 0; 
+    in-out property <int> active-tab: 0;
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
@@ -303,7 +322,7 @@ export component SettingsPage inherits Rectangle {
     drop-shadow-offset-y: 10px;
 
     HorizontalLayout {
-        padding: 24px; 
+        padding: 24px;
         spacing: 32px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
@@ -324,10 +343,29 @@ export component SettingsPage inherits Rectangle {
                 }
             }
 
-            TabButton { text: "General"; active: root.active-tab == 0; clicked => { root.active-tab = 0; } }
-            TabButton { text: "Launcher"; active: root.active-tab == 1; clicked => { root.active-tab = 1; } }
-            TabButton { text: "Addons"; active: root.active-tab == 2; clicked => { root.active-tab = 2; } }
-            TabButton { text: "Developer"; active: root.active-tab == 3; clicked => { root.active-tab = 3; } }
+            TabButton {
+                text: "General";
+                active: root.active-tab == 0;
+                clicked => { root.active-tab = 0; }
+            }
+
+            TabButton {
+                text: "Launcher";
+                active: root.active-tab == 1;
+                clicked => { root.active-tab = 1; }
+            }
+
+            TabButton {
+                text: "Addons";
+                active: root.active-tab == 2;
+                clicked => { root.active-tab = 2; }
+            }
+
+            TabButton {
+                text: "Developer";
+                active: root.active-tab == 3;
+                clicked => { root.active-tab = 3; }
+            }
         }
 
         // RIGHT COLUMN: PAGES VIEWS CONTENT
@@ -337,11 +375,11 @@ export component SettingsPage inherits Rectangle {
             HorizontalLayout {
                 alignment: space-between;
                 padding-bottom: 4px;
-                
+
                 Text {
                     text: root.active-tab == 0 ? "General" :
-                          root.active-tab == 1 ? "Launcher" :
-                          root.active-tab == 2 ? "Addons" : "Developer";
+                        root.active-tab == 1 ? "Launcher" :
+                        root.active-tab == 2 ? "Addons" : "Developer";
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -353,9 +391,9 @@ export component SettingsPage inherits Rectangle {
                     height: 28px;
                     border-radius: 6px;
                     background: ta.has-hover ? #ffffff10 : transparent;
-                    
+
                     animate background { duration: 100ms; }
-                    
+
                     Image {
                         source: @image-url("../../../production/icons/processed/close.png");
                         width: 14px;
@@ -366,7 +404,9 @@ export component SettingsPage inherits Rectangle {
                         animate opacity { duration: 100ms; }
                     }
 
-                    ta := TouchArea { clicked => { root.close-settings(); } }
+                    ta := TouchArea {
+                        clicked => { root.close-settings(); }
+                    }
                 }
             }
 
@@ -377,7 +417,7 @@ export component SettingsPage inherits Rectangle {
                 // TAB 0: GENERAL SETTINGS CONTENT
                 TabPage {
                     active: root.active-tab == 0;
-                    
+
                     ScrollView {
                         viewport-height: general-layout.min-height;
                         general-layout := VerticalLayout {
@@ -386,29 +426,45 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "APPEARANCE"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
-                                
+                                Text {
+                                    text: "APPEARANCE";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
+
                                 SettingCard {
                                     title: "Language";
                                     subtitle: "Interface display language";
-                                    Dropdown {}
+                                    Dropdown { }
                                 }
 
                                 SettingCard {
                                     title: "Interface Minimization";
                                     subtitle: "Closes the launcher window after the game process initializes.";
-                                    ToggleSwitch { checked: false; }
+                                    ToggleSwitch {
+                                        checked: false;
+                                    }
                                 }
                             }
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "INTEGRATION"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "INTEGRATION";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Discord RPC";
                                     subtitle: "Toggle the in-built Rich Presence configuration status.";
-                                    ToggleSwitch { checked: true; }
+                                    ToggleSwitch {
+                                        checked: true;
+                                    }
                                 }
                             }
                         }
@@ -427,7 +483,13 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "GAME DIRECTORY"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "GAME DIRECTORY";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Game Directory";
@@ -440,7 +502,7 @@ export component SettingsPage inherits Rectangle {
                                         border-radius: 6px;
                                         border-width: 1px;
                                         border-color: #ffffff18;
-                                        
+
                                         animate background { duration: 100ms; }
 
                                         Text {
@@ -452,25 +514,35 @@ export component SettingsPage inherits Rectangle {
                                             vertical-alignment: center;
                                         }
 
-                                        browse-ta := TouchArea {}
+                                        browse-ta := TouchArea { }
                                     }
                                 }
                             }
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "ENGINE"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "ENGINE";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Engine Method";
                                     subtitle: "Choose what method the engine uses for loading mods.";
-                                    Dropdown { options: ["Default", "Alternate"]; }
+                                    Dropdown {
+                                        options: ["Default", "Alternate"];
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Start Method";
                                     subtitle: "Choose how to start the game";
-                                    Dropdown { options: ["Native", "Manual"]; }
+                                    Dropdown {
+                                        options: ["Native", "Manual"];
+                                    }
                                 }
                             }
                         }
@@ -489,36 +561,52 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "BUILTIN ADDONS"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "BUILTIN ADDONS";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Censorship Remover";
                                     subtitle: "Removes the alpha effect when looking at characters on an angle. (Credits: cp0bi)";
-                                    ToggleSwitch { checked: true; }
+                                    ToggleSwitch {
+                                        checked: true;
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "No Drive Line";
                                     subtitle: "Removes the 3D GPS driving line created while driving. (Credits: Rokkudayo)";
-                                    ToggleSwitch { checked: false; }
+                                    ToggleSwitch {
+                                        checked: false;
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Hide UID";
                                     subtitle: "Hides your User ID text in-game. (Credits: Rokkudayo)";
-                                    ToggleSwitch { checked: true; }
+                                    ToggleSwitch {
+                                        checked: true;
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Hide Red Dots";
                                     subtitle: "Hides the notification red dots in-game (Credits: rzwei)";
-                                    ToggleSwitch { checked: false; }
+                                    ToggleSwitch {
+                                        checked: false;
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "UI Scaling";
                                     subtitle: "Adjusts the in-game interface scale (restart required) (Credits: Tayuya)";
-                                    PremiumSlider { text-value: "100%"; }
+                                    PremiumSlider {
+                                        text-value: "100%";
+                                    }
                                 }
                             }
                         }
@@ -537,18 +625,28 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "DEBUG"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "DEBUG";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Developer Mode";
                                     subtitle: "Shows the log console for debugging.";
-                                    ToggleSwitch { checked: false; }
+                                    ToggleSwitch {
+                                        checked: false;
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Extensive Logging";
                                     subtitle: "Allows for more logs to be shown in the console.";
-                                    ToggleSwitch { checked: false; }
+                                    ToggleSwitch {
+                                        checked: false;
+                                    }
                                 }
 
                                 SettingCard {
@@ -562,7 +660,7 @@ export component SettingsPage inherits Rectangle {
                                         border-radius: 6px;
                                         border-width: 1px;
                                         border-color: #ffffff18;
-                                        
+
                                         animate background { duration: 100ms; }
 
                                         Text {
@@ -574,7 +672,7 @@ export component SettingsPage inherits Rectangle {
                                             vertical-alignment: center;
                                         }
 
-                                        export-ta := TouchArea {}
+                                        export-ta := TouchArea { }
                                     }
                                 }
                             }
