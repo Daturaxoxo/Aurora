@@ -14,8 +14,8 @@ env_filter = "1.0"
 chrono = "0.4"
 termcolor = "1.4"
 
-reqwest = { version = "0.13", features = ["json", "query"] }
-tokio = { workspace = true }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"] }
 
 anyhow = { workspace = true }
 futures = "0.3"

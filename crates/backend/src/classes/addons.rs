@@ -1,10 +1,7 @@
 use std::env;
 use std::fs::{self};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
-
 use log::error;
-use regex::{Regex, RegexBuilder};
 
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
@@ -69,45 +66,57 @@ pub fn set_readonly(path: &Path, readonly: bool) {
 }
 
 pub fn strip_section(text: &str) -> String {
-    static SECTION_RE: OnceLock<Regex> = OnceLock::new();
-    static NEWLINES_RE: OnceLock<Regex> = OnceLock::new();
+    let mut result = Vec::new();
+    let mut in_section = false;
 
-    let section_re = SECTION_RE.get_or_init(|| {
-        RegexBuilder::new(r"\[/Script/Engine\.UserInterfaceSettings\][^\[]*")
-            .case_insensitive(true)
-            .build()
-            .unwrap()
-    });
+    for line in text.lines() {
+        if line.trim().eq_ignore_ascii_case("[/Script/Engine.UserInterfaceSettings]") {
+            in_section = true;
+            continue;
+        }
+        if in_section {
+            if line.trim_start().starts_with('[') {
+                in_section = false;
+            } else {continue}
+        }
+        result.push(line);
+    }
 
-    let newlines_re = NEWLINES_RE.get_or_init(|| Regex::new(r"\n{3,}").unwrap());
+    let mut out = String::new();
+    let mut blank_count = 0u32;
+    for line in &result {
+        if line.trim().is_empty() {
+            blank_count += 1;
+            if blank_count <= 2 {out.push('\n')}
+        } else {
+            blank_count = 0;
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
 
-    let cleaned = section_re.replace_all(text, "");
-    let cleaned = newlines_re.replace_all(&cleaned, "\n\n");
-
-    cleaned.trim_end_matches('\n').to_string()
+    out.trim_end_matches('\n').to_string()
 }
 
 pub fn get_current_scale() -> f64 {
     let path = get_ini_path();
-    if !path.exists() {
-        return 1.0;
-    }
+    if !path.exists() {return 1.0};
 
-    if let Ok(text) = fs::read_to_string(&path) {
-        static SCALE_RE: OnceLock<Regex> = OnceLock::new();
-        let scale_re = SCALE_RE.get_or_init(|| {
-            RegexBuilder::new(
-                r"\[/Script/Engine\.UserInterfaceSettings\].*?ApplicationScale\s*=\s*([0-9.]+)",
-            )
-            .case_insensitive(true)
-            .dot_matches_new_line(true)
-            .build()
-            .unwrap()
-        });
+    let Ok(text) = fs::read_to_string(&path) else {return 1.0};
 
-        if let Some(caps) = scale_re.captures(&text) {
-            if let Some(m) = caps.get(1) {
-                return m.as_str().parse().unwrap_or(1.0);
+    let mut in_section = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.eq_ignore_ascii_case("[/Script/Engine.UserInterfaceSettings]") {
+            in_section = true;
+            continue;
+        }
+        if in_section {
+            if trimmed.starts_with('[') {break}
+            if let Some(rest) = trimmed.split_once('=') {
+                if rest.0.trim().eq_ignore_ascii_case("ApplicationScale") {
+                    return rest.1.trim().parse().unwrap_or(1.0);
+                }
             }
         }
     }
