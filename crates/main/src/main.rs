@@ -12,10 +12,23 @@ use classes::buttons::ButtonHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });
+
+    let (tx, mut rx) =
+        tokio::sync::mpsc::unbounded_channel::<shared::classes::gamebanana::types::NteMod>();
+
+    tokio::spawn(async move {
+        let api = shared::classes::gamebanana::api::GameBananaApi::new();
+        api.get_nte_mods(1, false, Some(tx)).await;
+    });
+
+    while let Some(m) = rx.recv().await {
+        println!("Received: {} - {} NSFW: {}", m.name, m.id, m.is_nsfw);
+    }
 
     let window = MainWindow::new()?;
     let slint_window = window.window();

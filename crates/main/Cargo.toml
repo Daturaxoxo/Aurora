@@ -11,6 +11,7 @@ display-info = "0.5"
 open = "5"
 log = { workspace = true }
 anyhow = { workspace = true }
+tokio = { workspace = true }
 
 [build-dependencies]
 slint-build = { version = "1.16.1" }
