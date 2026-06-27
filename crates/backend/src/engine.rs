@@ -114,7 +114,6 @@ impl AuroraEngine {
                 ));
             }
         }
-        debug!("NDL targets: {ndl_targets:?}");
 
         Ok(Self {
             game_path,

@@ -4,6 +4,8 @@ use std::env;
 use std::path::PathBuf;
 use tokio::fs;
 
+use log::*;
+
 const CACHE_TTL_SECONDS: u64 = 3600;
 
 #[derive(Serialize, Deserialize)]
@@ -29,8 +31,9 @@ impl CacheManager {
         let base_dir = env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-            .unwrap_or_else(|| env::current_dir().unwrap_or_default());
-        std::fs::create_dir_all(base_dir.join("Cache/GameBanana")).ok();
+            .unwrap_or_else(|| env::current_dir().unwrap_or_default())
+            .join("Cache/GameBanana");
+        std::fs::create_dir_all(&base_dir).ok();
         Self { base_dir }
     }
 
