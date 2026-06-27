@@ -92,7 +92,6 @@ impl Log for Logger {
         write!(&mut stdout, "{}", record.args()).unwrap();
         println!();
 
-        dbg!(&self.log_file_path);
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)

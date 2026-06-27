@@ -18,18 +18,6 @@ async fn main() -> Result<()> {
         panic!("Logger failed to initialize: {e}");
     });
 
-    let (tx, mut rx) =
-        tokio::sync::mpsc::unbounded_channel::<shared::classes::gamebanana::types::NteMod>();
-
-    tokio::spawn(async move {
-        let api = shared::classes::gamebanana::api::GameBananaApi::new();
-        api.get_nte_mods(1, false, Some(tx)).await;
-    });
-
-    while let Some(m) = rx.recv().await {
-        println!("Received: {} - {} NSFW: {}", m.name, m.id, m.is_nsfw);
-    }
-
     let window = MainWindow::new()?;
     let slint_window = window.window();
     let monitor_size = get_monitor_size().unwrap();
