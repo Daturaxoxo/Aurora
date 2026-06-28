@@ -331,6 +331,8 @@ impl AuroraEngine {
 
         self.ndl_targets = ndl_targets;
 
+        trace!("Finished reinitializing engine");
+
         Ok(())
     }
 

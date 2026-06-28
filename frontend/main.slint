@@ -63,7 +63,10 @@ export component MainWindow inherits Window {
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
     callback launch-menu-action(int); // indexes: 0 = Repair, 1 = Check Updates, 2 = Desktop Shortcut, 3 = Open Mods Folder
-    
+
+    // Settings page callbacks
+    callback setting-toggled(int);
+
     // Toast Properties
     in-out property <bool> toast-active: false;
     in-out property <string> toast-text: "";
@@ -772,6 +775,7 @@ export component MainWindow inherits Window {
             width: parent.width - 40px;
             height: parent.height - (Palette.topbar-height + 35px);
             close-settings => { root.show-settings = false; }
+            setting-toggled(int) => { root.setting-toggled(int) }
         }
 
         if root.show-menu: MenuPage {

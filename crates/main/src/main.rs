@@ -7,7 +7,7 @@ mod classes;
 
 use anyhow::Result;
 use display_info::DisplayInfo;
-use log::info;
+use log::*;
 
 use shared::logger::Logger;
 
@@ -17,8 +17,9 @@ use classes::toast::ToastHandler;
 
 use bridge::Bridge;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+use crate::classes::settings::SettingsHandler;
+
+fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });
@@ -67,6 +68,7 @@ async fn main() -> Result<()> {
     });
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
+    SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());

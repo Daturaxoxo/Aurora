@@ -313,6 +313,8 @@ export component SettingsPage inherits Rectangle {
     callback close-settings();
     in-out property <int> active-tab: 0;
 
+    callback setting-toggled(int);
+
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
     border-width: 1px;
@@ -444,6 +446,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Interface Minimization";
                                     subtitle: "Closes the launcher window after the game process initializes.";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(0);
+                                        }
                                         checked: false;
                                     }
                                 }
@@ -463,6 +468,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Discord RPC";
                                     subtitle: "Toggle the in-built Rich Presence configuration status.";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(1);
+                                        }
                                         checked: true;
                                     }
                                 }
@@ -573,6 +581,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Censorship Remover";
                                     subtitle: "Removes the alpha effect when looking at characters on an angle. (Credits: cp0bi)";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(2)
+                                        }
                                         checked: true;
                                     }
                                 }
@@ -581,6 +592,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "No Drive Line";
                                     subtitle: "Removes the 3D GPS driving line created while driving. (Credits: Rokkudayo)";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(3)
+                                        }
                                         checked: false;
                                     }
                                 }
@@ -589,6 +603,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Hide UID";
                                     subtitle: "Hides your User ID text in-game. (Credits: Rokkudayo)";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(4)
+                                        }
                                         checked: true;
                                     }
                                 }
@@ -597,6 +614,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Hide Red Dots";
                                     subtitle: "Hides the notification red dots in-game (Credits: rzwei)";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(5)
+                                        }
                                         checked: false;
                                     }
                                 }
@@ -637,6 +657,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Developer Mode";
                                     subtitle: "Shows the log console for debugging.";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(6)
+                                        }
                                         checked: false;
                                     }
                                 }
@@ -645,6 +668,9 @@ export component SettingsPage inherits Rectangle {
                                     title: "Extensive Logging";
                                     subtitle: "Allows for more logs to be shown in the console.";
                                     ToggleSwitch {
+                                        toggled => {
+                                            setting-toggled(7)
+                                        }
                                         checked: false;
                                     }
                                 }
