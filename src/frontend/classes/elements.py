@@ -1,6 +1,6 @@
 from functools import partial
 from typing import Dict, List, Optional
-import ctypes, json, webbrowser, shutil, os
+import ctypes, json, webbrowser, shutil, os, hashlib, urllib.request
 from src.backend.helpers.api import NTEMod, NTEModFile
 from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QGraphicsOpacityEffect, QLineEdit,
     QScrollArea, QGridLayout, QFileDialog,
 )
-from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize, QRectF
+from PyQt6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QSize, QRectF, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPainterPath, QPen
 from src.frontend.styles import POPUP_STYLE
 from src.logger import logger
@@ -31,7 +31,47 @@ def load_icon_map() -> dict:
 
 def _save_icon_map(mapping: dict): icon_map_path().write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
 
+def _get_icon_cache_path(url: str) -> Path:
+    cache_dir = Path(os.environ["APPDATA"]) / "Aurora" / "UserData" / "icon_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    ext = url.split("?")[0].rsplit(".", 1)[-1].lower() or "png"
+    filename = hashlib.md5(url.encode()).hexdigest() + f".{ext}"
+    return cache_dir / filename
+
+def _url_to_cached_pixmap(url: str) -> QPixmap:
+    cached = _get_icon_cache_path(url)
+    if not cached.exists():
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36"}
+            )
+            with urllib.request.urlopen(req) as response:
+                cached.write_bytes(response.read())
+        except Exception as e:
+            logger.warning(f"Failed to download custom icon URL: {e}")
+            return QPixmap()
+    return QPixmap(str(cached))
+
+class _IconFetchThread(QThread):
+    icon_ready = pyqtSignal(str, QPixmap)
+
+    def __init__(self, mod_folder_name: str, url: str):
+        super().__init__()
+        self._mod_folder_name = mod_folder_name
+        self._url = url
+
+    def run(self):
+        pix = _url_to_cached_pixmap(self._url)
+        self.icon_ready.emit(self._mod_folder_name, pix)
+
 def _get_mod_image(mod_folder_name: str, mod_display_name: str, mod_icon: str = "") -> QPixmap:
+    if mod_icon and mod_icon.startswith(("https://", "http://")):
+        cached = _get_icon_cache_path(mod_icon)
+        if cached.exists():
+            return QPixmap(str(cached))
+        return QPixmap()
+
     icon_map = load_icon_map()
     if mod_folder_name in icon_map:
         entry = icon_map[mod_folder_name]
@@ -263,19 +303,28 @@ class ModCard(QFrame):
         self.mod = mod
         self.manager = manager
         self.parent_overlay = parent_overlay
+        self._icon_thread = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 0, 20, 0)
         layout.setSpacing(14)
 
         # Mod Thumbnail
+        mod_icon = getattr(self.mod, 'icon', "")
         pixmap = _get_mod_image(
             self.mod.folder_name,
             self.mod.display_name,
-            getattr(self.mod, 'icon', "")
+            mod_icon,
         )
-        thumb = ModImage(pixmap, 44, mod_folder_name=self.mod.folder_name)
-        layout.addWidget(thumb)
+        self.thumb = ModImage(pixmap, 44, mod_folder_name=self.mod.folder_name)
+        layout.addWidget(self.thumb)
+
+        if mod_icon and mod_icon.startswith(("https://", "http://")):
+            cached = _get_icon_cache_path(mod_icon)
+            if not cached.exists():
+                self._icon_thread = _IconFetchThread(self.mod.folder_name, mod_icon)
+                self._icon_thread.icon_ready.connect(self._on_icon_ready)
+                self._icon_thread.start()
 
         # Mod Info
         info_vbox = QVBoxLayout()
@@ -347,6 +396,9 @@ class ModCard(QFrame):
         self.toggle = AnimatedToggle(self)
         self.toggle.setChecked(mod.is_enabled)
         layout.addWidget(self.toggle)
+
+    def _on_icon_ready(self, folder_name: str, pixmap: QPixmap):
+        if folder_name == self.mod.folder_name and not pixmap.isNull(): self.thumb.set_pixmap_source(pixmap)
 
     def _confirm_delete(self):
         message = t("mod_delete_message")
@@ -1017,7 +1069,7 @@ class AuroraOverlayWindow(QWidget):
         if not self.isHidden():
             self.hide()
             self.deleteLater()
-            
+
 class LoadingSpinner(QWidget):
     def __init__(self, size: int = 32, color: QColor = None, parent=None):
         super().__init__(parent)

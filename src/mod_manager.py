@@ -60,17 +60,36 @@ class ModManager:
 
             json_path = folder / "mod.json"
 
+            if not json_path.exists():
+                for sub in folder.iterdir():
+                    if sub.is_dir() and (sub / "mod.json").exists():
+                        json_path = sub / "mod.json"
+                        break
+
             if json_path.exists():
                 try:
                     with open(json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
 
+                    optionals = {k.lower(): v for k, v in data.get("Optionals", {}).items()}
+
+                    support_link = optionals.get("support link", "")
+                    if support_link and not support_link.startswith(("https://", "http://")):
+                        support_link = "https://" + support_link
+
+                    icon = data.get("Icon", "")
+                    custom_image_url = optionals.get("custom image url", "").strip()
+                    if custom_image_url:
+                        if not custom_image_url.startswith(("https://", "http://")):
+                            custom_image_url = "https://" + custom_image_url
+                        icon = custom_image_url
+
                     mod_data.update({
                         "display_name": data.get("Name", mod_data["display_name"]),
                         "version": data.get("Version", "1.0.0"),
                         "author": data.get("Author", t("mod_manager_unknown")),
-                        "support_link": data.get("Optionals", {}).get("Support Link", ""),
-                        "icon": data.get("Icon", ""),
+                        "support_link": support_link,
+                        "icon": icon,
                         "has_json": True,
                     })
 
