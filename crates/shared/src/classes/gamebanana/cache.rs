@@ -39,6 +39,7 @@ impl CacheManager {
         chrono::Utc::now().timestamp().cast_unsigned()
     }
 
+    #[allow(clippy::unused_self)]
     fn is_valid(&self, cache_file: &PathBuf) -> bool {
         if !cache_file.exists() {
             return false;

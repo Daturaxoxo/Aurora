@@ -9,7 +9,7 @@ impl SettingsHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         let w = window.clone();
         window.unwrap().on_setting_toggled(move |index| {
-            if let Some(w) = w.upgrade() {
+            if let Some(_w) = w.upgrade() {
                 match index {
                     // TODO: Interface minimization
                     0 => {

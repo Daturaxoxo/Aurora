@@ -12,6 +12,7 @@ impl ButtonHandler {
         let w = window.clone();
         window.unwrap().on_bottom_icon_clicked(move |index| {
             if let Some(w) = w.upgrade() {
+                #[allow(clippy::match_same_arms)]
                 match index {
                     0 => w.set_show_menu(!w.get_show_menu()),
                     1 => {} // undone: mod manager

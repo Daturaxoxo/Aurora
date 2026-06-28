@@ -3,8 +3,6 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use log::*;
-
 use serde_json::{json, Map, Value};
 
 pub const LANGS: &[(&str, &str)] = &[
