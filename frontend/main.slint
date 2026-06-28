@@ -1,0 +1,350 @@
+import { Palette } from "global.slint";
+
+export component AppWindow inherits Window {
+    title: "Aurora";
+    no-frame: true;
+    always-on-top: true;
+    resize-border-width: 6px;
+    min-width: 854px;
+    min-height: 360px;
+    preferred-height: 360px;
+    preferred-width: 854px;
+    background: #00000000;
+
+    callback window-dragged(length, length);
+    callback minimize-window();
+    callback close-window();
+    callback launch-with-mods();
+    callback launch-vanilla();
+    callback open-discord();
+    callback open-website();
+
+    property <length> drag-start-x;
+    property <length> drag-start-y;
+
+    property <length> title-size: root.width < 860px ? 14px : root.width < 960px ? 15px : root.width < 1280px ? 16px : root.width < 1680px ? 17px : root.width < 1920px ? 18px : root.width < 2560px ? 20px : root.width < 3600px ? 22px : 24px;
+    property <length> subtitle-size: root.width < 860px ? 12px : root.width < 960px ? 13px : root.width < 1280px ? 14px : root.width < 1680px ? 15px : root.width < 1920px ? 16px : root.width < 2560px ? 18px : root.width < 3600px ? 20px : 22px;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.drag-start-x = self.mouse-x;
+                root.drag-start-y = self.mouse-y;
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.window-dragged(
+                    self.mouse-x - root.drag-start-x,
+                    self.mouse-y - root.drag-start-y
+                );
+            }
+        }
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+        border-radius: 12px;
+        clip: true;
+
+        // Background image
+        Image {
+            width: 100%;
+            height: 100%;
+            source: @image-url("../production/icons/background.png");
+            image-fit: cover;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: @linear-gradient(180deg, #111115dd 0%, #16161aee 100%);
+        }
+
+        VerticalLayout {
+
+            // Title Bar
+            HorizontalLayout {
+                height: 48px;
+                padding-left: 18px;
+                padding-right: 18px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 10px;
+
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        y: (48px - self.height) / 2;
+                        Image {
+                            source: @image-url("../production/icons/processed/logo.png");
+                            width: 100%;
+                            height: 100%;
+                        }
+                    }
+                    Text {
+                        text: "Aurora Steam Wrapper";
+                        font-family: "Segoe UI";
+                        font-size: root.title-size + 2px;
+                        font-weight: 600;
+                        color: #ffffff;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 42px;
+                        height: 18px;
+                        y: (48px - self.height) / 2;
+                        background: #ffffff0f;
+                        border-radius: 4px;
+                        Text {
+                            text: "v2.0.0";
+                            font-family: "Segoe UI";
+                            font-size: root.subtitle-size - 1px;
+                            color: Palette.text-secondary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 16px;
+
+                    min-ta := TouchArea {
+                        width: 28px;
+                        height: 28px;
+                        y: (48px - self.height) / 2;
+                        clicked => { root.minimize-window(); }
+
+                        Rectangle {
+                            width: 100%;
+                            height: 100%;
+                            border-radius: 6px;
+                            background: min-ta.has-hover ? #ffffff18 : #ffffff00;
+                            animate background { duration: 150ms; }
+                            Image {
+                                source: @image-url("../production/icons/processed/minimize.png");
+                                width: 16px;
+                                height: 16px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                    }
+
+                    close-ta := TouchArea {
+                        width: 28px;
+                        height: 28px;
+                        y: (48px - self.height) / 2;
+                        clicked => { root.close-window(); }
+
+                        Rectangle {
+                            width: 100%;
+                            height: 100%;
+                            border-radius: 6px;
+                            background: close-ta.has-hover ? #ff453a18 : #ffffff00;
+                            animate background { duration: 150ms; }
+                            Image {
+                                source: @image-url("../production/icons/processed/close.png");
+                                width: 16px;
+                                height: 16px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: #ffffff0a;
+                width: 100%;
+            }
+
+            // Cards
+            HorizontalLayout {
+                padding-left: 32px;
+                padding-right: 32px;
+                padding-top: 20px;
+                padding-bottom: 20px;
+                spacing: 16px;
+                vertical-stretch: 1;
+
+                // Launch with Mods
+                mods-ta := TouchArea {
+                    clicked => { root.launch-with-mods(); }
+
+                    Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        background: mods-ta.has-hover ? #7c68ee2b : #7c68ee1c;
+                        border-width: 1px;
+                        border-color: mods-ta.has-hover ? #7b68ee50 : #7b68ee25;
+                        border-radius: 10px;
+                        animate background, border-color { duration: 150ms; }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 14px;
+                            padding: 24px;
+
+                            Rectangle {
+                                height: 40px;
+                                horizontal-stretch: 1;
+                                Image {
+                                    source: @image-url("../production/icons/processed/withmods.png");
+                                    width: 40px;
+                                    height: 40px;
+                                    x: (parent.width - self.width) / 2;
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: "Launch with Mods";
+                                    font-family: "Segoe UI";
+                                    font-size: root.title-size;
+                                    font-weight: 700;
+                                    color: Palette.text-primary;
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: "Launch Neverness To Everness\nwith mods using Aurora";
+                                    font-family: "Segoe UI";
+                                    font-size: root.subtitle-size;
+                                    color: Palette.text-secondary;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Launch without Mods
+                vanilla-ta := TouchArea {
+                    clicked => { root.launch-vanilla(); }
+
+                    Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        background: vanilla-ta.has-hover ? #ffffff1d : #ffffff14;
+                        border-width: 1px;
+                        border-color: vanilla-ta.has-hover ? #ffffff20 : #ffffff0f;
+                        border-radius: 10px;
+                        animate background, border-color { duration: 150ms; }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 14px;
+                            padding: 24px;
+
+                            Rectangle {
+                                height: 40px;
+                                horizontal-stretch: 1;
+                                Image {
+                                    source: @image-url("../production/icons/processed/nomods.png");
+                                    width: 40px;
+                                    height: 40px;
+                                    x: (parent.width - self.width) / 2;
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: "Launch without Mods";
+                                    font-family: "Segoe UI";
+                                    font-size: root.title-size;
+                                    font-weight: 700;
+                                    color: Palette.text-primary;
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: "Launch Neverness To Everness\nwithout mods";
+                                    font-family: "Segoe UI";
+                                    font-size: root.subtitle-size;
+                                    color: Palette.text-secondary;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bottom Bar
+            Rectangle {
+                height: 1px;
+                background: #ffffff0a;
+                width: 100%;
+            }
+
+            HorizontalLayout {
+                height: 48px;
+                padding-left: 18px;
+                padding-right: 18px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 4px;
+
+                    discord-ta := TouchArea {
+                        width: 32px;
+                        height: 32px;
+                        y: (48px - self.height) / 2;
+                        clicked => { root.open-discord(); }
+
+                        Rectangle {
+                            width: 100%;
+                            height: 100%;
+                            border-radius: 6px;
+                            background: discord-ta.has-hover ? #ffffff18 : #ffffff00;
+                            animate background { duration: 150ms; }
+                            Image {
+                                source: @image-url("../production/icons/processed/discord.png");
+                                width: 22px;
+                                height: 22px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                    }
+
+                    website-ta := TouchArea {
+                        width: 32px;
+                        height: 32px;
+                        y: (48px - self.height) / 2;
+                        clicked => { root.open-website(); }
+
+                        Rectangle {
+                            width: 100%;
+                            height: 100%;
+                            border-radius: 6px;
+                            background: website-ta.has-hover ? #ffffff18 : #ffffff00;
+                            animate background { duration: 150ms; }
+                            Image {
+                                source: @image-url("../production/icons/processed/website.png");
+                                width: 22px;
+                                height: 22px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
