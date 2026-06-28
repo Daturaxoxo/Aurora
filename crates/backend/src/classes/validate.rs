@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use scandir::Walk;
+use jwalk::WalkDir;
 
 const ARCHIVE_EXTENSIONS: [&str; 7] = [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"];
 const MOD_EXTENSIONS: [&str; 3] = [".pak", ".utoc", ".ucas"];
@@ -53,16 +53,35 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
                 ));
             }
         } else if entry.file_type()?.is_dir() {
-            let toc = Walk::new(entry.path(), None)?.collect()?;
-            for file in toc.files() {
-                if IGNORED_INI_FILES.iter().any(|f| *f == file) {
+            for entry_result in WalkDir::new(entry.path()) {
+                let entry = match entry_result {
+                    Ok(e) => e,
+                    Err(_) => continue, // Skip files/dirs that cause permission or access errors
+                };
+
+                if !entry.file_type().is_file() {
                     continue;
                 }
+
+                let file_name = entry.file_name().to_string_lossy();
+
+                if IGNORED_INI_FILES.iter().any(|&f| f == file_name) {
+                    continue;
+                }
+
                 issues.push(Issue::new(
-                    format!("{}/{file:#?}", entry.file_name().display()),
+                    format!(
+                        "{}/{file_name}",
+                        entry
+                            .parent_path()
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                    ),
                     "INI mod: This mod is made for 3DMigoto, not Aurora.".to_string(),
                 ));
             }
+
             for arc in fs::read_dir(entry.path())? {
                 let arc = arc?;
                 if arc.file_type()?.is_file()

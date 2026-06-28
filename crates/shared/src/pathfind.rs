@@ -1,8 +1,9 @@
-use std::{fs, path::PathBuf};
+use std::{path::PathBuf, time::Instant};
 
 use anyhow::{anyhow, Result};
+use jwalk::WalkDir;
 use log::*;
-use scandir::Walk;
+use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
 
 use crate::{
     classes::info::{GAME_FOLDER_NAME, LAUNCHER_MAP},
@@ -30,38 +31,82 @@ fn validate_game_path(path: &PathBuf) -> Result<bool> {
     Ok(game_found)
 }
 
-fn candidate_directories() -> Result<Vec<PathBuf>> {
-    const BLACKLISTED_DIRECTORIES: [&str; 5] = [
-        "$RECYCLE.BIN",
-        "System Volume Information",
-        "Windows",
-        "AppData",
-        "ProgramData",
-    ];
-    let mut candidates = Vec::new();
-    for drive_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().map(|c| c.to_string()) {
-        if fs::metadata(format!("{drive_letter}:\\")).is_err() {
-            continue;
-        }
+pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
+    const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
+        &[
+            "Windows",
+            "AppData",
+            "ProgramData",
+            "Program Files",
+            "Program Files (x86)",
+            "$RECYCLE.BIN",
+            "System Volume Information",
+        ]
+    } else {
+        &[
+            "proc",
+            "sys",
+            "dev",
+            "run",
+            "bin",
+            "sbin",
+            "lib",
+            "lib64",
+            "usr",
+            "boot",
+            "tmp",
+            "var",
+            "etc",
+            "mnt",
+            "media",
+            "lost+found",
+        ]
+    };
+    let roots = get_root_paths();
 
-        let entries = Walk::new(format!("{drive_letter}:\\"), None)?
-            .dir_exclude(Some(
-                BLACKLISTED_DIRECTORIES
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect(),
-            ))
+    let result = roots.into_par_iter().find_map_any(|root| {
+        WalkDir::new(root)
             .follow_links(false)
-            .collect()?;
+            .skip_hidden(true)
+            .process_read_dir(|_, _, _, dir_entry_results| {
+                dir_entry_results.retain(|dir_entry_result| {
+                    if let Ok(dir_entry) = dir_entry_result {
+                        if !dir_entry.file_type.is_dir() {
+                            return false;
+                        }
 
-        for dir in entries.dirs() {
-            if dir.contains(GAME_FOLDER_NAME) {
-                candidates.push(PathBuf::from(format!("{drive_letter}:\\{dir}")));
-            }
-        }
+                        let name = dir_entry.file_name.to_string_lossy();
+                        !EXCLUDED_FOLDERS.contains(&name.as_ref())
+                    } else {
+                        true
+                    }
+                })
+            })
+            .into_iter()
+            .find_map(|dir_entry_result| {
+                let entry = dir_entry_result.ok()?;
+                if entry.file_type().is_dir() && entry.file_name() == GAME_FOLDER_NAME {
+                    Some(entry.path())
+                } else {
+                    None
+                }
+            })
+    });
+
+    Ok(result)
+}
+
+fn get_root_paths() -> Vec<PathBuf> {
+    if cfg!(windows) {
+        (b'A'..=b'Z')
+            .filter_map(|b| {
+                let path = PathBuf::from(format!("{}:\\", b as char));
+                path.exists().then_some(path)
+            })
+            .collect()
+    } else {
+        vec![PathBuf::from("/")]
     }
-
-    Ok(candidates)
 }
 
 pub fn get_game_directory() -> Result<PathBuf> {
@@ -75,10 +120,15 @@ pub fn get_game_directory() -> Result<PathBuf> {
 
     warn!("Game directory {} not valid", path.display());
 
-    for candidate in candidate_directories()? {
+    let instant = Instant::now();
+    if let Some(candidate) = candidate_directories()? {
+        trace!("Trying {}", candidate.display());
         if validate_game_path(&candidate)? {
             info!("Found game directory {}", candidate.display());
+            let elapsed = instant.elapsed();
+            info!("Candidate search took {elapsed:?}");
             set(key::GAME_PATH, candidate.display().to_string());
+
             return Ok(candidate);
         }
     }
