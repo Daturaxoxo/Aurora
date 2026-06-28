@@ -77,6 +77,7 @@ pub fn get_game_directory() -> Result<PathBuf> {
 
     for candidate in candidate_directories()? {
         if validate_game_path(&candidate)? {
+            info!("Found game directory {}", candidate.display());
             set(key::GAME_PATH, candidate.display().to_string());
             return Ok(candidate);
         }

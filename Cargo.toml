@@ -7,6 +7,7 @@ log = "0.4"
 anyhow = "1.0"
 scandir = "2.0"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+dirs = "6"
 
 [profile.release]
 lto = true

@@ -9,6 +9,7 @@ use anyhow::Result;
 use display_info::DisplayInfo;
 use log::*;
 
+use shared::config::{self, key};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
@@ -26,6 +27,11 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     ensure_root();
+
+    config::set(
+        key::APP_LOCATION,
+        std::env::current_exe()?.display().to_string(),
+    );
 
     let window = MainWindow::new()?;
     let slint_window = window.window();

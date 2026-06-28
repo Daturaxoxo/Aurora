@@ -1,6 +1,4 @@
-use std::env;
 use std::fs;
-use std::path::Path;
 use std::path::PathBuf;
 
 use serde_json::{json, Map, Value};
@@ -45,6 +43,7 @@ pub mod key {
     pub const UI_SCALING: &str = "ui_scaling";
     pub const UI_MINIMIZATION: &str = "ui_min";
     pub const SHOW_NSFW_MODS: &str = "show_nsfw_mods";
+    pub const APP_LOCATION: &str = "app_location";
 }
 
 fn default_value(k: &str) -> Value {
@@ -60,9 +59,13 @@ fn default_value(k: &str) -> Value {
         | key::SHOW_NSFW_MODS => {
             json!(false)
         }
-        key::GAME_PATH => json!(""),
+
+        key::GAME_PATH | key::APP_LOCATION => json!(""),
+
         key::LANGUAGE => json!("en"),
+
         key::UI_SCALING => json!(1.0),
+
         // [0 = Default (dsound only)]
         // [1 = Alternate (dsound + version.dll)]
         // [2 = Alternate 2 (dsound + dinput8.dll)]
@@ -72,11 +75,17 @@ fn default_value(k: &str) -> Value {
 }
 
 fn config_file_path() -> PathBuf {
-    env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| env::current_dir().unwrap_or_default())
-        .join("config.json")
+    let config_path = dirs::config_dir()
+        .expect("Could not resolve config directory")
+        .join("Aurora")
+        .join("UserData")
+        .join("config.json");
+
+    if !config_path.parent().unwrap().exists() {
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+    }
+
+    config_path
 }
 
 fn load_raw() -> Map<String, Value> {
