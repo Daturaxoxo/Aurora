@@ -48,7 +48,8 @@ Add the following to the newly created file:
     "Author": "Example Author Name",
     "Icon": "CharacterName",
     "Optionals": {
-        "Support Link": "https://patreon.com/example"
+        "Support Link": "https://patreon.com/example",
+        "Custom Image URL": "https://image.com/example/example.png",
     }
 }
 ```
@@ -70,6 +71,11 @@ If done correctly, your mod will have custom entries. Cheers!
 | 👤 `Author` | The name of the mod creator | `"Example Author Name"`
 | 🖼️ `Icon` | Set a preset character icon | [All Allowed Characters](https://github.com/Daturaxoxo/Aurora/blob/main/docs/ModDisplayFile.md#allowed-character-names-for-icon-field)
 | 🔗 `Support Link` | Set a support link for the mod | `"https://gamebanana.com/mods/123456"`
+| 🖼️ `Custom Image URL` | Set a custom image URL for the mod | `"https://image.com/example/example.png"`
+> [!NOTE]
+> If no **"Custom Image URL"** is set in the mod.json, Aurora will replace the icon with the character icon specified in **"Icon"**. If the **Icon"** field is also blank, then it will randomly select a character's icon.
+> 
+> **Priority:** Custom Image URL **>** Icon **>** Random Selection
 ### ᅠ
 ---
 ### ᅠ
