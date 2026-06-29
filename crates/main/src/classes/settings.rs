@@ -23,8 +23,6 @@ impl SettingsHandler {
             }
         };
 
-        dbg!(rpc.is_some());
-
         if config::get(key::DISCORD_RPC).as_bool().unwrap_or(true) {
             if let Some(rpc) = rpc.as_mut() {
                 rpc.set_idle().unwrap_or_else(|e| {
