@@ -1,13 +1,38 @@
 use crate::MainWindow;
 
-use backend::handler::{self, EngineCommand};
+use backend::{
+    classes::rpc::DiscordRpc,
+    handler::{self, EngineCommand},
+};
 use log::*;
-use shared::config::{self, key};
+use shared::{
+    config::{self, key},
+    utils,
+};
 pub struct SettingsHandler;
 
 impl SettingsHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         let w = window.clone();
+
+        let mut rpc = match DiscordRpc::new(utils::get_current_timestamp()) {
+            Ok(rpc) => Some(rpc),
+            Err(e) => {
+                error!("Failed to create discord rpc: {e}");
+                None
+            }
+        };
+
+        dbg!(rpc.is_some());
+
+        if config::get(key::DISCORD_RPC).as_bool().unwrap_or(true) {
+            if let Some(rpc) = rpc.as_mut() {
+                rpc.set_idle().unwrap_or_else(|e| {
+                    error!("Failed to set idle discord rpc: {e}");
+                });
+            }
+        }
+
         window.unwrap().on_setting_toggled(move |index| {
             if let Some(_w) = w.upgrade() {
                 match index {
@@ -18,7 +43,19 @@ impl SettingsHandler {
 
                     // TODO: Discord RPC
                     1 => {
-                        debug!("Discord RPC");
+                        let value = config::get(key::DISCORD_RPC).as_bool().unwrap();
+                        config::set(key::DISCORD_RPC, !value);
+                        if config::get(key::DISCORD_RPC).as_bool().unwrap() {
+                            if let Some(rpc) = rpc.as_mut() {
+                                rpc.set_idle().unwrap_or_else(|e| {
+                                    error!("Failed to set idle discord rpc: {e}");
+                                });
+                            }
+                        } else if let Some(rpc) = rpc.as_mut() {
+                            rpc.clear_activity().unwrap_or_else(|e| {
+                                error!("Failed to clear activity discord rpc: {e}");
+                            });
+                        }
                     }
 
                     2 => {

@@ -24,6 +24,7 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         let mut res = winresource::WindowsResource::new();
+        res.set_icon("../../production/icons/logo.ico");
         res.set_manifest_file("main.manifest");
         res.compile().unwrap();
     }

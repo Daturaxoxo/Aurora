@@ -68,7 +68,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
         WalkDir::new(root)
             .follow_links(false)
             .skip_hidden(true)
-            .process_read_dir(|_, _, _, dir_entry_results| {
+            .process_read_dir(|_, _, (), dir_entry_results| {
                 dir_entry_results.retain(|dir_entry_result| {
                     if let Ok(dir_entry) = dir_entry_result {
                         if !dir_entry.file_type.is_dir() {
@@ -80,7 +80,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
                     } else {
                         true
                     }
-                })
+                });
             })
             .into_iter()
             .find_map(|dir_entry_result| {

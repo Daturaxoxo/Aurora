@@ -54,10 +54,7 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
             }
         } else if entry.file_type()?.is_dir() {
             for entry_result in WalkDir::new(entry.path()) {
-                let entry = match entry_result {
-                    Ok(e) => e,
-                    Err(_) => continue, // Skip files/dirs that cause permission or access errors
-                };
+                let Ok(entry) = entry_result else { continue };
 
                 if !entry.file_type().is_file() {
                     continue;

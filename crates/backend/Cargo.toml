@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+discord-rich-presence = "1.1"
 shared = { path = "../shared" }
 log = { workspace = true }
 anyhow = { workspace = true }
