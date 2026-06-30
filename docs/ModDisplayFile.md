@@ -49,7 +49,7 @@ Add the following to the newly created file:
     "Icon": "CharacterName",
     "Optionals": {
         "Support Link": "https://patreon.com/example",
-        "Custom Image URL": "https://image.com/example/example.png",
+        "Custom Image URL": "https://image.com/example/example.png"
     }
 }
 ```
