@@ -50,10 +50,6 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        // if !self.inner.matches(record) {
-        //     return;
-        // }
-
         macro_rules! set_stdout_color {
             ($r: expr, $g: expr, $b: expr, $stdout: ident) => {
                 $stdout

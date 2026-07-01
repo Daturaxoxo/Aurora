@@ -15,6 +15,7 @@ use shared::logger::Logger;
 use classes::buttons::ButtonHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
+use classes::pages::settings::SettingsHandler;
 
 use bridge::Bridge;
 
@@ -77,6 +78,7 @@ fn main() -> Result<()> {
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
+    SettingsHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());
     Ok(window.run()?)
