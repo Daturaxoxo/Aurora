@@ -39,7 +39,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
             "ProgramData",
             "Program Files",
             "Program Files (x86)",
-            "$RECYCLE.BIN",
+            "$Recycle.Bin",
             "System Volume Information",
         ]
     } else {
