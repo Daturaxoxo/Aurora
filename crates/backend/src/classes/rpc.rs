@@ -3,7 +3,7 @@ use discord_rich_presence::{
     activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
-use shared::utils::get_current_timestamp;
+use shared::utils::{self, get_current_timestamp};
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 
@@ -37,7 +37,7 @@ impl DiscordRpc {
 
             fn get_assets() -> Assets<'static> {
                 Assets::new()
-                    .large_image("aurora_logo")
+                    .large_image("launcher")
                     .large_text("Aurora Mod Launcher")
             }
 
@@ -55,7 +55,11 @@ impl DiscordRpc {
                             .state("Idle")
                             .details("In launcher")
                             .timestamps(Timestamps::new().start(start_timestamp))
-                            .assets(get_assets())
+                            .assets(
+                                get_assets()
+                                    .small_image("version")
+                                    .small_text(format!("v{}", utils::get_local_version())),
+                            )
                             .buttons(get_buttons()),
                     ),
                     RpcCommand::SetLaunching => client.set_activity(
@@ -66,14 +70,25 @@ impl DiscordRpc {
                             .timestamps(Timestamps::new().start(get_current_timestamp()))
                             .buttons(get_buttons()),
                     ),
-                    RpcCommand::SetInGame => client.set_activity(
-                        Activity::new()
-                            .state("In-game")
-                            .details("Playing NTE")
-                            .assets(get_assets().small_image("playing").small_text("In-game"))
-                            .timestamps(Timestamps::new().start(get_current_timestamp()))
-                            .buttons(get_buttons()),
-                    ),
+                    RpcCommand::SetInGame => {
+                        let v = vec![1, 2, 3, 4, 5];
+                        let i = fastrand::usize(..v.len());
+                        let elem = v[i];
+                        client.set_activity(
+                            Activity::new()
+                                .state("In-game")
+                                .details("Playing NTE")
+                                .assets(
+                                    Assets::new()
+                                        .large_image(format!("in-game-{elem}"))
+                                        .large_text("Playing NTE using Aurora!")
+                                        .small_image("version-2")
+                                        .small_text(format!("v{}", utils::get_local_version())),
+                                )
+                                .timestamps(Timestamps::new().start(get_current_timestamp()))
+                                .buttons(get_buttons()),
+                        )
+                    }
                     RpcCommand::ClearActivity => client.clear_activity(),
                     RpcCommand::Reconnect => client.reconnect(),
                     RpcCommand::Stop => {
