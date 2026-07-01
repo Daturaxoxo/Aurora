@@ -68,6 +68,23 @@ export component MainWindow inherits Window {
     in-out property <float> toast-progress: 1.0;
     callback trigger-toast();
 
+    // Settings Properties
+    in-out property <int>  language-index: 0;
+    in-out property <bool> interface-minimization: false;
+    in-out property <bool> discord-rpc: true;
+    in-out property <string> game-directory: "";
+    in-out property <int>  engine-method-index: 0;
+    in-out property <bool> developer-mode: false;
+    in-out property <bool> extensive-logging: false;
+    callback browse-game-directory();
+    callback export-telemetry();
+    callback language-index-changed(int);
+    callback interface-minimization-changed(bool);
+    callback discord-rpc-changed(bool);
+    callback engine-method-index-changed(int);
+    callback developer-mode-changed(bool);
+    callback extensive-logging-changed(bool);
+
     // Popup Dialog Properties
     in-out property <bool> popup-active: false;
     in-out property <string> popup-id: "";
@@ -675,6 +692,25 @@ export component MainWindow inherits Window {
             width: parent.width - 40px;
             height: parent.height - (Palette.topbar-height + 35px);
             close-settings => { root.show-settings = false; }
+
+            // Settings properties bound to MainWindow so Rust can access them
+            language-index <=> root.language-index;
+            interface-minimization <=> root.interface-minimization;
+            discord-rpc <=> root.discord-rpc;
+            game-directory <=> root.game-directory;
+            engine-method-index <=> root.engine-method-index;
+            developer-mode <=> root.developer-mode;
+            extensive-logging <=> root.extensive-logging;
+
+            // Callbacks forwarded up to MainWindow
+            browse-game-directory => { root.browse-game-directory(); }
+            export-telemetry => { root.export-telemetry(); }
+            language-index-changed(i) => { root.language-index-changed(i); }
+            interface-minimization-changed(v) => { root.interface-minimization-changed(v); }
+            discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
+            engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
+            developer-mode-changed(v) => { root.developer-mode-changed(v); }
+            extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
         }
 
         if root.show-menu : MenuPage {
