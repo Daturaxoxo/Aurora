@@ -10,8 +10,8 @@ component ToggleSwitch inherits Rectangle {
     width: 44px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? #10b981 : #3f3f46; 
-    
+    background: root.checked ? #10b981 : #3f3f46;
+
     animate background { duration: 150ms; }
 
     Rectangle {
@@ -20,8 +20,11 @@ component ToggleSwitch inherits Rectangle {
         border-radius: 8px;
         background: #ffffff;
         x: root.checked ? parent.width - self.width - 4px : 4px;
-        
-        animate x { duration: 150ms; easing: ease-out; }
+
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
     }
 
     TouchArea {
@@ -51,7 +54,7 @@ component Dropdown inherits Rectangle {
         padding-left: 12px;
         padding-right: 12px;
         alignment: space-between;
-        
+
         Text {
             text: root.options[root.selected-index];
             color: Palette.text-primary;
@@ -59,7 +62,7 @@ component Dropdown inherits Rectangle {
             font-family: "Segoe UI";
             vertical-alignment: center;
         }
-        
+
         VerticalLayout {
             alignment: center;
             Image {
@@ -74,7 +77,7 @@ component Dropdown inherits Rectangle {
     }
 
     TouchArea {
-        clicked => { 
+        clicked => {
             root.opened = !root.opened;
             if (root.opened) { popup.show(); }
         }
@@ -94,7 +97,7 @@ component Dropdown inherits Rectangle {
             VerticalLayout {
                 padding: 4px;
                 spacing: 2px;
-                for option[index] in root.options : Rectangle {
+                for option[index] in root.options: Rectangle {
                     height: 28px;
                     border-radius: 4px;
                     background: item-ta.has-hover ? #ffffff10 : transparent;
@@ -132,8 +135,10 @@ component TabButton inherits Rectangle {
     background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
 
     animate background { duration: 120ms; }
-    
-    ta := TouchArea { clicked => { root.clicked(); } }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
 
     Text {
         text: root.text;
@@ -159,14 +164,14 @@ component SettingCard inherits Rectangle {
     border-color: Palette.glass-border;
 
     HorizontalLayout {
-        padding: 16px; 
+        padding: 16px;
         padding-right: 20px;
         alignment: space-between;
-        
+
         VerticalLayout {
             spacing: 4px;
             alignment: center;
-            
+
             Text {
                 text: root.title;
                 color: Palette.text-primary;
@@ -174,6 +179,7 @@ component SettingCard inherits Rectangle {
                 font-weight: 600;
                 font-family: "Segoe UI";
             }
+
             Text {
                 text: root.subtitle;
                 color: #cbd5e1;
@@ -189,6 +195,7 @@ component SettingCard inherits Rectangle {
         }
     }
 }
+
 component TabPage inherits Rectangle {
     in property <bool> active;
 
@@ -197,22 +204,34 @@ component TabPage inherits Rectangle {
     visible: root.opacity > 0.01;
 
     states [
-        active-state when root.active : {
+        active-state when root.active: {
             opacity: 1.0;
             y: 0px;
-            
             in {
-                animate opacity { duration: 200ms; easing: ease-in-out; delay: 5ms; }
-                animate y { duration: 200ms; easing: ease-in-out; delay: 5ms; }
+                animate opacity {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
+                animate y {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
             }
         }
-        inactive-state when !root.active : {
+        inactive-state when !root.active: {
             opacity: 0.0;
             y: 6px;
-
             in {
-                animate opacity { duration: 100ms; easing: ease-in-out; }
-                animate y { duration: 100ms; easing: ease-in-out; }
+                animate opacity {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
+                animate y {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
             }
         }
     ]
@@ -257,7 +276,7 @@ export component SettingsPage inherits Rectangle {
     drop-shadow-offset-y: 10px;
 
     HorizontalLayout {
-        padding: 24px; 
+        padding: 24px;
         spacing: 32px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
@@ -290,7 +309,7 @@ export component SettingsPage inherits Rectangle {
             HorizontalLayout {
                 alignment: space-between;
                 padding-bottom: 4px;
-                
+
                 Text {
                     text: root.active-tab == 0 ? "General" :
                           root.active-tab == 1 ? "Launcher" : "Developer";
@@ -305,9 +324,9 @@ export component SettingsPage inherits Rectangle {
                     height: 28px;
                     border-radius: 6px;
                     background: ta.has-hover ? #ffffff10 : transparent;
-                    
+
                     animate background { duration: 100ms; }
-                    
+
                     Image {
                         source: @image-url("../../../production/icons/processed/close.png");
                         width: 14px;
@@ -318,7 +337,9 @@ export component SettingsPage inherits Rectangle {
                         animate opacity { duration: 100ms; }
                     }
 
-                    ta := TouchArea { clicked => { root.close-settings(); } }
+                    ta := TouchArea {
+                        clicked => { root.close-settings(); }
+                    }
                 }
             }
 
@@ -329,7 +350,7 @@ export component SettingsPage inherits Rectangle {
                 // TAB 0: GENERAL SETTINGS CONTENT
                 TabPage {
                     active: root.active-tab == 0;
-                    
+
                     ScrollView {
                         viewport-height: general-layout.min-height;
                         general-layout := VerticalLayout {
@@ -338,8 +359,14 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "APPEARANCE"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
-                                
+                                Text {
+                                    text: "APPEARANCE";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
+
                                 SettingCard {
                                     title: "Language";
                                     subtitle: "Interface display language";
@@ -355,7 +382,13 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "INTEGRATION"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "INTEGRATION";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Discord RPC";
@@ -379,7 +412,13 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "GAME DIRECTORY"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "GAME DIRECTORY";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Game Directory";
@@ -392,7 +431,7 @@ export component SettingsPage inherits Rectangle {
                                         border-radius: 6px;
                                         border-width: 1px;
                                         border-color: #ffffff18;
-                                        
+
                                         animate background { duration: 100ms; }
 
                                         Text {
@@ -411,7 +450,13 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "ENGINE"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "ENGINE";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Engine Method";
@@ -435,7 +480,13 @@ export component SettingsPage inherits Rectangle {
 
                             VerticalLayout {
                                 spacing: 10px;
-                                Text { text: "DEBUG"; color: Palette.text-secondary; font-size: 11px; font-weight: 700; font-family: "Segoe UI"; }
+                                Text {
+                                    text: "DEBUG";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
 
                                 SettingCard {
                                     title: "Developer Mode";
@@ -460,7 +511,7 @@ export component SettingsPage inherits Rectangle {
                                         border-radius: 6px;
                                         border-width: 1px;
                                         border-color: #ffffff18;
-                                        
+
                                         animate background { duration: 100ms; }
 
                                         Text {

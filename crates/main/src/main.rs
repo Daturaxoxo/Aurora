@@ -2,13 +2,14 @@
 
 slint::include_modules!();
 
-mod classes;
 mod bridge;
+mod classes;
 
 use anyhow::Result;
 use display_info::DisplayInfo;
-use log::info;
+use log::*;
 
+use shared::config::{self, key};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
@@ -18,14 +19,20 @@ use classes::pages::settings::SettingsHandler;
 
 use bridge::Bridge;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+use crate::classes::settings::SettingsHandler;
+
+fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
     });
 
     #[cfg(target_os = "linux")]
     ensure_root();
+
+    config::set(
+        key::APP_LOCATION,
+        std::env::current_exe()?.display().to_string(),
+    );
 
     let window = MainWindow::new()?;
     let slint_window = window.window();
@@ -68,6 +75,7 @@ async fn main() -> Result<()> {
     });
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
+    SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
 
@@ -84,7 +92,9 @@ fn get_monitor_size() -> Option<DisplayInfo> {
 
 #[cfg(target_os = "linux")]
 fn ensure_root() {
-    if unsafe { libc::getuid() } == 0 {return}
+    if unsafe { libc::getuid() } == 0 {
+        return;
+    }
 
     let exe = std::env::current_exe().expect("Could not get exe path");
     std::process::exit(

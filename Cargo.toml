@@ -5,11 +5,13 @@ resolver = "2"
 [workspace.dependencies]
 log = "0.4"
 anyhow = "1.0"
-scandir = "2.0"
+jwalk = "0.8"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+dirs = "6"
+rayon = "1.12"
 
 [profile.release]
 lto = true
 codegen-units = 1
 strip = "symbols"
-opt-level = "z"
+panic = "abort"

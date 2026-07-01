@@ -4,12 +4,14 @@ version = "2.0.0"
 edition = "2021"
 
 [dependencies]
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+fastrand = "2.4.1"
+discord-rich-presence = "1.1"
 shared = { path = "../shared" }
 log = { workspace = true }
 anyhow = { workspace = true }
-rayon = "1.12"
-sysinfo = "0.39"
-scandir = { workspace = true }
+jwalk = { workspace = true }
+rayon = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

@@ -13,9 +13,9 @@ component IconButton inherits Rectangle {
     width: root.icon-size + 12px;
     height: root.icon-size + 12px;
     border-radius: 6px;
-    
+
     background: root.active ? #ffffff16 : (ta.has-hover ? #ffffff0c : transparent);
-    
+
     animate background { duration: 120ms; }
 
     Image {
@@ -25,14 +25,17 @@ component IconButton inherits Rectangle {
         image-rendering: smooth;
         image-fit: contain;
         opacity: root.active ? 1.0 : (ta.has-hover ? 1.0 : 0.75);
-        
+
         animate opacity { duration: 120ms; }
     }
 
-    ta := TouchArea {clicked => { root.clicked() }}
+    ta := TouchArea {
+        clicked => { root.clicked() }
+    }
 }
 
 export component MainWindow inherits Window {
+    title: "Aurora";
     no-frame: true;
     background: transparent;
     resize-border-width: 6px;
@@ -50,7 +53,7 @@ export component MainWindow inherits Window {
     // Page Properties
     in-out property <bool> show-settings: false;
     in-out property <bool> show-menu: false;
-    
+
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
     in-out property <bool> launch-disabled: false;
@@ -60,7 +63,10 @@ export component MainWindow inherits Window {
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
     callback launch-menu-action(int); // indexes: 0 = Repair, 1 = Check Updates, 2 = Desktop Shortcut, 3 = Open Mods Folder
-    
+
+    // Settings page callbacks
+    callback setting-toggled(int);
+
     // Toast Properties
     in-out property <bool> toast-active: false;
     in-out property <string> toast-text: "";
@@ -198,6 +204,7 @@ export component MainWindow inherits Window {
                                     icon-size: 22px;
                                     clicked => { root.minimize-clicked(); }
                                 }
+
                                 IconButton {
                                     source: @image-url("../production/icons/close.png");
                                     icon-size: 22px;
@@ -230,11 +237,20 @@ export component MainWindow inherits Window {
                             border-color: Palette.glass-border;
                             animate background { duration: 100ms; }
 
-                            Text { text: "Test Toast"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            ta-toast := TouchArea { 
-                                clicked => { 
+                            Text {
+                                text: "Test Toast";
+                                color: #ffffff;
+                                font-family: "Segoe UI";
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            ta-toast := TouchArea {
+                                clicked => {
                                     root.trigger-toast();
-                                } 
+                                }
                             }
                         }
 
@@ -247,15 +263,22 @@ export component MainWindow inherits Window {
                             border-color: Palette.glass-border;
                             animate background { duration: 100ms; }
 
-                            Text { text: "Test Popup"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            Text {
+                                text: "Test Popup";
+                                color: #ffffff;
+                                font-family: "Segoe UI";
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
                             ta-dialog := TouchArea {
                                 clicked => {
                                     root.popup-id = "apply-changes";
                                     root.popup-title = "Apply Changes?";
                                     root.popup-message = "Do you understand this will lead to SERIOUS consequences...!";
-                                    root.popup-checkboxes = [
-                                        { label: "I agree to the terms of service", required: true, checked: false }
-                                    ];
+                                    root.popup-checkboxes = [{ label: "I agree to the terms of service", required: true, checked: false }];
                                     root.popup-confirm-delay = 5;
                                     root.popup-required-count = 1;
                                     root.popup-active = true;
@@ -272,7 +295,16 @@ export component MainWindow inherits Window {
                             border-color: Palette.glass-border;
                             animate background { duration: 100ms; }
 
-                            Text { text: "Second poupup"; color: #ffffff; font-family: "Segoe UI"; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            Text {
+                                text: "Second poupup";
+                                color: #ffffff;
+                                font-family: "Segoe UI";
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
                             ta-dialog0 := TouchArea {
                                 clicked => {
                                     root.popup-id = "second-popup";
@@ -285,7 +317,6 @@ export component MainWindow inherits Window {
                     }
                 }
             }
-
         }
 
         // Icon Row
@@ -334,9 +365,7 @@ export component MainWindow inherits Window {
                                 root.popup-title = "Join Discord?";
                                 root.popup-message = "Join our Discord server to keep in touch with future updates, sneakpeeks and ask questions!";
                                 root.popup-required-count = 1;
-                                root.popup-checkboxes = [
-                                    { label: "I agree that I am over 13 years old.", required: true, checked: false }
-                                ];
+                                root.popup-checkboxes = [{ label: "I agree that I am over 13 years old.", required: true, checked: false }];
                                 root.popup-active = true;
                             }
                         }
@@ -347,7 +376,7 @@ export component MainWindow inherits Window {
                         IconButton {
                             source: @image-url("../production/icons/gamebanana.png");
                             icon-size: 28px;
-                            clicked => { 
+                            clicked => {
                                 root.popup-id = "gamebanana-popup";
                                 root.popup-title = "Open GameBanana?";
                                 root.popup-message = "GameBanana is our mod hosting site partner where you can get mods to use on the game.";
@@ -371,7 +400,9 @@ export component MainWindow inherits Window {
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
-                mod-manager-ta := TouchArea {clicked => { root.bottom-icon-clicked(1) }}
+                mod-manager-ta := TouchArea {
+                    clicked => { root.bottom-icon-clicked(1) }
+                }
 
                 mod-manager-inner := HorizontalLayout {
                     x: 20px;
@@ -432,11 +463,11 @@ export component MainWindow inherits Window {
                     launch-ta := TouchArea {
                         enabled: !root.launch-disabled;
                         clicked => { root.launch-clicked(); }
-                    } 
+                    }
 
                     HorizontalLayout {
                         padding-left: 20px;
-                        padding-right: 12px; 
+                        padding-right: 12px;
                         spacing: 12px;
                         alignment: start;
 
@@ -491,7 +522,7 @@ export component MainWindow inherits Window {
 
                     menu-ta := TouchArea {
                         pointer-event(e) => {
-                            if (e.kind == PointerEventKind.move) {root.launch-menu-open = true;}
+                            if (e.kind == PointerEventKind.move) { root.launch-menu-open = true; }
                         }
                     }
 
@@ -519,8 +550,9 @@ export component MainWindow inherits Window {
         close-timer := Timer {
             interval: 250ms;
             running: root.launch-menu-open && !menu-ta.has-hover && !root.launch-menu-hover;
-            triggered => { 
-                root.launch-menu-open = false; root.launch-menu-hover = false;
+            triggered => {
+                root.launch-menu-open = false;
+                root.launch-menu-hover = false;
             }
         }
 
@@ -560,12 +592,12 @@ export component MainWindow inherits Window {
 
                 property <bool> card-hover: card-padding-ta.has-hover || ri0.has-hover || ri1.has-hover || ri2.has-hover || ri4.has-hover;
 
-                changed card-hover => {root.launch-menu-hover = self.card-hover || gap-filler-ta.has-hover || menu-ta.has-hover}
+                changed card-hover => { root.launch-menu-hover = self.card-hover || gap-filler-ta.has-hover || menu-ta.has-hover }
 
                 card-padding-ta := TouchArea {
                     width: 100%;
                     height: 100%;
-                    changed has-hover => {root.launch-menu-hover = launch-card.card-hover || gap-filler-ta.has-hover || menu-ta.has-hover}
+                    changed has-hover => { root.launch-menu-hover = launch-card.card-hover || gap-filler-ta.has-hover || menu-ta.has-hover }
                 }
 
                 // Launch Menu Popup
@@ -578,89 +610,157 @@ export component MainWindow inherits Window {
                     spacing: 1px;
 
                     Rectangle {
-                        height: 40px; width: parent.width; border-radius: 6px;
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
                         background: ri0.has-hover ? #ffffff12 : transparent;
                         animate background { duration: 80ms; }
-                        ri0 := TouchArea { clicked => { root.launch-menu-action(0); root.launch-menu-open = false; } }
+                        ri0 := TouchArea {
+                            clicked => { root.launch-menu-action(0); root.launch-menu-open = false; }
+                        }
+
                         HorizontalLayout {
-                            padding-left: 16px; padding-right: 16px; spacing: 12px; alignment: start;
-                            VerticalLayout { alignment: center;
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
                                 Image {
                                     source: @image-url("../production/icons/wrench.png");
-                                    width: 16px; height: 16px;
+                                    width: 16px;
+                                    height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
                                     colorize: #ffffffaa;
                                 }
                             }
-                            VerticalLayout { alignment: center;
-                                Text { text: "Repair Aurora"; color: #ffffffdd; font-size: 13px; font-weight: 500; }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Repair Aurora";
+                                    color: #ffffffdd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
                             }
                         }
                     }
 
                     Rectangle {
-                        height: 40px; width: parent.width; border-radius: 6px;
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
                         background: ri1.has-hover ? #ffffff12 : transparent;
                         animate background { duration: 80ms; }
-                        ri1 := TouchArea { clicked => { root.launch-menu-action(1); root.launch-menu-open = false; } }
+                        ri1 := TouchArea {
+                            clicked => { root.launch-menu-action(1); root.launch-menu-open = false; }
+                        }
+
                         HorizontalLayout {
-                            padding-left: 16px; padding-right: 16px; spacing: 12px; alignment: start;
-                            VerticalLayout { alignment: center;
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
                                 Image {
                                     source: @image-url("../production/icons/refresh.png");
-                                    width: 16px; height: 16px;
+                                    width: 16px;
+                                    height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
                                     colorize: #ffffffaa;
                                 }
                             }
-                            VerticalLayout { alignment: center;
-                                Text { text: "Check For Updates"; color: #ffffffdd; font-size: 13px; font-weight: 500; }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Check For Updates";
+                                    color: #ffffffdd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
                             }
                         }
                     }
 
                     Rectangle {
-                        height: 40px; width: parent.width; border-radius: 6px;
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
                         background: ri2.has-hover ? #ffffff12 : transparent;
                         animate background { duration: 80ms; }
-                        ri2 := TouchArea { clicked => { root.launch-menu-action(2); root.launch-menu-open = false; } }
+                        ri2 := TouchArea {
+                            clicked => { root.launch-menu-action(2); root.launch-menu-open = false; }
+                        }
+
                         HorizontalLayout {
-                            padding-left: 16px; padding-right: 16px; spacing: 12px; alignment: start;
-                            VerticalLayout { alignment: center;
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
                                 Image {
                                     source: @image-url("../production/icons/monitor.png");
-                                    width: 16px; height: 16px;
+                                    width: 16px;
+                                    height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
                                     colorize: #ffffffaa;
                                 }
                             }
-                            VerticalLayout { alignment: center;
-                                Text { text: "Add Desktop Shortcut"; color: #ffffffdd; font-size: 13px; font-weight: 500; }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Add Desktop Shortcut";
+                                    color: #ffffffdd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
                             }
                         }
                     }
 
                     Rectangle {
-                        height: 40px; width: parent.width; border-radius: 6px;
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
                         background: ri4.has-hover ? #ffffff12 : transparent;
                         animate background { duration: 80ms; }
-                        ri4 := TouchArea { clicked => { root.launch-menu-action(4); root.launch-menu-open = false; } }
+                        ri4 := TouchArea {
+                            clicked => { root.launch-menu-action(4); root.launch-menu-open = false; }
+                        }
+
                         HorizontalLayout {
-                            padding-left: 16px; padding-right: 16px; spacing: 12px; alignment: start;
-                            VerticalLayout { alignment: center;
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
                                 Image {
                                     source: @image-url("../production/icons/folder.png");
-                                    width: 16px; height: 16px;
+                                    width: 16px;
+                                    height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
                                     colorize: #ffffffaa;
                                 }
                             }
-                            VerticalLayout { alignment: center;
-                                Text { text: "Open Mods Folder"; color: #ffffffdd; font-size: 13px; font-weight: 500; }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Open Mods Folder";
+                                    color: #ffffffdd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
                             }
                         }
                     }
@@ -675,7 +775,7 @@ export component MainWindow inherits Window {
             border-color: Palette.glass-border;
         }
 
-        if (root.show-settings || root.show-menu) : Rectangle {
+        if (root.show-settings || root.show-menu): Rectangle {
             width: 100%;
             height: parent.height - Palette.topbar-height;
             y: Palette.topbar-height + 1px;
@@ -686,14 +786,13 @@ export component MainWindow inherits Window {
             }
         }
 
-        if (root.show-settings) : SettingsPage {
+        if (root.show-settings): SettingsPage {
             x: 20px;
             y: Palette.topbar-height + 15px;
             width: parent.width - 40px;
             height: parent.height - (Palette.topbar-height + 35px);
             close-settings => { root.show-settings = false; }
 
-            // Settings properties bound to MainWindow so Rust can access them
             language-index <=> root.language-index;
             interface-minimization <=> root.interface-minimization;
             discord-rpc <=> root.discord-rpc;
@@ -702,7 +801,6 @@ export component MainWindow inherits Window {
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
 
-            // Callbacks forwarded up to MainWindow
             browse-game-directory => { root.browse-game-directory(); }
             export-telemetry => { root.export-telemetry(); }
             language-index-changed(i) => { root.language-index-changed(i); }
@@ -713,7 +811,7 @@ export component MainWindow inherits Window {
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
         }
 
-        if root.show-menu : MenuPage {
+        if root.show-menu: MenuPage {
             x: 0px;
             y: Palette.topbar-height;
             width: parent.width;

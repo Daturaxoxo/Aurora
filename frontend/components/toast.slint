@@ -14,9 +14,16 @@ export component WindowToast inherits Rectangle {
     opacity: 0.0;
     visible: self.opacity > 0.001;
 
-    animate opacity { duration: 200ms; easing: ease-in-out; }
+    animate opacity {
+        duration: 200ms;
+        easing: ease-in-out;
+    }
 
-    states [visible when root.showing : {opacity: 1.0;}]
+    states [
+        visible when root.showing: {
+            opacity: 1.0;
+        }
+    ]
 
     changed active => {
         if (root.active) {
@@ -82,7 +89,7 @@ export component WindowToast inherits Rectangle {
             HorizontalLayout {
                 spacing: 12px;
                 horizontal-stretch: 1;
-                
+
                 VerticalLayout {
                     alignment: center;
                     Image {
@@ -124,7 +131,10 @@ export component WindowToast inherits Rectangle {
                         opacity: ta.has-hover ? 1.0 : 0.7;
                         animate opacity { duration: 100ms; }
                     }
-                    ta := TouchArea { clicked => { root.close(); } }
+
+                    ta := TouchArea {
+                        clicked => { root.close(); }
+                    }
                 }
             }
         }

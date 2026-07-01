@@ -4,8 +4,11 @@ use std::path::Path;
 
 fn main() {
     let pairs = [
-        ("../../production/assets", "../../production/assets/processed"),
-        ("../../production/icons",  "../../production/icons/processed"),
+        (
+            "../../production/assets",
+            "../../production/assets/processed",
+        ),
+        ("../../production/icons", "../../production/icons/processed"),
     ];
 
     for (source, processed) in pairs.map(|(s, p)| (Path::new(s), Path::new(p))) {
@@ -22,6 +25,7 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         let mut res = winresource::WindowsResource::new();
+        res.set_icon("../../production/icons/logo.ico");
         res.set_manifest_file("main.manifest");
         res.compile().unwrap();
     }

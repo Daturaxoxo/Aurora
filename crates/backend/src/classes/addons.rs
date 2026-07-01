@@ -1,7 +1,7 @@
+use log::error;
 use std::env;
 use std::fs::{self};
 use std::path::{Path, PathBuf};
-use log::error;
 
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
@@ -70,14 +70,19 @@ pub fn strip_section(text: &str) -> String {
     let mut in_section = false;
 
     for line in text.lines() {
-        if line.trim().eq_ignore_ascii_case("[/Script/Engine.UserInterfaceSettings]") {
+        if line
+            .trim()
+            .eq_ignore_ascii_case("[/Script/Engine.UserInterfaceSettings]")
+        {
             in_section = true;
             continue;
         }
         if in_section {
             if line.trim_start().starts_with('[') {
                 in_section = false;
-            } else {continue}
+            } else {
+                continue;
+            }
         }
         result.push(line);
     }
@@ -87,7 +92,9 @@ pub fn strip_section(text: &str) -> String {
     for line in &result {
         if line.trim().is_empty() {
             blank_count += 1;
-            if blank_count <= 2 {out.push('\n')}
+            if blank_count <= 2 {
+                out.push('\n');
+            }
         } else {
             blank_count = 0;
             out.push_str(line);
@@ -100,9 +107,13 @@ pub fn strip_section(text: &str) -> String {
 
 pub fn get_current_scale() -> f64 {
     let path = get_ini_path();
-    if !path.exists() {return 1.0};
+    if !path.exists() {
+        return 1.0;
+    }
 
-    let Ok(text) = fs::read_to_string(&path) else {return 1.0};
+    let Ok(text) = fs::read_to_string(&path) else {
+        return 1.0;
+    };
 
     let mut in_section = false;
     for line in text.lines() {
@@ -112,7 +123,9 @@ pub fn get_current_scale() -> f64 {
             continue;
         }
         if in_section {
-            if trimmed.starts_with('[') {break}
+            if trimmed.starts_with('[') {
+                break;
+            }
             if let Some(rest) = trimmed.split_once('=') {
                 if rest.0.trim().eq_ignore_ascii_case("ApplicationScale") {
                     return rest.1.trim().parse().unwrap_or(1.0);

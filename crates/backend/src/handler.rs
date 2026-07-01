@@ -1,12 +1,29 @@
-use std::sync::mpsc;
-use anyhow::{Result};
-use log::{error, info};
 use crate::engine::AuroraEngine;
+use anyhow::{anyhow, Result};
+use log::{error, info};
 use shared::pathfind::get_game_directory;
+use std::sync::{mpsc, Mutex, OnceLock};
+
+pub static ENGINE_CMD_TX: OnceLock<Mutex<mpsc::Sender<EngineCommand>>> = OnceLock::new();
+
+pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
+    // Check if the engine was started (OnceLock is populated)
+    let tx_mutex = ENGINE_CMD_TX
+        .get()
+        .ok_or_else(|| anyhow!("Engine has not been started yet!"))?;
+
+    // Lock the mutex and clone the sender to return it
+    let tx = tx_mutex
+        .lock()
+        .map_err(|_| anyhow!("Failed to lock the Engine TX mutex"))?;
+
+    Ok(tx.clone())
+}
 
 pub enum EngineCommand {
     Launch,
     Sanitize,
+    Update,
 }
 
 pub enum EngineEvent {
@@ -26,11 +43,17 @@ impl EngineHandler {
         let (cmd_tx, cmd_rx) = mpsc::channel::<EngineCommand>();
         let (evt_tx, evt_rx) = mpsc::channel::<EngineEvent>();
 
+        let _ = ENGINE_CMD_TX.set(Mutex::new(cmd_tx.clone()));
+
         std::thread::spawn(move || {
             let game_path = match get_game_directory() {
                 Ok(p) => p,
                 Err(e) => {
-                    evt_tx.send(EngineEvent::LaunchFailed(format!("Game path not found: {e}"))).ok();
+                    evt_tx
+                        .send(EngineEvent::LaunchFailed(format!(
+                            "Game path not found: {e}"
+                        )))
+                        .ok();
                     return;
                 }
             };
@@ -62,6 +85,11 @@ impl EngineHandler {
                     EngineCommand::Sanitize => {
                         if let Err(e) = engine.sanitize(true) {
                             error!("Sanitize failed: {e}");
+                        }
+                    }
+                    EngineCommand::Update => {
+                        if let Err(e) = engine.reinit(&game_path) {
+                            error!("Update failed: {e}");
                         }
                     }
                 }
