@@ -1,10 +1,10 @@
-#[allow(dead_code)]
 use crate::MainWindow;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
 struct LangEntry {
     name: String,
     code: String,
@@ -170,11 +170,6 @@ impl SettingsHandler {
         info!("[Settings] bind() complete shortcut all callbacks registered");
     }
 
-    // ------------------------------------------------------------------ //
-    // Helpers
-    // ------------------------------------------------------------------ //
-
-    /// `0 → "en"`, `1 → "tr"`, etc. Falls back to `"en"` for out-of-range.
     pub fn index_to_code(index: i32) -> &'static str {
         let result = LANGUAGES
             .get(index as usize)
@@ -188,7 +183,6 @@ impl SettingsHandler {
         result
     }
 
-    /// `"tr" → 1`, returns `None` if the code is unknown.
     pub fn code_to_index(code: &str) -> Option<i32> {
         let result = LANGUAGES
             .iter()

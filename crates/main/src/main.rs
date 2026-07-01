@@ -19,8 +19,6 @@ use classes::pages::settings::SettingsHandler;
 
 use bridge::Bridge;
 
-use crate::classes::settings::SettingsHandler;
-
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
         panic!("Logger failed to initialize: {e}");
