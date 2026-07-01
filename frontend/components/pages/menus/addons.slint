@@ -1,0 +1,403 @@
+import { Palette } from "../../../global.slint";
+
+export struct AddonItem {
+    name:        string,
+    author:      string,
+    version:     string,
+    description: string,
+    link:        string,
+    image:       image,
+    installed:   bool,
+    enabled:     bool,
+}
+
+component AddonCard inherits Rectangle {
+    in property <AddonItem> item;
+    in property <int>       index;
+
+    callback action(int);
+    callback open-link(int);
+
+    height: 310px;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+    background: #ffffff08;
+    clip: true;
+
+    property <brush> action-color:
+        !root.item.installed   ? #E8A020 :
+         root.item.enabled     ? #ee4937 :
+                                 #36e780;
+
+    property <string> action-label:
+        !root.item.installed   ? "INSTALL" :
+         root.item.enabled     ? "DISABLE" :
+                                 "ENABLE";
+
+    Rectangle {
+        x: 0; y: 0;
+        width: root.width;
+        height: 160px;
+        clip: true;
+        background: #000000;
+
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.item.image;
+            image-fit: cover;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            width: 100%;
+            height: 40px;
+            y: 120px;
+            background: @linear-gradient(180deg, #00000000 0%, #00000066 100%);
+        }
+
+        Rectangle {
+            x: root.width - self.width - 8px;
+            y: 8px;
+            width: version-text.preferred-width + 14px;
+            height: 22px;
+            border-radius: 5px;
+            background: #000000aa;
+            border-width: 1px;
+            border-color: #ffffff18;
+
+            version-text := Text {
+                x: 7px;
+                y: (parent.height - self.preferred-height) / 2;
+                text: root.item.version;
+                color: #ffffffcc;
+                font-size: 10px;
+                font-weight: 600;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0; y: 160px;
+        width: root.width;
+        height: root.height - 160px - 48px;
+        clip: true;
+
+        VerticalLayout {
+            x: 14px;
+            y: 14px;
+            width: parent.width - 28px;
+            spacing: 0px;
+
+            Text {
+                text: root.item.name;
+                color: Palette.text-primary;
+                font-size: 14px;
+                font-weight: 700;
+                height: 20px;
+                overflow: elide;
+                vertical-alignment: top;
+            }
+
+            Text {
+                text: "by " + root.item.author;
+                color: Palette.text-secondary;
+                font-size: 11px;
+                font-weight: 500;
+                height: 16px;
+                vertical-alignment: top;
+            }
+
+            Rectangle { height: 8px; }
+
+            Text {
+                text: root.item.description;
+                color: Palette.text-secondary;
+                font-size: 12px;
+                font-weight: 400;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0;
+        y: root.height - 48px;
+        width: root.width;
+        height: 48px;
+        action-btn := Rectangle {
+            x: 0; y: 0;
+            width: parent.width - 53px;
+            height: 48px;
+            background: action-ta.has-hover
+                ? root.action-color.brighter(0.15)
+                : root.action-color;
+            animate background { duration: 120ms; }
+
+            action-ta := TouchArea {
+                clicked => { root.action(root.index); }
+            }
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: 8px;
+
+                if !root.item.installed: Image {
+                    source: @image-url("../../../../production/icons/download.png");
+                    width: 16px;
+                    height: 16px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    colorize: Palette.text-primary;
+                    opacity: 0.9;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                Text {
+                    text: root.action-label;
+                    color: Palette.text-primary;
+                    font-size: 12px;
+                    font-weight: 700;
+                    letter-spacing: 1.2px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Divider
+        Rectangle {
+            x: parent.width - 53px;
+            y: 0;
+            width: 1px;
+            height: 48px;
+            background: #00000033;
+        }
+
+        gb-btn := Rectangle {
+            x: parent.width - 52px;
+            y: 0;
+            width: 52px;
+            height: 48px;
+            background: gb-ta.has-hover
+                ? root.action-color.brighter(0.08)
+                : root.action-color.darker(0.08);
+            animate background { duration: 120ms; }
+
+            gb-ta := TouchArea {
+                clicked => { root.open-link(root.index); }
+            }
+
+            Image {
+                source: @image-url("../../../../production/icons/gamebanana.png");
+                width: 22px;
+                height: 22px;
+                image-rendering: smooth;
+                image-fit: contain;
+                colorize: Palette.text-primary;
+                opacity: gb-ta.has-hover ? 1.0 : 0.85;
+                animate opacity { duration: 120ms; }
+            }
+        }
+    }
+}
+
+export component AddonsPage inherits Rectangle {
+    callback close-addons();
+    callback addon-action(int);
+    callback addon-open-link(int);
+    in property <[AddonItem]> addons: [];
+    background: #00000066;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.close-addons(); }
+    }
+
+    panel := Rectangle {
+        width: min(parent.width - 80px, 900px);
+        height: parent.height - 60px;
+        x: (parent.width  - self.width)  / 2;
+        y: (parent.height - self.height) / 2;
+        background: Palette.glass-background;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+        drop-shadow-color: #00000099;
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 12px;
+        clip: true;
+
+        TouchArea { width: 100%; height: 100%; }
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+
+            // Header
+            HorizontalLayout {
+                alignment: space-between;
+                height: 32px;
+
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+
+                        Image {
+                            source: @image-url("../../../../production/icons/menu/addons.png");
+                            width: 20px;
+                            height: 20px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: Palette.text-primary;
+                        }
+
+                        Text {
+                            text: "Addon Manager";
+                            color: Palette.text-primary;
+                            font-size: 17px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+
+                        Rectangle {
+                            width: count-text.preferred-width + 14px;
+                            height: 22px;
+                            border-radius: 5px;
+                            background: #ffffff14;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+
+                            count-text := Text {
+                                x: 7px;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: root.addons.length + " addons";
+                                color: Palette.text-primary;
+                                font-size: 11px;
+                                font-weight: 600;
+                            }
+                        }
+                    }
+                }
+
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../production/icons/close.png");
+                        width: 22px;
+                        height: 22px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    close-ta := TouchArea {
+                        clicked => { root.close-addons(); }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Palette.glass-border;
+            }
+
+            // Grid
+            Rectangle {
+                vertical-stretch: 1;
+                clip: true;
+
+                if root.addons.length == 0: VerticalLayout {
+                    alignment: center;
+                    spacing: 12px;
+                    width: 100%;
+                    height: 100%;
+
+                    Image {
+                        source: @image-url("../../../../production/icons/menu/addons.png");
+                        width: 48px;
+                        height: 48px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        colorize: Palette.text-primary;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "No Addons Found";
+                        color: Palette.text-primary;
+                        font-size: 15px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "This is either caused because of a corrupted installation, or because Addon Manager did not work.";
+                        color: Palette.text-secondary;
+                        font-size: 12px;
+                        font-weight: 400;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                if root.addons.length > 0: Flickable {
+                    width: 100%;
+                    height: 100%;
+                    viewport-width: self.width;
+                    viewport-height: (Math.ceil(root.addons.length / 2) * (310px + 16px)) - 16px + 24px;
+
+                    HorizontalLayout {
+                        y: 8px;
+                        width: 100%;
+                        height: self.preferred-height;
+                        spacing: 16px;
+                        alignment: start;
+
+                        // Left Column
+                        VerticalLayout {
+                            width: (parent.width - 16px) / 2;
+                            spacing: 16px;
+
+                            for i in [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]: AddonCard {
+                                visible: i < root.addons.length;
+                                width: 100%;
+                                height: 310px;
+                                item: root.addons[i];
+                                index: i;
+                                action(idx)    => { root.addon-action(idx); }
+                                open-link(idx) => { root.addon-open-link(idx); }
+                            }
+                        }
+
+                        // Right Column
+                        VerticalLayout {
+                            width: (parent.width - 16px) / 2;
+                            spacing: 16px;
+
+                            for i in [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]: AddonCard {
+                                visible: i < root.addons.length;
+                                width: 100%;
+                                height: 310px;
+                                item: root.addons[i];
+                                index: i;
+                                action(idx)    => { root.addon-action(idx); }
+                                open-link(idx) => { root.addon-open-link(idx); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

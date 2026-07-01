@@ -26,6 +26,9 @@ serde = { workspace = true }
 dirs = { workspace = true }
 serde_json = { workspace = true }
 
+reqwest = { version = "0.12", features = ["blocking"] }
+image = "0.25"
+
 [build-dependencies]
 slint-build = { version = "1.16.1" }
 image = "0.25"

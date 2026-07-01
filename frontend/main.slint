@@ -3,6 +3,7 @@ import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
+import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 
 component IconButton inherits Rectangle {
     in property <image> source;
@@ -53,6 +54,7 @@ export component MainWindow inherits Window {
     // Page Properties
     in-out property <bool> show-settings: false;
     in-out property <bool> show-menu: false;
+    in-out property <bool> show-addons: false;
 
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
@@ -101,6 +103,11 @@ export component MainWindow inherits Window {
     in-out property <[CheckboxItem]> popup-checkboxes: [];
     callback popup-confirm-callback(string);
     callback popup-cancel-callback(string);
+
+    // Addons Page Properties
+    in-out property <[AddonItem]> addons: [];
+    callback addon-action(int);
+    callback addon-open-link(int);
 
     // [HELPER FUNCTIONS]
 
@@ -817,7 +824,21 @@ export component MainWindow inherits Window {
             width: parent.width;
             height: parent.height - Palette.topbar-height;
             close-menu => { root.show-menu = false; }
-            menu-item-clicked(i) => { root.show-menu = false; }
+            menu-item-clicked(i) => { 
+                root.show-menu = false;
+                if (i == 4) { root.show-addons = true; }
+            }
+        }
+
+        if root.show-addons: AddonsPage {
+            x: 0px;
+            y: Palette.topbar-height;
+            width: parent.width;
+            height: parent.height - Palette.topbar-height;
+            addons <=> root.addons;
+            close-addons => { root.show-addons = false; }
+            addon-action(i) => { root.addon-action(i); }
+            addon-open-link(i) => { root.addon-open-link(i); }
         }
 
         toast-widget := WindowToast {
