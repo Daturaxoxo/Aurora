@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+use log::*;
+
 use serde_json::{json, Map, Value};
 
 pub const LANGS: &[(&str, &str)] = &[
@@ -44,9 +46,11 @@ pub mod key {
     pub const UI_MINIMIZATION: &str = "ui_min";
     pub const SHOW_NSFW_MODS: &str = "show_nsfw_mods";
     pub const APP_LOCATION: &str = "app_location";
+    pub const CUSTOM_ADDONS: &str = "custom_addons";
+    pub const CUSTOM_ADDONS_TOGGLED: &str = "custom_addons_toggled";
 }
 
-fn default_value(k: &str) -> Value {
+pub fn default_value(k: &str) -> Value {
     match k {
         key::CENSORSHIP_REMOVE | key::HIDE_UID | key::DISCORD_RPC | key::UI_MINIMIZATION => {
             json!(true)
@@ -56,11 +60,14 @@ fn default_value(k: &str) -> Value {
         | key::NO_DRIVE_LINE
         | key::HIDE_NOTIF_DOTS
         | key::EXTENSIVE_LOGGING
-        | key::SHOW_NSFW_MODS => {
+        | key::SHOW_NSFW_MODS
+        | key::CUSTOM_ADDONS_TOGGLED => {
             json!(false)
         }
 
         key::GAME_PATH | key::APP_LOCATION => json!(""),
+
+        key::CUSTOM_ADDONS => json!([]),
 
         key::LANGUAGE => json!("en"),
 
@@ -74,15 +81,20 @@ fn default_value(k: &str) -> Value {
     }
 }
 
-fn config_file_path() -> PathBuf {
-    let config_path = dirs::config_dir()
-        .expect("Could not resolve config directory")
+pub fn get_userdata_path() -> PathBuf {
+    dirs::data_local_dir()
+        .expect("Could not resolve local data directory")
         .join("Aurora")
         .join("UserData")
-        .join("config.json");
+}
+
+fn config_file_path() -> PathBuf {
+    let config_path = get_userdata_path().join("config.json");
 
     if !config_path.parent().unwrap().exists() {
-        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        if let Err(e) = fs::create_dir_all(config_path.parent().unwrap()) {
+            error!("Failed to create config directory: {e}");
+        }
     }
 
     config_path

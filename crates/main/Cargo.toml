@@ -9,6 +9,8 @@ slint = { version = "1.17", default-features = false, features = [
     "backend-winit",
     "compat-1-2",
 ] }
+# TODO: Needs testing on linux to see what features it needs.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 display-info = "0.5"

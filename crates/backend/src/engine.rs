@@ -242,6 +242,10 @@ impl AuroraEngine {
                 .cloned()
                 .map(|t| (t.config_key, t.base_name.into())),
         );
+        all_targets.push((
+            "AuroraThirdParty".to_string(),
+            self.win64.join("AuroraThirdParty"),
+        ));
         for t in all_targets {
             let key = t.0;
             let path = t.1;
@@ -254,12 +258,21 @@ impl AuroraEngine {
                 let mut perms = fs::metadata(&path)?.permissions();
                 #[allow(clippy::permissions_set_readonly_false)]
                 perms.set_readonly(false);
-                fs::set_permissions(&path, perms)?;
-                fs::remove_file(&path)?;
-                info!("Removed {} ({})", key, path.display());
+                if let Err(e) = fs::set_permissions(&path, perms) {
+                    error!("Failed to set permissions for {}: {}", path.display(), e);
+                    continue;
+                }
+                if let Err(e) = fs::remove_file(&path) {
+                    error!("Failed to remove {}: {}", path.display(), e);
+                } else {
+                    info!("Removed {} ({})", key, path.display());
+                }
             } else if path.is_dir() || path.is_symlink() {
-                fs::remove_dir_all(&path)?;
-                info!("Removed {} ({})", key, path.display());
+                if let Err(e) = fs::remove_dir_all(&path) {
+                    error!("Failed to remove {}: {}", path.display(), e);
+                } else {
+                    info!("Removed {} ({})", key, path.display());
+                }
             }
         }
 
@@ -336,7 +349,7 @@ impl AuroraEngine {
         Ok(())
     }
 
-    pub fn inject(&mut self) -> Result<()> {
+    pub fn inject(&mut self, custom_files: Option<Vec<PathBuf>>) -> Result<()> {
         info!("Injecting into NTE...");
         info!("Game path:  {}", self.game_path.display());
         info!("Bin path:   {}", self.bin_path.display());
@@ -377,7 +390,7 @@ impl AuroraEngine {
                     .ok_or_else(|| anyhow!("Failed to get file name"))?,
             );
             ensure_dir(
-                dst_path
+                &dst_path
                     .parent()
                     .ok_or_else(|| anyhow!("Failed to get parent"))?
                     .to_path_buf(),
@@ -486,6 +499,34 @@ impl AuroraEngine {
         }
 
         self.last_addon_warnings = addon_warnings;
+
+        if let Some(custom_files) = custom_files {
+            let dst_path = self.win64.join("AuroraThirdParty");
+            if !dst_path.exists() {
+                fs::create_dir(&dst_path)?;
+            }
+
+            for file in custom_files {
+                info!(
+                    "Copying custom file {} to {}",
+                    file.display(),
+                    dst_path.display()
+                );
+                if let Err(e) = fs::copy(
+                    &file,
+                    dst_path.join(
+                        file.file_name()
+                            .ok_or_else(|| anyhow!("Failed to get file name"))?,
+                    ),
+                ) {
+                    error!("Failed to copy custom file {}: {e}", file.display());
+                    return Err(anyhow!(
+                        "Failed to copy custom file {}: {e}",
+                        file.display()
+                    ));
+                }
+            }
+        }
 
         let launcher_exe = self.game_path.join(self.gpaths.launcher_process);
         info!("Launching NTE: {}", launcher_exe.display());
@@ -627,7 +668,9 @@ impl AuroraEngine {
         }
 
         info!("NTE was closed, initializing clean-up process...");
-        self.sanitize(false)?;
+        if let Err(e) = self.sanitize(false) {
+            return Err(anyhow!("Failed to sanitize: {e}"));
+        }
 
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut needs_kill = false;
@@ -653,7 +696,10 @@ impl AuroraEngine {
 
         if needs_kill {
             warn!("Processes did not close within 5 seconds. Force killing...");
-            self.kill_nte_processes()?;
+            if let Err(e) = self.kill_nte_processes() {
+                error!("Failed to kill NTE processes: {e}");
+                return Err(anyhow!("Failed to kill NTE processes: {e}"));
+            }
         }
 
         Ok(())

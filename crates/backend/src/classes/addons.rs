@@ -45,6 +45,7 @@ impl PakAddon {
 
 #[must_use]
 pub fn get_ini_path() -> PathBuf {
+    // TODO: Make compatible with linux
     let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
     PathBuf::from(local_app_data).join("HT/Saved_Global/Config/Windows/Engine.ini")
 }
