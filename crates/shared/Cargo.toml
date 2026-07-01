@@ -4,8 +4,7 @@ version = "2.0.0"
 edition = "2021"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+
 env_logger = { version = "0.11", default-features = false }
 env_filter = { version = "2.0.0", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
@@ -23,6 +22,8 @@ rayon = { workspace = true }
 jwalk = { workspace = true }
 log = { workspace = true }
 dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

@@ -7,7 +7,9 @@ edition = "2021"
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 fastrand = "2.4.1"
 discord-rich-presence = "1.1"
+
 shared = { path = "../shared" }
+
 log = { workspace = true }
 anyhow = { workspace = true }
 jwalk = { workspace = true }
