@@ -1,6 +1,9 @@
+use std::path::PathBuf;
+
 use crate::MainWindow;
-use backend::handler::{EngineEvent, EngineHandler};
-use log::error;
+use backend::handler::{EngineCommand, EngineEvent, EngineHandler};
+use log::*;
+use shared::config::{self, key};
 
 pub struct Bridge;
 
@@ -18,7 +21,26 @@ impl Bridge {
         let w_launch = window.clone();
         if let Some(w) = window.upgrade() {
             w.on_launch_clicked(move || {
-                cmd_tx.send(backend::handler::EngineCommand::Launch).ok();
+                if config::get(key::CUSTOM_ADDONS_TOGGLED).as_bool().unwrap() {
+                    let plugin_files = config::get(key::CUSTOM_ADDONS)
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(PathBuf::from)
+                        .collect::<Vec<PathBuf>>();
+
+                    let plugin_files = if plugin_files.is_empty() {
+                        None
+                    } else {
+                        Some(plugin_files)
+                    };
+                    debug!("Launching game with plugins: {plugin_files:?}");
+                    cmd_tx.send(EngineCommand::Launch(plugin_files)).ok();
+                } else {
+                    cmd_tx.send(EngineCommand::Launch(None)).ok();
+                }
+
                 let w_inner = w_launch.clone();
                 slint::invoke_from_event_loop(move || {
                     if let Some(w) = w_inner.upgrade() {

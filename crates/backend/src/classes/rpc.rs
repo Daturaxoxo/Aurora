@@ -71,7 +71,7 @@ impl DiscordRpc {
                             .buttons(get_buttons()),
                     ),
                     RpcCommand::SetInGame => {
-                        let v = vec![1, 2, 3, 4, 5];
+                        let v = [1, 2, 3, 4, 5];
                         let i = fastrand::usize(..v.len());
                         let elem = v[i];
                         client.set_activity(

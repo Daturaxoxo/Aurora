@@ -71,6 +71,7 @@ fn main() -> Result<()> {
             let _ = w.hide();
         }
     });
+
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());

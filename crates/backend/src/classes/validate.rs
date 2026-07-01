@@ -121,9 +121,9 @@ pub fn validate_builtins(
     Ok(res)
 }
 
-pub fn ensure_dir(path: PathBuf) -> Result<()> {
+pub fn ensure_dir(path: &PathBuf) -> Result<()> {
     if path.exists() && !path.is_dir() {
-        fs::remove_file(path.clone())?;
+        fs::remove_file(path)?;
     }
     if !path.exists() {
         fs::create_dir_all(path)?;

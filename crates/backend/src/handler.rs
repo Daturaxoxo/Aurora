@@ -2,7 +2,10 @@ use crate::engine::AuroraEngine;
 use anyhow::{anyhow, Result};
 use log::{error, info};
 use shared::pathfind::get_game_directory;
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::{
+    path::PathBuf,
+    sync::{mpsc, Mutex, OnceLock},
+};
 
 pub static ENGINE_CMD_TX: OnceLock<Mutex<mpsc::Sender<EngineCommand>>> = OnceLock::new();
 
@@ -21,7 +24,7 @@ pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
 }
 
 pub enum EngineCommand {
-    Launch,
+    Launch(Option<Vec<PathBuf>>),
     Sanitize,
     Update,
 }
@@ -70,10 +73,11 @@ impl EngineHandler {
 
             for cmd in cmd_rx {
                 match cmd {
-                    EngineCommand::Launch => {
-                        if let Err(e) = engine.inject() {
+                    EngineCommand::Launch(custom_files) => {
+                        if let Err(e) = engine.inject(custom_files) {
                             error!("Inject failed: {e}");
                             evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
+                            engine.sanitize(false).ok();
                             continue;
                         }
                         evt_tx.send(EngineEvent::LaunchSuccess).ok();
