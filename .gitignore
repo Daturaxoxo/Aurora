@@ -6,6 +6,7 @@ cargo-home/
 .slint-cache/
 
 /production/assets/processed/
+/production/icons/processed/
 /Logs
 
 Thumbs.db

@@ -18,7 +18,6 @@ use classes::toast::ToastHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::pages::addons::AddonsHandler;
 
-
 use bridge::Bridge;
 
 fn main() -> Result<()> {
