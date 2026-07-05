@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import platform
 
 LANG_CODES = {
     "English":                "en",
@@ -20,7 +21,6 @@ LANG_CODES = {
 }
 LANG_NAMES = {v: k for k, v in LANG_CODES.items()}
 
-# Config keys, use these instead of raw strings
 class Key:
     GAME_PATH         = "game_path"
     ENGINE_METHOD     = "engine_method"
@@ -36,6 +36,7 @@ class Key:
     UI_SCALING        = "ui_scaling"
     UI_MINIMIZATION   = "ui_min"
     SHOW_NSFW_MODS    = "show_nsfw_mods"
+    APP_LOCATION      = "app_location"
 
 DEFAULTS = {
     Key.GAME_PATH:         "",
@@ -50,33 +51,43 @@ DEFAULTS = {
     Key.UI_SCALING:        1.0,
     Key.UI_MINIMIZATION:   True,
     Key.SHOW_NSFW_MODS:    False,
-    Key.ENGINE_METHOD:     "0" # [0 = Default (dsound only)], [1 = Alternate (dsound + version0.dll)], [2 = Alternate 2 [dsound + dinput8.dll]]
+    Key.ENGINE_METHOD:     "0",
+    Key.APP_LOCATION:      "",
 }
 
 def get_app_dir():
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
+    if getattr(sys, 'frozen', False): return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-CONFIG_FILE = os.path.join(get_app_dir(), "config.json")
+def get_cache_dir() -> str:
+    if platform.system() == "Windows": base = os.environ.get("APPDATA", os.path.expanduser("~")) # Windows
+    else: base = os.path.join(os.path.expanduser("~"), ".config") # Linux
+    cache_dir = os.path.join(base, "Aurora", "Cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+def get_config_dir() -> str:
+    if platform.system() == "Windows": base = os.environ.get("APPDATA", os.path.expanduser("~")) # Windows
+    else: base = os.path.join(os.path.expanduser("~"), ".config") # Linux
+    config_dir = os.path.join(base, "Aurora", "UserData")
+    os.makedirs(config_dir, exist_ok=True)
+    return config_dir
+
+CONFIG_FILE = os.path.join(get_config_dir(), "config.json")
+CACHE_FILE = os.path.join(get_cache_dir(), "storage.json")
 
 def _load_raw() -> dict:
-    if not os.path.exists(CONFIG_FILE):
-        return {}
+    if not os.path.exists(CONFIG_FILE): return {}
     try:
-        if os.path.getsize(CONFIG_FILE) == 0:
-            return {}
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
+        if os.path.getsize(CONFIG_FILE) == 0: return {}
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except (json.JSONDecodeError, OSError): return {}
 
 def _save_raw(data: dict):
     try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f: 
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except OSError:
-        pass
+    except OSError: pass
 
 def get(key: str):
     return _load_raw().get(key, DEFAULTS.get(key))
@@ -85,3 +96,43 @@ def set(key: str, value):
     data = _load_raw()
     data[key] = value
     _save_raw(data)
+    
+def _load_cache() -> dict:
+    if not os.path.exists(CACHE_FILE): return {}
+    try:
+        if os.path.getsize(CACHE_FILE) == 0: return {}
+        with open(CACHE_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except (json.JSONDecodeError, OSError): return {}
+    
+def _save_cache(data: dict):
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except OSError:
+        pass
+    
+def _migrate_old_config():
+    cache = _load_cache()
+    if cache.get("config_migrated"): return
+
+    old_config = os.path.join(get_app_dir(), "config.json")
+    if os.path.exists(old_config):
+        try:
+            with open(old_config, "r", encoding="utf-8") as f: old_data = json.load(f)
+            existing = _load_raw()
+            merged = {**old_data, **existing}
+            _save_raw(merged)
+            os.remove(old_config)
+        except (json.JSONDecodeError, OSError): pass
+
+    cache["config_migrated"] = True
+    _save_cache(cache)
+
+def update_app_location():
+    if getattr(sys, 'frozen', False):
+        exe_path = os.path.abspath(sys.executable)
+    else:
+        exe_path = os.path.abspath(sys.argv[0])
+    set(Key.APP_LOCATION, exe_path)
+    
+_migrate_old_config()

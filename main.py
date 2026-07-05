@@ -93,7 +93,8 @@ def main():
 
     window.show()
     if not initial_path: QTimer.singleShot(500, window._prompt_drive_search)
-
+    
+    cfg.update_app_location()
     sys.exit(app.exec())
 
 if __name__ == "__main__":

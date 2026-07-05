@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Classes
 class AuroraEngine:
     def __init__(self, path):
-        self.path, self.crr, self.ndl, self.engine_method = Path(path), cfg.get(cfg.Key.CENSORSHIP_REMOVE), cfg.get(cfg.Key.NO_DRIVE_LINE), cfg.get(cfg.Key.ENGINE_METHOD);
+        self.path, self.engine_method = Path(path), cfg.get(cfg.Key.ENGINE_METHOD);
         app_dir = Path(get_app_dir())
         self.bin = app_dir / "Bin"
         self._last_addon_warnings: list[str] = []
@@ -163,6 +163,8 @@ class AuroraEngine:
         logger.info(f"Game path:  {self.path}", extra={'el': True})
         logger.info(f"Bin path:   {self.bin}", extra={'el': True})
         logger.info(f"Mods path:  {self.mod_folder}", extra={'el': True})
+        
+        self.crr, self.ndl, self.engine_method = cfg.get(cfg.Key.CENSORSHIP_REMOVE), cfg.get(cfg.Key.NO_DRIVE_LINE), cfg.get(cfg.Key.ENGINE_METHOD);
 
         req_bin = [
             *[self.bin / dll for dll in self.main_dlls],
