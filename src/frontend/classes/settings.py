@@ -16,6 +16,8 @@ from src.frontend.classes.elements import AnimatedToggle
 from src.backend.helpers import addons
 from src.logger import logger, export_telemetry
 from src.discord_rpc import DiscordRPC
+from src.backend.helpers.steam import remove_steam_wrapper
+from src.frontend.classes.steam import check_steam, WrapperInstallThread, set_cache, get_cache
 
 # SETTINGS ROW
 class SettingRow(QFrame):
@@ -173,7 +175,8 @@ class SettingsOverlay(QFrame):
         self.btn_launcher = QPushButton()
         self.btn_developer = QPushButton()
         self.btn_addons = QPushButton()
-        self._sidebar_btns = [self.btn_general, self.btn_launcher, self.btn_addons, self.btn_developer]
+        self.btn_steam = QPushButton()
+        self._sidebar_btns = [self.btn_general, self.btn_launcher, self.btn_addons, self.btn_developer, self.btn_steam]
 
         for b in self._sidebar_btns:
             b.setObjectName("SidebarBtn")
@@ -192,6 +195,7 @@ class SettingsOverlay(QFrame):
         self.stack.addWidget(self._create_launcher_page())  # 1
         self.stack.addWidget(self._create_addons_page())    # 2
         self.stack.addWidget(self._create_developer_page()) # 3
+        self.stack.addWidget(self._create_steam_page()) # 4
 
         body_layout.addWidget(sidebar)
         body_layout.addWidget(self.stack, 1)
@@ -201,6 +205,7 @@ class SettingsOverlay(QFrame):
         # Connect side buttons
         for i, b in enumerate(self._sidebar_btns): b.clicked.connect(lambda _, idx=i: self._switch_page(idx))
         self._switch_page(0)
+        self.btn_steam.setVisible(False)
 
         Translator.language_changed.connect(self.retranslate_ui)
         self.retranslate_ui()
@@ -218,6 +223,8 @@ class SettingsOverlay(QFrame):
         self.btn_launcher.setText(t("launcher"))
         self.btn_addons.setText(t("addons"))
         self.btn_developer.setText(t("developer"))
+        self.btn_steam.setText("Steam")
+        if hasattr(self, 'steam_page_title'): self.steam_page_title.setText("Steam")
         self.general_page_title.setText(t("general"))
         self.launcher_page_title.setText(t("launcher"))
         self.addons_page_title.setText(t("addons"))
@@ -523,6 +530,7 @@ class SettingsOverlay(QFrame):
             try:
                 engine.reinit(Path(folder))
                 cfg.set(cfg.Key.GAME_PATH, folder)
+                check_steam(main_ui, folder)
             except (FileNotFoundError, ValueError) as e: logger.warning(f"Could not reinitialize engine for new path: {e}")
 
         self._update_bypass_card_visibility()
@@ -598,6 +606,66 @@ class SettingsOverlay(QFrame):
                 f"({addons.ini_path()}). "
                 "Check file permissions."
             )
+
+    # Steam Page
+    def _create_steam_page(self):
+        page, layout = self._make_page()
+
+        self.steam_page_title = QLabel("Steam")
+        self.steam_page_title.setStyleSheet(_PAGE_TITLE_STYLE)
+        layout.addWidget(self.steam_page_title)
+        layout.addSpacing(24)
+
+        layout.addWidget(self._section_label("Wrapper"))
+        layout.addSpacing(10)
+
+        wrapper_enabled = get_cache("modify_steam", False)
+
+        def on_wrapper_toggled(enabled: bool):
+            if enabled:
+                t = WrapperInstallThread()
+
+                def on_ok():
+                    set_cache("modify_steam", True)
+                    ToastNotification(
+                        self.parent().parent(),
+                        "Steam Wrapper enabled.", False, "success"
+                    )
+
+                def on_fail():
+                    self._steam_wrapper_row.toggle.setChecked(False)
+                    ToastNotification(
+                        self.parent().parent(),
+                        "Failed to enable Steam Wrapper.", False, "error"
+                    )
+
+                t.success.connect(on_ok)
+                t.failure.connect(on_fail)
+                self._steam_install_thread = t
+                t.start()
+            else:
+                if remove_steam_wrapper():
+                    set_cache("modify_steam", False)
+                    ToastNotification(
+                        self.parent().parent(),
+                        "Steam Wrapper disabled.", False, "info"
+                    )
+                else:
+                    self._steam_wrapper_row.toggle.setChecked(True)
+                    ToastNotification(
+                        self.parent().parent(),
+                        "Could not restore original launch options.", False, "error"
+                    )
+
+        self._steam_wrapper_row = SettingRow(
+            title="Steam Wrapper",
+            description="When enabled, pressing Play in Steam will open the Aurora wrapper so you can choose to launch with or without mods.",
+            checked=wrapper_enabled,
+            on_toggle=on_wrapper_toggled,
+        )
+        layout.addWidget(self._steam_wrapper_row)
+        layout.addStretch()
+        return page
 
     # Developer Page
     def _create_developer_page(self):

@@ -32,6 +32,7 @@ from src.frontend.classes.faq import FaqOverlay
 from src.frontend.classes.update_overlay import UpdateOverlay
 from src.backend.updater import UpdateChecker
 from src.backend.helpers.validation import BinReinstallThread
+from src.frontend.classes.steam import check_steam
 
 # ENGINE THREAD
 class GameMonitorThread(QThread):
@@ -390,6 +391,7 @@ class AuroraUI(QMainWindow):
                 self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/checkmark.png")))
                 self.btn_launch.setEnabled(True)
                 self.btn_launch.setText(f"    {t('launch')}")
+                check_steam(self, self.current_path)
             else:
                 self.btn_launch.setIcon(QIcon(resource_path("Bin/Assets/cancel.png")))
                 self.btn_launch.setEnabled(False)
@@ -694,7 +696,6 @@ class AuroraUI(QMainWindow):
         WS_MINIMIZEBOX = 0x00020000
         style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
         ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX)
-
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.old_pos = event.globalPosition().toPoint()
