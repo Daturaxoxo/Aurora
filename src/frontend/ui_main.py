@@ -1,6 +1,7 @@
-# ui_main.py
+import sys
 import ctypes
-import ctypes.wintypes
+if sys.platform == "win32":
+    import ctypes.wintypes
 import time
 import webbrowser
 import subprocess
@@ -95,7 +96,7 @@ class AuroraUI(QMainWindow):
         self._W = int(1280 * s)
         self._H = int(720 * s)
 
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowMinimizeButtonHint)
         self.setFixedSize(self._W, self._H)
         self.setStyleSheet(MAIN_STYLE)
         self.setWindowTitle("Aurora Launcher")
@@ -569,6 +570,8 @@ class AuroraUI(QMainWindow):
         self._poll_timer.start(500)  # Default: 500ms
 
     def _get_game_hwnd(self):
+        if sys.platform != "win32":
+            return None
         hwnd_result = [None]
         
         def enum_cb(hwnd, _):
@@ -689,13 +692,7 @@ class AuroraUI(QMainWindow):
             self.engine.sanitize(False)
         self.close()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        hwnd = int(self.winId())
-        GWL_STYLE      = -16
-        WS_MINIMIZEBOX = 0x00020000
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
-        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.old_pos = event.globalPosition().toPoint()

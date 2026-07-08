@@ -1,6 +1,6 @@
 from functools import partial
 from typing import Dict, List, Optional
-import ctypes, json, webbrowser, shutil, os, hashlib, urllib.request
+import sys, ctypes, json, webbrowser, shutil, os, hashlib, urllib.request
 from src.backend.helpers.api import NTEMod, NTEModFile
 from src.utils import bytes_to_human_readable, resource_path
 from pathlib import Path
@@ -15,8 +15,15 @@ from src.frontend.styles import POPUP_STYLE
 from src.logger import logger
 from src.translator import t
 
+def get_user_data_dir() -> Path:
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    else:
+        base = Path.home() / ".config"
+    return base / "Aurora" / "UserData"
+
 def custom_icons_dir() -> Path:
-    d = Path(os.environ["APPDATA"]) / "Aurora" / "UserData" / "icons"
+    d = get_user_data_dir() / "icons"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -32,7 +39,7 @@ def load_icon_map() -> dict:
 def _save_icon_map(mapping: dict): icon_map_path().write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def _get_icon_cache_path(url: str) -> Path:
-    cache_dir = Path(os.environ["APPDATA"]) / "Aurora" / "UserData" / "icon_cache"
+    cache_dir = get_user_data_dir() / "icon_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     ext = url.split("?")[0].rsplit(".", 1)[-1].lower() or "png"
     filename = hashlib.md5(url.encode()).hexdigest() + f".{ext}"
@@ -1023,6 +1030,8 @@ class AuroraOverlayWindow(QWidget):
         self._fade_in()
 
     def _find_game_position(self):
+        if sys.platform != "win32":
+            return 20, 20
         try:
             result = [20, 20]
             def enum_cb(hwnd, _):

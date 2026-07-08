@@ -1,6 +1,6 @@
-import sys, ctypes, traceback
+import sys, traceback
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 from src.frontend.ui_main import AuroraUI
 from src.backend.engine import AuroraEngine
@@ -46,27 +46,32 @@ def check_archive_status():
     except OSError: read_only = True
 
     if in_temp or read_only:
-        ctypes.windll.user32.MessageBoxW(
-            0,
+        msg = (
             "Aurora can not launch because of the following issue:\n\n"
             "Aurora is running inside a compressed archive file.\n\n"
             "Please extract the archive before running.\n"
-            "This is to prevent saving errors, mod loading issues, etc.\n\n",
-            "Aurora - Prelaunch Error",
-            0x10,
+            "This is to prevent saving errors, mod loading issues, etc.\n\n"
         )
+        print("ERROR:", msg, file=sys.stderr)
+        app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.critical(None, "Aurora - Prelaunch Error", msg)
         sys.exit(1)
 
 def handle_exception(exc_type, exc_value, exc_tb):
     error = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    ctypes.windll.user32.MessageBoxW(0, error, "Aurora - Fatal Error", 0x10)
+    print("FATAL ERROR:", error, file=sys.stderr)
+    app = QApplication.instance() or QApplication(sys.argv)
+    from PyQt6.QtWidgets import QMessageBox
+    QMessageBox.critical(None, "Aurora - Fatal Error", error)
     sys.exit(1)
 
 sys.excepthook = handle_exception
 myappid = 'datura.aurora.nte.1000'
-ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 def run_as_admin():
+    if sys.platform != "win32":
+        return True
+    import ctypes
     if ctypes.windll.shell32.IsUserAnAdmin(): return True
     if getattr(sys, 'frozen', False):
         exe = sys.executable
@@ -80,6 +85,7 @@ def run_as_admin():
 
 def main():
     app = QApplication(sys.argv)
+    app.setDesktopFileName(myappid)
     scale = compute_scale()
     saved_path = cfg.get(cfg.Key.GAME_PATH)
     initial_path = saved_path if (saved_path and validate_path(saved_path)) else None

@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from src.mod_manager import ModGroup
 from src.backend.helpers.gamebanana import GameBananaBrowserOverlay, InstallProgressWindow
-from src.utils import get_app_dir, get_mods_path, resource_path
+from src.utils import get_mods_path, resource_path, get_seven_zip_path, hidden_subprocess_kwargs
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, QLineEdit,
@@ -114,9 +114,7 @@ class _BaseInstallZone(QFrame):
     def _install_paths(self, paths: list[str | Path]):
             paths = [Path(p) for p in paths]
             mods_dir = get_mods_path()
-            app_dir = Path(get_app_dir())
-            
-            seven_zip_path = app_dir / "Bin" / "7z.exe"
+            seven_zip_path = get_seven_zip_path()
             
             installed_files = []
 
@@ -133,8 +131,8 @@ class _BaseInstallZone(QFrame):
                         installed_files.append(path.name)
                         
                     elif path.suffix.lower() in (".zip", ".rar", ".7z"):
-                        if not seven_zip_path.exists():
-                            logger.error(f"Error: Extraction tool missing at {seven_zip_path}")
+                        if not seven_zip_path:
+                            logger.error("Error: Extraction tool (7z or 7za) missing.")
                             continue
                             
                         cmd = [
@@ -144,14 +142,13 @@ class _BaseInstallZone(QFrame):
                             f"-o{mods_dir / path.stem}", 
                             "-y"
                         ]
-                        
-                        startupinfo = None
-                        if sys.platform == "win32":
-                            import subprocess
-                            startupinfo = subprocess.STARTUPINFO()
-                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                             
-                        result = subprocess.run(cmd, startupinfo=startupinfo, capture_output=True, text=True)
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            **hidden_subprocess_kwargs(),
+                        )
                         
                         if result.returncode == 0:
                             installed_files.append(path.name)

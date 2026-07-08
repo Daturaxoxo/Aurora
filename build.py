@@ -30,19 +30,26 @@ def run_build():
         "--noconfirm",
         "--onefile",
         "--windowed",
-        f"--icon={ICON_PATH}",
         f"--name={APP_NAME}",
-        "--uac-admin",
-        "--upx-exclude=vcruntime140.dll",
         "--noupx",
         f"--add-data=Bin/Assets{SEP}Bin/Assets",
         f"--add-data=Lang{SEP}Lang",
         f"--add-data=dev/VERSION{SEP}dev",
         "--hidden-import=psutil",
-        "--hidden-import=psutil._pswindows",
         "--python-option=u",
         MAIN_SCRIPT
     ]
+    if os.name == "nt":
+        build_cmd.extend([
+            f"--icon={ICON_PATH}",
+            "--uac-admin",
+            "--upx-exclude=vcruntime140.dll",
+            "--hidden-import=psutil._pswindows",
+        ])
+    else:
+        build_cmd.extend([
+            "--hidden-import=psutil._pslinux",
+        ])
 
     print("Compiling executable...")
     try: subprocess.run(build_cmd, check=True)
@@ -56,15 +63,24 @@ def run_build():
     os.makedirs(os.path.join(DIST_DIR, "Mods"), exist_ok=True)
     os.makedirs(os.path.join(DIST_DIR, "Logs"), exist_ok=True)
 
-    src_exe = f"./dist/{APP_NAME}.exe"
-    dst_exe = os.path.join(DIST_DIR, f"{APP_NAME}.exe")
+    ext = ".exe" if os.name == "nt" else ""
+    src_exe = f"./dist/{APP_NAME}{ext}"
+    dst_exe = os.path.join(DIST_DIR, f"{APP_NAME}{ext}")
     if not os.path.exists(src_exe):
-        print(f"FATAL: Expected EXE not found at {src_exe}. Build may have silently failed.")
+        print(f"FATAL: Expected executable not found at {src_exe}. Build may have silently failed.")
         raise SystemExit(1)
     shutil.move(src_exe, dst_exe)
 
     if os.path.exists("./Bin"):
-        shutil.copytree("./Bin", os.path.join(DIST_DIR, "Bin"), dirs_exist_ok=True, ignore=shutil.ignore_patterns("Assets"))
+        bin_ignore = ["Assets"]
+        if os.name != "nt":
+            bin_ignore.extend(["7z.exe", "7z.dll"])
+        shutil.copytree(
+            "./Bin",
+            os.path.join(DIST_DIR, "Bin"),
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(*bin_ignore),
+        )
 
     zip_name = f"{APP_NAME}_v{VERSION}.zip"
     print(f"Creating archive: {zip_name}")

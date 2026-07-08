@@ -1,9 +1,11 @@
 import json
 import os
+import sys
 import struct
 import time
 import threading
 import uuid
+import socket
 from PyQt6.QtCore import QThread
 from src.logger import logger
 
@@ -13,45 +15,77 @@ OP_CLOSE     = 2
 
 
 def _open_pipe():
-    import ctypes
-    import ctypes.wintypes
+    if sys.platform == "win32":
+        import ctypes
+        import ctypes.wintypes
 
-    for i in range(10):
-        path = f"\\\\.\\pipe\\discord-ipc-{i}"
-        try:
-            handle = ctypes.windll.kernel32.CreateFileW(
-                path,
-                0x40000000 | 0x80000000,  # GENERIC_READ | GENERIC_WRITE
-                0,                         # no sharing
-                None,
-                3,                         # OPEN_EXISTING
-                0,
-                None,
-            ) # thx stack overflow
-            INVALID_HANDLE = ctypes.wintypes.HANDLE(-1).value
-            if handle != INVALID_HANDLE:
-                return handle
-        except Exception:
-            continue
-    raise OSError("Discord IPC pipe not found. Is Discord running?")
+        for i in range(10):
+            path = f"\\\\.\\pipe\\discord-ipc-{i}"
+            try:
+                handle = ctypes.windll.kernel32.CreateFileW(
+                    path,
+                    0x40000000 | 0x80000000,  # GENERIC_READ | GENERIC_WRITE
+                    0,                         # no sharing
+                    None,
+                    3,                         # OPEN_EXISTING
+                    0,
+                    None,
+                ) # thx stack overflow
+                INVALID_HANDLE = ctypes.wintypes.HANDLE(-1).value
+                if handle != INVALID_HANDLE:
+                    return handle
+            except Exception:
+                continue
+        raise OSError("Discord IPC pipe not found. Is Discord running?")
+    else:
+        ipc_dirs = []
+        for env_var in ("XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"):
+            val = os.environ.get(env_var)
+            if val:
+                ipc_dirs.append(val)
+        ipc_dirs.append("/tmp")
+
+        for ipc_dir in ipc_dirs:
+            for i in range(10):
+                path = os.path.join(ipc_dir, f"discord-ipc-{i}")
+                if os.path.exists(path):
+                    try:
+                        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                        sock.connect(path)
+                        return sock
+                    except Exception:
+                        continue
+        raise OSError("Discord IPC socket not found. Is Discord running?")
 
 
 def _read_pipe(handle, size: int) -> bytes:
-    import ctypes
-    buf   = ctypes.create_string_buffer(size)
-    read  = ctypes.c_ulong(0)
-    ok    = ctypes.windll.kernel32.ReadFile(handle, buf, size, ctypes.byref(read), None)
-    if not ok:
-        raise OSError(f"RPC:ReadFile failed (error {ctypes.windll.kernel32.GetLastError()})")
-    return buf.raw[:read.value]
+    if sys.platform == "win32":
+        import ctypes
+        buf   = ctypes.create_string_buffer(size)
+        read  = ctypes.c_ulong(0)
+        ok    = ctypes.windll.kernel32.ReadFile(handle, buf, size, ctypes.byref(read), None)
+        if not ok:
+            raise OSError(f"RPC:ReadFile failed (error {ctypes.windll.kernel32.GetLastError()})")
+        return buf.raw[:read.value]
+    else:
+        data = b""
+        while len(data) < size:
+            chunk = handle.recv(size - len(data))
+            if not chunk:
+                raise OSError("RPC: connection closed by peer")
+            data += chunk
+        return data
 
 
 def _write_pipe(handle, data: bytes):
-    import ctypes
-    written = ctypes.c_ulong(0)
-    ok = ctypes.windll.kernel32.WriteFile(handle, data, len(data), ctypes.byref(written), None)
-    if not ok:
-        raise OSError(f"RPC:WriteFile failed (error {ctypes.windll.kernel32.GetLastError()})")
+    if sys.platform == "win32":
+        import ctypes
+        written = ctypes.c_ulong(0)
+        ok = ctypes.windll.kernel32.WriteFile(handle, data, len(data), ctypes.byref(written), None)
+        if not ok:
+            raise OSError(f"RPC:WriteFile failed (error {ctypes.windll.kernel32.GetLastError()})")
+    else:
+        handle.sendall(data)
 
 
 def _encode(op: int, payload: dict) -> bytes:
@@ -67,8 +101,11 @@ def _decode(handle) -> dict:
 
 
 def _close_pipe(handle):
-    import ctypes
-    ctypes.windll.kernel32.CloseHandle(handle)
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.kernel32.CloseHandle(handle)
+    else:
+        handle.close()
 
 # MAIN
 class DiscordRPC(QThread):

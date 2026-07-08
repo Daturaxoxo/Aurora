@@ -1,8 +1,11 @@
 import os
-from pathlib import Path
+import shutil
+import subprocess
 import sys
 import urllib
 import urllib.request
+from pathlib import Path
+
 import requests
 from src import config_manager as cfg
 from src.path_finder import get_local_version
@@ -11,6 +14,25 @@ def get_app_dir():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def get_seven_zip_path() -> Path | None:
+    """Return the 7-Zip executable for the current platform."""
+    if sys.platform == "win32":
+        bundled = Path(get_app_dir()) / "Bin" / "7z.exe"
+        if bundled.is_file():
+            return bundled
+    for name in ("7z", "7za", "7zz", "7zr"):
+        found = shutil.which(name)
+        if found:
+            return Path(found)
+    return None
+
+def hidden_subprocess_kwargs() -> dict:
+    if sys.platform != "win32":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    return {"startupinfo": startupinfo}
 
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS

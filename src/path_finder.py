@@ -4,6 +4,12 @@ from src.backend.helpers.paths import LAUNCHER_MAP
 PF_AVX2 = 40
 
 def validate_cpu():
+    if sys.platform != "win32":
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                return "avx2" in f.read().lower()
+        except Exception:
+            return False
     try: return bool(ctypes.windll.kernel32.IsProcessorFeaturePresent(PF_AVX2))
     except Exception: return False
 
@@ -65,30 +71,39 @@ def _candidate_directories():
                         
             except Exception: continue
 
-    for env_var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
-        base = os.environ.get(env_var)
-        if base: yield from emit(os.path.join(base, GAME_FOLDER_NAME))
+    if sys.platform != "win32":
+        steam_candidates = [
+            Path.home() / ".steam" / "steam" / "steamapps" / "common" / GAME_FOLDER_NAME,
+            Path.home() / ".local" / "share" / "Steam" / "steamapps" / "common" / GAME_FOLDER_NAME,
+        ]
+        for candidate in steam_candidates:
+            if candidate.exists():
+                yield from emit(candidate)
+    else:
+        for env_var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
+            base = os.environ.get(env_var)
+            if base: yield from emit(os.path.join(base, GAME_FOLDER_NAME))
 
-    for drive_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-        drive = f"{drive_letter}:\\"
+        for drive_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            drive = f"{drive_letter}:\\"
 
-        if not os.path.exists(drive): continue
-        
-        has_avx2 = validate_cpu()
-        if has_avx2:
-            from scandir_rs import Scandir
-            for dirEntry in Scandir(
-                drive,
-                dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
-                skip_hidden=True
-            ):
-                if any(launcher in dirEntry.path for launcher in LAUNCHER_MAP):
-                    path = Path(f"{drive}{dirEntry.path}").parent
+            if not os.path.exists(drive): continue
+            
+            has_avx2 = validate_cpu()
+            if has_avx2:
+                from scandir_rs import Scandir
+                for dirEntry in Scandir(
+                    drive,
+                    dir_exclude=["$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"],
+                    skip_hidden=True
+                ):
+                    if any(launcher in dirEntry.path for launcher in LAUNCHER_MAP):
+                        path = Path(f"{drive}{dirEntry.path}").parent
 
-                    if path not in checked:
-                        checked.add(path)
-                        yield from emit(path)
-        else: yield from scan_single_dir(drive)
+                        if path not in checked:
+                            checked.add(path)
+                            yield from emit(path)
+            else: yield from scan_single_dir(drive)
             
 
 def get_game_directory():

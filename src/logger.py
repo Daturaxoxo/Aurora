@@ -104,13 +104,20 @@ def _collect_cpu_info() -> str:
 
     model = "<unknown>"
     try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "(Get-CimInstance Win32_Processor).Name"],
-            capture_output=True, text=True, timeout=8
-        )
-        name = result.stdout.strip()
-        if name: model = name
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(Get-CimInstance Win32_Processor).Name"],
+                capture_output=True, text=True, timeout=8
+            )
+            name = result.stdout.strip()
+            if name: model = name
+        elif platform.system() == "Linux":
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if "model name" in line:
+                        model = line.split(":", 1)[1].strip()
+                        break
     except Exception: pass
 
     return f"{model} | Cores: {physical} | Threads: {logical}"
@@ -118,25 +125,36 @@ def _collect_cpu_info() -> str:
 
 def _collect_gpu_info() -> str:
     try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM | "
-             "ConvertTo-Json -Compress"],
-            capture_output=True, text=True, timeout=8
-        )
-        raw = result.stdout.strip()
-        if not raw: return "<could not collect>"
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM | "
+                 "ConvertTo-Json -Compress"],
+                capture_output=True, text=True, timeout=8
+            )
+            raw = result.stdout.strip()
+            if not raw: return "<could not collect>"
 
-        data = json.loads(raw)
-        if isinstance(data, dict):
-            data = [data]
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                data = [data]
 
-        best = max(data, key=lambda d: d.get("AdapterRAM") or 0)
-        name      = best.get("Name") or "<unknown>"
-        vram_raw  = best.get("AdapterRAM")
-        vram_str  = f"{int(vram_raw) / (1024**3):.1f} GB" if vram_raw else "<unknown>"
-        return f"{name} | VRAM: {vram_str}"
-    except Exception: return "<could not collect>"
+            best = max(data, key=lambda d: d.get("AdapterRAM") or 0)
+            name      = best.get("Name") or "<unknown>"
+            vram_raw  = best.get("AdapterRAM")
+            vram_str  = f"{int(vram_raw) / (1024**3):.1f} GB" if vram_raw else "<unknown>"
+            return f"{name} | VRAM: {vram_str}"
+        elif platform.system() == "Linux":
+            result = subprocess.run(
+                ["lspci"],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in result.stdout.splitlines():
+                if "VGA compatible controller" in line or "3D controller" in line:
+                    gpu_name = line.split(":", 2)[-1].strip()
+                    return gpu_name
+    except Exception: pass
+    return "<could not collect>"
 
 
 def _collect_ram_info() -> str:
@@ -145,14 +163,21 @@ def _collect_ram_info() -> str:
         return f"{total / (1024**3):.1f} GB"
     except Exception: pass
     try:
-        result = subprocess.run(
-            ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
-            capture_output=True, text=True, timeout=5
-        )
-        for line in result.stdout.splitlines():
-            if line.strip().lower().startswith("totalphysicalmemory="):
-                raw = line.split("=", 1)[1].strip()
-                if raw.isdigit(): return f"{int(raw) / (1024**3):.1f} GB"
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["wmic", "computersystem", "get", "TotalPhysicalMemory", "/value"],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in result.stdout.splitlines():
+                if line.strip().lower().startswith("totalphysicalmemory="):
+                    raw = line.split("=", 1)[1].strip()
+                    if raw.isdigit(): return f"{int(raw) / (1024**3):.1f} GB"
+        elif platform.system() == "Linux":
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        raw = line.split()[1]
+                        return f"{int(raw) / (1024**2):.1f} GB"
     except Exception: pass
     return "<could not collect>"
 
@@ -219,24 +244,29 @@ def collect_environment() -> str:
     lines = ["=== Environment ==="]
 
     try:
-        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        lines.append(f"Admin privileges: {'YES' if is_admin else 'NO <- UAC might block DLL writes'}")
+        if platform.system() == "Windows":
+            is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+            lines.append(f"Admin privileges: {'YES' if is_admin else 'NO <- UAC might block DLL writes'}")
+        else:
+            is_admin = os.getuid() == 0
+            lines.append(f"Admin privileges: {'YES' if is_admin else 'NO'}")
     except Exception:
         try:
             is_admin = os.getuid() == 0
             lines.append(f"Admin privileges: {'YES' if is_admin else 'NO'}")
         except Exception: lines.append("Admin privileges: <could not check>")
 
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
-            capture_output=True, text=True, timeout=5
-        )
-        val = result.stdout.strip().lower()
-        if val == "true": lines.append("Windows Defender : ON  <- If the user is reporting missing files, its most likely that defender has removed them.")
-        elif val == "false": lines.append("Windows Defender : OFF")
-        else: lines.append(f"Windows Defender : <could not check>")
-    except Exception: lines.append("Windows Defender : <could not check>")
+    if platform.system() == "Windows":
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
+                capture_output=True, text=True, timeout=5
+            )
+            val = result.stdout.strip().lower()
+            if val == "true": lines.append("Windows Defender : ON  <- If the user is reporting missing files, its most likely that defender has removed them.")
+            elif val == "false": lines.append("Windows Defender : OFF")
+            else: lines.append(f"Windows Defender : <could not check>")
+        except Exception: lines.append("Windows Defender : <could not check>")
     return '\n'.join(lines)
 
 
@@ -462,7 +492,13 @@ def export_telemetry(out_path: str | None = None) -> str:
     with open(out_path, 'w', encoding='utf-8') as f: f.write(content)
     
     # Open \Logs folder
-    try: subprocess.Popen(["explorer", log_dir])
+    try:
+        if platform.system() == "Windows":
+            subprocess.Popen(["explorer", log_dir])
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", log_dir])
+        else:
+            subprocess.Popen(["xdg-open", log_dir])
     except Exception: pass
 
     return out_path

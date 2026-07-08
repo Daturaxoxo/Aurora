@@ -24,7 +24,7 @@ from src.logger import logger
 from src.frontend.styles import GB_STYLE
 from src.translator import t
 from src.frontend.classes.elements import AnimatedToggle, PopupDialog, _rounded_pixmap, show_image
-from src.utils import bytes_to_human_readable, get_mods_path, resource_path, get_app_dir
+from src.utils import bytes_to_human_readable, get_mods_path, resource_path, get_seven_zip_path, hidden_subprocess_kwargs
 
 # Display names, for the icons to show the display name must match the png names in \ModImages
 _NTE_CHARACTERS: list[str] = [
@@ -1165,25 +1165,24 @@ class _InstallWorker(QObject):
                     done += len(chunk)
                     self.download_progress.emit(done, total)
         if self._cancelled: return
-        self.install_started.emit()
         mods_dir       = get_mods_path()
-        app_dir        = Path(get_app_dir())
-        seven_zip_path = app_dir / "Bin" / "7z.exe"
+        seven_zip_path = get_seven_zip_path()
         installed: list[str] = []
         path   = tmp_path
         suffix = path.suffix.lower()
         try:
             if suffix in (".zip", ".rar", ".7z"):
-                if not seven_zip_path.exists():
-                    self.error.emit(f"Extraction tool missing: {seven_zip_path}")
+                if not seven_zip_path:
+                    self.error.emit("Extraction tool (7z or 7za) missing on system.")
                     return
                 out_dir = mods_dir / path.stem
                 cmd     = [str(seven_zip_path), "x", str(path), f"-o{out_dir}", "-y"]
-                startupinfo = None
-                if sys.platform == "win32":
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                result = subprocess.run(cmd, startupinfo=startupinfo, capture_output=True, text=True)
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    **hidden_subprocess_kwargs(),
+                )
                 if result.returncode == 0:
                     installed.append(path.stem)
                     try: os.remove(path)
