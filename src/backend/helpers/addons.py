@@ -6,7 +6,7 @@ from dataclasses import dataclass
 # Constants & Dataclasses
 SECTION_HEADER = "[/Script/Engine.UserInterfaceSettings]"
 KEY            = "ApplicationScale"
-ENGINE_INI_PATH = Path(os.environ.get("LOCALAPPDATA", ""), "HT", "Saved_Global", "Config", "Windows", "Engine.ini")
+
 @dataclass(frozen=True)
 class PakAddon:
     config_key:  str
@@ -22,15 +22,29 @@ class PakAddon:
 
 # [Helpers]
 # UI Scaling
+def is_steam_version() -> bool:
+    import json
+    if os.name == "nt": cache_dir = Path(os.environ.get("APPDATA", "")) / "Aurora" / "Cache" # Windows
+    else: cache_dir = Path.home() / ".config" / "Aurora" / "Cache" # Linux
+    storage = cache_dir / "storage.json"
+    try:
+        data = json.loads(storage.read_text(encoding="utf-8"))
+        return bool(data.get("modify_steam", False))
+    except (OSError, ValueError): return False
+
 def get_ini_path() -> Path:
-    local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expandvars("%LOCALAPPDATA%")
-    return Path(local_app_data) / "HT" / "Saved_Global" / "Config" / "Windows" / "Engine.ini"
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expandvars("%LOCALAPPDATA%")
+        base = Path(local_app_data) / "HT"
+    else: base = Path.home() / ".local" / "share" / "HT" # Linux
+    saved_dir = "Saved_GlobalSteam" if is_steam_version() else "Saved_Global"
+    print("Got ini path: {}".format(saved_dir))
+    return base / saved_dir / "Config" / "Windows" / "Engine.ini"
 
 def is_readonly(path: Path) -> bool:
     try:
         return not (path.stat().st_mode & stat.S_IWRITE)
-    except OSError:
-        return False
+    except OSError: return False
     
 def set_readonly(path: Path, readonly: bool) -> None:
     flag = "+R" if readonly else "-R"
@@ -110,15 +124,15 @@ def ini_path() -> Path:
 # PAK Addon Manager
 PAK_ADDONS: list[PakAddon] = [
     PakAddon(
-        config_key  = "drv_lin",       # Key.NO_DRIVE_LINE
-        base_name   = "auddl_P",
-    ),
-    PakAddon(
         config_key  = "uid_rem",       # Key.HIDE_UID
         base_name   = "uidrm_P",
     ),
-   PakAddon(
+    PakAddon(
         config_key  = "nor_rem",       # Key.HIDE_NOTIF_DOTS
         base_name   = "nrdrm_P",
+    ),
+    PakAddon(
+        config_key  = "col_tim",       # Key.COOLDOWN_TIMER
+        base_name   = "gctip_P",
     ),
 ]

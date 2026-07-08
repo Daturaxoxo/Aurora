@@ -35,7 +35,6 @@ class AuroraEngine:
                 "asi_plugin": self.gpaths.asi_plugin,
                 "ntfrmain": self.win64 / "cnntfrmain.asi",
                 "cutils":   self.win64 / "cutils.dll",
-                "ntfrsub":  self.win64 / "cnntfrsub.dll",
             }
         else:
             self.targets = {
@@ -43,12 +42,6 @@ class AuroraEngine:
                 "ntfrmain": self.win64 / "glntfrmain.asi",
                 "cutils":   self.win64 / "cutils.dll",
             }
-
-        self.ndl_targets = {
-        f"{addon.base_name}_{fname}": self.pakbase.parent / fname
-        for addon in PAK_ADDONS
-        for fname in addon.files
-        }
 
     # Helpers
     def remove(self, path):
@@ -105,7 +98,7 @@ class AuroraEngine:
             self.exit_proc()
 
         dll_targets = {key: path for key, path in self.gpaths.all_dll_targets}
-        all_targets = {**dll_targets, **self.targets, **self.ndl_targets}
+        all_targets = {**dll_targets, **self.targets}
 
         for key, path in all_targets.items():
             if not os.path.lexists(path): continue
@@ -143,7 +136,6 @@ class AuroraEngine:
                 "asi_plugin": self.gpaths.asi_plugin,
                 "ntfrmain":   self.win64 / "cnntfrmain.asi",
                 "cutils":     self.win64 / "cutils.dll",
-                "ntfrsub":    self.win64 / "cnntfrsub.dll",
             }
         else:
             self.targets = {
@@ -152,19 +144,13 @@ class AuroraEngine:
                 "cutils":     self.win64 / "cutils.dll",
             }
 
-        self.ndl_targets = {
-            f"{addon.base_name}_{fname}": self.pakbase.parent / fname
-            for addon in PAK_ADDONS
-            for fname in addon.files
-        }
-
     def inject(self):
         logger.info("Injecting into NTE...")
         logger.info(f"Game path:  {self.path}", extra={'el': True})
         logger.info(f"Bin path:   {self.bin}", extra={'el': True})
         logger.info(f"Mods path:  {self.mod_folder}", extra={'el': True})
         
-        self.crr, self.ndl, self.engine_method = cfg.get(cfg.Key.CENSORSHIP_REMOVE), cfg.get(cfg.Key.NO_DRIVE_LINE), cfg.get(cfg.Key.ENGINE_METHOD);
+        self.crr, self.engine_method = cfg.get(cfg.Key.CENSORSHIP_REMOVE), cfg.get(cfg.Key.ENGINE_METHOD);
 
         req_bin = [
             *[self.bin / dll for dll in self.main_dlls],
@@ -272,7 +258,11 @@ class AuroraEngine:
 
         while True:
             time.sleep(0.5)
-            active = {p.name().lower() for p in psutil.process_iter(["name"])}
+            active = set()
+            for p in psutil.process_iter(["name"]):
+                try:
+                    if p.info["name"]: active.add(p.info["name"].lower())
+                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError): continue
             if game in active:
                 logger.info(f"NTE Process ({self.gpaths.game_process}) was detected, game is running.")
                 if callable(getattr(self, "on_game_started", None)):
@@ -304,7 +294,11 @@ class AuroraEngine:
         else:
             while True:
                 time.sleep(2)
-                active = {p.name().lower() for p in psutil.process_iter(["name"])}
+                active = set()
+                for p in psutil.process_iter(["name"]):
+                    try:
+                        if p.info["name"]: active.add(p.info["name"].lower())
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError): continue
                 if game not in active: break
             
         logger.info("NTE was closed, initialising clean-up process...")
