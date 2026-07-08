@@ -12,6 +12,7 @@
     "vi": "Làm thế nào để nhận được sự hỗ trợ?",
     "fr": "Comment puis-je obtenir de l'aide ?",
     "ru": "Куда я могу обратиться за помощью?"
+    "id": "Dimana saya bisa mendapat dukungan?"
   },
   "answer": {
     "en": [
@@ -90,6 +91,13 @@
       "\n- Наш Discord сервер",
       "\n- Страница на GameBanana",
       "В других местах ваше сообщение получит ответ с задержкой или вообще будет проигнорировано."
-    ]
+    ],
+      "id": [
+      "## Mendapatkan Dukungan",
+      "Tempat untuk mendapatkan dukungan:",
+      "\n- Server Discord kami",
+      "\n- Halaman GameBanana",
+      "Selain sumber tersebut respons akan terlambat atau tidak ada balasan sama sekali."
+      ]
   }
 }
