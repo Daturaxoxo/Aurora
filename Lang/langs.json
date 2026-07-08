@@ -1863,7 +1863,7 @@
         "engine_method_opt_1": "Standar",
         "engine_method_opt_2": "Alternatif",
         "engine_method_opt_3": "Alternatif [CN]",
-        "incomp_mods_title": Mod tidak kompatibel",
+        "incomp_mods_title": "Mod tidak kompatibel",
         "incomp_mods_message": "Mod ini tidak kompatibel dengan Aurora dan akan dilewati:",
         "addons_issue_title": "Peringatan Addons",
         "addons_issue_msg_a": "Addons ini akan dilewati karena ada yang hilang dari folder Builtins:",
