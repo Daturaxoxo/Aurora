@@ -71,8 +71,9 @@ def check_steam(main_window, game_path: str):
 
     cache = load_cache()
     modify_steam = cache.get("modify_steam")
+    installed_by_steam = cache.get("installed_by_steam")
 
-    if modify_steam is True:
+    if installed_by_steam is True:
         settings = getattr(main_window, "settings_menu", None)
         if settings:
             settings.btn_steam.setVisible(True)
@@ -118,7 +119,7 @@ def check_steam(main_window, game_path: str):
 
         popup = PopupDialog(
             parent=main_window,
-            title="Modify Steam's Play Button?",
+            title="Modify Steam's Play Button?", # edit later
             message="Aurora has detected you have installed the game through Steam and can update the Play button to use our Steam Wrapper instead of running the game without mods.",
             confirm_text="Confirm",
             cancel_text="Not Now",

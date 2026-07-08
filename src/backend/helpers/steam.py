@@ -3,7 +3,7 @@ from pathlib import Path
 from src.logger import logger
 
 # CONSTANTS
-NTE_APP_ID      = "945360"
+NTE_APP_ID      = "4508340"
 WRAPPER_REPO    = "https://api.github.com/repos/Daturaxoxo/AuroraInstallation/releases/latest"
 WRAPPER_EXE     = "AuroraSteamWrapper.exe"
 

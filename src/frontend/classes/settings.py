@@ -235,12 +235,12 @@ class SettingsOverlay(QFrame):
         self._btn_browse.setText(t("browse"))
         self._row_cr.set_title(t("censorship_removal"))
         self._row_cr.set_description(t("censorship_removal_desc"))
-        self._row_ndl.set_title(t("no_drive_line"))
-        self._row_ndl.set_description(t("no_drive_line_desc"))
         self._row_uid.set_title(t("hide_uid_title"))
         self._row_uid.set_description(t("hide_uid_desc"))
         self._row_hide_dots.set_title(t("hide_dots_title"))
         self._row_hide_dots.set_description(t("hide_dots_desc"))
+        self._row_cooldown_timer.set_title(t("cooldown_timer_title"))
+        self._row_cooldown_timer.set_description(t("cooldown_timer_desc"))
         self._row_dev.set_title(t("developer_mode"))
         self._row_dev.set_description(t("developer_mode_desc"))
         self._row_min.set_title(t("ui_minimization_title"))
@@ -256,6 +256,8 @@ class SettingsOverlay(QFrame):
         self._btn_export_telemetry.setText(t("export_file_button"))
         self._lbl_bypass.setText(t("engine_method_title"))
         self._lbl_bypass_desc.setText(t("engine_method_desc"))
+        self._steam_wrapper_row.set_title(t("steam_wrapper_title"))
+        self._steam_wrapper_row.set_description(t("steam_wrapper_desc"))
         self._update_bypass_card_visibility()
 
     # Helpers
@@ -362,7 +364,7 @@ class SettingsOverlay(QFrame):
 
         from src.config_manager import LANG_NAMES
         self._lang_box = QComboBox()
-        self._lang_box.addItems(["English", "简体中文", "繁體中文", "日本語", "Español", "Português (Brasil)", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands", "Pусский", "Bahasa Indonesia", "Italiano", "French"])
+        self._lang_box.addItems(["English", "简体中文", "繁體中文", "日本語", "한국어", "Español", "Português (Brasil)", "Deutsch", "Türkçe", "Tiếng Việt", "Nederlands", "Pусский", "Bahasa Indonesia", "Italiano", "French"])
         self._lang_box.setFixedWidth(160)
         self._lang_box.setStyleSheet("""
             QComboBox {
@@ -619,48 +621,46 @@ class SettingsOverlay(QFrame):
         layout.addWidget(self._section_label("Wrapper"))
         layout.addSpacing(10)
 
-        wrapper_enabled = get_cache("modify_steam", False)
-
         def on_wrapper_toggled(enabled: bool):
             if enabled:
-                t = WrapperInstallThread()
+                wit = WrapperInstallThread()
 
                 def on_ok():
                     set_cache("modify_steam", True)
                     ToastNotification(
                         self.parent().parent(),
-                        "Steam Wrapper enabled.", False, "success"
+                        t("steam_wrapper_enabled"), False, "success"
                     )
 
                 def on_fail():
                     self._steam_wrapper_row.toggle.setChecked(False)
                     ToastNotification(
                         self.parent().parent(),
-                        "Failed to enable Steam Wrapper.", False, "error"
+                        t("steam_wrapper_enabled_fail"), False, "error"
                     )
 
-                t.success.connect(on_ok)
-                t.failure.connect(on_fail)
-                self._steam_install_thread = t
-                t.start()
+                wit.success.connect(on_ok)
+                wit.failure.connect(on_fail)
+                self._steam_install_thread = wit
+                wit.start()
             else:
                 if remove_steam_wrapper():
                     set_cache("modify_steam", False)
                     ToastNotification(
                         self.parent().parent(),
-                        "Steam Wrapper disabled.", False, "info"
+                        t("steam_wrapper_disabled"), False, "info"
                     )
                 else:
                     self._steam_wrapper_row.toggle.setChecked(True)
                     ToastNotification(
                         self.parent().parent(),
-                        "Could not restore original launch options.", False, "error"
+                        t("steam_wrapper_disabled_fail"), False, "error"
                     )
 
         self._steam_wrapper_row = SettingRow(
-            title="Steam Wrapper",
-            description="When enabled, pressing Play in Steam will open the Aurora wrapper so you can choose to launch with or without mods.",
-            checked=wrapper_enabled,
+            title=t("steam_wrapper_title"),
+            description=t("steam_wrapper_desc"),
+            checked=get_cache("modify_steam"),
             on_toggle=on_wrapper_toggled,
         )
         layout.addWidget(self._steam_wrapper_row)
@@ -771,12 +771,6 @@ class SettingsOverlay(QFrame):
             checked=cfg.get(cfg.Key.CENSORSHIP_REMOVE),
             on_toggle=self._toggle_cr_mode,
         )
-        self._row_ndl = SettingRow(
-            title="No Drive Line",
-            description="",
-            checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
-            on_toggle=self._toggle_ndl_mode,
-        )
         self._row_uid = SettingRow(
             title="Hide UID",
             description="",
@@ -788,6 +782,12 @@ class SettingsOverlay(QFrame):
             description="",
             checked=cfg.get(cfg.Key.HIDE_NOTIF_DOTS),
             on_toggle=lambda v: self._toggle(cfg.Key.HIDE_NOTIF_DOTS, v),
+        )
+        self._row_cooldown_timer = SettingRow(
+            title="Cooldown Timer",
+            description="",
+            checked=cfg.get(cfg.Key.COOLDOWN_TIMER),
+            on_toggle=lambda v: self._toggle(cfg.Key.COOLDOWN_TIMER, v),
         )
 
         # Slider (still have to make it prettier)
@@ -836,11 +836,11 @@ class SettingsOverlay(QFrame):
 
         layout.addWidget(self._row_cr)
         layout.addSpacing(6)
-        layout.addWidget(self._row_ndl)
-        layout.addSpacing(6)
         layout.addWidget(self._row_uid)
         layout.addSpacing(6)
         layout.addWidget(self._row_hide_dots)
+        layout.addSpacing(6)
+        layout.addWidget(self._row_cooldown_timer)
         layout.addSpacing(6)
         scale_row.addLayout(scale_text, 1)
         scale_row.addWidget(self._scale_value_lbl)
