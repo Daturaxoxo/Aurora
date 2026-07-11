@@ -122,7 +122,7 @@ def get_version_paths(game_path: Path, version: str, engine_method: str = "0") -
         win64            = win64,
         pak_base         = pak_base,
         dll_slots        = dll_slots,
-        asi_plugin       = win64 / "Everlight.asi",
+        asi_plugin       = win64 / "USB.asi",
         launcher_process = spec.launcher_process,
         helper_processes = spec.helper_processes,
     )

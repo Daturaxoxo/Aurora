@@ -11,8 +11,13 @@ from src.path_finder import get_local_version
 
 def get_app_dir():
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return str(Path(sys.executable).resolve().parent)
+    try:
+        p = Path(__file__).resolve().parent.parent
+    except NameError:
+        p = Path(sys.argv[0]).resolve().parent
+        
+    return str(p)
 
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS

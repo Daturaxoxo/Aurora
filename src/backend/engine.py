@@ -85,7 +85,7 @@ class AuroraEngine:
         from src.backend.helpers.validation import validate_builtins
         required = [
             *self.main_dlls,
-            "Everlight.asi",
+            "USB.asi",
             *([dst.name for key, dst in self.targets.items() if key != "asi_plugin"] if self.crr else []),
         ]
         return validate_builtins(self.bin, required)
@@ -154,7 +154,7 @@ class AuroraEngine:
 
         req_bin = [
             *[self.bin / dll for dll in self.main_dlls],
-            self.bin / "Everlight.asi",
+            self.bin / "USB.asi",
         ]
         addon_warnings = []
 
@@ -186,7 +186,7 @@ class AuroraEngine:
                 raise
 
             logger.info("Initializing Signature Bypasser...")
-            try: shutil.copy(self.bin / "Everlight.asi", self.targets["asi_plugin"])
+            try: shutil.copy(self.bin / "USB.asi", self.targets["asi_plugin"])
             except (PermissionError, OSError) as e:
                 if getattr(e, "winerror", None) in (5, 32):
                     logger.error(f"Access denied copying loader DLL(s) (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
