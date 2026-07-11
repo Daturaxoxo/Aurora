@@ -8,6 +8,8 @@ from src.path_finder import validate_path
 from src import config_manager as cfg
 from src.logger import logger
 from src.discord_rpc import DiscordRPC
+from src.helpers.shortcut import create_shortcut, refresh_shortcut_icon
+
 ARCHIVES = (
     "\\Temp\\7z",
     "\\Temp\\Rar$",
@@ -77,6 +79,22 @@ def run_as_admin():
 
     ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 1)
     sys.exit(0)
+    
+def fast_startup():
+    game_path = cfg.get(cfg.Key.GAME_PATH)
+    if not game_path or not validate_path(game_path):
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Aurora Quick Start could not find a valid game path.\n\n"
+            "Please open Aurora normally and configure your game path first.",
+            "Aurora - Quick Start Error",
+            0x10,
+        )
+        sys.exit(1)
+
+    engine = AuroraEngine(game_path)
+    success = engine.fast_startup()
+    sys.exit(0 if success else 1)
 
 def main():
     app = QApplication(sys.argv)
@@ -94,9 +112,14 @@ def main():
     window.show()
     if not initial_path: QTimer.singleShot(500, window._prompt_drive_search)
     
+    refresh_shortcut_icon()
+    create_shortcut()
     cfg.update_app_location()
     sys.exit(app.exec())
 
 if __name__ == "__main__":
     check_archive_status()
-    if run_as_admin():  main()
+    if "--quick-start" in sys.argv:
+        if run_as_admin(): fast_startup()
+    else:
+        if run_as_admin(): main()

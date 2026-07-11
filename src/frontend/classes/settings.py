@@ -46,11 +46,11 @@ class SettingRow(QFrame):
         text_col.setSpacing(3)
 
         self._lbl_title = QLabel(title)
-        self._lbl_title.setWordWrap(True)  # Fix horizontal stretching
+        self._lbl_title.setWordWrap(True)
         self._lbl_title.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
 
         self._lbl_desc = QLabel(description)
-        self._lbl_desc.setWordWrap(True)  # Fix horizontal stretching
+        self._lbl_desc.setWordWrap(True)
         self._lbl_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         from PyQt6.QtWidgets import QSizePolicy
         self._lbl_desc.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -108,6 +108,75 @@ _SIDEBAR_STYLE = """
 
 _SECTION_LABEL_STYLE = "color: #484848; font-size: 11px; font-weight: 600; letter-spacing: 1px;"
 _PAGE_TITLE_STYLE    = "color: #D7D7D7; font-size: 20px; font-weight: 500;"
+
+_ACTION_BTN_STYLE = """
+    QPushButton {
+        background-color: rgba(255, 255, 255, 8);
+        color: #C8C8C8;
+        border: 1px solid rgba(255, 255, 255, 12);
+        border-radius: 7px;
+        font-size: 12px;
+    }
+    QPushButton:hover {
+        background-color: rgba(255, 255, 255, 14);
+        color: #FFFFFF;
+    }
+    QPushButton:pressed {
+        background-color: rgba(255, 255, 255, 5);
+    }
+"""
+
+
+def make_action_card(obj_name, lbl_title_attr, lbl_desc_attr, btn_attr, btn_text, on_click, parent):
+    card = QFrame()
+    card.setObjectName(obj_name)
+    card.setFixedHeight(68)
+    card.setStyleSheet(f"""
+        #{obj_name} {{
+            background-color: rgba(255, 255, 255, 4);
+            border: 1px solid rgba(255, 255, 255, 7);
+            border-radius: 10px;
+        }}
+    """)
+    row = QHBoxLayout(card)
+    row.setContentsMargins(20, 0, 14, 0)
+    row.setSpacing(12)
+
+    text_col = QVBoxLayout()
+    text_col.setSpacing(3)
+
+    lbl_title = QLabel()
+    lbl_title.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+
+    lbl_desc = QLabel()
+    lbl_desc.setWordWrap(True)
+    lbl_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+    from PyQt6.QtWidgets import QSizePolicy as _QSP
+    lbl_desc.setSizePolicy(_QSP.Policy.Expanding, _QSP.Policy.Preferred)
+    lbl_desc.setMinimumWidth(0)
+
+    text_col.addStretch()
+    text_col.addWidget(lbl_title)
+    text_col.addWidget(lbl_desc)
+    text_col.addStretch()
+
+    btn = QPushButton(btn_text)
+    btn.setFixedSize(72, 32)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.setStyleSheet(_ACTION_BTN_STYLE)
+    btn.clicked.connect(on_click)
+
+    row.addLayout(text_col, 1)
+    row.addStretch()
+    row.addWidget(btn)
+
+    # Bind onto the owner so retranslate_ui can update them
+    setattr(parent, lbl_title_attr, lbl_title)
+    setattr(parent, lbl_desc_attr,  lbl_desc)
+    setattr(parent, btn_attr,       btn)
+
+    return card
+
 
 class SettingsOverlay(QFrame):
     def __init__(self, parent=None, scale: float=1.0):
@@ -195,7 +264,7 @@ class SettingsOverlay(QFrame):
         self.stack.addWidget(self._create_launcher_page())  # 1
         self.stack.addWidget(self._create_addons_page())    # 2
         self.stack.addWidget(self._create_developer_page()) # 3
-        self.stack.addWidget(self._create_steam_page()) # 4
+        self.stack.addWidget(self._create_steam_page())     # 4
 
         body_layout.addWidget(sidebar)
         body_layout.addWidget(self.stack, 1)
@@ -216,6 +285,10 @@ class SettingsOverlay(QFrame):
             b.setProperty("active", i == index)
             b.style().unpolish(b)
             b.style().polish(b)
+        if index == 4 and hasattr(self, '_steam_wrapper_row'):
+            self._steam_wrapper_row.toggle.blockSignals(True)
+            self._steam_wrapper_row.toggle.setChecked(get_cache("modify_steam"))
+            self._steam_wrapper_row.toggle.blockSignals(False)
 
     def retranslate_ui(self):
         self.lbl_title.setText(t("settings").upper())
@@ -239,8 +312,6 @@ class SettingsOverlay(QFrame):
         self._row_uid.set_description(t("hide_uid_desc"))
         self._row_hide_dots.set_title(t("hide_dots_title"))
         self._row_hide_dots.set_description(t("hide_dots_desc"))
-        self._row_cooldown_timer.set_title(t("cooldown_timer_title"))
-        self._row_cooldown_timer.set_description(t("cooldown_timer_desc"))
         self._row_dev.set_title(t("developer_mode"))
         self._row_dev.set_description(t("developer_mode_desc"))
         self._row_min.set_title(t("ui_minimization_title"))
@@ -258,6 +329,12 @@ class SettingsOverlay(QFrame):
         self._lbl_bypass_desc.setText(t("engine_method_desc"))
         self._steam_wrapper_row.set_title(t("steam_wrapper_title"))
         self._steam_wrapper_row.set_description(t("steam_wrapper_desc"))
+        self._lbl_fix_engine.setText(t("fix_engine_title"))
+        self._lbl_fix_engine_desc.setText(t("fix_engine_desc"))
+        self._btn_fix_engine.setText(t("fix_engine_button"))
+        self._lbl_clear_cache.setText(t("clear_cache_title"))
+        self._lbl_clear_cache_desc.setText(t("clear_cache_desc"))
+        self._btn_clear_cache.setText(t("clear_cache_button"))
         self._update_bypass_card_visibility()
 
     # Helpers
@@ -265,7 +342,7 @@ class SettingsOverlay(QFrame):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Force disable horizontal scroll shifts
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { background: transparent; }")
         
         page = QWidget()
@@ -355,7 +432,7 @@ class SettingsOverlay(QFrame):
         self._lbl_language.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         lang_sub = QLabel(t("language_desc"))
         self._lbl_language_desc = lang_sub
-        lang_sub.setWordWrap(True)  # Fix width limits
+        lang_sub.setWordWrap(True)
         lang_sub.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         lang_text.addStretch()
         lang_text.addWidget(self._lbl_language)
@@ -480,25 +557,20 @@ class SettingsOverlay(QFrame):
         path_text.addWidget(self._lbl_game_dir)
         path_text.addWidget(self.path_display)
         path_text.addStretch()
+        
+        fix_engine_card = make_action_card(
+            obj_name="FixEngineCard",
+            lbl_title_attr="_lbl_fix_engine",
+            lbl_desc_attr="_lbl_fix_engine_desc",
+            btn_attr="_btn_fix_engine",
+            btn_text=t("fix_engine_button"),
+            on_click=self.run_fix_engine,
+            parent=self,
+        )
 
         self._btn_browse = QPushButton()
         self._btn_browse.setFixedSize(72, 32)
-        self._btn_browse.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 8);
-                color: #C8C8C8;
-                border: 1px solid rgba(255, 255, 255, 12);
-                border-radius: 7px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 14);
-                color: #FFFFFF;
-            }
-            QPushButton:pressed {
-                background-color: rgba(255, 255, 255, 5);
-            }
-        """)
+        self._btn_browse.setStyleSheet(_ACTION_BTN_STYLE)
         self._btn_browse.clicked.connect(self._handle_browse)
 
         path_row.addLayout(path_text)
@@ -507,13 +579,16 @@ class SettingsOverlay(QFrame):
 
         layout.addWidget(path_card)
         layout.addSpacing(24)
-        
+
+        # Engine section
         bypass_card = self._create_bypass_method_card()
         self._engine_section_label = self._section_label("Engine")
         self._engine_section_label.setVisible(bypass_card.isVisible())
         layout.addWidget(self._engine_section_label)
         layout.addSpacing(10)
         layout.addWidget(bypass_card)
+        layout.addSpacing(10)        
+        layout.addWidget(fix_engine_card)
         layout.addStretch()
 
         return page
@@ -587,7 +662,7 @@ class SettingsOverlay(QFrame):
                 main_ui.rpc.stop()
 
     def _on_scale_slider_moved(self, value: int):
-        snapped = round(value / 5) * 5 # Snap to the nearest 5 to make it look smooth
+        snapped = round(value / 5) * 5
         if self._scale_slider.value() != snapped:
             self._scale_slider.blockSignals(True)
             self._scale_slider.setValue(snapped)
@@ -597,17 +672,35 @@ class SettingsOverlay(QFrame):
     def _on_scale_committed(self):
         value   = self._scale_slider.value()
         scale_f = round(value / 100, 2)
- 
         cfg.set(cfg.Key.UI_SCALING, scale_f)
- 
         ok = addons.apply_scale(scale_f)
         if not ok:
-            from src.logger import logger
             logger.warning(
                 f"UI Scaling: failed to write Engine.ini "
                 f"({addons.ini_path()}). "
                 "Check file permissions."
             )
+
+    def run_fix_engine(self):
+        ToastNotification(self.parent().parent(), t("fix_engine_toast"), False, "info")
+        self.fix_engine_thread = FixEngineThread(cfg.get(cfg.Key.GAME_PATH))
+        self.fix_engine_thread.success.connect(self.on_fix_engine_success)
+        self.fix_engine_thread.start()
+
+    def on_fix_engine_success(self):
+        self._btn_fix_engine.setText(t("fix_engine_button"))
+
+    def run_clear_cache(self):
+        self.clear_cache_thread = ClearCacheThread()
+        self.clear_cache_thread.success.connect(self.on_clear_cache_success)
+        self.clear_cache_thread.failure.connect(self.on_clear_cache_failure)
+        self.clear_cache_thread.start()
+
+    def on_clear_cache_success(self):
+        ToastNotification(self.parent().parent(), t("clear_cache_toast_success"), False, "success")
+
+    def on_clear_cache_failure(self):
+        ToastNotification(self.parent().parent(), t("clear_cache_toast_fail"), False, "error")
 
     # Steam Page
     def _create_steam_page(self):
@@ -726,22 +819,7 @@ class SettingsOverlay(QFrame):
         self._btn_export_telemetry = QPushButton(t("export_tele_button"))
         self._btn_export_telemetry.setFixedSize(72, 32)
         self._btn_export_telemetry.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_export_telemetry.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 8);
-                color: #C8C8C8;
-                border: 1px solid rgba(255, 255, 255, 12);
-                border-radius: 7px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 14);
-                color: #FFFFFF;
-            }
-            QPushButton:pressed {
-                background-color: rgba(255, 255, 255, 5);
-            }
-        """)
+        self._btn_export_telemetry.setStyleSheet(_ACTION_BTN_STYLE)
         self._btn_export_telemetry.clicked.connect(self.start_telemetry)
 
         telemetry_row.addLayout(telemetry_text)
@@ -749,6 +827,18 @@ class SettingsOverlay(QFrame):
         telemetry_row.addWidget(self._btn_export_telemetry)
 
         layout.addWidget(telemetry_card)
+        layout.addSpacing(10)
+        
+        clear_cache_card = make_action_card(
+            obj_name="ClearCacheCard",
+            lbl_title_attr="_lbl_clear_cache",
+            lbl_desc_attr="_lbl_clear_cache_desc",
+            btn_attr="_btn_clear_cache",
+            btn_text=t("clear_cache_button"),
+            on_click=self.run_clear_cache,
+            parent=self,
+        )
+        layout.addWidget(clear_cache_card)
         layout.addStretch()
         
         return page
@@ -783,14 +873,7 @@ class SettingsOverlay(QFrame):
             checked=cfg.get(cfg.Key.HIDE_NOTIF_DOTS),
             on_toggle=lambda v: self._toggle(cfg.Key.HIDE_NOTIF_DOTS, v),
         )
-        self._row_cooldown_timer = SettingRow(
-            title="Cooldown Timer",
-            description="",
-            checked=cfg.get(cfg.Key.COOLDOWN_TIMER),
-            on_toggle=lambda v: self._toggle(cfg.Key.COOLDOWN_TIMER, v),
-        )
 
-        # Slider (still have to make it prettier)
         saved_scale = cfg.get(cfg.Key.UI_SCALING)
         if saved_scale is None:
             saved_scale = 1.0
@@ -815,7 +898,7 @@ class SettingsOverlay(QFrame):
         self._lbl_ui_scale = QLabel()
         self._lbl_ui_scale.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_ui_scale_desc = QLabel()
-        self._lbl_ui_scale_desc.setWordWrap(True)  # Fix width limits
+        self._lbl_ui_scale_desc.setWordWrap(True)
         self._lbl_ui_scale_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         from PyQt6.QtWidgets import QSizePolicy as _QSP
         self._lbl_ui_scale_desc.setSizePolicy(_QSP.Policy.Expanding, _QSP.Policy.Preferred)
@@ -839,8 +922,6 @@ class SettingsOverlay(QFrame):
         layout.addWidget(self._row_uid)
         layout.addSpacing(6)
         layout.addWidget(self._row_hide_dots)
-        layout.addSpacing(6)
-        layout.addWidget(self._row_cooldown_timer)
         layout.addSpacing(6)
         scale_row.addLayout(scale_text, 1)
         scale_row.addWidget(self._scale_value_lbl)
@@ -870,7 +951,7 @@ class SettingsOverlay(QFrame):
         self._lbl_bypass = QLabel(t("engine_method_title"))
         self._lbl_bypass.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         self._lbl_bypass_desc = QLabel(t("engine_method_desc"))
-        self._lbl_bypass_desc.setWordWrap(True)  # Fix width limits
+        self._lbl_bypass_desc.setWordWrap(True)
         self._lbl_bypass_desc.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
         text_col.addStretch()
         text_col.addWidget(self._lbl_bypass)
@@ -983,4 +1064,72 @@ class ExportThread(QThread):
         try:
             export_telemetry()
             self.success.emit()
-        except Exception: self.failure.emit()
+        except Exception:
+            self.failure.emit()
+
+
+ENGINE_INI_ROOTS = [
+    Path(os.environ.get("LOCALAPPDATA", "")) / "HT" / "Saved"             / "Config" / "Windows",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "HT" / "Saved_Global"      / "Config" / "Windows",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "HT" / "Saved_TW"          / "Config" / "Windows",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "HT" / "Saved_GlobalSteam" / "Config" / "Windows",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "HT" / "Saved_Steam"       / "Config" / "Windows",
+]
+
+class FixEngineThread(QThread):
+    success = pyqtSignal()
+
+    def __init__(self, game_path: str | None, parent=None):
+        super().__init__(parent)
+        self.game_path = game_path
+
+    def run(self):
+        for config_dir in ENGINE_INI_ROOTS:
+            ini = config_dir / "Engine.ini"
+            try:
+                if ini.exists():
+                    os.chmod(ini, 0o666)
+                    ini.unlink()
+                    logger.info(f"Fix Engine deleted {ini}", extra={"el": True})
+            except Exception as e:
+                logger.warning(f"Fix Engine could not delete {ini}: {e}", extra={"el": True})
+
+        if self.game_path:
+            paks_dir = Path(self.game_path) / "Client" / "WindowsNoEditor" / "HT" / "Content" / "Paks"
+            try:
+                if paks_dir.is_dir():
+                    for f in paks_dir.iterdir():
+                        if f.stem == "gctip_P":
+                            try:
+                                f.unlink()
+                                logger.info(f"Fix Engine deleted pak file {f}", extra={"el": True})
+                            except Exception as e:
+                                logger.warning(f"Fix Engine could not delete {f}: {e}", extra={"el": True})
+            except Exception as e:
+                logger.warning(f"Fix Engine got an error scanning Paks dir {paks_dir}: {e}", extra={"el": True})
+
+        self.success.emit()
+
+
+def get_aurora_cache_dir() -> Path:
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA", "")) / "Aurora" / "Cache"
+    return Path.home() / ".config" / "Aurora" / "Cache"
+
+
+class ClearCacheThread(QThread):
+    success = pyqtSignal()
+    failure = pyqtSignal()
+
+    def run(self):
+        try:
+            cache_dir = get_aurora_cache_dir()
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
+                logger.info(f"Clear Cache removed {cache_dir}", extra={"el": True})
+            else:
+                logger.info("Clear Cache cache directory does not exist, nothing to do", extra={"el": True})
+            self.success.emit()
+        except Exception as e:
+            logger.warning(f"Clear Cache failed to remove cache: {e}", extra={"el": True})
+            self.failure.emit()

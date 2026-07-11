@@ -131,8 +131,4 @@ PAK_ADDONS: list[PakAddon] = [
         config_key  = "nor_rem",       # Key.HIDE_NOTIF_DOTS
         base_name   = "nrdrm_P",
     ),
-    PakAddon(
-        config_key  = "col_tim",       # Key.COOLDOWN_TIMER
-        base_name   = "gctip_P",
-    ),
 ]

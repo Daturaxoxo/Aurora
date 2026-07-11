@@ -4,6 +4,8 @@ import sys
 import urllib
 import urllib.request
 import requests
+import platform
+import json
 from src import config_manager as cfg
 from src.path_finder import get_local_version
 
@@ -53,3 +55,34 @@ def bytes_to_human_readable(num_bytes: float) -> str:
         if num_bytes < 1024.0: return f"{num_bytes:.2f} {unit}"
         num_bytes /= 1024.0
     return f"{num_bytes:.2f} GB"
+
+def cache_path() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path.home() / ".config"
+    return base / "Aurora" / "Cache" / "storage.json"
+
+def load_cache() -> dict:
+    p = cache_path()
+    if not p.exists() or p.stat().st_size == 0: return {}
+    try: return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError): return {}
+
+
+def save_cache(data: dict):
+    p = cache_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except OSError: pass
+
+
+def set_cache(key: str, value):
+    d = load_cache()
+    d[key] = value
+    save_cache(d)
+
+
+def get_cache(key: str, default=None): return load_cache().get(key, default)

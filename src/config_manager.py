@@ -30,7 +30,6 @@ class Key:
     CENSORSHIP_REMOVE = "csn_rem"
     HIDE_UID          = "uid_rem"
     HIDE_NOTIF_DOTS   = "nor_rem"
-    COOLDOWN_TIMER    = "col_tim"
     DISCORD_RPC       = "discord_rpc"
     EXTENSIVE_LOGGING = "extensive_logging"
     EXPORT_CONSOLE    = "export_console"
@@ -46,7 +45,6 @@ DEFAULTS = {
     Key.CENSORSHIP_REMOVE: True,
     Key.HIDE_UID:          True,
     Key.HIDE_NOTIF_DOTS:   False,
-    Key.COOLDOWN_TIMER:    True,
     Key.DISCORD_RPC:       True,
     Key.EXTENSIVE_LOGGING: False,
     Key.UI_SCALING:        1.0,

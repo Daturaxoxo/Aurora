@@ -85,7 +85,7 @@ class AuroraEngine:
         from src.backend.helpers.validation import validate_builtins
         required = [
             *self.main_dlls,
-            "ausigbp.asi",
+            "Everlight.asi",
             *([dst.name for key, dst in self.targets.items() if key != "asi_plugin"] if self.crr else []),
         ]
         return validate_builtins(self.bin, required)
@@ -154,7 +154,7 @@ class AuroraEngine:
 
         req_bin = [
             *[self.bin / dll for dll in self.main_dlls],
-            self.bin / "ausigbp.asi",
+            self.bin / "Everlight.asi",
         ]
         addon_warnings = []
 
@@ -186,7 +186,7 @@ class AuroraEngine:
                 raise
 
             logger.info("Initializing Signature Bypasser...")
-            try: shutil.copy(self.bin / "ausigbp.asi", self.targets["asi_plugin"])
+            try: shutil.copy(self.bin / "Everlight.asi", self.targets["asi_plugin"])
             except (PermissionError, OSError) as e:
                 if getattr(e, "winerror", None) in (5, 32):
                     logger.error(f"Access denied copying loader DLL(s) (WinError {e.winerror}). Likely blocked by antivirus or UAC.")
@@ -311,3 +311,42 @@ class AuroraEngine:
                 self.exit_proc()
                 break
             time.sleep(0.5)
+    
+    def fast_startup(self, on_launcher_detected=None, on_game_started=None):
+        logger.info("Fast Startup initiated.")
+        self.crr = cfg.get(cfg.Key.CENSORSHIP_REMOVE)
+
+        missing = self.validate_builtins()
+        if missing:
+            logger.critical(f"Fast Startup aborted, missing required files: {missing}")
+            return False
+
+        result = self.inject()
+        if result != True:
+            logger.critical(f"Fast Startup aborted, injection failed (result: {result})")
+            return False
+
+        if on_launcher_detected:
+            self.on_launcher_detected = on_launcher_detected
+        if on_game_started:
+            self.on_game_started = on_game_started
+
+        launcher_exe_name = next(
+            (exe for exe, ver in LAUNCHER_MAP.items() if ver == self.version), None
+        )
+        if not launcher_exe_name:
+            logger.critical(f"No launcher found for version '{self.version}'")
+            self.sanitize(spps=True)
+            return False
+
+        launcher_exe = self.path / launcher_exe_name
+        logger.info(f"Launching: {launcher_exe}")
+        try:
+            subprocess.Popen(str(launcher_exe), cwd=str(self.path))
+        except (OSError, FileNotFoundError) as e:
+            logger.critical(f"Failed to launch game: {e}")
+            self.sanitize(spps=True)
+            return False
+
+        self.monitor()
+        return True

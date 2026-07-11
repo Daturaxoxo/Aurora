@@ -142,7 +142,15 @@
         "steam_wrapper_disabled": "Steam Wrapper disabled.",
         "steam_wrapper_disabled_fail": "Failed to restore original launch options.",
         "steam_wrapper_popup_title": "Modify Steam's Play Button?",
-        "steam_wrapper_popup_message": "Aurora has detected you have installed the game through Steam and can update the Play button to use our Steam Wrapper instead of running the game without mods."
+        "steam_wrapper_popup_message": "Aurora has detected you have installed the game through Steam and can update the Play button to use our Steam Wrapper instead of running the game without mods.",
+        "fix_engine_title": "Fix Engine",
+        "fix_engine_desc": "Attempts to fix engine issues like crashing on launch.",
+        "fix_engine_button": "Fix",
+        "fix_engine_toast": "Aurora is attempting to fix engine issues. This is not guaranteed to work. If issues persist, please join our Discord server.",
+        "clear_cache_desc": "Clear the global cache saved by Aurora.",
+        "clear_cache_button": "Clear",
+        "clear_cache_toast_success": "Cache cleared.",
+        "clear_cache_toast_fail": "Cache was not cleared."
     },
     "cn": {
         "_status": "The Chinese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -287,7 +295,15 @@
         "steam_wrapper_disabled": "Steam 封装器已禁用。",
         "steam_wrapper_disabled_fail": "无法恢复原始启动选项。",
         "steam_wrapper_popup_title": "修改 Steam 的“开始游戏”按钮？",
-        "steam_wrapper_popup_message": "Aurora 检测到您是通过 Steam 安装的游戏，可以更新“开始游戏”按钮以使用我们的 Steam 封装器，而不是在没有模组的情况下运行游戏。"
+        "steam_wrapper_popup_message": "Aurora 检测到您是通过 Steam 安装的游戏，可以更新“开始游戏”按钮以使用我们的 Steam 封装器，而不是在没有模组的情况下运行游戏。",
+        "fix_engine_title": "修复引擎",
+        "fix_engine_desc": "尝试修复引擎问题（如启动时崩溃）。",
+        "fix_engine_button": "修复",
+        "fix_engine_toast": "Aurora 正在尝试修复引擎问题。这不保证一定有效。如果问题仍然存在，请加入我们的 Discord 服务器。",
+        "clear_cache_desc": "清除 Aurora 保存的全局缓存。",
+        "clear_cache_button": "清除",
+        "clear_cache_toast_success": "缓存已清除。",
+        "clear_cache_toast_fail": "缓存未能清除。"
     },
     "zh-TW": {
         "settings": "設定",
@@ -432,7 +448,15 @@
         "steam_wrapper_disabled": "Steam 封裝器已停用。",
         "steam_wrapper_disabled_fail": "無法還原原始啟動選項。",
         "steam_wrapper_popup_title": "修改 Steam 的開始遊戲按鈕？",
-        "steam_wrapper_popup_message": "Aurora 偵測到您已透過 Steam 安裝遊戲，可以更新開始遊戲按鈕以使用我們的 Steam 封裝器，而不是直接在沒有模組的情況下執行遊戲。"
+        "steam_wrapper_popup_message": "Aurora 偵測到您已透過 Steam 安裝遊戲，可以更新開始遊戲按鈕以使用我們的 Steam 封裝器，而不是直接在沒有模組的情況下執行遊戲。",
+        "fix_engine_title": "修復引擎",
+        "fix_engine_desc": "嘗試修復引擎問題（如啟動時崩潰）。",
+        "fix_engine_button": "修復",
+        "fix_engine_toast": "Aurora 正在嘗試修復引擎問題。這不保證一定有效。如果問題仍然存在，請加入我們的 Discord 伺服器。",
+        "clear_cache_desc": "清除 Aurora 儲存的全域快取。",
+        "clear_cache_button": "清除",
+        "clear_cache_toast_success": "快取已清除。",
+        "clear_cache_toast_fail": "快取未能清除。"
     },
     "de": {
         "settings": "Einstellungen",
@@ -576,7 +600,15 @@
         "steam_wrapper_disabled": "Steam Wrapper deaktiviert.",
         "steam_wrapper_disabled_fail": "Wiederherstellung der ursprünglichen Startoptionen fehlgeschlagen.",
         "steam_wrapper_popup_title": "Steam „Spielen“-Button ändern?",
-        "steam_wrapper_popup_message": "Aurora hat erkannt, dass du das Spiel über Steam installiert hast, und kann den „Spielen“-Button so aktualisieren, dass unser Steam Wrapper verwendet wird, anstatt das Spiel ohne Mods auszuführen."
+        "steam_wrapper_popup_message": "Aurora hat erkannt, dass du das Spiel über Steam installiert hast, und kann den „Spielen“-Button so aktualisieren, dass unser Steam Wrapper verwendet wird, anstatt das Spiel ohne Mods auszuführen.",
+        "fix_engine_title": "Engine reparieren",
+        "fix_engine_desc": "Versucht, Engine-Probleme wie Abstürze beim Starten zu beheben.",
+        "fix_engine_button": "Reparieren",
+        "fix_engine_toast": "Aurora versucht, Engine-Probleme zu beheben. Dies funktioniert nicht garantiert. Wenn die Probleme weiterhin bestehen, treten Sie bitte unserem Discord-Server bei.",
+        "clear_cache_desc": "Den von Aurora gespeicherten globalen Cache leeren.",
+        "clear_cache_button": "Leeren",
+        "clear_cache_toast_success": "Cache geleert.",
+        "clear_cache_toast_fail": "Cache wurde nicht geleert."
     },
     "es": {
         "settings": "Opciones",
@@ -720,7 +752,15 @@
         "steam_wrapper_disabled": "Steam Wrapper desactivado.",
         "steam_wrapper_disabled_fail": "Error al restaurar las opciones de lanzamiento originales.",
         "steam_wrapper_popup_title": "¿Modificar el botón Jugar de Steam?",
-        "steam_wrapper_popup_message": "Aurora ha detectado que has instalado el juego a través de Steam y puede actualizar el botón Jugar para usar nuestro Steam Wrapper en lugar de ejecutar el juego sin mods."
+        "steam_wrapper_popup_message": "Aurora ha detectado que has instalado el juego a través de Steam y puede actualizar el botón Jugar para usar nuestro Steam Wrapper en lugar de ejecutar el juego sin mods.",
+        "fix_engine_title": "Reparar motor",
+        "fix_engine_desc": "Intenta solucionar problemas del motor, como fallos al iniciar.",
+        "fix_engine_button": "Reparar",
+        "fix_engine_toast": "Aurora está intentando solucionar los problemas del motor. No se garantiza que funcione. Si los problemas persisten, únete a nuestro servidor de Discord.",
+        "clear_cache_desc": "Borrar la caché global guardada por Aurora.",
+        "clear_cache_button": "Borrar",
+        "clear_cache_toast_success": "Caché borrada.",
+        "clear_cache_toast_fail": "La caché no se ha borrado."
     },
     "id": {
         "settings": "Pengaturan",
@@ -864,7 +904,15 @@
         "steam_wrapper_disabled": "Steam Wrapper dinonaktifkan.",
         "steam_wrapper_disabled_fail": "Gagal memulihkan opsi peluncuran asli.",
         "steam_wrapper_popup_title": "Ubah Tombol Main di Steam?",
-        "steam_wrapper_popup_message": "Aurora mendeteksi bahwa Anda menginstal game melalui Steam dan dapat memperbarui tombol Main untuk menggunakan Steam Wrapper kami, alih-alih menjalankan game tanpa mod."
+        "steam_wrapper_popup_message": "Aurora mendeteksi bahwa Anda menginstal game melalui Steam dan dapat memperbarui tombol Main untuk menggunakan Steam Wrapper kami, alih-alih menjalankan game tanpa mod.",
+        "fix_engine_title": "Perbaiki Engine",
+        "fix_engine_desc": "Mencoba memperbaiki masalah engine seperti crash saat diluncurkan.",
+        "fix_engine_button": "Perbaiki",
+        "fix_engine_toast": "Aurora sedang mencoba memperbaiki masalah engine. Ini tidak dijamin berhasil. Jika masalah berlanjut, silakan bergabung dengan server Discord kami.",
+        "clear_cache_desc": "Hapus cache global yang disimpan oleh Aurora.",
+        "clear_cache_button": "Hapus",
+        "clear_cache_toast_success": "Cache dihapus.",
+        "clear_cache_toast_fail": "Cache tidak dihapus."
     },
     "it": {
         "settings": "Impostazioni",
@@ -1008,7 +1056,15 @@
         "steam_wrapper_disabled": "Steam Wrapper disabilitato.",
         "steam_wrapper_disabled_fail": "Impossibile ripristinare le opzioni di avvio originali.",
         "steam_wrapper_popup_title": "Modificare il pulsante Gioca di Steam?",
-        "steam_wrapper_popup_message": "Aurora ha rilevato che hai installato il gioco tramite Steam e può aggiornare il pulsante Gioca per utilizzare il nostro Steam Wrapper invece di eseguire il gioco senza mod."
+        "steam_wrapper_popup_message": "Aurora ha rilevato che hai installato il gioco tramite Steam e può aggiornare il pulsante Gioca per utilizzare il nostro Steam Wrapper invece di eseguire il gioco senza mod.",
+        "fix_engine_title": "Correggi Engine",
+        "fix_engine_desc": "Tenta di risolvere i problemi dell'engine come il crash all'avvio.",
+        "fix_engine_button": "Correggi",
+        "fix_engine_toast": "Aurora sta aumentando di correggere i problemi dell'engine. Non è garantito che funzioni. Se i problemi persistono, unisciti al nostro server Discord.",
+        "clear_cache_desc": "Cancella la cache globale salvata da Aurora.",
+        "clear_cache_button": "Cancella",
+        "clear_cache_toast_success": "Cache cancellata.",
+        "clear_cache_toast_fail": "La cache non è stata cancellata."
     },
     "jp": {
         "_status": "The Japanese translation of Aurora is not confirmed to be correct, please fix any issues you see here!",
@@ -1153,7 +1209,15 @@
         "steam_wrapper_disabled": "Steam ラッパーが無効化されました。",
         "steam_wrapper_disabled_fail": "オリジナルの起動オプションの復元に失敗しました。",
         "steam_wrapper_popup_title": "Steamのプレイボタンを変更しますか？",
-        "steam_wrapper_popup_message": "AuroraはゲームがSteam経由でインストールされていることを検出しました。MODなしでゲームを実行する代わりに、当社のSteamラッパーを使用するようにプレイボタンを更新できます。"
+        "steam_wrapper_popup_message": "AuroraはゲームがSteam経由でインストールされていることを検出しました。MODなしでゲームを実行する代わりに、当社のSteamラッパーを使用するようにプレイボタンを更新できます。",
+        "fix_engine_title": "エンジンを修復",
+        "fix_engine_desc": "起動時のクラッシュなどのエンジンの问题的修復を試みます。",
+        "fix_engine_button": "修復",
+        "fix_engine_toast": "Auroraはエンジンの問題の修復を試みています。これは動作を保証するものではありません。問題が解決しない場合は、Discordサーバーに参加してください。",
+        "clear_cache_desc": "Auroraによって保存されたグローバルキャッシュをクリアします。",
+        "clear_cache_button": "クリア",
+        "clear_cache_toast_success": "キャッシュがクリアされました。",
+        "clear_cache_toast_fail": "キャッシュはクリアされませんでした。"
     },
     "pt-br": {
         "settings": "Configurações",
@@ -1297,7 +1361,15 @@
         "steam_wrapper_disabled": "Steam Wrapper desativado.",
         "steam_wrapper_disabled_fail": "Falha ao restaurar as opções de inicialização originais.",
         "steam_wrapper_popup_title": "Modificar o botão Jogar do Steam?",
-        "steam_wrapper_popup_message": "O Aurora detectou que você instalou o jogo através do Steam e pode atualizar o botão Jogar para usar o nosso Steam Wrapper em vez de rodar o jogo sem mods."
+        "steam_wrapper_popup_message": "O Aurora detectou que você instalou o jogo através do Steam e pode atualizar o botão Jogar para usar o nosso Steam Wrapper em vez de rodar o jogo sem mods.",
+        "fix_engine_title": "Corrigir Motor",
+        "fix_engine_desc": "Tenta corrigir problemas do motor, como travamentos ao iniciar.",
+        "fix_engine_button": "Corrigir",
+        "fix_engine_toast": "O Aurora está tentando corrigir problemas do motor. Isso não é garantido que funcione. Se os problemas persistirem, por favor, entre no nosso servidor do Discord.",
+        "clear_cache_desc": "Limpar o cache global salvo pelo Aurora.",
+        "clear_cache_button": "Limpar",
+        "clear_cache_toast_success": "Cache limpo.",
+        "clear_cache_toast_fail": "O cache não foi limpo."
     },
     "ru": {
         "settings": "Настройки",
@@ -1441,7 +1513,15 @@
         "steam_wrapper_disabled": "Steam Wrapper выключен.",
         "steam_wrapper_disabled_fail": "Не удалось восстановить исходные параметры запуска.",
         "steam_wrapper_popup_title": "Изменить кнопку «Играть» в Steam?",
-        "steam_wrapper_popup_message": "Aurora обнаружила, что игра установлена через Steam, и может обновить кнопку «Играть» для использования нашей обертки Steam Wrapper вместо запуска игры без модов."
+        "steam_wrapper_popup_message": "Aurora обнаружила, что игра установлена через Steam, и может обновить кнопку «Играть» для использования нашей обертки Steam Wrapper вместо запуска игры без модов.",
+        "fix_engine_title": "Исправить движок",
+        "fix_engine_desc": "Пытается исправить проблемы с движком, такие как вылет при запуске.",
+        "fix_engine_button": "Исправить",
+        "fix_engine_toast": "Aurora пытается исправить проблемы с движком. Это не гарантирует результат. Если проблемы не исчезнут, пожалуйста, зайдите на наш Discord-сервер.",
+        "clear_cache_desc": "Очистить глобальный кэш, сохраненный Aurora.",
+        "clear_cache_button": "Очистить",
+        "clear_cache_toast_success": "Кэш очищен.",
+        "clear_cache_toast_fail": "Кэш не был очищен."
     },
     "tr": {
         "settings": "Ayarlar",
@@ -1585,7 +1665,15 @@
         "steam_wrapper_disabled": "Steam Wrapper devre dışı bırakıldı.",
         "steam_wrapper_disabled_fail": "Orijinal başlatma seçenekleri geri yüklenemedi.",
         "steam_wrapper_popup_title": "Steam'in Oyna Düğmesi Değiştirilsin mi?",
-        "steam_wrapper_popup_message": "Aurora, oyunu Steam üzerinden yüklediğinizi tespit etti ve oyunu modsuz çalıştırmak yerine Steam Wrapper'ımızı kullanması için Oyna düğmesini güncelleyebilir."
+        "steam_wrapper_popup_message": "Aurora, oyunu Steam üzerinden yüklediğinizi tespit etti ve oyunu modsuz çalıştırmak yerine Steam Wrapper'ımızı kullanması için Oyna düğmesini güncelleyebilir.",
+        "fix_engine_title": "Motoru Düzelt",
+        "fix_engine_desc": "Açılışta çökme gibi motor sorunlarını düzeltmeye çalışır.",
+        "fix_engine_button": "Düzelt",
+        "fix_engine_toast": "Aurora motor sorunlarını düzeltmeye çalışıyor. Bunun çalışacağı garanti edilmez. Sorunlar devam ederse lütfen Discord sunucumuza katılın.",
+        "clear_cache_desc": "Aurora tarafından kaydedilen genel önbelleği temizleyin.",
+        "clear_cache_button": "Temizle",
+        "clear_cache_toast_success": "Önbellek temizlendi.",
+        "clear_cache_toast_fail": "Önbellek temizlenemedi."
     },
     "vi": {
         "settings": "Cài đặt",
@@ -1729,7 +1817,15 @@
         "steam_wrapper_disabled": "Đã tắt Steam Wrapper.",
         "steam_wrapper_disabled_fail": "Không thể khôi phục các tùy chọn khởi chạy ban đầu.",
         "steam_wrapper_popup_title": "Sửa đổi nút Chơi của Steam?",
-        "steam_wrapper_popup_message": "Aurora phát hiện bạn đã cài đặt trò chơi thông qua Steam và có thể cập nhật nút Chơi để sử dụng Steam Wrapper của chúng tôi thay vì chạy trò chơi mà không có mod."
+        "steam_wrapper_popup_message": "Aurora phát hiện bạn đã cài đặt trò chơi thông qua Steam và có thể cập nhật nút Chơi để sử dụng Steam Wrapper của chúng tôi thay vì chạy trò chơi mà không có mod.",
+        "fix_engine_title": "Sửa Engine",
+        "fix_engine_desc": "Cố gắng khắc phục các sự cố của engine như bị sập khi khởi chạy.",
+        "fix_engine_button": "Sửa",
+        "fix_engine_toast": "Aurora đang cố gắng khắc phục các sự cố của engine. Việc này không đảm bảo sẽ hoạt động. Nếu sự cố vẫn tiếp diễn, vui lòng tham gia máy chủ Discord của chúng tôi.",
+        "clear_cache_desc": "Xóa bộ nhớ cache toàn cục được lưu bởi Aurora.",
+        "clear_cache_button": "Xóa",
+        "clear_cache_toast_success": "Đã xóa bộ nhớ cache.",
+        "clear_cache_toast_fail": "Bộ nhớ cache chưa được xóa."
     },
     "nl": {
         "settings": "Instellingen",
@@ -1874,7 +1970,15 @@
         "steam_wrapper_disabled": "Steam Wrapper uitgeschakeld.",
         "steam_wrapper_disabled_fail": "Herstellen van originele opstartopties mislukt.",
         "steam_wrapper_popup_title": "Steam 'Spelen'-knop aanpassen?",
-        "steam_wrapper_popup_message": "Aurora heeft gedetecteerd dat je het spel via Steam hebt geïnstalleerd en kan de 'Spelen'-knop bijwerken om onze Steam Wrapper te gebruiken in plaats van het spel zonder mods op te starten."
+        "steam_wrapper_popup_message": "Aurora heeft gedetecteerd dat je het spel via Steam hebt geïnstalleerd en kan de 'Spelen'-knop bijwerken om onze Steam Wrapper te gebruiken in plaats van het spel zonder mods op te starten.",
+        "fix_engine_title": "Engine repareren",
+        "fix_engine_desc": "Probeert engine-problemen zoals vastlopen bij het opstarten op te lossen.",
+        "fix_engine_button": "Repareren",
+        "fix_engine_toast": "Aurora probeert engine-problemen op te lossen. Dit werkt niet gegarandeerd. Als de problemen aanhouden, word dan lid van onze Discord-server.",
+        "clear_cache_desc": "Wis de wereldwijde cache die door Aurora is opgeslagen.",
+        "clear_cache_button": "Wissen",
+        "clear_cache_toast_success": "Cache gewist.",
+        "clear_cache_toast_fail": "Cache is niet gewist."
     },
     "ko": {
         "settings": "설정",
@@ -2019,6 +2123,14 @@
         "steam_wrapper_disabled": "Steam Wrapper가 비활성화되었습니다.",
         "steam_wrapper_disabled_fail": "원래 시작 옵션을 복원할 수 없습니다.",
         "steam_wrapper_popup_title": "Steam의 플레이 버튼을 수정하시겠습니까?",
-        "steam_wrapper_popup_message": "Aurora는 사용자가 Steam을 통해 게임을 설치했음을 감지했으며, 모드 없이 게임을 실행하는 대신 Steam Wrapper를 사용하도록 플레이 버튼을 업데이트할 수 있습니다."
+        "steam_wrapper_popup_message": "Aurora는 사용자가 Steam을 통해 게임을 설치했음을 감지했으며, 모드 없이 게임을 실행하는 대신 Steam Wrapper를 사용하도록 플레이 버튼을 업데이트할 수 있습니다.",
+        "fix_engine_title": "엔진 복구",
+        "fix_engine_desc": "시작 시 튕김과 같은 엔진 문제를 복구합니다.",
+        "fix_engine_button": "복구",
+        "fix_engine_toast": "Aurora가 엔진 문제를 복구를 시도하고 있습니다. 이 작업이 항상 성공하는 것은 아닙니다. 문제가 지속되면 저희 Discord 서버에 문의해 주세요.",
+        "clear_cache_desc": "Aurora에 저장된 글로벌 캐시를 삭제합니다.",
+        "clear_cache_button": "삭제",
+        "clear_cache_toast_success": "캐시가 삭제되었습니다.",
+        "clear_cache_toast_fail": "캐시 삭제에 실패했습니다."
     }
 }
