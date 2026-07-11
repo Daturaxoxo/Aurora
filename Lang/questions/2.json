@@ -12,6 +12,7 @@
         "vi": "Những máy chủ nào được hỗ trợ?",
         "fr": "Quels serveurs sont pris en charge ?",
         "ru": "Какие серверы поддерживаются?"
+        "id": "Server mana saja yang didukung?"
     },
     "answer": {
         "en": [
@@ -145,6 +146,19 @@
             "\n- Центральная Азия",
             "\n- Материковый Китай",
             "\n- Тайвань"
+        ],
+         "id": [
+            "##Server yang didukung",
+            "Versi peluncur yang Aurora dukung tercantum dibawah ini:",
+            "\n- Amerika Utara & Amerika Selatan",
+            "\n- Eropa",
+            "\n- Afrika",
+            "\n- Timur Tengah",
+            "\n- Asia Tenggara",
+            "\n- Asia Tengah",
+            "\n- Tiongkok Daratan",
+            "\n- Taiwan",
+        ]
         ]
     }
 }

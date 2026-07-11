@@ -12,6 +12,7 @@
         "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?",
         "fr": "Comment puis-je faire des suggestions ?",
         "ru": "Как я могу сделать предложения?"
+        "id": "Bagaimana cara saya memberi saran?"
     },
     "answer": {
         "en": [
@@ -90,6 +91,12 @@
             "\n- Наш Discord сервер",
             "\n- Страница на GameBanana",
             "В других местах ваше сообщение получит ответ с задержкой или вообще будет проигнорировано."
-        ]
+        ],
+        "id": [
+            "## Memberi Saran",
+            "Tempat untuk memberi saran:",
+            "\n- Server Discord kami",
+            "\n- Halaman GameBanana",
+            "Lokasi lain akan mengakibatkan respons yang terlambat atau tidak ada balasan sama sekali."
     }
 }
