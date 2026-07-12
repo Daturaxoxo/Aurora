@@ -1,0 +1,393 @@
+import { Palette } from "../../../global.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export struct ModuleItem {
+    id: string,
+    name: string,
+    version: string,
+    notes: string,
+    is_editing: bool,
+}
+
+component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled();
+
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? #10b981 : #3f3f46;
+
+    animate background { duration: 150ms; }
+
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ffffff;
+        x: root.checked ? parent.width - self.width - 4px : 4px;
+
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
+    }
+
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+}
+
+export component ModulesPage inherits Rectangle {
+    callback close-modules();
+    callback choose-module();
+    callback drop-files(string);
+
+    callback rename-module(string, string); // <id>, <name> | <name>: The new name for the module
+    callback save-module-notes(string, string); // <id>, <name> | <name>: The new note for the module
+    callback delete-module(string , string); // <id>, <name> | <name>: The name of the module to be deleted
+
+    in-out property <[ModuleItem]> installed-modules: [
+        { id: "1", name: "core loader", version: "1.0.4", notes: "", is_editing: false },
+        { id: "2", name: "Test module", version: "1.1.0", notes: "abcdefg", is_editing: false },
+        { id: "3", name: "Test module 76", version: "1.3.0", notes: "abcdefg", is_editing: false },
+        { id: "4", name: "Test module 2", version: "1.6.0", notes: "lmaolmaolmaoeee33", is_editing: false },
+        { id: "5", name: "Test module 33", version: "1.18.9", notes: "lmaolmaolmao", is_editing: false },
+    ];
+
+    background: #00000066;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.close-modules(); }
+    }
+
+    panel := Rectangle {
+        width: min(parent.width - 80px, 900px);
+        height: parent.height - 60px;
+        x: (parent.width  - self.width)  / 2;
+        y: (parent.height - self.height) / 2;
+        background: Palette.glass-background;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+        drop-shadow-color: #00000099;
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 12px;
+        clip: true;
+
+        TouchArea { width: 100%; height: 100%; }
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+
+            // Header
+            HorizontalLayout {
+                alignment: space-between;
+                height: 32px;
+
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+
+                        Image {
+                            source: @image-url("../../../../production/icons/menu/modules.png");
+                            width: 20px;
+                            height: 20px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: Palette.text-primary;
+                        }
+
+                        Text {
+                            text: "Third Party Modules";
+                            color: Palette.text-primary;
+                            font-size: 17px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../production/icons/close.png");
+                        width: 22px;
+                        height: 22px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    close-ta := TouchArea {
+                        clicked => { root.close-modules(); }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Palette.glass-border;
+            }
+
+            // Drop Zone
+            VerticalLayout {
+                vertical-stretch: 1;
+                spacing: 16px;
+
+                drop-zone := Rectangle {
+                    height: 140px;
+                    border-radius: 10px;
+                    border-width: 2px;
+                    border-color: dz-ta.has-hover ? #ffffff55 : #ffffff22;
+                    background: dz-ta.has-hover ? #ffffff0a : transparent;
+                    animate border-color { duration: 120ms; }
+                    animate background  { duration: 120ms; }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        width: 100%;
+                        height: 100%;
+                        padding-right: 8px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 8px;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Image {
+                                    source: @image-url("../../../../production/icons/add.png");
+                                    width: 36px;
+                                    height: 36px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: dz-ta.has-hover ? Palette.text-primary : Palette.text-secondary;
+                                    animate colorize { duration: 120ms; }
+                                }
+                            }
+
+                            Text {
+                                text: "Install Third Party Modules";
+                                color: dz-ta.has-hover ? Palette.text-primary : Palette.text-secondary;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                animate color { duration: 120ms; }
+                            }
+
+                            Text {
+                                text: "Choose files";
+                                color: #6aacf8;
+                                font-size: 12px;
+                                font-weight: 500;
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+
+                    dz-ta := TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        clicked => { root.choose-module(); }
+                        StyledText { }
+                    }
+                }
+
+                // Modules List
+                ScrollView {
+                    vertical-stretch: 1;
+                    
+                    VerticalLayout {
+                        spacing: 6px;
+                        padding-right: 8px;
+
+                        for item[index] in root.installed-modules : Rectangle {
+                            height: 76px; 
+                            background: #ffffff08;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            border-radius: 8px;
+
+                            HorizontalLayout {
+                                padding-left: 16px;
+                                padding-right: 16px;
+                                alignment: space-between;
+
+                                // Module Details
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 1px;
+                                    horizontal-stretch: 1;
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+                                        
+                                        if (!item.is_editing) : HorizontalLayout {
+                                            spacing: 8px;
+                                            alignment: center;
+                                            
+                                            Text {
+                                                text: item.name;
+                                                color: Palette.text-primary;
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                            }
+                                            
+                                            edit-btn := TouchArea {
+                                                width: 16px;
+                                                height: 16px;
+                                                clicked => {
+                                                    root.installed-modules[index].is_editing = true;
+                                                }
+                                                Image {
+                                                    source: @image-url("../../../../production/icons/edit.png");
+                                                    width: 14px;
+                                                    height: 14px;
+                                                    colorize: edit-btn.has-hover ? Palette.text-primary : Palette.text-secondary;
+                                                    y: (parent.height - self.height) / 2;
+                                                }
+                                            }
+                                        }
+
+                                        if (item.is_editing) : Rectangle {
+                                            width: 200px;
+                                            height: 24px;
+                                            background: #ffffff0d;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: #ffffff22;
+
+                                            TextInput {
+                                                width: 100%;
+                                                height: 100%;
+                                                text: item.name;
+                                                font-size: 13px;
+                                                color: Palette.text-primary;
+                                                vertical-alignment: center;
+                                                accepted => {
+                                                    root.installed-modules[index].name = self.text;
+                                                    root.installed-modules[index].is_editing = false;
+                                                    root.rename-module(item.id, self.text);
+                                                }
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            Text {
+                                                text: "v" + item.version;
+                                                color: Palette.text-secondary;
+                                                font-size: 11px;
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        height: 20px;
+                                        background: notes-ta.has-hover || notes-input.has-focus ? #ffffff08 : transparent;
+                                        border-radius: 4px;
+                                        animate background { duration: 120ms; }
+
+                                        notes-ta := TouchArea {
+                                            width: 100%;
+                                            height: 100%;
+                                            clicked => { notes-input.focus(); }
+                                        }
+
+                                        if (item.notes == "" && !notes-input.has-focus) : Text {
+                                            text: "Click here to write a note...";
+                                            color: Palette.text-secondary;
+                                            font-size: 12px;
+                                            x: 0px;
+                                            vertical-alignment: center;
+                                        }
+
+                                        notes-input := TextInput {
+                                            x: 0px;
+                                            width: parent.width - 8px;
+                                            height: 100%;
+                                            text: item.notes;
+                                            color: Palette.text-secondary;
+                                            font-size: 12px;
+                                            vertical-alignment: center;
+                                            
+                                            edited => {
+                                                root.installed-modules[index].notes = self.text;
+                                                root.save-module-notes(item.id, self.text);
+                                            }
+
+                                            accepted => {
+                                                root.installed-modules[index].notes = self.text;
+                                                root.save-module-notes(item.id, self.text);
+                                                self.clear-focus(); 
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Action Controls
+                                VerticalLayout {
+                                    alignment: center;
+                                    
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        alignment: center;
+
+                                        delete-btn := TouchArea {
+                                            width: 24px;
+                                            height: 24px;
+                                            clicked => {
+                                                root.delete-module(item.id, item.name);
+                                            }
+                                            
+                                            Rectangle {
+                                                width: 100%;
+                                                height: 100%;
+                                                border-radius: 4px;
+                                                background: delete-btn.has-hover ? #ef44441a : transparent;
+                                                animate background { duration: 100ms; }
+                                            }
+
+                                            Image {
+                                                source: @image-url("../../../../production/icons/delete.png");
+                                                width: 14px;
+                                                height: 14px;
+                                                colorize: delete-btn.has-hover ? #ef4444 : Palette.text-secondary;
+                                                x: (parent.width - self.width) / 2;
+                                                y: (parent.height - self.height) / 2;
+                                                animate colorize { duration: 100ms; }
+                                            }
+                                        }
+
+                                        ToggleSwitch {
+                                            checked: false;
+                                            toggled => {
+                                                // Handle toggle action on the backend later
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
