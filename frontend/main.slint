@@ -4,6 +4,7 @@ import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
+import { ModulesPage } from "components/pages/menus/modules.slint";
 
 component IconButton inherits Rectangle {
     in property <image> source;
@@ -55,6 +56,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-settings: false;
     in-out property <bool> show-menu: false;
     in-out property <bool> show-addons: false;
+    in-out property <bool> show-modules: false;
 
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
@@ -108,6 +110,10 @@ export component MainWindow inherits Window {
     in-out property <[AddonItem]> addons: [];
     callback addon-action(int);
     callback addon-open-link(int);
+
+    // Modules Page Properties
+    callback module-choose();
+    callback module-drop-files(string);
 
     // [HELPER FUNCTIONS]
 
@@ -824,10 +830,21 @@ export component MainWindow inherits Window {
             width: parent.width;
             height: parent.height - Palette.topbar-height;
             close-menu => { root.show-menu = false; }
-            menu-item-clicked(i) => { 
+            menu-item-clicked(i) => {
                 root.show-menu = false;
                 if (i == 4) { root.show-addons = true; }
+                if (i == 3) { root.show-modules = true; }
             }
+        }
+
+        if root.show-modules: ModulesPage {
+            x: 0px;
+            y: Palette.topbar-height;
+            width: parent.width;
+            height: parent.height - Palette.topbar-height;
+            close-modules => { root.show-modules = false; }
+            choose-module => { root.module-choose(); }
+            drop-files(path) => { root.module-drop-files(path); }
         }
 
         if root.show-addons: AddonsPage {
