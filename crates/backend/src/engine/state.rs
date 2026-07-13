@@ -115,7 +115,11 @@ impl AuroraEngine {
             .ok_or_else(|| anyhow!("Engine could not find paks folder: {}", pak_base.display()))?
             .to_path_buf();
         let main_dlls = gpaths.dll_slots.iter().map(|s| s.name.clone()).collect();
-        let targets = Self::build_targets(gpaths);
+        let targets = vec![
+            (Target::AsiPlugin, gpaths.asi_plugin.clone()),
+            (Target::Ntfrmain, win64.join(Target::Ntfrmain.as_file())),
+            (Target::Cutils, win64.join(Target::Cutils.as_file())),
+        ];
 
         Ok(DerivedPaths {
             win64,
@@ -124,23 +128,5 @@ impl AuroraEngine {
             main_dlls,
             targets,
         })
-    }
-
-    fn build_targets(gpaths: &VersionPaths) -> Vec<(Target, PathBuf)> {
-        let win64 = &gpaths.win64;
-        if gpaths.version == Version::CN {
-            vec![
-                (Target::AsiPlugin, gpaths.asi_plugin.clone()),
-                (Target::CNntfrmain, win64.join(Target::CNntfrmain.as_file())),
-                (Target::Ntfrsub, win64.join(Target::Ntfrsub.as_file())),
-                (Target::Cutils, win64.join(Target::Cutils.as_file())),
-            ]
-        } else {
-            vec![
-                (Target::AsiPlugin, gpaths.asi_plugin.clone()),
-                (Target::GLntfrmain, win64.join(Target::GLntfrmain.as_file())),
-                (Target::Cutils, win64.join(Target::Cutils.as_file())),
-            ]
-        }
     }
 }

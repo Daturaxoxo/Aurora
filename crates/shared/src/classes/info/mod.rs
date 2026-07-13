@@ -21,20 +21,16 @@ pub const NTE_PROCESSES: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Target {
     AsiPlugin,
-    CNntfrmain,
-    GLntfrmain,
+    Ntfrmain,
     Cutils,
-    Ntfrsub,
 }
 
 impl Target {
     pub const fn as_file(&self) -> &'static str {
         match self {
             Self::AsiPlugin => "Everlight.asi",
-            Self::CNntfrmain => "cnntfrmain.asi",
-            Self::GLntfrmain => "glntfrmain.asi",
+            Self::Ntfrmain => "NET_TFMAIN.asi",
             Self::Cutils => "cutils.dll",
-            Self::Ntfrsub => "cnntfrsub.dll",
         }
     }
 }

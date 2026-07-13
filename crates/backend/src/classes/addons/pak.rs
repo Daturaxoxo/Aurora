@@ -58,11 +58,6 @@ pub struct ResolvedAddonFile {
 
 impl ResolvedAddonFile {
     pub fn to_folder_name(&self) -> String {
-        log::debug!(
-            "Converting resolved file to folder name: {}",
-            self.file_name
-        );
-
         let base_name = self
             .file_name
             .strip_suffix(".pak")
