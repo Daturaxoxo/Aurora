@@ -11,10 +11,16 @@ slint = { version = "1.17", default-features = false, features = [
 ] }
 # TODO: Needs testing on linux to see what features it needs.
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
-
-once_cell = "1"
+once_cell = { workspace = true }
 display-info = "0.5"
 open = "5"
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "webp",
+] }
+unrar = { package = "unrar-ng", version = "0.7" }
+archive = "0.3"
 
 backend = { path = "../backend" }
 shared = { path = "../shared" }
@@ -26,8 +32,7 @@ serde = { workspace = true }
 dirs = { workspace = true }
 serde_json = { workspace = true }
 
-reqwest = { version = "0.12", features = ["blocking"] }
-image = "0.25"
+reqwest = { workspace = true }
 
 [build-dependencies]
 slint-build = { version = "1.16.1" }

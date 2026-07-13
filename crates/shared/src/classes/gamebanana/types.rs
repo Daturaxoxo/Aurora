@@ -44,7 +44,7 @@ pub struct ApiRecord {
     #[serde(rename = "_idRow")]
     pub id: u32,
     #[serde(rename = "_sModelName")]
-    pub model_name: String,
+    pub model_name: Option<String>,
     #[serde(rename = "_sName")]
     pub name: String,
     #[serde(rename = "_sProfileUrl", default)]

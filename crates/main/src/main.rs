@@ -13,10 +13,10 @@ use shared::config::{self, key};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::pages::addons::AddonsHandler;
+use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
-use classes::pages::settings::SettingsHandler;
-use classes::pages::addons::AddonsHandler;
 
 use bridge::Bridge;
 

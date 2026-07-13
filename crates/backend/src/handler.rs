@@ -4,21 +4,16 @@ use log::{error, info};
 use shared::pathfind::get_game_directory;
 use std::{
     path::PathBuf,
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{mpsc, OnceLock},
 };
 
-pub static ENGINE_CMD_TX: OnceLock<Mutex<mpsc::Sender<EngineCommand>>> = OnceLock::new();
+pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
 
 pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
     // Check if the engine was started (OnceLock is populated)
-    let tx_mutex = ENGINE_CMD_TX
+    let tx = ENGINE_CMD_TX
         .get()
         .ok_or_else(|| anyhow!("Engine has not been started yet!"))?;
-
-    // Lock the mutex and clone the sender to return it
-    let tx = tx_mutex
-        .lock()
-        .map_err(|_| anyhow!("Failed to lock the Engine TX mutex"))?;
 
     Ok(tx.clone())
 }
@@ -46,7 +41,7 @@ impl EngineHandler {
         let (cmd_tx, cmd_rx) = mpsc::channel::<EngineCommand>();
         let (evt_tx, evt_rx) = mpsc::channel::<EngineEvent>();
 
-        let _ = ENGINE_CMD_TX.set(Mutex::new(cmd_tx.clone()));
+        let _ = ENGINE_CMD_TX.set(cmd_tx.clone());
 
         std::thread::spawn(move || {
             let game_path = match get_game_directory() {
@@ -61,7 +56,7 @@ impl EngineHandler {
                 }
             };
 
-            let mut engine = match AuroraEngine::new(game_path.to_str().unwrap_or_default()) {
+            let mut engine = match AuroraEngine::new(&game_path) {
                 Ok(e) => e,
                 Err(e) => {
                     evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();

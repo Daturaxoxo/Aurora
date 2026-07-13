@@ -39,6 +39,8 @@ pub mod key {
     pub const NO_DRIVE_LINE: &str = "drv_lin";
     pub const HIDE_UID: &str = "uid_rem";
     pub const HIDE_NOTIF_DOTS: &str = "nor_rem";
+    pub const COOLDOWN_TIMER: &str = "col_tim";
+    pub const COLLECTIBLES: &str = "collectibles";
     pub const DISCORD_RPC: &str = "discord_rpc";
     pub const EXTENSIVE_LOGGING: &str = "extensive_logging";
     pub const EXPORT_CONSOLE: &str = "export_console";
@@ -52,7 +54,7 @@ pub mod key {
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::CENSORSHIP_REMOVE | key::HIDE_UID | key::DISCORD_RPC | key::UI_MINIMIZATION => {
+        key::DISCORD_RPC | key::UI_MINIMIZATION | key::HIDE_UID => {
             json!(true)
         }
 
@@ -61,7 +63,10 @@ pub fn default_value(k: &str) -> Value {
         | key::HIDE_NOTIF_DOTS
         | key::EXTENSIVE_LOGGING
         | key::SHOW_NSFW_MODS
-        | key::CUSTOM_ADDONS_TOGGLED => {
+        | key::CUSTOM_ADDONS_TOGGLED
+        | key::CENSORSHIP_REMOVE
+        | key::COLLECTIBLES
+        | key::COOLDOWN_TIMER => {
             json!(false)
         }
 
@@ -82,7 +87,7 @@ pub fn default_value(k: &str) -> Value {
 }
 
 pub fn get_userdata_path() -> PathBuf {
-    dirs::data_local_dir()
+    dirs::config_dir()
         .expect("Could not resolve local data directory")
         .join("Aurora")
         .join("UserData")

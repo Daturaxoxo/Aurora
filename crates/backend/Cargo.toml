@@ -13,7 +13,7 @@ shared = { path = "../shared" }
 log = { workspace = true }
 anyhow = { workspace = true }
 jwalk = { workspace = true }
-rayon = { workspace = true }
+once_cell = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

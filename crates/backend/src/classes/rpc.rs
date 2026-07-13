@@ -3,11 +3,17 @@ use discord_rich_presence::{
     activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
+use once_cell::sync::Lazy;
 use shared::utils::{self, get_current_timestamp};
+
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 
 const APPLICATION_ID: &str = "1505644188060876920";
+
+/// Global Discord RPC client
+pub static RPC: Lazy<DiscordRpc> =
+    Lazy::new(|| DiscordRpc::new(utils::get_current_timestamp()).unwrap());
 
 #[derive(Debug)]
 enum RpcCommand {

@@ -6,7 +6,7 @@ use log::*;
 use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
 
 use crate::{
-    classes::info::{GAME_FOLDER_NAME, LAUNCHER_MAP},
+    classes::info::{paths::GAME_FOLDER_NAME, version::LAUNCHER_MAP},
     config::{get, key, set},
 };
 

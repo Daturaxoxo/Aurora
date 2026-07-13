@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use jwalk::DirEntry;
 
 use crate::{
-    classes::info::CLIENT_PAK_DIR,
+    classes::info::paths::CLIENT_PAK_DIR,
     config::{self, key},
 };
 
@@ -26,6 +26,28 @@ pub fn get_mods_path() -> Option<PathBuf> {
         .as_str()
         .map(PathBuf::from)
         .map(|p| p.join(CLIENT_PAK_DIR))
+}
+
+/// Returns the path to the bin folder:
+/// - In debug mode, it returns the path to the Bin folder in the project directory.
+/// - In release mode, it returns the path to the Bin folder in the executable directory.
+pub fn get_bin_path() -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(PathBuf::from)
+            .and_then(|p| Some(p.join("Bin")))
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        std::env::current_exe()
+            .expect("Addons Manager could not resolve exe path")
+            .parent()
+            .map(PathBuf::from)
+            .and_then(|p| Some(p.join("Bin")))
+    }
 }
 
 pub fn read_dir_recursive(path: &PathBuf) -> Vec<DirEntry<((), ())>> {

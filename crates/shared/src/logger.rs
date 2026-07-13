@@ -50,6 +50,9 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
+        if record.module_path().is_some_and(|s| s.contains("reqwest")) {
+            return;
+        }
         macro_rules! set_stdout_color {
             ($r: expr, $g: expr, $b: expr, $stdout: ident) => {
                 $stdout

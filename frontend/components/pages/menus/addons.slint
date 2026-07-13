@@ -1,19 +1,20 @@
 import { Palette } from "../../../global.slint";
 
 export struct AddonItem {
-    name:        string,
-    author:      string,
-    version:     string,
+    name: string,
+    author: string,
+    version: string,
     description: string,
-    link:        string,
-    image:       image,
-    installed:   bool,
-    enabled:     bool,
+    link: string,
+    image: image,
+    installed: bool,
+    enabled: bool,
+    update_available: bool,
 }
 
 component AddonCard inherits Rectangle {
     in property <AddonItem> item;
-    in property <int>       index;
+    in property <int> index;
 
     callback action(int);
     callback open-link(int);
@@ -26,17 +27,20 @@ component AddonCard inherits Rectangle {
     clip: true;
 
     property <brush> action-color:
-        !root.item.installed   ? #E8A020 :
-         root.item.enabled     ? #ee4937 :
-                                 #36e780;
+        root.item.update_available ? #E8A020 :
+        !root.item.installed ? #E8A020 :
+        root.item.enabled ? #ee4937 :
+        #36e780;
 
     property <string> action-label:
-        !root.item.installed   ? "INSTALL" :
-         root.item.enabled     ? "DISABLE" :
-                                 "ENABLE";
+        root.item.update_available ? "UPDATE" :
+        !root.item.installed ? "INSTALL" :
+        root.item.enabled ? "DISABLE" :
+        "ENABLE";
 
     Rectangle {
-        x: 0; y: 0;
+        x: 0;
+        y: 0;
         width: root.width;
         height: 160px;
         clip: true;
@@ -80,7 +84,8 @@ component AddonCard inherits Rectangle {
     }
 
     Rectangle {
-        x: 0; y: 160px;
+        x: 0;
+        y: 160px;
         width: root.width;
         height: root.height - 160px - 48px;
         clip: true;
@@ -110,7 +115,9 @@ component AddonCard inherits Rectangle {
                 vertical-alignment: top;
             }
 
-            Rectangle { height: 8px; }
+            Rectangle {
+                height: 8px;
+            }
 
             Text {
                 text: root.item.description;
@@ -129,7 +136,8 @@ component AddonCard inherits Rectangle {
         width: root.width;
         height: 48px;
         action-btn := Rectangle {
-            x: 0; y: 0;
+            x: 0;
+            y: 0;
             width: parent.width - 53px;
             height: 48px;
             background: action-ta.has-hover
@@ -220,7 +228,7 @@ export component AddonsPage inherits Rectangle {
     panel := Rectangle {
         width: min(parent.width - 80px, 900px);
         height: parent.height - 60px;
-        x: (parent.width  - self.width)  / 2;
+        x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         background: Palette.glass-background;
         border-radius: 16px;
@@ -231,7 +239,10 @@ export component AddonsPage inherits Rectangle {
         drop-shadow-offset-y: 12px;
         clip: true;
 
-        TouchArea { width: 100%; height: 100%; }
+        TouchArea {
+            width: 100%;
+            height: 100%;
+        }
 
         VerticalLayout {
             padding: 24px;
@@ -375,7 +386,7 @@ export component AddonsPage inherits Rectangle {
                                 height: 310px;
                                 item: root.addons[i];
                                 index: i;
-                                action(idx)    => { root.addon-action(idx); }
+                                action(idx) => { root.addon-action(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                             }
                         }
@@ -391,7 +402,7 @@ export component AddonsPage inherits Rectangle {
                                 height: 310px;
                                 item: root.addons[i];
                                 index: i;
-                                action(idx)    => { root.addon-action(idx); }
+                                action(idx) => { root.addon-action(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                             }
                         }
