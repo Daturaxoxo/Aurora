@@ -28,7 +28,7 @@ class Key:
     LANGUAGE          = "language"
     DEV_MODE          = "dev_mode"
     CENSORSHIP_REMOVE = "csn_rem"
-    HIDE_UID          = "uid_rem",
+    HIDE_UID          = "uid_rem"
     NO_DRIVE_LINE     = "ndl_add"
     HIDE_NOTIF_DOTS   = "nor_rem"
     DISCORD_RPC       = "discord_rpc"
