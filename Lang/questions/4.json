@@ -11,7 +11,7 @@
         "nl": "Hoe kan ik suggesties doen?",
         "vi": "Làm thế nào để tôi có thể đưa ra gợi ý?",
         "fr": "Comment puis-je faire des suggestions ?",
-        "ru": "Как я могу сделать предложения?"
+        "ru": "Как я могу сделать предложения?",
         "id": "Bagaimana cara saya memberi saran?"
     },
     "answer": {
@@ -98,5 +98,6 @@
             "\n- Server Discord kami",
             "\n- Halaman GameBanana",
             "Lokasi lain akan mengakibatkan respons yang terlambat atau tidak ada balasan sama sekali."
+        ]
     }
 }

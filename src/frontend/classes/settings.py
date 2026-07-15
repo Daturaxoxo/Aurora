@@ -308,6 +308,8 @@ class SettingsOverlay(QFrame):
         self._btn_browse.setText(t("browse"))
         self._row_cr.set_title(t("censorship_removal"))
         self._row_cr.set_description(t("censorship_removal_desc"))
+        self._row_ndl.set_title(t("no_drive_line"))
+        self._row_ndl.set_description(t("no_drive_line_desc"))
         self._row_uid.set_title(t("hide_uid_title"))
         self._row_uid.set_description(t("hide_uid_desc"))
         self._row_hide_dots.set_title(t("hide_dots_title"))
@@ -335,6 +337,7 @@ class SettingsOverlay(QFrame):
         self._lbl_clear_cache.setText(t("clear_cache_title"))
         self._lbl_clear_cache_desc.setText(t("clear_cache_desc"))
         self._btn_clear_cache.setText(t("clear_cache_button"))
+        self._lbl_about_title.setText(t("aurora_version_title"))
         self._update_bypass_card_visibility()
 
     # Helpers
@@ -609,6 +612,14 @@ class SettingsOverlay(QFrame):
                 cfg.set(cfg.Key.GAME_PATH, folder)
                 check_steam(main_ui, folder)
             except (FileNotFoundError, ValueError) as e: logger.warning(f"Could not reinitialize engine for new path: {e}")
+        else:
+            from src.backend.engine import AuroraEngine
+            try:
+                main_ui.engine = AuroraEngine(folder)
+                cfg.set(cfg.Key.GAME_PATH, folder)
+                check_steam(main_ui, folder)
+            except Exception as e:
+                logger.warning(f"Could not initialize engine for new path: {e}")
 
         self._update_bypass_card_visibility()
         main_ui.refresh_launch_state()
@@ -839,6 +850,35 @@ class SettingsOverlay(QFrame):
             parent=self,
         )
         layout.addWidget(clear_cache_card)
+        layout.addSpacing(24)
+        layout.addWidget(self._section_label("About"))
+        layout.addSpacing(10)
+
+        from src.path_finder import get_local_version
+        about_card = QFrame()
+        about_card.setObjectName("AboutCard")
+        about_card.setFixedHeight(68)
+        about_card.setStyleSheet("""
+            #AboutCard {
+                background-color: rgba(255, 255, 255, 4);
+                border: 1px solid rgba(255, 255, 255, 7);
+                border-radius: 10px;
+            }
+        """)
+        about_row = QHBoxLayout(about_card)
+        about_row.setContentsMargins(20, 0, 20, 0)
+        about_text = QVBoxLayout()
+        about_text.setSpacing(3)
+        self._lbl_about_title = QLabel(t("aurora_version_title"))
+        self._lbl_about_title.setStyleSheet("color: #E8E8E8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        lbl_about_ver = QLabel(f"v{get_local_version()}")
+        lbl_about_ver.setStyleSheet("color: #707070; font-size: 12px; background: transparent; border: none;")
+        about_text.addStretch()
+        about_text.addWidget(self._lbl_about_title)
+        about_text.addWidget(lbl_about_ver)
+        about_text.addStretch()
+        about_row.addLayout(about_text)
+        layout.addWidget(about_card)
         layout.addStretch()
         
         return page
@@ -866,6 +906,12 @@ class SettingsOverlay(QFrame):
             description="",
             checked=cfg.get(cfg.Key.HIDE_UID),
             on_toggle=lambda v: self._toggle(cfg.Key.HIDE_UID, v),
+        )
+        self._row_ndl = SettingRow(
+            title="No Drive Line",
+            description="",
+            checked=cfg.get(cfg.Key.NO_DRIVE_LINE),
+            on_toggle=lambda v: self._toggle(cfg.Key.NO_DRIVE_LINE, v),
         )
         self._row_hide_dots = SettingRow(
             title="Hide Red Dots",
@@ -920,6 +966,8 @@ class SettingsOverlay(QFrame):
         layout.addWidget(self._row_cr)
         layout.addSpacing(6)
         layout.addWidget(self._row_uid)
+        layout.addSpacing(6)
+        layout.addWidget(self._row_ndl)
         layout.addSpacing(6)
         layout.addWidget(self._row_hide_dots)
         layout.addSpacing(6)
@@ -1107,6 +1155,22 @@ class FixEngineThread(QThread):
                                 logger.warning(f"Fix Engine could not delete {f}: {e}", extra={"el": True})
             except Exception as e:
                 logger.warning(f"Fix Engine got an error scanning Paks dir {paks_dir}: {e}", extra={"el": True})
+                
+            LEGACY_DLLS = ("dsound.dll", "version.dll")
+            LEGACY_SUBDIRS = ("NTEGlobal", "NTELauncher", "NTETW")
+            game_root = Path(self.game_path)
+            legacy_locations = [game_root / dll for dll in LEGACY_DLLS] + [
+                game_root / subdir / dll
+                for subdir in LEGACY_SUBDIRS
+                for dll in LEGACY_DLLS
+            ]
+            for legacy_path in legacy_locations:
+                try:
+                    if legacy_path.exists():
+                        os.chmod(legacy_path, 0o666)
+                        legacy_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Fix Engine could not remove legacy DLL {legacy_path}: {e}", extra={"el": True})
 
         self.success.emit()
 

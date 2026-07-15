@@ -131,4 +131,8 @@ PAK_ADDONS: list[PakAddon] = [
         config_key  = "nor_rem",       # Key.HIDE_NOTIF_DOTS
         base_name   = "nrdrm_P",
     ),
+    PakAddon(
+        config_key  = "ndl_add",       # Key.NO_DRIVE_LINE
+        base_name   = "aundl_P",
+    ),
 ]

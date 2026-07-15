@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 # Constants & Dataclasses
 VERSION_GLOBAL = "global"
@@ -22,17 +21,12 @@ NTE_PROCESS: frozenset[str] = frozenset({
 })
 @dataclass(frozen=True)
 class DllSlot:
-    name:     str
-    root:     Path
-    bin:      Path
-    launcher: Optional[Path]
+    name: str
+    bin:  Path
 
     @property
     def all_targets(self) -> list[tuple[str, Path]]:
-        targets = [("root", self.root), ("bin", self.bin)]
-        if self.launcher is not None:
-            targets.append(("launcher", self.launcher))
-        return targets
+        return [("bin", self.bin)]
 @dataclass(frozen=True)
 class VersionPaths:
     version:          str
@@ -106,14 +100,11 @@ def get_version_paths(game_path: Path, version: str, engine_method: str = "0") -
         )
     win64    = game_path / CLIENT_WIN64
     pak_base = game_path / CLIENT_PAK_DIR
-    launcher_dir = game_path / spec.launcher_subfolder
     dll_names = get_bypass_dlls(version, engine_method) if version in BYPASS_METHODS else spec.dll_names
     dll_slots = tuple(
         DllSlot(
-            name     = dll_name,
-            root     = game_path   / dll_name,
-            bin      = win64       / dll_name,
-            launcher = launcher_dir / dll_name,
+            name = dll_name,
+            bin  = win64 / dll_name,
         )
         for dll_name in dll_names
     )

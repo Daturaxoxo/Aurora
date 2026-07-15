@@ -39,6 +39,7 @@ def validate_path(path):
 
 def _candidate_directories():
     checked = set()
+    has_avx2 = validate_cpu()
     
     def emit(path):
         p = str(Path(path))
@@ -46,7 +47,8 @@ def _candidate_directories():
             checked.add(p)
             yield p
             
-    def scan_single_dir(current_dir):
+    def scan_single_dir(current_dir, depth=0, max_depth=8):
+        if depth > max_depth: return
         try: entries = os.scandir(current_dir)
         except Exception: return # Access denied
 
@@ -54,7 +56,8 @@ def _candidate_directories():
             try:
                 if dirEntry.name in ("$RECYCLE.BIN", "Windows", "AppData", "ProgramData", "System Volume Information"): continue
                 
-                if dirEntry.is_dir(follow_symlinks=False): yield from scan_single_dir(dirEntry.path)
+                if dirEntry.is_dir(follow_symlinks=False):
+                    yield from scan_single_dir(dirEntry.path, depth + 1, max_depth)
                 
                 if any(launcher in dirEntry.name for launcher in LAUNCHER_MAP):
                     path = Path(dirEntry.path).parent
@@ -73,8 +76,7 @@ def _candidate_directories():
         drive = f"{drive_letter}:\\"
 
         if not os.path.exists(drive): continue
-        
-        has_avx2 = validate_cpu()
+
         if has_avx2:
             from scandir_rs import Scandir
             for dirEntry in Scandir(

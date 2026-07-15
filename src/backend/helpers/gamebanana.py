@@ -77,6 +77,17 @@ _CHAR_CHIP_QSS = """
     }
 """
 
+class _FileFetcher(QObject):
+    finished = pyqtSignal(list)
+
+    def __init__(self, mod_id: int):
+        super().__init__()
+        self._mod_id = mod_id
+
+    def run(self):
+        files = get_mod_files(self._mod_id) or []
+        self.finished.emit(files)
+
 class _CharacterFilterBar(QWidget):
     filter_changed = pyqtSignal(str)
 
@@ -638,8 +649,9 @@ class GameBananaBrowserOverlay(QFrame):
 class GameBananaMod(QFrame):
     CARD_W  = 160
     THUMB_H = 90
+    active_installs: set["InstallProgressWindow"] = set()
 
-    _CARD_QSS = """
+    CARD_QSS = """
         QFrame#GameBananaModCard {
             background: #13151a;
             border: 1px solid #2a2d35;
@@ -699,7 +711,7 @@ class GameBananaMod(QFrame):
         self.setFixedWidth(self.CARD_W)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.setCursor(Qt.CursorShape.ArrowCursor)
-        self.setStyleSheet(self._CARD_QSS)
+        self.setStyleSheet(self.CARD_QSS)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -827,6 +839,7 @@ class GameBananaMod(QFrame):
             install_btn.setIcon(QIcon(_dl_icon))
             install_btn.setIconSize(QSize(13, 13))
         install_btn.setText(t("gamebanana_install_btn") or "Install")
+        self._install_btn = install_btn
         install_btn.clicked.connect(self._install)
 
         open_btn = QPushButton()
@@ -845,16 +858,47 @@ class GameBananaMod(QFrame):
         body.addLayout(btn_row)
 
     def _install(self):
-        files = get_mod_files(self.mod.id)
-        if len(files) == 1:
-            file = files[0]
-            self.window().__dict__["mod_overlay"].__dict__["gamebanana_install_zone"].install_file(
-                file.name, file.url
+        if self.active_installs:
+            from src.frontend.classes.notification import ToastNotification
+            ToastNotification(
+                self.window(), "Please wait for the current install to finish.", False, "info"
             )
             return
-        self.overlay = _InstallSelectionOverlay(self.window(), files)
-        self.overlay.show()
-        self.overlay.raise_()
+
+        self._install_btn.setEnabled(False)
+        self._fetch_thread = QThread()
+        self._fetch_worker = _FileFetcher(self.mod.id)
+        self._fetch_worker.moveToThread(self._fetch_thread)
+        self._fetch_thread.started.connect(self._fetch_worker.run)
+        self._fetch_worker.finished.connect(self._on_files_fetched)
+        self._fetch_worker.finished.connect(self._fetch_thread.quit)
+        self._fetch_worker.finished.connect(self._fetch_worker.deleteLater)
+        self._fetch_thread.finished.connect(self._fetch_thread.deleteLater)
+        self._fetch_thread.start()
+        
+    def _on_files_fetched(self, files: list):
+        self._install_btn.setEnabled(True)
+        if not files:
+            logger.error(f"Could not fetch files for mod {self.mod.id}")
+            return
+        if len(files) == 1:
+            self._start_install(files[0].name, files[0].url)
+        else:
+            self.overlay = _InstallSelectionOverlay(self.window(), files)
+            self.overlay.show()
+            self.overlay.raise_()
+            
+    def _start_install(self, filename: str, url: str):
+        win = InstallProgressWindow(
+            filename, url,
+            parent=None,
+            overlay_parent=self.window(),
+        )
+        GameBananaMod.active_installs.add(win)
+        win.install_finished.connect(lambda installed: GameBananaMod.active_installs.discard(win))
+        win.cancelled.connect(lambda: GameBananaMod.active_installs.discard(win))
+        win.show()
+        win.start()
 
     def _open_gamebanana(self):
         url  = self.mod.mod_url or f"https://gamebanana.com/mods/{self.mod.id}"

@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QSystemTrayIcon, QMenu
 )
 from PyQt6.QtCore import Qt, QSize, QThread, QPoint, QTimer, pyqtSignal
-from PyQt6.QtGui import QPixmap, QIcon, QAction
+from PyQt6.QtGui import QPixmap, QIcon, QAction, QFont
 from src.logger import logger, dev_console_handler
 from src.path_finder import validate_path, get_game_directory
 from src.frontend.styles import MAIN_STYLE

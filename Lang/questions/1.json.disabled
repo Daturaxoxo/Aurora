@@ -8,7 +8,7 @@
         "pt-br": "Como instalo mods?",
         "jp": "モッドのインストール方法は？",
         "nl": "Hoe installeer ik mods?",
-        "vi": "Làm thế nào để cài đặt mod?"
+        "vi": "Làm thế nào để cài đặt mod?",
         "id": "Bagaimana saya memasang mod?"
     },
     "answer": {
@@ -109,15 +109,16 @@
             "2. Bij conflicterende mods (hetzelfde asset/karakter wordt overschreven door twee verschillende mods) wordt de mod getoond die alfabetisch als laatste is geladen."
         ],
         "id": [
-        "## Cara Memasang Mod"
-        "1. Unduh mod dari [GameBanana](https://gamebanana.com/games/23012) atau [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)"
-        "2. Ekstrak file ZIP"
-        "3. Letakkan mod ke dalam folder `\\Mods` di dalam Aurora"
-        "4. Periksa mod Anda di dalam Pengelola Mod"
-        "5. Luncurkan permainan untuk menampilkan mod di dalam permainan."
-        "",
-        "### Catatan"
-        "1. Hanya ekstensi file `.pak` yang didukung oleh Aurora."
-        "2. Mod akan menampilkan mod yang dimuat terakhir secara alfabetis jika bertabrakan (aset/karakter yang sama ditimpa oleh dua mod berbeda)."
+            "## Cara Memasang Mod"
+            "1. Unduh mod dari [GameBanana](https://gamebanana.com/games/23012) atau [AyakaMods](https://ayakamods.com/games/neverness-to-everness.417/)"
+            "2. Ekstrak file ZIP"
+            "3. Letakkan mod ke dalam folder `\\Mods` di dalam Aurora"
+            "4. Periksa mod Anda di dalam Pengelola Mod"
+            "5. Luncurkan permainan untuk menampilkan mod di dalam permainan."
+            "",
+            "### Catatan"
+            "1. Hanya ekstensi file `.pak` yang didukung oleh Aurora."
+            "2. Mod akan menampilkan mod yang dimuat terakhir secara alfabetis jika bertabrakan (aset/karakter yang sama ditimpa oleh dua mod berbeda)."
+        ]
     }
 }
