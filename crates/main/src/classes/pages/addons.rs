@@ -6,7 +6,7 @@ use shared::{config, utils};
 use anyhow::Result;
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
-use slint::{ Model, VecModel};
+use slint::{Model, VecModel};
 use unrar::Archive as RarArchive;
 
 use std::fs;
@@ -59,17 +59,23 @@ impl AddonsHandler {
     }
 
     fn load(window: &slint::Weak<MainWindow>) {
-        let Some(w) = window.upgrade() else {
-            error!("Addons manager could not load: window handle is dead");
-            return;
-        };
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let addons = Self::scan();
 
-        let addons = Self::scan();
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(w) = ww.upgrade() else {
+                    error!("Addons manager could not load: window handle is dead");
+                    return;
+                };
 
-        let slint_items: Vec<AddonItem> = addons.iter().map(Self::to_slint_item_no_image).collect();
+                let slint_items: Vec<AddonItem> =
+                    addons.iter().map(Self::to_slint_item_no_image).collect();
 
-        w.set_addons(Rc::new(VecModel::from(slint_items)).into());
-        Self::fetch_images_async(window, addons);
+                w.set_addons(Rc::new(VecModel::from(slint_items)).into());
+                Self::fetch_images_async(&ww, addons);
+            });
+        });
     }
 
     fn image_cache_dir() -> PathBuf {
@@ -174,54 +180,78 @@ impl AddonsHandler {
 
         let ww = window.clone();
         w.on_addon_action(move |index| {
-            let mut addons = Self::scan();
-
             let Ok(i) = usize::try_from(index) else {
                 return;
             };
-            let Some(addon) = addons.get_mut(i) else {
+
+            let Some(win) = ww.upgrade() else { return };
+            let model = win.get_addons();
+            let Some(mut row) = model.row_data(i) else {
                 return;
             };
+            if row.installing {
+                return;
+            }
+            row.installing = true;
+            model.set_row_data(i, row);
 
-            if !addon.installed {
-                match Self::install(addon) {
-                    Ok(()) => {
-                        addon.installed = true;
-                        addon.update_available = false;
-                        Self::reload(&ww);
-                    }
-                    Err(e) => {
-                        // TODO: probably should display an error message @daturas
-                        addon.installed = false;
-                        Self::reload(&ww);
-                        error!(
-                            "Addons manager could not install addon '{}': {e}",
-                            addon.name
-                        );
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let mut addons = Self::scan();
+
+                if let Some(addon) = addons.get_mut(i) {
+                    if !addon.installed || addon.update_available {
+                        if let Err(e) = Self::install(addon) {
+                            // TODO: probably should display an error message @daturas
+                            error!(
+                                "Addons manager could not install addon '{}': {e}",
+                                addon.name
+                            );
+                        }
+                    } else {
+                        Self::set_enabled(addon, !addon.enabled);
                     }
                 }
-            } else if addon.enabled {
-                Self::set_enabled(addon, false);
-            } else {
-                Self::set_enabled(addon, true);
-            }
-            Self::reload(&ww);
+
+                let updated = Self::scan().into_iter().nth(i);
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(win) = ww.upgrade() else {
+                        error!("Could not reload addons: window handle is dead");
+                        return;
+                    };
+
+                    let model = win.get_addons();
+                    if let Some(mut row) = model.row_data(i) {
+                        if let Some(addon) = updated {
+                            row.installed = addon.installed;
+                            row.enabled = addon.enabled;
+                            row.update_available = addon.update_available;
+                        }
+                        row.installing = false;
+                        model.set_row_data(i, row);
+                    }
+                });
+            });
         });
 
+        let ww = window.clone();
         w.on_addon_open_link(move |index| {
-            let addons = Self::scan();
-
             let Ok(i) = usize::try_from(index) else {
                 return;
             };
-            let Some(addon) = addons.get(i) else { return };
 
-            if addon.link.is_empty() {
+            let Some(win) = ww.upgrade() else { return };
+            let Some(row) = win.get_addons().row_data(i) else {
+                return;
+            };
+
+            if row.link.is_empty() {
                 return;
             }
 
-            if let Err(e) = open::that(&addon.link) {
-                error!("Addons manager could not open link '{}': {e}", addon.link);
+            if let Err(e) = open::that(row.link.as_str()) {
+                error!("Addons manager could not open link '{}': {e}", row.link);
             }
         });
 
@@ -479,25 +509,6 @@ impl AddonsHandler {
         }
     }
 
-    fn reload(window: &slint::Weak<MainWindow>) {
-        let addons = Self::scan();
-
-        let Some(w) = window.upgrade() else {
-            error!("Could not reload addons: window handle is dead");
-            return;
-        };
-
-        let model = w.get_addons();
-
-        for (i, addon) in addons.iter().enumerate() {
-            if let Some(mut row) = model.row_data(i) {
-                row.installed = addon.installed;
-                row.enabled = addon.enabled;
-                model.set_row_data(i, row);
-            }
-        }
-    }
-
     fn to_slint_item_no_image(addon: &Addon) -> AddonItem {
         AddonItem {
             name: addon.name.clone().into(),
@@ -509,6 +520,7 @@ impl AddonsHandler {
             installed: addon.installed,
             enabled: addon.enabled,
             update_available: addon.update_available,
+            installing: false,
         }
     }
 }

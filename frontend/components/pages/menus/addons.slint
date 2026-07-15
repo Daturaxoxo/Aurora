@@ -10,6 +10,7 @@ export struct AddonItem {
     installed: bool,
     enabled: bool,
     update_available: bool,
+    installing: bool,
 }
 
 component AddonCard inherits Rectangle {
@@ -27,12 +28,14 @@ component AddonCard inherits Rectangle {
     clip: true;
 
     property <brush> action-color:
+        root.item.installing ? #6b6b6b :
         root.item.update_available ? #E8A020 :
         !root.item.installed ? #E8A020 :
         root.item.enabled ? #ee4937 :
         #36e780;
 
     property <string> action-label:
+        root.item.installing ? "INSTALLING..." :
         root.item.update_available ? "UPDATE" :
         !root.item.installed ? "INSTALL" :
         root.item.enabled ? "DISABLE" :
@@ -146,6 +149,7 @@ component AddonCard inherits Rectangle {
             animate background { duration: 120ms; }
 
             action-ta := TouchArea {
+                enabled: !root.item.installing;
                 clicked => { root.action(root.index); }
             }
 
@@ -153,7 +157,7 @@ component AddonCard inherits Rectangle {
                 alignment: center;
                 spacing: 8px;
 
-                if !root.item.installed: Image {
+                if !root.item.installed && !root.item.installing: Image {
                     source: @image-url("../../../../production/icons/download.png");
                     width: 16px;
                     height: 16px;
