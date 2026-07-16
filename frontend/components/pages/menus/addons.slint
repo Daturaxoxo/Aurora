@@ -27,15 +27,19 @@ component AddonCard inherits Rectangle {
     background: #ffffff08;
     clip: true;
 
+    // Only actual installs/updates show a busy state; enable/disable toggles
+    // flip instantly (installing then merely blocks re-clicks for a moment)
+    property <bool> busy: root.item.installing && (!root.item.installed || root.item.update_available);
+
     property <brush> action-color:
-        root.item.installing ? #6b6b6b :
+        root.busy ? #6b6b6b :
         root.item.update_available ? #E8A020 :
         !root.item.installed ? #E8A020 :
         root.item.enabled ? #ee4937 :
         #36e780;
 
     property <string> action-label:
-        root.item.installing ? "INSTALLING..." :
+        root.busy ? "INSTALLING..." :
         root.item.update_available ? "UPDATE" :
         !root.item.installed ? "INSTALL" :
         root.item.enabled ? "DISABLE" :
@@ -157,7 +161,7 @@ component AddonCard inherits Rectangle {
                 alignment: center;
                 spacing: 8px;
 
-                if !root.item.installed && !root.item.installing: Image {
+                if !root.item.installed && !root.busy: Image {
                     source: @image-url("../../../../production/icons/download.png");
                     width: 16px;
                     height: 16px;

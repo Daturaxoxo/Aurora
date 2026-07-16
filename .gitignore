@@ -26,5 +26,6 @@ config.json
 *.pak
 *.ucas
 *.utoc
+*.disabled
 *.md5
 *.zip

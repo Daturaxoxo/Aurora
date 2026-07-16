@@ -16,6 +16,15 @@ use std::rc::Rc;
 pub const ARCHIVE_EXTENSIONS: [&str; 9] =
     ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4"];
 
+const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
+    ("No 3D Driving Waypoint", "drv_lin"),
+    ("Hide UID", "uid_rem"),
+    ("Hide Notification Dots", "nor_rem"),
+    ("Censorship Remover", "csn_rem"),
+    ("Cooldown Timers", "col_tim"),
+    ("Collectible Highlighter", "collectibles"),
+];
+
 #[derive(Debug, Clone, Default)]
 struct AddonData {
     file_name: String,
@@ -192,15 +201,28 @@ impl AddonsHandler {
             if row.installing {
                 return;
             }
+
+            let is_toggle = row.installed && !row.update_available;
             row.installing = true;
+            if is_toggle {
+                // Flip the button immediately; the file renames happen in the
+                // background and the row is reconciled once they're done
+                row.enabled = !row.enabled;
+            }
             model.set_row_data(i, row);
 
             let ww = ww.clone();
             std::thread::spawn(move || {
-                let mut addons = Self::scan();
-
-                if let Some(addon) = addons.get_mut(i) {
-                    if !addon.installed || addon.update_available {
+                let updated = if is_toggle {
+                    // No network needed to rename payload files on disk
+                    let mut addons = Self::scan_local();
+                    if let Some(addon) = addons.get_mut(i) {
+                        Self::set_enabled(addon, !addon.enabled);
+                    }
+                    Self::scan_local().into_iter().nth(i)
+                } else {
+                    let mut addons = Self::scan();
+                    if let Some(addon) = addons.get_mut(i) {
                         if let Err(e) = Self::install(addon) {
                             // TODO: probably should display an error message @daturas
                             error!(
@@ -208,12 +230,9 @@ impl AddonsHandler {
                                 addon.name
                             );
                         }
-                    } else {
-                        Self::set_enabled(addon, !addon.enabled);
                     }
-                }
-
-                let updated = Self::scan().into_iter().nth(i);
+                    Self::scan().into_iter().nth(i)
+                };
 
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww.upgrade() else {
@@ -226,7 +245,9 @@ impl AddonsHandler {
                         if let Some(addon) = updated {
                             row.installed = addon.installed;
                             row.enabled = addon.enabled;
-                            row.update_available = addon.update_available;
+                            if !is_toggle {
+                                row.update_available = addon.update_available;
+                            }
                         }
                         row.installing = false;
                         model.set_row_data(i, row);
@@ -259,14 +280,30 @@ impl AddonsHandler {
     }
 
     fn scan() -> Vec<Addon> {
+        Self::scan_impl(true)
+    }
+
+    /// Like [`Self::scan`] but skips the GameBanana API requests, so it only
+    /// reflects on-disk state (`install_data` stays empty and
+    /// `update_available` stays false). Fast enough for enable/disable toggles.
+    fn scan_local() -> Vec<Addon> {
+        Self::scan_impl(false)
+    }
+
+    fn scan_impl(fetch_remote: bool) -> Vec<Addon> {
         let addon_dir = utils::get_bin_path()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("Addons");
         let mut addons = Vec::new();
 
+        let mut unseen_keys: Vec<&str> = ADDON_CONFIG_KEYS.iter().map(|(_, k)| *k).collect();
+
         let entries = match std::fs::read_dir(&addon_dir) {
             Ok(e) => e,
             Err(_e) => {
+                for key in unseen_keys {
+                    config::set(&key, false);
+                }
                 return addons;
             }
         };
@@ -303,6 +340,9 @@ impl AddonsHandler {
                     "DESCRIPTION" => addon.description = value.trim().to_string(),
                     "LINK" => {
                         addon.link = value.trim().to_string();
+                        if !fetch_remote {
+                            continue;
+                        }
                         let gb = GameBananaApi::new();
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let mod_files = rt.block_on(async {
@@ -357,23 +397,20 @@ impl AddonsHandler {
                     .unwrap_or("");
                 addon.update_available =
                     !remote_hash.is_empty() && local_hash.trim() != remote_hash.trim();
-
-                let k = match addon.name.as_str() {
-                    "No 3D Driving Waypoint" => "drv_lin",
-                    "Hide UID" => "uid_rem",
-                    "Hide Notification Dots" => "nor_rem",
-                    "Censorship Remover" => "csn_rem",
-                    "Cooldown Timers" => "col_tim",
-                    "Collectible Highlighter" => "collectibles",
-                    _ => {
-                        error!("Unknown addon name: {}", addon.name);
-                        continue;
-                    }
-                };
-                config::set(&k, addon.enabled);
             }
 
+            let Some((_, k)) = ADDON_CONFIG_KEYS.iter().find(|(n, _)| *n == addon.name) else {
+                error!("Unknown addon name: {}", addon.name);
+                continue;
+            };
+            config::set(k, addon.enabled);
+            unseen_keys.retain(|key| key != k);
+
             addons.push(addon);
+        }
+
+        for key in unseen_keys {
+            config::set(&key, false);
         }
 
         addons
