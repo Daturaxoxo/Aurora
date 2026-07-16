@@ -88,7 +88,7 @@ impl DiscordRpc {
                                     Assets::new()
                                         .large_image(format!("in-game-{elem}"))
                                         .large_text("Playing NTE using Aurora!")
-                                        .small_image("version-2")
+                                        .small_image("version")
                                         .small_text(format!("v{}", utils::get_local_version())),
                                 )
                                 .timestamps(Timestamps::new().start(get_current_timestamp()))

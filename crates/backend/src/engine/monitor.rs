@@ -5,6 +5,8 @@ use anyhow::{anyhow, Result};
 use log::{error, info, warn};
 use shared::classes::info::NTE_PROCESSES;
 
+use crate::classes::rpc::RPC;
+
 use super::process::ProcessSnapshot;
 use super::AuroraEngine;
 
@@ -27,7 +29,7 @@ impl AuroraEngine {
             return Ok(());
         }
 
-        self.wait_for_game_exit();
+        self.wait_for_game_exit()?;
 
         info!("NTE was closed, initializing clean-up process...");
         self.sanitize(true)?;
@@ -53,6 +55,7 @@ impl AuroraEngine {
                 info!("NTE process ({game_process}) was detected, game is running.");
                 // TODO:
                 error!("UNIMPLEMENTED: on game started");
+                RPC.set_ingame()?;
                 return Ok(true);
             }
 
@@ -63,6 +66,7 @@ impl AuroraEngine {
                     launcher_seen = true;
                     // TODO:
                     error!("UNIMPLEMENTED: on launcher detected");
+                    RPC.set_launching()?;
                 }
                 continue;
             }
@@ -85,7 +89,7 @@ impl AuroraEngine {
         }
     }
 
-    fn wait_for_game_exit(&self) {
+    fn wait_for_game_exit(&self) -> Result<()> {
         let game_process = self.gpaths.game_process;
         let mut snapshot = ProcessSnapshot::refresh();
 
@@ -93,6 +97,8 @@ impl AuroraEngine {
             thread::sleep(THREAD_SLEEP_DURATION);
             snapshot.rerefresh();
         }
+
+        RPC.set_idle()
     }
 
     fn ensure_processes_gone(&self, grace: Duration) -> Result<()> {
