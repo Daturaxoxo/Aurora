@@ -1,3 +1,4 @@
+use crate::classes::pages::screenshots::ScreenshotHandler;
 use crate::MainWindow;
 pub struct PopupHandler;
 
@@ -12,6 +13,9 @@ impl PopupHandler {
                     }
                     "gamebanana-popup" => {
                         let _ = open::that("https://gamebanana.com/games/23012");
+                    }
+                    "screenshot-delete" => {
+                        ScreenshotHandler::confirm_delete(&w);
                     }
                     _ => {}
                 }

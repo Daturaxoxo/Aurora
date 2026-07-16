@@ -4,17 +4,9 @@ version = "2.0.0"
 edition = "2021"
 
 [dependencies]
-
 env_logger = { version = "0.11", default-features = false }
 env_filter = { version = "2.0.0", default-features = false, features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["std"] }
 termcolor = "1.4"
-reqwest = { version = "0.13", default-features = false, features = [
-    "json",
-    "rustls",
-    "query",
-] }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"] }
 futures = { version = "0.3", default-features = false }
 
 anyhow = { workspace = true }
@@ -24,6 +16,9 @@ log = { workspace = true }
 dirs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

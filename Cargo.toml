@@ -3,14 +3,23 @@ members = ["crates/main", "crates/backend", "crates/shared"]
 resolver = "2"
 
 [workspace.dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"] }
 log = "0.4"
 anyhow = "1.0"
 jwalk = "0.8"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 dirs = "6"
 rayon = "1.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+reqwest = { version = "0.13", default-features = false, features = [
+    "blocking",
+    "json",
+    "rustls",
+    "query",
+] }
+once_cell = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [profile.release]
 lto = true

@@ -1,21 +1,60 @@
 use crate::{AddonItem, MainWindow};
-use log::{debug, error, info, warn};
+use backend::classes::addons::payload_files;
+use shared::classes::gamebanana::api::GameBananaApi;
+use shared::{config, utils};
+
+use anyhow::Result;
+use archive::{ArchiveExtractor, ArchiveFormat};
+use log::*;
 use slint::{Model, VecModel};
+use unrar::Archive as RarArchive;
+
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+pub const ARCHIVE_EXTENSIONS: [&str; 9] =
+    ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4"];
+
+const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
+    ("No 3D Driving Waypoint", "drv_lin"),
+    ("Hide UID", "uid_rem"),
+    ("Hide Notification Dots", "nor_rem"),
+    ("Censorship Remover", "csn_rem"),
+    ("Cooldown Timers", "col_tim"),
+    ("Collectible Highlighter", "collectibles"),
+];
+
 #[derive(Debug, Clone, Default)]
 struct AddonData {
-    folder:       PathBuf,
-    name:         String,
-    author:       String,
-    version:      String,
-    description:  String,
-    install_urls: Vec<String>,
-    link:         String,
-    image_url:    String,
-    installed:    bool,
-    enabled:      bool,
+    file_name: String,
+    url: String,
+    md5: String,
+}
+
+impl AddonData {
+    fn new(file_name: String, url: String, md5: String) -> Self {
+        Self {
+            file_name,
+            url,
+            md5,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Addon {
+    folder: PathBuf,
+    name: String,
+    author: String,
+    version: String,
+    description: String,
+    install_data: Vec<AddonData>,
+    link: String,
+    image_url: String,
+    installed: bool,
+    enabled: bool,
+    update_available: bool,
 }
 
 pub struct AddonsHandler;
@@ -29,32 +68,27 @@ impl AddonsHandler {
     }
 
     fn load(window: &slint::Weak<MainWindow>) {
-        let Some(w) = window.upgrade() else {
-            error!("Addons manager could not load: window handle is dead");
-            return;
-        };
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let addons = Self::scan();
 
-        let root = Self::root_path();
-        let addons = Self::scan(&root);
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(w) = ww.upgrade() else {
+                    error!("Addons manager could not load: window handle is dead");
+                    return;
+                };
 
-        let slint_items: Vec<AddonItem> = addons
-            .iter()
-            .map(Self::to_slint_item_no_image)
-            .collect();
+                let slint_items: Vec<AddonItem> =
+                    addons.iter().map(Self::to_slint_item_no_image).collect();
 
-        w.set_addons(Rc::new(VecModel::from(slint_items)).into());
-        Self::fetch_images_async(window, addons);
+                w.set_addons(Rc::new(VecModel::from(slint_items)).into());
+                Self::fetch_images_async(&ww, addons);
+            });
+        });
     }
 
     fn image_cache_dir() -> PathBuf {
-        #[cfg(target_os = "windows")]
-        let base = std::env::var("APPDATA")
-            .map_or_else(|_| PathBuf::from("."), PathBuf::from);
-
-        #[cfg(not(target_os = "windows"))]
-        let base = std::env::var("HOME")
-            .map(|h| PathBuf::from(h).join(".config"))
-            .unwrap_or_else(|_| PathBuf::from("."));
+        let base = dirs::config_dir().unwrap_or_else(|| ".".into());
 
         base.join("Aurora").join("Cache").join("Addons")
     }
@@ -64,7 +98,9 @@ impl AddonsHandler {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         url.hash(&mut hasher);
         let hash = hasher.finish();
-        let ext = url.rsplit('.').next()
+        let ext = url
+            .rsplit('.')
+            .next()
             .filter(|e| e.len() <= 5 && e.chars().all(char::is_alphanumeric))
             .unwrap_or("img");
         format!("{hash:016x}.{ext}")
@@ -89,9 +125,15 @@ impl AddonsHandler {
             .bytes()?;
 
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
-            warn!("Addons manager could not create cache dir '{}': {e}", cache_dir.display());
+            warn!(
+                "Addons manager could not create cache dir '{}': {e}",
+                cache_dir.display()
+            );
         } else if let Err(e) = std::fs::write(&cache_path, &bytes) {
-            warn!("Addons manager could not write cache file '{}': {e}", cache_path.display());
+            warn!(
+                "Addons manager could not write cache file '{}': {e}",
+                cache_path.display()
+            );
         } else {
             debug!("[Addons] cached image to '{}'", cache_path.display());
         }
@@ -101,7 +143,7 @@ impl AddonsHandler {
         Ok((img.into_raw(), w, h))
     }
 
-    fn fetch_images_async(window: &slint::Weak<MainWindow>, addons: Vec<AddonData>) {
+    fn fetch_images_async(window: &slint::Weak<MainWindow>, addons: Vec<Addon>) {
         let image_jobs: Vec<(usize, String)> = addons
             .into_iter()
             .enumerate()
@@ -113,13 +155,18 @@ impl AddonsHandler {
             let ww = window.clone();
             std::thread::spawn(move || {
                 let rgba_data = Self::load_image_cached(&url)
-                    .map_err(|e| warn!("Addons manager could not load image {index}: failed for '{url}': {e}"))
+                    .map_err(|e| {
+                        warn!(
+                            "Addons manager could not load image {index}: failed for '{url}': {e}"
+                        );
+                    })
                     .ok();
 
                 let Some((raw, w, h)) = rgba_data else { return };
 
                 let _ = slint::invoke_from_event_loop(move || {
-                    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&raw, w, h,);
+                    let buffer =
+                        slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&raw, w, h);
                     let image = slint::Image::from_rgba8(buffer);
 
                     if let Some(ui) = ww.upgrade() {
@@ -142,67 +189,123 @@ impl AddonsHandler {
 
         let ww = window.clone();
         w.on_addon_action(move |index| {
-            let root = Self::root_path();
-            let addons = Self::scan(&root);
+            let Ok(i) = usize::try_from(index) else {
+                return;
+            };
 
-            let Ok(i) = usize::try_from(index) else { return };
-            let Some(addon) = addons.get(i) else {return};
-
-            if !addon.installed {
-                Self::install(addon);
-            } else if addon.enabled {
-                Self::set_enabled(addon, false);
-            } else {
-                Self::set_enabled(addon, true);
+            let Some(win) = ww.upgrade() else { return };
+            let model = win.get_addons();
+            let Some(mut row) = model.row_data(i) else {
+                return;
+            };
+            if row.installing {
+                return;
             }
-            Self::reload(&ww, &root);
+
+            let is_toggle = row.installed && !row.update_available;
+            row.installing = true;
+            if is_toggle {
+                // Flip the button immediately; the file renames happen in the
+                // background and the row is reconciled once they're done
+                row.enabled = !row.enabled;
+            }
+            model.set_row_data(i, row);
+
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let updated = if is_toggle {
+                    // No network needed to rename payload files on disk
+                    let mut addons = Self::scan_local();
+                    if let Some(addon) = addons.get_mut(i) {
+                        Self::set_enabled(addon, !addon.enabled);
+                    }
+                    Self::scan_local().into_iter().nth(i)
+                } else {
+                    let mut addons = Self::scan();
+                    if let Some(addon) = addons.get_mut(i) {
+                        if let Err(e) = Self::install(addon) {
+                            // TODO: probably should display an error message @daturas
+                            error!(
+                                "Addons manager could not install addon '{}': {e}",
+                                addon.name
+                            );
+                        }
+                    }
+                    Self::scan().into_iter().nth(i)
+                };
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(win) = ww.upgrade() else {
+                        error!("Could not reload addons: window handle is dead");
+                        return;
+                    };
+
+                    let model = win.get_addons();
+                    if let Some(mut row) = model.row_data(i) {
+                        if let Some(addon) = updated {
+                            row.installed = addon.installed;
+                            row.enabled = addon.enabled;
+                            if !is_toggle {
+                                row.update_available = addon.update_available;
+                            }
+                        }
+                        row.installing = false;
+                        model.set_row_data(i, row);
+                    }
+                });
+            });
         });
 
+        let ww = window.clone();
         w.on_addon_open_link(move |index| {
-            let root = Self::root_path();
-            let addons = Self::scan(&root);
+            let Ok(i) = usize::try_from(index) else {
+                return;
+            };
 
-            let Ok(i) = usize::try_from(index) else { return };
-            let Some(addon) = addons.get(i) else {return};
+            let Some(win) = ww.upgrade() else { return };
+            let Some(row) = win.get_addons().row_data(i) else {
+                return;
+            };
 
-            if addon.link.is_empty() {return;}
+            if row.link.is_empty() {
+                return;
+            }
 
-            if let Err(e) = open::that(&addon.link) {error!("Addons manager could not open link '{}': {e}", addon.link);}
+            if let Err(e) = open::that(row.link.as_str()) {
+                error!("Addons manager could not open link '{}': {e}", row.link);
+            }
         });
 
         info!("Addons bind() complete");
     }
 
-    fn root_path() -> PathBuf {
-        #[cfg(debug_assertions)]
-        {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(|p| p.parent()) 
-                .map(PathBuf::from)
-                .expect("Addons manager could not resolve repo root")
-        }
-        #[cfg(not(debug_assertions))]
-        {
-            std::env::current_exe()
-                .expect("Addons Manager could not resolve exe path")
-                .parent()
-                .map(PathBuf::from)
-                .expect("Addons manager could not find exe: has no parent directory")
-        }
+    fn scan() -> Vec<Addon> {
+        Self::scan_impl(true)
     }
 
-    fn addons_dir(root: &Path) -> PathBuf {
-        root.join("Bin").join("Addons")
+    /// Like [`Self::scan`] but skips the GameBanana API requests, so it only
+    /// reflects on-disk state (`install_data` stays empty and
+    /// `update_available` stays false). Fast enough for enable/disable toggles.
+    fn scan_local() -> Vec<Addon> {
+        Self::scan_impl(false)
     }
 
-    fn scan(root: &Path) -> Vec<AddonData> {
-        let dir = Self::addons_dir(root);
+    fn scan_impl(fetch_remote: bool) -> Vec<Addon> {
+        let addon_dir = utils::get_bin_path()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Addons");
         let mut addons = Vec::new();
 
-        let entries = match std::fs::read_dir(&dir) {
+        let mut unseen_keys: Vec<&str> = ADDON_CONFIG_KEYS.iter().map(|(_, k)| *k).collect();
+
+        let entries = match std::fs::read_dir(&addon_dir) {
             Ok(e) => e,
-            Err(_e) => {return addons;}
+            Err(_e) => {
+                for key in unseen_keys {
+                    config::set(&key, false);
+                }
+                return addons;
+            }
         };
 
         for entry in entries.flatten() {
@@ -213,11 +316,14 @@ impl AddonsHandler {
 
             let auadd_path = folder.join("addon.auadd");
             let Ok(contents) = std::fs::read_to_string(&auadd_path) else {
-                warn!("Addons scan: skipping '{}' - no addon.auadd", folder.display());
+                warn!(
+                    "Addons scan: skipping '{}' - no addon.auadd",
+                    folder.display()
+                );
                 continue;
             };
 
-            let mut addon = AddonData {
+            let mut addon = Addon {
                 folder: folder.clone(),
                 ..Default::default()
             };
@@ -227,82 +333,198 @@ impl AddonsHandler {
                     continue;
                 };
                 match key.trim() {
-                    "NAME"        => addon.name        = value.trim().to_string(),
-                    "AUTHOR"      => addon.author       = value.trim().to_string(),
-                    "VERSION"     => addon.version      = value.trim().to_string(),
-                    "DESCRIPTION" => addon.description  = value.trim().to_string(),
-                    "INSTALL"     => addon.install_urls = value
-                                        .split(',')
-                                        .map(str::trim)
-                                        .filter(|s| !s.is_empty())
-                                        .map(String::from)
-                                        .collect(),
-                    "LINK"        => addon.link         = value.trim().to_string(),
-                    "IMAGE"       => addon.image_url    = value.trim().to_string(),
-                    other         => warn!("Addons scan: unknown field '{other}' in '{}'", auadd_path.display()),
+                    "NAME" => addon.name = value.trim().to_string(),
+                    "AUTHOR" => addon.author = value.trim().to_string(),
+                    // TODO: get version from gamebanana api too
+                    "VERSION" => addon.version = value.trim().to_string(),
+                    "DESCRIPTION" => addon.description = value.trim().to_string(),
+                    "LINK" => {
+                        addon.link = value.trim().to_string();
+                        if !fetch_remote {
+                            continue;
+                        }
+                        let gb = GameBananaApi::new();
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        let mod_files = rt.block_on(async {
+                            gb.get_mod_files(
+                                addon
+                                    .link
+                                    .split('/')
+                                    .last()
+                                    .unwrap_or("0")
+                                    .parse()
+                                    .unwrap_or(0),
+                            )
+                            .await
+                        });
+
+                        addon.install_data = match mod_files {
+                            Some(files) => files
+                                .into_iter()
+                                .filter_map(|f| Some(AddonData::new(f.name, f.url, f.md5)))
+                                .collect(),
+                            None => {
+                                warn!(
+                                    "Addons scan: could not fetch mod files for '{}'",
+                                    addon.name
+                                );
+                                Vec::new()
+                            }
+                        };
+                    }
+                    "IMAGE" => addon.image_url = value.trim().to_string(),
+                    other => warn!(
+                        "Addons scan: unknown field '{other}' in '{}'",
+                        auadd_path.display()
+                    ),
                 }
             }
 
-            let payload_files = Self::payload_files(&folder);
+            let payload_files = payload_files(&folder);
             addon.installed = !payload_files.is_empty();
-            addon.enabled   = addon.installed
-                && payload_files.iter().all(|f| {
-                    !f.to_string_lossy().ends_with(".disabled")
-                });
+
+            addon.enabled = addon.installed
+                && payload_files
+                    .iter()
+                    .all(|f| !f.to_string_lossy().ends_with(".disabled"));
+
+            if addon.installed {
+                let local_hash = fs::read_to_string(folder.join("addon.md5")).unwrap_or_default();
+                let remote_hash = addon
+                    .install_data
+                    .first()
+                    .map(|d| d.md5.as_str())
+                    .unwrap_or("");
+                addon.update_available =
+                    !remote_hash.is_empty() && local_hash.trim() != remote_hash.trim();
+            }
+
+            let Some((_, k)) = ADDON_CONFIG_KEYS.iter().find(|(n, _)| *n == addon.name) else {
+                error!("Unknown addon name: {}", addon.name);
+                continue;
+            };
+            config::set(k, addon.enabled);
+            unseen_keys.retain(|key| key != k);
 
             addons.push(addon);
+        }
+
+        for key in unseen_keys {
+            config::set(&key, false);
         }
 
         addons
     }
 
-    /// All files inside an addon folder except addon.auadd.
-    fn payload_files(folder: &Path) -> Vec<PathBuf> {
-        std::fs::read_dir(folder)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.is_file()
-                    && p.file_name()
-                        .is_some_and(|n| n != "addon.auadd")
-            })
-            .collect()
-    }
+    fn install(addon: &Addon) -> Result<()> {
+        for data in &addon.install_data {
+            debug!(
+                "Installing addon: downloading '{}' → '{}'",
+                data.file_name,
+                addon.folder.display()
+            );
+            match Self::download_file(&data.file_name, &data.url, &addon.folder) {
+                Ok(dest) => {
+                    if dest
+                        .extension()
+                        .is_some_and(|e| ARCHIVE_EXTENSIONS.contains(&e.to_str().unwrap_or("")))
+                    {
+                        let extension = dest.extension().unwrap_or_default();
+                        if extension == "rar" {
+                            let archive = RarArchive::new(&dest).open_for_processing()?;
+                            archive.extract_all(&addon.folder)?;
+                        } else {
+                            let data = fs::read(&dest)?;
+                            let extractor = ArchiveExtractor::new();
+                            let files = match extension.to_str().unwrap_or("") {
+                                "zip" => extractor.extract(&data, ArchiveFormat::Zip)?,
+                                "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
+                                "tar" => extractor.extract(&data, ArchiveFormat::Tar)?,
+                                "gz" => extractor.extract(&data, ArchiveFormat::Gz)?,
+                                "bz2" => extractor.extract(&data, ArchiveFormat::Bz2)?,
+                                "xz" => extractor.extract(&data, ArchiveFormat::Xz)?,
+                                "zst" => extractor.extract(&data, ArchiveFormat::Zst)?,
+                                "lz4" => extractor.extract(&data, ArchiveFormat::Lz4)?,
+                                _ => unreachable!(),
+                            };
 
-    fn install(addon: &AddonData) {
-        for url in &addon.install_urls {
-            debug!("Installing addon: downloading '{url}' → '{}'", addon.folder.display());
-            match Self::download_file(url, &addon.folder) {
-                Ok(dest) => info!("Installed addon: saved '{}'", dest.display()),
-                Err(e)   => error!("Could not install addon: failed to download '{url}': {e}"),
+                            for file in files {
+                                if file.is_directory {
+                                    fs::create_dir_all(addon.folder.join(file.path))?;
+                                } else {
+                                    fs::write(addon.folder.join(file.path), file.data)?;
+                                }
+                            }
+                        }
+
+                        let files = fs::read_dir(&addon.folder)?.collect::<Vec<_>>();
+                        for file in files {
+                            let path = file?.path();
+                            let extension = path.extension().unwrap_or_default();
+                            let name = path.file_name().unwrap().to_str().unwrap();
+                            if extension == "txt" {
+                                fs::remove_file(&path)?
+                            }
+
+                            let _ = fs::write(addon.folder.join("addon.md5"), data.md5.clone());
+
+                            // HACK: Red dots has 2 folders, need to get files from the "Disable" folder
+                            if name == "Muted" {
+                                fs::remove_dir_all(&path)?
+                            }
+                            if name == "Disable" {
+                                let files = fs::read_dir(&path)?.collect::<Vec<_>>();
+                                for file in files {
+                                    let path = file?.path();
+                                    // put them in the parent
+                                    fs::rename(
+                                        &path,
+                                        &addon.folder.join(path.file_name().unwrap()),
+                                    )?;
+                                }
+
+                                fs::remove_dir_all(&path)?
+                            }
+
+                            // HACK: Hide UID also has 2 other mods inside, remove those
+                            if name.contains("PingStatus") || name.contains("PhoneFunctions") {
+                                fs::remove_file(&path)?
+                            }
+                        }
+                        info!("Installed addon: extracted '{}'", dest.display());
+                    }
+                    info!("Installed addon: saved '{}'", dest.display());
+                }
+                Err(e) => error!(
+                    "Could not install addon: failed to download '{}': {e}",
+                    data.file_name
+                ),
             }
         }
+
+        Ok(())
     }
 
-    fn download_file(url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
+    fn download_file(file_name: &str, url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
         let response = reqwest::blocking::get(url)?;
-        let filename = url
-            .rsplit('/')
-            .next()
-            .filter(|s| !s.is_empty())
-            .unwrap_or("file.bin");
 
-        let dest = dest_folder.join(filename);
+        let dest = dest_folder.join(file_name);
         let bytes = response.bytes()?;
         std::fs::write(&dest, &bytes)?;
         Ok(dest)
     }
 
-    fn set_enabled(addon: &AddonData, enable: bool) {
-        for file in Self::payload_files(&addon.folder) {
+    fn set_enabled(addon: &Addon, enable: bool) {
+        for file in payload_files(&addon.folder) {
             let path_str = file.to_string_lossy().into_owned();
 
             if enable {
                 if let Some(stripped) = path_str.strip_suffix(".disabled") {
                     if let Err(e) = std::fs::rename(&file, stripped) {
-                        error!("Could not enable addon: failed to rename '{}': {e}", file.display());
+                        error!(
+                            "Could not enable addon: failed to rename '{}': {e}",
+                            file.display()
+                        );
                     } else {
                         debug!("Enabled addon: renamed '{}' → '{stripped}'", file.display());
                     }
@@ -310,45 +532,32 @@ impl AddonsHandler {
             } else if !path_str.ends_with(".disabled") {
                 let new_path = format!("{path_str}.disabled");
                 if let Err(e) = std::fs::rename(&file, &new_path) {
-                    error!("Could not disable addon: failed to rename '{}': {e}", file.display());
+                    error!(
+                        "Could not disable addon: failed to rename '{}': {e}",
+                        file.display()
+                    );
                 } else {
-                    debug!("Disabled addon: renamed '{}' → '{new_path}'", file.display());
+                    debug!(
+                        "Disabled addon: renamed '{}' → '{new_path}'",
+                        file.display()
+                    );
                 }
             }
         }
     }
 
-    fn reload(window: &slint::Weak<MainWindow>, root: &Path) {
-        let addons = Self::scan(root);
-
-        let Some(w) = window.upgrade() else {
-            error!("Could not reload addons: window handle is dead");
-            return;
-        };
-
-        let model = w.get_addons();
-
-        for (i, addon) in addons.iter().enumerate() {
-            if let Some(mut row) = model.row_data(i) {
-                row.installed = addon.installed;
-                row.enabled   = addon.enabled;
-                model.set_row_data(i, row);
-            }
-        }
-    }
-
-    fn to_slint_item_no_image(addon: &AddonData) -> AddonItem {
+    fn to_slint_item_no_image(addon: &Addon) -> AddonItem {
         AddonItem {
-            name:        addon.name.clone().into(),
-            author:      addon.author.clone().into(),
-            version:     addon.version.clone().into(),
+            name: addon.name.clone().into(),
+            author: addon.author.clone().into(),
+            version: addon.version.clone().into(),
             description: addon.description.clone().into(),
-            link:        addon.link.clone().into(),
-            image:       slint::Image::default(),
-            installed:   addon.installed,
-            enabled:     addon.enabled,
+            link: addon.link.clone().into(),
+            image: slint::Image::default(),
+            installed: addon.installed,
+            enabled: addon.enabled,
+            update_available: addon.update_available,
+            installing: false,
         }
     }
-
-
 }

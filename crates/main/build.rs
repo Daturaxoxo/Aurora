@@ -33,20 +33,21 @@ fn main() {
 
 fn generate_languages_slint() {
     const JSON_PATH: &str = "../../production/Langs/lang-codes.json";
-    const SLINT_OUT:  &str = "../../frontend/languages.slint";
+    const SLINT_OUT: &str = "../../frontend/languages.slint";
 
     println!("cargo:rerun-if-changed={JSON_PATH}");
 
-    let json = fs::read_to_string(JSON_PATH)
-        .unwrap_or_else(|e| panic!("Could not read {JSON_PATH}: {e}"));
+    let json =
+        fs::read_to_string(JSON_PATH).unwrap_or_else(|e| panic!("Could not read {JSON_PATH}: {e}"));
 
-    let langs: Vec<serde_json::Value> = serde_json::from_str(&json)
-        .unwrap_or_else(|e| panic!("Invalid JSON in {JSON_PATH}: {e}"));
+    let langs: Vec<serde_json::Value> =
+        serde_json::from_str(&json).unwrap_or_else(|e| panic!("Invalid JSON in {JSON_PATH}: {e}"));
 
     let names = langs
         .iter()
         .map(|l| {
-            let name = l["name"].as_str()
+            let name = l["name"]
+                .as_str()
                 .unwrap_or_else(|| panic!("Missing \"name\" field in {JSON_PATH}"));
             format!("        \"{name}\"")
         })
@@ -64,8 +65,7 @@ fn generate_languages_slint() {
          }}\n"
     );
 
-    fs::write(SLINT_OUT, slint)
-        .unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
+    fs::write(SLINT_OUT, slint).unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
 }
 
 fn process_directory(root_source: &Path, current_source: &Path, target_base: &Path) {

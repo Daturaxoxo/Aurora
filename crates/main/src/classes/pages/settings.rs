@@ -1,4 +1,5 @@
 use crate::MainWindow;
+use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
@@ -11,8 +12,10 @@ struct LangEntry {
 }
 
 static LANGUAGES: Lazy<Vec<LangEntry>> = Lazy::new(|| {
-    serde_json::from_str(include_str!("../../../../../production/Langs/lang-codes.json"))
-        .expect("lang-codes.json is missing or malformed!")
+    serde_json::from_str(include_str!(
+        "../../../../../production/Langs/lang-codes.json"
+    ))
+    .expect("lang-codes.json is missing or malformed!")
 });
 
 pub struct SettingsHandler;
@@ -49,6 +52,11 @@ impl SettingsHandler {
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
         debug!("[Settings] discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
+        if discord_rpc {
+            if let Err(e) = RPC.set_idle() {
+                error!("[Settings] could not set Discord RPC to idle: {e}");
+            }
+        }
 
         // Launcher
         let raw_path = config::get(key::GAME_PATH);
@@ -60,7 +68,7 @@ impl SettingsHandler {
         w.set_game_directory(game_path.into());
 
         let raw_engine = config::get(key::ENGINE_METHOD);
-        let engine_method = raw_engine.as_i64().unwrap_or(0) as i32;
+        let engine_method = raw_engine.as_i64().unwrap_or(0).try_into().unwrap_or(0);
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
@@ -100,6 +108,10 @@ impl SettingsHandler {
         w.on_discord_rpc_changed(move |enabled| {
             info!("[Settings] discord_rpc changed → {enabled}");
             config::set(key::DISCORD_RPC, enabled);
+            let res = if enabled { RPC.set_idle() } else { RPC.stop() };
+            if let Err(e) = res {
+                error!("[Settings] could not update Discord RPC state: {e}");
+            }
             debug!("[Settings] discord_rpc saved to config");
         });
 
@@ -172,9 +184,8 @@ impl SettingsHandler {
 
     pub fn index_to_code(index: i32) -> &'static str {
         let result = LANGUAGES
-            .get(index as usize)
-            .map(|l| l.code.as_str())
-            .unwrap_or("en");
+            .get(index.try_into().unwrap_or(0))
+            .map_or("en", |l| l.code.as_str());
 
         if result == "en" && index != 0 {
             warn!("[Settings] index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
@@ -187,7 +198,7 @@ impl SettingsHandler {
         let result = LANGUAGES
             .iter()
             .position(|l| l.code == code)
-            .map(|i| i as i32);
+            .map(|i| i.try_into().unwrap_or(0));
 
         if result.is_none() {
             warn!("[Settings] code_to_index: unknown language code {code:?} shortcut will default to index 0");

@@ -13,12 +13,14 @@ use shared::config::{self, key};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::pages::addons::AddonsHandler;
+use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
-use classes::pages::settings::SettingsHandler;
-use classes::pages::addons::AddonsHandler;
 
 use bridge::Bridge;
+
+use crate::classes::pages::screenshots::ScreenshotHandler;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
@@ -67,6 +69,13 @@ fn main() -> Result<()> {
     });
 
     let window_weak = window.as_weak();
+    window.on_maximize_clicked(move || {
+        if let Some(w) = window_weak.upgrade() {
+            w.window().set_maximized(!w.window().is_maximized());
+        }
+    });
+
+    let window_weak = window.as_weak();
     window.on_close_clicked(move || {
         if let Some(w) = window_weak.upgrade() {
             let _ = w.hide();
@@ -78,6 +87,7 @@ fn main() -> Result<()> {
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
     AddonsHandler::setup(&window.as_weak());
+    ScreenshotHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());
     Ok(window.run()?)

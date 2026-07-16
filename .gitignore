@@ -23,3 +23,9 @@ Desktop.ini
 
 *.log
 config.json
+*.pak
+*.ucas
+*.utoc
+*.disabled
+*.md5
+*.zip

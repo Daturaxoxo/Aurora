@@ -2,7 +2,7 @@ use crate::MainWindow;
 use log::error;
 #[cfg(target_os = "windows")]
 use mslnk::ShellLink;
-use shared::{classes::info::CLIENT_PAK_DIR, pathfind::get_game_directory};
+use shared::{classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory};
 
 pub struct ButtonHandler;
 

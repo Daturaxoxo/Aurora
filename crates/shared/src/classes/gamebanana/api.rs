@@ -5,6 +5,8 @@ use futures::{stream, StreamExt};
 use reqwest::Client;
 use tokio::sync::mpsc::UnboundedSender;
 
+use log::*;
+
 const BASE_URL: &str = "https://gamebanana.com";
 const NTE_GAME_ID: u32 = 23012;
 
@@ -138,7 +140,7 @@ impl GameBananaApi {
         let only_mods: Vec<ApiRecord> = subfeed
             .records
             .into_iter()
-            .filter(|r| r.model_name == "Mod")
+            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
             .collect();
 
         if only_mods.is_empty() {
@@ -209,7 +211,7 @@ impl GameBananaApi {
         let only_mods: Vec<ApiRecord> = search_response
             .records
             .into_iter()
-            .filter(|r| r.model_name == "Mod")
+            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
             .collect();
 
         let nte_mods: Vec<NteMod> = stream::iter(only_mods)
@@ -245,8 +247,21 @@ impl GameBananaApi {
 
     pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<NteModFile>> {
         let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
-        let resp = self.client.get(&url).send().await.ok()?;
-        let profile: ProfilePage = resp.json().await.ok()?;
+        let resp = match self.client.get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Failed to fetch mod files for mod {mod_id}: {e}");
+                return None;
+            }
+        };
+
+        let profile: ProfilePage = match resp.json().await {
+            Ok(p) => p,
+            Err(e) => {
+                error!("Failed to parse profile for mod {mod_id}: {e}");
+                return None;
+            }
+        };
 
         let mut output = Vec::new();
         if let Some(files) = profile.files {

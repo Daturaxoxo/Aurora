@@ -6,6 +6,10 @@ import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
 import { ModManagerPage } from "components/pages/modmanager.slint";
+import {
+    ScreenshotsPage,
+    ScreenshotItem,
+} from "components/pages/menus/screenshots.slint";
 
 component IconButton inherits Rectangle {
     in property <image> source;
@@ -46,6 +50,7 @@ export component MainWindow inherits Window {
     min-height: 540px;
 
     // General Callbacks
+    callback maximize-clicked();
     callback minimize-clicked();
     callback close-clicked();
     callback window-dragged(length, length);
@@ -59,6 +64,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-addons: false;
     in-out property <bool> show-modules: false;
     in-out property <bool> show-mod-manager: false;
+    in-out property <bool> show-screenshots: false;
 
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
@@ -81,11 +87,11 @@ export component MainWindow inherits Window {
     callback trigger-toast();
 
     // Settings Properties
-    in-out property <int>  language-index: 0;
+    in-out property <int> language-index: 0;
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
     in-out property <string> game-directory: "";
-    in-out property <int>  engine-method-index: 0;
+    in-out property <int> engine-method-index: 0;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     callback browse-game-directory();
@@ -116,6 +122,24 @@ export component MainWindow inherits Window {
     // Modules Page Properties
     callback module-choose();
     callback module-drop-files(string);
+
+    // Screenshots Page Properties
+    in-out property <[ScreenshotItem]> screenshots: [];
+    in-out property <int> screenshot-selected-count: 0;
+    in-out property <image> screenshot-preview-image;
+    callback screenshot-favorite(int);
+    callback screenshot-delete(int);
+    callback screenshot-open(int);
+    callback screenshot-copy(int);
+    callback screenshot-rename(int, string);
+    callback screenshot-toggle-select(int);
+    callback screenshot-delete-selected();
+    callback screenshot-selection-cleared();
+    callback screenshot-sort-changed(int);
+    callback screenshot-favorites-filter-changed(bool);
+    callback screenshot-preview-requested(int);
+    callback screenshots-refresh();
+    callback open-screenshots-folder();
 
     // [HELPER FUNCTIONS]
 
@@ -218,6 +242,19 @@ export component MainWindow inherits Window {
                                     source: @image-url("../production/icons/minimize.png");
                                     icon-size: 22px;
                                     clicked => { root.minimize-clicked(); }
+                                }
+
+                                IconButton {
+                                    source: @image-url("../production/icons/maximize.png");
+                                    icon-size: 22px;
+                                    clicked => {
+                                        root.maximize-clicked();
+                                        if root.maximized {
+                                            self.source = @image-url("../production/icons/maximized.png")
+                                        } else {
+                                            self.source = @image-url("../production/icons/maximize.png");
+                                        }
+                                    }
                                 }
 
                                 IconButton {
@@ -790,7 +827,7 @@ export component MainWindow inherits Window {
             border-color: Palette.glass-border;
         }
 
-        if (root.show-settings || root.show-menu): Rectangle {
+        if (root.show-settings || root.show-menu || root.show-screenshots): Rectangle {
             width: 100%;
             height: parent.height - Palette.topbar-height;
             y: Palette.topbar-height + 1px;
@@ -834,6 +871,7 @@ export component MainWindow inherits Window {
             close-menu => { root.show-menu = false; }
             menu-item-clicked(i) => {
                 root.show-menu = false;
+                if (i == 0) { root.show-screenshots = true; }
                 if (i == 4) { root.show-addons = true; }
                 if (i == 3) { root.show-modules = true; }
             }
@@ -847,6 +885,30 @@ export component MainWindow inherits Window {
             close-modules => { root.show-modules = false; }
             choose-module => { root.module-choose(); }
             drop-files(path) => { root.module-drop-files(path); }
+        }
+
+        if root.show-screenshots: ScreenshotsPage {
+            x: 20px;
+            y: Palette.topbar-height + 15px;
+            width: parent.width - 40px;
+            height: parent.height - (Palette.topbar-height + 35px);
+            screenshots: root.screenshots;
+            selected-count: root.screenshot-selected-count;
+            preview-image: root.screenshot-preview-image;
+            close-screenshots => { root.show-screenshots = false; }
+            screenshot-favorite(i) => { root.screenshot-favorite(i); }
+            screenshot-delete(i) => { root.screenshot-delete(i); }
+            screenshot-open(i) => { root.screenshot-open(i); }
+            screenshot-copy(i) => { root.screenshot-copy(i); }
+            screenshot-rename(i, name) => { root.screenshot-rename(i, name); }
+            screenshot-toggle-select(i) => { root.screenshot-toggle-select(i); }
+            screenshot-delete-selected => { root.screenshot-delete-selected(); }
+            screenshot-selection-cleared => { root.screenshot-selection-cleared(); }
+            screenshot-sort-changed(i) => { root.screenshot-sort-changed(i); }
+            screenshot-favorites-filter-changed(v) => { root.screenshot-favorites-filter-changed(v); }
+            screenshot-preview-requested(i) => { root.screenshot-preview-requested(i); }
+            screenshots-refresh => { root.screenshots-refresh(); }
+            open-screenshots-folder => { root.open-screenshots-folder(); }
         }
 
         if root.show-addons: AddonsPage {

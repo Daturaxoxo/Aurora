@@ -3,11 +3,19 @@ use discord_rich_presence::{
     activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
+use log::*;
+use once_cell::sync::Lazy;
+use shared::config::{self, key};
 use shared::utils::{self, get_current_timestamp};
+
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 
 const APPLICATION_ID: &str = "1505644188060876920";
+
+/// Global Discord RPC client
+pub static RPC: Lazy<DiscordRpc> =
+    Lazy::new(|| DiscordRpc::new(utils::get_current_timestamp()).unwrap());
 
 #[derive(Debug)]
 enum RpcCommand {
@@ -42,13 +50,46 @@ impl DiscordRpc {
             }
 
             let mut client = DiscordIpcClient::new(APPLICATION_ID);
-
-            if let Err(e) = client.connect() {
-                eprintln!("Failed to connect to Discord IPC: {e:?}");
-                return;
-            }
+            let mut connected = false;
 
             for cmd in rx {
+                match cmd {
+                    RpcCommand::Stop => {
+                        if connected {
+                            let _ = client.close();
+                            connected = false;
+                        }
+                        continue;
+                    }
+                    RpcCommand::Reconnect => {
+                        let res = if connected {
+                            client.reconnect()
+                        } else {
+                            client.connect()
+                        };
+                        match res {
+                            Ok(()) => connected = true,
+                            Err(e) => error!("Failed to reconnect to Discord IPC: {e:?}"),
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                if !config::get(key::DISCORD_RPC).as_bool().unwrap_or(true) {
+                    continue;
+                }
+
+                if !connected {
+                    match client.connect() {
+                        Ok(()) => connected = true,
+                        Err(e) => {
+                            error!("Failed to connect to Discord IPC: {e:?}");
+                            continue;
+                        }
+                    }
+                }
+
                 let res = match cmd {
                     RpcCommand::SetIdle => client.set_activity(
                         Activity::new()
@@ -82,7 +123,7 @@ impl DiscordRpc {
                                     Assets::new()
                                         .large_image(format!("in-game-{elem}"))
                                         .large_text("Playing NTE using Aurora!")
-                                        .small_image("version-2")
+                                        .small_image("version")
                                         .small_text(format!("v{}", utils::get_local_version())),
                                 )
                                 .timestamps(Timestamps::new().start(get_current_timestamp()))
@@ -90,15 +131,14 @@ impl DiscordRpc {
                         )
                     }
                     RpcCommand::ClearActivity => client.clear_activity(),
-                    RpcCommand::Reconnect => client.reconnect(),
-                    RpcCommand::Stop => {
-                        let _ = client.close();
-                        break;
-                    }
+                    // Handled before the connection (check above)
+                    RpcCommand::Reconnect | RpcCommand::Stop => unreachable!(),
                 };
 
                 if let Err(e) = res {
-                    eprintln!("Discord RPC error processing command: {e:?}");
+                    error!("Discord RPC error processing command: {e:?}");
+                    let _ = client.close();
+                    connected = false;
                 }
             }
         });
