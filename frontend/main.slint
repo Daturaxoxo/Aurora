@@ -5,6 +5,7 @@ import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
+import { ModManagerPage } from "components/pages/modmanager.slint";
 
 component IconButton inherits Rectangle {
     in property <image> source;
@@ -57,6 +58,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-menu: false;
     in-out property <bool> show-addons: false;
     in-out property <bool> show-modules: false;
+    in-out property <bool> show-mod-manager: false;
 
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
@@ -414,7 +416,7 @@ export component MainWindow inherits Window {
                 animate border-color { duration: 120ms; }
 
                 mod-manager-ta := TouchArea {
-                    clicked => { root.bottom-icon-clicked(1) }
+                    clicked => { root.show-mod-manager = !root.show-mod-manager; }
                 }
 
                 mod-manager-inner := HorizontalLayout {
@@ -856,6 +858,14 @@ export component MainWindow inherits Window {
             close-addons => { root.show-addons = false; }
             addon-action(i) => { root.addon-action(i); }
             addon-open-link(i) => { root.addon-open-link(i); }
+        }
+
+        if root.show-mod-manager: ModManagerPage {
+            x: 20px;
+            y: Palette.topbar-height + 15px;
+            width: parent.width - 40px;
+            height: parent.height - (Palette.topbar-height + 35px);
+            close-mod-manager => { root.show-mod-manager = false; }
         }
 
         toast-widget := WindowToast {

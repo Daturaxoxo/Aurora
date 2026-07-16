@@ -1,0 +1,477 @@
+import { Palette } from "../../global.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export enum ModFilterStatus { All, EnabledOnly, DisabledOnly }
+
+export struct ModItem {
+    id: string,
+    name: string,
+    author: string,
+    version: string,
+    icon: image,
+    enabled: bool,
+    has-json: bool,
+    is-editing: bool,
+    group-id: string,
+}
+
+export struct ModGroup {
+    id: string,
+    name: string,
+    is-editing: bool,
+    collapsed: bool,
+}
+
+export component ModManagerPage inherits Rectangle {
+    in-out property <[ModItem]> mods: [];
+    in-out property <[ModGroup]> groups: [];
+    in-out property <string> search-text: "";
+    in-out property <ModFilterStatus> filter-status: ModFilterStatus.All;
+    in-out property <bool> view-grid: false;
+    in-out property <[string]> selected-ids: [];
+
+    // [CALLBACKS]
+    callback close-mod-manager();
+    callback install-from-archive();
+    callback install-from-folder();
+    callback open-gamebanana();
+    callback toggle-mod(string);
+    callback delete-mod(string);
+    callback rename-mod(string, string);
+    callback toggle-selected();
+    callback delete-selected();
+    callback create-group();
+    callback rename-group(string, string);
+    callback delete-group(string);
+    callback toggle-group(string);
+    callback collapse-group(string);
+    callback toggle-all();
+    callback refresh();
+    callback move-mod-to-group(string, string);
+    callback reorder-mod(string, int);
+
+    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+    drop-shadow-color: Palette.shadow-color;
+    drop-shadow-blur: 25px;
+    drop-shadow-offset-y: 10px;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        header-root := Rectangle {
+            height: 60px;
+            width: 100%;
+
+            HorizontalLayout {
+                x: 20px;
+                y: 0px;
+                width: parent.width - 40px;
+                height: parent.height;
+                spacing: 8px;
+
+                // Title
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    Text {
+                        text: "Mod Manager";
+                        color: Palette.text-primary;
+                        font-family: "Segoe UI";
+                        font-size: 17px;
+                        font-weight: 700;
+                    }
+                }
+
+                Rectangle { width: 6px; }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    add-mods-pill := Rectangle {
+                        height: 28px;
+                        width: add-mods-row.preferred-width + 24px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: add-mods-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: add-mods-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        add-mods-ta := TouchArea {
+                            // install overlay will be wired later
+                        }
+
+                        add-mods-row := HorizontalLayout {
+                            x: 12px;
+                            y: 0px;
+                            height: parent.height;
+                            width: self.preferred-width;
+                            spacing: 7px;
+                            alignment: center;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Path {
+                                    width: 14px;
+                                    height: 14px;
+                                    viewbox-x: 0;
+                                    viewbox-y: 0;
+                                    viewbox-width: 14;
+                                    viewbox-height: 14;
+                                    commands: "M7 1 L7 13 M1 7 L13 7";
+                                    stroke: #ffffffbb;
+                                    stroke-width: 1.8px;
+                                    fill: transparent;
+                                }
+                            }
+
+                            Text {
+                                text: "Add Mods";
+                                color: #ffffffcc;
+                                font-family: "Segoe UI";
+                                font-size: 12px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    gb-pill := Rectangle {
+                        height: 28px;
+                        width: gb-row.preferred-width + 24px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: gb-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: gb-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        gb-ta := TouchArea {
+                            clicked => { root.open-gamebanana(); }
+                        }
+
+                        gb-row := HorizontalLayout {
+                            x: 12px;
+                            y: 0px;
+                            height: parent.height;
+                            width: self.preferred-width;
+                            spacing: 7px;
+                            alignment: center;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Path {
+                                    width: 14px;
+                                    height: 14px;
+                                    viewbox-x: 0;
+                                    viewbox-y: 0;
+                                    viewbox-width: 14;
+                                    viewbox-height: 14;
+                                    commands: "M6 2 L2 2 Q1 2 1 3 L1 12 Q1 13 2 13 L11 13 Q12 13 12 12 L12 8 M8 1 L13 1 L13 6 M13 1 L6.5 7.5";
+                                    stroke: #ffffffbb;
+                                    stroke-width: 1.6px;
+                                    fill: transparent;
+                                }
+                            }
+
+                            Text {
+                                text: "Install from GameBanana";
+                                color: #ffffffcc;
+                                font-family: "Segoe UI";
+                                font-size: 12px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    view-pill := Rectangle {
+                        height: 28px;
+                        width: 64px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: #ffffff16;
+                        background: #ffffff06;
+                        clip: true;
+
+                        HorizontalLayout {
+                            spacing: 0px;
+
+                            list-side := Rectangle {
+                                width: 31px;
+                                height: 28px;
+                                background: !root.view-grid
+                                    ? #ffffff18
+                                    : (list-ta.has-hover ? #ffffff0a : transparent);
+                                animate background { duration: 100ms; }
+
+                                list-ta := TouchArea {
+                                    clicked => { root.view-grid = false; }
+                                }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 3px;
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    for _ in [0, 1, 2]: Rectangle {
+                                        height: 2px;
+                                        border-radius: 1px;
+                                        background: !root.view-grid ? #ffffffee : #ffffff44;
+                                        animate background { duration: 100ms; }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 1px;
+                                height: 28px;
+                                background: #ffffff16;
+                            }
+
+                            grid-side := Rectangle {
+                                width: 31px;
+                                height: 28px;
+                                background: root.view-grid
+                                    ? #ffffff18
+                                    : (grid-ta.has-hover ? #ffffff0a : transparent);
+                                animate background { duration: 100ms; }
+
+                                grid-ta := TouchArea {
+                                    clicked => { root.view-grid = true; }
+                                }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 4px;
+                                    padding-left: 9px;
+                                    padding-right: 9px;
+                                    for _ in [0, 1]: HorizontalLayout {
+                                        spacing: 4px;
+                                        alignment: center;
+                                        for _ in [0, 1]: Rectangle {
+                                            width: 4px;
+                                            height: 4px;
+                                            border-radius: 1px;
+                                            background: root.view-grid ? #ffffffee : #ffffff44;
+                                            animate background { duration: 100ms; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    close-rect := Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 6px;
+                        background: close-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 7px;
+                            y: 7px;
+                            width: 14px;
+                            height: 14px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        close-ta := TouchArea {
+                            clicked => { root.close-mod-manager(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Palette.glass-border;
+        }
+
+        Rectangle {
+            height: 48px;
+            width: 100%;
+            background: #ffffff02;
+
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 12px;
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: #ffffff44;
+                        background: transparent;
+                        
+                        TouchArea {
+                            clicked => { root.toggle-all(); }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    search-container := Rectangle {
+                        height: 32px;
+                        background: #ffffff08;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: #ffffff16;
+
+                        TextInput {
+                            x: 12px;
+                            width: parent.width - 24px;
+                            text <=> root.search-text;
+                            font-family: "Segoe UI";
+                            font-size: 13px;
+                            color: Palette.text-primary;
+                            vertical-alignment: center;
+                        }
+                        
+                        if (root.search-text == "") : Text {
+                            x: 12px;
+                            text: "Search mods...";
+                            color: #ffffff44;
+                            font-family: "Segoe UI";
+                            font-size: 13px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 1px;
+                        height: 20px;
+                        background: Palette.glass-border;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    filter-btn := Rectangle {
+                        width: 76px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: filter-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: filter-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        Text {
+                            text: "Filter";
+                            color: #ffffffcc;
+                            font-family: "Segoe UI";
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        
+                        filter-ta := TouchArea {
+                            clicked => {}
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    toggle-all-btn := Rectangle {
+                        width: 88px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: toggle-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: toggle-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        Text {
+                            text: "Toggle All";
+                            color: #ffffffcc;
+                            font-family: "Segoe UI";
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        toggle-ta := TouchArea {
+                            clicked => { root.toggle-all(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+
+            if (!root.view-grid) : ScrollView {
+                width: 100%;
+                height: 100%;
+
+                Text {
+                    x: 20px;
+                    y: 20px;
+                    text: "List view coming soon";
+                    color: #ffffff44;
+                    font-family: "Segoe UI";
+                    font-size: 13px;
+                }
+            }
+
+            if (root.view-grid) : Rectangle {
+                width: 100%;
+                height: 100%;
+
+                Text {
+                    x: 20px;
+                    y: 20px;
+                    text: "Grid view coming soon";
+                    color: #ffffff44;
+                    font-family: "Segoe UI";
+                    font-size: 13px;
+                }
+            }
+        }
+    }
+}
