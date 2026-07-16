@@ -36,7 +36,7 @@ component ToggleSwitch inherits Rectangle {
 }
 
 // DROPDOWN COMPONENT
-component Dropdown inherits Rectangle {
+export component Dropdown inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     in-out property <bool> opened: false;
@@ -245,14 +245,14 @@ export component SettingsPage inherits Rectangle {
     in-out property <int> active-tab: 0;
 
     // --- GENERAL ---
-    in-out property <int>  language-index: 0;           // 0=English 1=Türkçe 2=简体中文 3=Español
+    in-out property <int> language-index: 0;           // 0=English 1=Türkçe 2=简体中文 3=Español
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
 
     // --- LAUNCHER ---
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
-    in-out property <int>  engine-method-index: 0;      // 0=Default 1=Alternate
+    in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
 
     // --- DEVELOPER ---
     in-out property <bool> developer-mode: false;
@@ -297,9 +297,23 @@ export component SettingsPage inherits Rectangle {
                 }
             }
 
-            TabButton { text: "General"; active: root.active-tab == 0; clicked => { root.active-tab = 0; } }
-            TabButton { text: "Launcher"; active: root.active-tab == 1; clicked => { root.active-tab = 1; } }
-            TabButton { text: "Developer"; active: root.active-tab == 2; clicked => { root.active-tab = 2; } }
+            TabButton {
+                text: "General";
+                active: root.active-tab == 0;
+                clicked => { root.active-tab = 0; }
+            }
+
+            TabButton {
+                text: "Launcher";
+                active: root.active-tab == 1;
+                clicked => { root.active-tab = 1; }
+            }
+
+            TabButton {
+                text: "Developer";
+                active: root.active-tab == 2;
+                clicked => { root.active-tab = 2; }
+            }
         }
 
         // RIGHT COLUMN: PAGES VIEWS CONTENT
@@ -312,7 +326,7 @@ export component SettingsPage inherits Rectangle {
 
                 Text {
                     text: root.active-tab == 0 ? "General" :
-                          root.active-tab == 1 ? "Launcher" : "Developer";
+                        root.active-tab == 1 ? "Launcher" : "Developer";
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -370,13 +384,20 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: "Language";
                                     subtitle: "Interface display language";
-                                    Dropdown { options: Languages.names; selected-index <=> root.language-index; selection-changed(idx) => { root.language-index-changed(idx); } }
+                                    Dropdown {
+                                        options: Languages.names;
+                                        selected-index <=> root.language-index;
+                                        selection-changed(idx) => { root.language-index-changed(idx); }
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Interface Minimization";
                                     subtitle: "Closes the launcher window after the game process initializes.";
-                                    ToggleSwitch { checked <=> root.interface-minimization; toggled => { root.interface-minimization-changed(self.checked); } }
+                                    ToggleSwitch {
+                                        checked <=> root.interface-minimization;
+                                        toggled => { root.interface-minimization-changed(self.checked); }
+                                    }
                                 }
                             }
 
@@ -393,7 +414,10 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: "Discord RPC";
                                     subtitle: "Toggle the in-built Rich Presence configuration status.";
-                                    ToggleSwitch { checked <=> root.discord-rpc; toggled => { root.discord-rpc-changed(self.checked); } }
+                                    ToggleSwitch {
+                                        checked <=> root.discord-rpc;
+                                        toggled => { root.discord-rpc-changed(self.checked); }
+                                    }
                                 }
                             }
                         }
@@ -443,7 +467,9 @@ export component SettingsPage inherits Rectangle {
                                             vertical-alignment: center;
                                         }
 
-                                        browse-ta := TouchArea { clicked => { root.browse-game-directory(); } }
+                                        browse-ta := TouchArea {
+                                            clicked => { root.browse-game-directory(); }
+                                        }
                                     }
                                 }
                             }
@@ -461,7 +487,11 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: "Engine Method";
                                     subtitle: "Choose what method the engine uses for loading mods.";
-                                    Dropdown { options: ["Default", "Alternate"]; selected-index <=> root.engine-method-index; selection-changed(idx) => { root.engine-method-index-changed(idx); } }
+                                    Dropdown {
+                                        options: ["Default", "Alternate"];
+                                        selected-index <=> root.engine-method-index;
+                                        selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    }
                                 }
                             }
                         }
@@ -491,13 +521,19 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: "Developer Mode";
                                     subtitle: "Shows the log console for debugging.";
-                                    ToggleSwitch { checked <=> root.developer-mode; toggled => { root.developer-mode-changed(self.checked); } }
+                                    ToggleSwitch {
+                                        checked <=> root.developer-mode;
+                                        toggled => { root.developer-mode-changed(self.checked); }
+                                    }
                                 }
 
                                 SettingCard {
                                     title: "Extensive Logging";
                                     subtitle: "Allows for more logs to be shown in the console.";
-                                    ToggleSwitch { checked <=> root.extensive-logging; toggled => { root.extensive-logging-changed(self.checked); } }
+                                    ToggleSwitch {
+                                        checked <=> root.extensive-logging;
+                                        toggled => { root.extensive-logging-changed(self.checked); }
+                                    }
                                 }
 
                                 SettingCard {
@@ -523,7 +559,9 @@ export component SettingsPage inherits Rectangle {
                                             vertical-alignment: center;
                                         }
 
-                                        export-ta := TouchArea { clicked => { root.export-telemetry(); } }
+                                        export-ta := TouchArea {
+                                            clicked => { root.export-telemetry(); }
+                                        }
                                     }
                                 }
                             }

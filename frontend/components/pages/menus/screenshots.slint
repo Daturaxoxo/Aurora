@@ -1,0 +1,916 @@
+import { Palette } from "../../../global.slint";
+import { LineEdit } from "std-widgets.slint";
+import { Dropdown } from "../settings.slint";
+
+export struct ScreenshotItem {
+    file_name: string,
+    date: string,
+    image: image,
+    favorite: bool,
+    selected: bool,
+}
+
+// Button overlaid on thumbnails / the preview
+component OverlayButton inherits Rectangle {
+    in property <image> icon;
+    in property <length> icon-size: 15px;
+    in property <color> hover-color: #ffffff;
+    out property <bool> hovering: ta.has-hover;
+    callback clicked();
+
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: ta.has-hover ? #000000dd : #00000099;
+    border-width: 1px;
+    border-color: #ffffff20;
+    animate background { duration: 120ms; }
+
+    Image {
+        source: root.icon;
+        width: root.icon-size;
+        height: root.icon-size;
+        image-rendering: smooth;
+        image-fit: contain;
+        colorize: ta.has-hover ? root.hover-color : #ffffffcc;
+        animate colorize { duration: 120ms; }
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Copy-to-clipboard button
+component CopyButton inherits Rectangle {
+    out property <bool> hovering: ta.has-hover;
+    callback clicked();
+
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: ta.has-hover ? #000000dd : #00000099;
+    border-width: 1px;
+    border-color: #ffffff20;
+    animate background { duration: 120ms; }
+
+    Path {
+        width: 15px;
+        height: 15px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M9 3 L21 3 L21 15 L15 15 M3 9 L15 9 L15 21 L3 21 Z";
+        stroke: ta.has-hover ? #ffffff : #ffffffcc;
+        stroke-width: 2px;
+        fill: transparent;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Star button
+component FavoriteButton inherits Rectangle {
+    in property <bool> favorite;
+    out property <bool> hovering: ta.has-hover;
+    callback clicked();
+
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: ta.has-hover ? #000000dd : #00000099;
+    border-width: 1px;
+    border-color: #ffffff20;
+    animate background { duration: 120ms; }
+
+    Path {
+        width: 16px;
+        height: 16px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 2 L15 9 L22 9.5 L16.5 14 L18.5 21.5 L12 17 L5.5 21.5 L7.5 14 L2 9.5 L9 9 Z";
+        fill: root.favorite ? #ffd75e : transparent;
+        stroke: root.favorite ? #ffd75e : (ta.has-hover ? #ffd75e : #ffffffcc);
+        stroke-width: 1.6px;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Text chip used in the toolbar (Select / Cancel / Delete / Favorites)
+component ChipButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> active: false;
+    in property <bool> danger: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    width: chip-text.preferred-width + 24px;
+    height: 30px;
+    border-radius: 6px;
+    background: root.danger
+        ? (ta.has-hover && root.enabled ? #ee4937 : #ee4937cc)
+        : root.active ? #ffffff20
+        : (ta.has-hover ? #ffffff14 : #ffffff08);
+    border-width: 1px;
+    border-color: root.active ? #ffffff30 : #ffffff18;
+    opacity: root.enabled ? 1.0 : 0.45;
+    animate background { duration: 120ms; }
+
+    chip-text := Text {
+        text: root.text;
+        color: Palette.text-primary;
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ScreenshotCard inherits Rectangle {
+    in property <ScreenshotItem> item;
+    in property <int> index;
+    in property <bool> select-mode: false;
+
+    callback toggle-favorite(int);
+    callback request-delete(int);
+    callback request-rename(int);
+    callback request-copy(int);
+    callback open-preview(int);
+    callback toggle-select(int);
+
+    property <bool> hovered: card-ta.has-hover
+        || fav-btn.hovering || copy-btn.hovering || rename-btn.hovering || del-btn.hovering;
+
+    border-radius: 12px;
+    border-width: root.item.selected ? 2px : 1px;
+    border-color: root.item.selected ? #E8A020 : (root.hovered ? #ffffff30 : Palette.glass-border);
+    background: #ffffff08;
+    clip: true;
+    animate border-color { duration: 120ms; }
+
+    // Thumbnail
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height - 44px;
+        background: #000000;
+        clip: true;
+
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.item.image;
+            image-fit: cover;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            width: 100%;
+            height: 40px;
+            y: parent.height - 40px;
+            background: @linear-gradient(180deg, #00000000 0%, #00000066 100%);
+        }
+
+        if root.item.selected: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #E8A02022;
+        }
+
+        card-ta := TouchArea {
+            clicked => {
+                if (root.select-mode) {
+                    root.toggle-select(root.index);
+                } else {
+                    root.open-preview(root.index);
+                }
+            }
+        }
+
+        // Selection checkbox (select mode only)
+        if root.select-mode: Rectangle {
+            x: 8px;
+            y: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 11px;
+            background: root.item.selected ? #E8A020 : #00000099;
+            border-width: 1px;
+            border-color: root.item.selected ? #E8A020 : #ffffff60;
+
+            if root.item.selected: Path {
+                width: 12px;
+                height: 10px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 14;
+                viewbox-height: 12;
+                commands: "M1 6 L5 10 L13 1";
+                stroke: #111111;
+                stroke-width: 2px;
+                fill: transparent;
+            }
+        }
+
+        // Favorite badge on thumbnails
+        if root.item.favorite: Path {
+            x: 10px;
+            y: parent.height - self.height - 8px;
+            width: 14px;
+            height: 14px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 2 L15 9 L22 9.5 L16.5 14 L18.5 21.5 L12 17 L5.5 21.5 L7.5 14 L2 9.5 L9 9 Z";
+            fill: #ffd75e;
+        }
+
+        // Hover actions (hidden in select mode)
+        HorizontalLayout {
+            x: parent.width - self.preferred-width - 8px;
+            y: 8px;
+            spacing: 6px;
+            opacity: (root.hovered && !root.select-mode) ? 1.0 : 0.0;
+            animate opacity { duration: 120ms; }
+
+            fav-btn := FavoriteButton {
+                favorite: root.item.favorite;
+                clicked => { root.toggle-favorite(root.index); }
+            }
+
+            copy-btn := CopyButton {
+                clicked => { root.request-copy(root.index); }
+            }
+
+            rename-btn := OverlayButton {
+                icon: @image-url("../../../../production/icons/edit.png");
+                clicked => { root.request-rename(root.index); }
+            }
+
+            del-btn := OverlayButton {
+                icon: @image-url("../../../../production/icons/delete.png");
+                hover-color: #ee4937;
+                clicked => { root.request-delete(root.index); }
+            }
+        }
+    }
+
+    // Footer: filename + date
+    Rectangle {
+        x: 0;
+        y: root.height - 44px;
+        width: root.width;
+        height: 44px;
+
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            spacing: 8px;
+            alignment: space-between;
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.item.file_name;
+                    color: Palette.text-primary;
+                    font-size: 12px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.item.date;
+                    color: Palette.text-secondary;
+                    font-size: 11px;
+                    font-weight: 500;
+                }
+            }
+        }
+    }
+}
+
+export component ScreenshotsPage inherits Rectangle {
+    callback close-screenshots();
+    callback screenshot-favorite(int);
+    callback screenshot-delete(int);
+    callback screenshot-open(int);
+    callback screenshot-copy(int);
+    callback screenshot-rename(int, string);
+    callback screenshot-toggle-select(int);
+    callback screenshot-delete-selected();
+    callback screenshot-selection-cleared();
+    callback screenshot-sort-changed(int);
+    callback screenshot-favorites-filter-changed(bool);
+    callback screenshot-preview-requested(int);
+    callback screenshots-refresh();
+    callback open-screenshots-folder();
+
+    in property <[ScreenshotItem]> screenshots: [];
+    in property <int> selected-count: 0;
+    in property <image> preview-image;
+
+    in-out property <int> sort-index: 0; // 0 = newest, 1 = oldest, 2 = name
+    in-out property <bool> favorites-only: false;
+    in-out property <bool> select-mode: false;
+
+    // -1 = no preview open
+    in-out property <int> preview-index: -1;
+    property <bool> preview-open: root.preview-index >= 0 && root.preview-index < root.screenshots.length;
+
+    // -1 = rename dialog closed
+    in-out property <int> renaming-index: -1;
+
+    property <int> columns: 3;
+    property <length> gap: 16px;
+
+    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+    drop-shadow-color: Palette.shadow-color;
+    drop-shadow-blur: 25px;
+    drop-shadow-offset-y: 10px;
+    clip: true;
+
+    function open-preview-at(index: int) {
+        root.preview-index = index;
+        root.screenshot-preview-requested(index);
+    }
+
+    function close-preview() {
+        root.preview-index = -1;
+    }
+
+    function preview-prev() {
+        if (root.preview-index > 0) {
+            root.preview-index -= 1;
+            root.screenshot-preview-requested(root.preview-index);
+        }
+    }
+
+    function preview-next() {
+        if (root.preview-index < root.screenshots.length - 1) {
+            root.preview-index += 1;
+            root.screenshot-preview-requested(root.preview-index);
+        }
+    }
+
+    function exit-select-mode() {
+        root.select-mode = false;
+        root.screenshot-selection-cleared();
+    }
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 16px;
+
+        // Header
+        HorizontalLayout {
+            alignment: space-between;
+            height: 32px;
+
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Image {
+                        source: @image-url("../../../../production/icons/menu/camera.png");
+                        width: 20px;
+                        height: 20px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        colorize: Palette.text-primary;
+                    }
+
+                    Text {
+                        text: "Screenshot Manager";
+                        color: Palette.text-primary;
+                        font-size: 17px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: count-text.preferred-width + 14px;
+                        height: 22px;
+                        border-radius: 5px;
+                        background: #ffffff14;
+                        border-width: 1px;
+                        border-color: Palette.glass-border;
+
+                        count-text := Text {
+                            x: 7px;
+                            y: (parent.height - self.preferred-height) / 2;
+                            text: root.screenshots.length + " screenshots";
+                            color: Palette.text-primary;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+
+                refresh-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: refresh-ta.has-hover ? #ffffff14 : #ffffff08;
+                    border-width: 1px;
+                    border-color: #ffffff18;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../production/icons/refresh.png");
+                        width: 15px;
+                        height: 15px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        colorize: Palette.text-primary;
+                        opacity: refresh-ta.has-hover ? 1.0 : 0.8;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    refresh-ta := TouchArea {
+                        clicked => { root.screenshots-refresh(); }
+                    }
+                }
+
+                folder-btn := Rectangle {
+                    width: folder-inner.preferred-width + 24px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: folder-ta.has-hover ? #ffffff14 : #ffffff08;
+                    border-width: 1px;
+                    border-color: #ffffff18;
+                    animate background { duration: 120ms; }
+
+                    folder-inner := HorizontalLayout {
+                        x: 12px;
+                        y: 0;
+                        width: self.preferred-width;
+                        height: parent.height;
+                        spacing: 8px;
+                        alignment: start;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Image {
+                                source: @image-url("../../../../production/icons/folder.png");
+                                width: 14px;
+                                height: 14px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                                colorize: Palette.text-primary;
+                                opacity: 0.9;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: "Open Folder";
+                                color: Palette.text-primary;
+                                font-size: 12px;
+                                font-weight: 600;
+                            }
+                        }
+                    }
+
+                    folder-ta := TouchArea {
+                        clicked => { root.open-screenshots-folder(); }
+                    }
+                }
+
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../production/icons/close.png");
+                        width: 22px;
+                        height: 22px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    close-ta := TouchArea {
+                        clicked => { root.close-screenshots(); }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Palette.glass-border;
+        }
+
+        // Toolbar: sort + filter on the left, selection on the right
+        HorizontalLayout {
+            height: 32px;
+            alignment: space-between;
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                VerticalLayout {
+                    alignment: center;
+                    Dropdown {
+                        options: ["Newest First", "Oldest First", "By Name"];
+                        selected-index <=> root.sort-index;
+                        selection-changed(idx) => { root.screenshot-sort-changed(idx); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    ChipButton {
+                        text: "★ Favorites";
+                        active: root.favorites-only;
+                        clicked => {
+                            root.favorites-only = !root.favorites-only;
+                            root.screenshot-favorites-filter-changed(root.favorites-only);
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+
+                if !root.select-mode: VerticalLayout {
+                    alignment: center;
+                    ChipButton {
+                        text: "Select";
+                        clicked => { root.select-mode = true; }
+                    }
+                }
+
+                if root.select-mode: VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        ChipButton {
+                            text: "Delete (" + root.selected-count + ")";
+                            danger: true;
+                            enabled: root.selected-count > 0;
+                            clicked => { root.screenshot-delete-selected(); }
+                        }
+
+                        ChipButton {
+                            text: "Cancel";
+                            clicked => { root.exit-select-mode(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Grid
+        grid-area := Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            property <length> cell-w: (self.width - root.gap * (root.columns - 1)) / root.columns;
+            property <length> cell-h: self.cell-w * 9 / 16 + 44px;
+
+            if root.screenshots.length == 0: VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+                width: 100%;
+                height: 100%;
+
+                Text {
+                    text: root.favorites-only ? "No Favorite Screenshots" : "No Screenshots Found";
+                    color: Palette.text-primary;
+                    font-size: 15px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.favorites-only
+                        ? "Star a screenshot to see it here."
+                        : "Screenshots you take in-game will show up here.";
+                    color: Palette.text-secondary;
+                    font-size: 12px;
+                    font-weight: 400;
+                    horizontal-alignment: center;
+                }
+            }
+
+            if root.screenshots.length > 0: Flickable {
+                width: 100%;
+                height: 100%;
+                viewport-width: self.width;
+                viewport-height: Math.ceil(root.screenshots.length / root.columns) * (grid-area.cell-h + root.gap) - root.gap + 8px;
+
+                for item[i] in root.screenshots: ScreenshotCard {
+                    x: Math.mod(i, root.columns) * (grid-area.cell-w + root.gap);
+                    y: Math.floor(i / root.columns) * (grid-area.cell-h + root.gap);
+                    width: grid-area.cell-w;
+                    height: grid-area.cell-h;
+                    item: item;
+                    index: i;
+                    select-mode: root.select-mode;
+                    toggle-favorite(idx) => { root.screenshot-favorite(idx); }
+                    request-delete(idx) => { root.screenshot-delete(idx); }
+                    request-rename(idx) => { root.renaming-index = idx; }
+                    request-copy(idx) => { root.screenshot-copy(idx); }
+                    toggle-select(idx) => { root.screenshot-toggle-select(idx); }
+                    open-preview(idx) => { root.open-preview-at(idx); }
+                }
+            }
+        }
+    }
+
+    // Fullscreen preview
+    if root.preview-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000e6;
+
+        preview-focus := FocusScope {
+            width: 100%;
+            height: 100%;
+
+            init => { self.focus(); }
+
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.close-preview();
+                    return accept;
+                }
+                if (event.text == Key.LeftArrow) {
+                    root.preview-prev();
+                    return accept;
+                }
+                if (event.text == Key.RightArrow) {
+                    root.preview-next();
+                    return accept;
+                }
+                reject
+            }
+
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.close-preview(); }
+            }
+
+            // Image (clicks on it shouldn't close the preview)
+            Rectangle {
+                x: 60px;
+                y: 56px;
+                width: parent.width - 120px;
+                height: parent.height - 132px;
+
+                TouchArea { }
+
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.preview-image;
+                    image-fit: contain;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            // Header: filename + close
+            HorizontalLayout {
+                x: 16px;
+                y: 12px;
+                width: parent.width - 32px;
+                height: 32px;
+                alignment: space-between;
+
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: root.screenshots[root.preview-index].file_name
+                            + "  ·  " + root.screenshots[root.preview-index].date;
+                        color: Palette.text-primary;
+                        font-size: 13px;
+                        font-weight: 600;
+                        overflow: elide;
+                    }
+                }
+
+                OverlayButton {
+                    icon: @image-url("../../../../production/icons/close.png");
+                    icon-size: 18px;
+                    clicked => { root.close-preview(); }
+                }
+            }
+
+            // Prev / Next
+            if root.preview-index > 0: prev-btn := Rectangle {
+                x: 12px;
+                y: (parent.height - self.height) / 2;
+                width: 38px;
+                height: 56px;
+                border-radius: 8px;
+                background: prev-ta.has-hover ? #000000dd : #00000099;
+                border-width: 1px;
+                border-color: #ffffff20;
+                animate background { duration: 120ms; }
+
+                Path {
+                    width: 12px;
+                    height: 20px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 12;
+                    viewbox-height: 20;
+                    commands: "M10 2 L2 10 L10 18";
+                    stroke: #ffffffcc;
+                    stroke-width: 2px;
+                    fill: transparent;
+                }
+
+                prev-ta := TouchArea {
+                    clicked => { root.preview-prev(); }
+                }
+            }
+
+            if root.preview-index < root.screenshots.length - 1: next-btn := Rectangle {
+                x: parent.width - self.width - 12px;
+                y: (parent.height - self.height) / 2;
+                width: 38px;
+                height: 56px;
+                border-radius: 8px;
+                background: next-ta.has-hover ? #000000dd : #00000099;
+                border-width: 1px;
+                border-color: #ffffff20;
+                animate background { duration: 120ms; }
+
+                Path {
+                    width: 12px;
+                    height: 20px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 12;
+                    viewbox-height: 20;
+                    commands: "M2 2 L10 10 L2 18";
+                    stroke: #ffffffcc;
+                    stroke-width: 2px;
+                    fill: transparent;
+                }
+
+                next-ta := TouchArea {
+                    clicked => { root.preview-next(); }
+                }
+            }
+
+            // Bottom action bar
+            HorizontalLayout {
+                x: (parent.width - self.preferred-width) / 2;
+                y: parent.height - 52px;
+                spacing: 8px;
+
+                FavoriteButton {
+                    favorite: root.screenshots[root.preview-index].favorite;
+                    clicked => { root.screenshot-favorite(root.preview-index); }
+                }
+
+                CopyButton {
+                    clicked => { root.screenshot-copy(root.preview-index); }
+                }
+
+                OverlayButton {
+                    icon: @image-url("../../../../production/icons/edit.png");
+                    clicked => { root.renaming-index = root.preview-index; }
+                }
+
+                OverlayButton {
+                    icon: @image-url("../../../../production/icons/link.png");
+                    clicked => { root.screenshot-open(root.preview-index); }
+                }
+
+                OverlayButton {
+                    icon: @image-url("../../../../production/icons/delete.png");
+                    hover-color: #ee4937;
+                    clicked => {
+                        root.screenshot-delete(root.preview-index);
+                        root.close-preview();
+                    }
+                }
+            }
+        }
+    }
+
+    // Rename dialog
+    if root.renaming-index >= 0 && root.renaming-index < root.screenshots.length: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000aa;
+
+        TouchArea {
+            clicked => { root.renaming-index = -1; }
+        }
+
+        Rectangle {
+            width: 360px;
+            height: rename-layout.preferred-height + 40px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #1e1e24;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: #00000099;
+            drop-shadow-blur: 30px;
+
+            TouchArea { }
+
+            rename-layout := VerticalLayout {
+                x: 20px;
+                y: 20px;
+                width: parent.width - 40px;
+                // spacing: 14px;
+
+                Text {
+                    text: "Rename Screenshot";
+                    color: Palette.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                }
+
+                rename-input := LineEdit {
+                    height: 34px;
+                    font-size: 13px;
+                    init => {
+                        self.text = root.screenshots[root.renaming-index].file_name;
+                        self.focus();
+                    }
+                    accepted => {
+                        root.screenshot-rename(root.renaming-index, self.text);
+                        root.renaming-index = -1;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    ChipButton {
+                        text: "Cancel";
+                        clicked => { root.renaming-index = -1; }
+                    }
+
+                    ChipButton {
+                        text: "Rename";
+                        active: true;
+                        clicked => {
+                            root.screenshot-rename(root.renaming-index, rename-input.text);
+                            root.renaming-index = -1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

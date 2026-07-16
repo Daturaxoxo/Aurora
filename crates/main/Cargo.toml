@@ -21,18 +21,21 @@ image = { version = "0.25", default-features = false, features = [
 ] }
 unrar = { package = "unrar-ng", version = "0.7" }
 archive = "0.3"
+arboard = { version = "3", default-features = false, features = ["image-data"] }
 
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 
 log = { workspace = true }
+rayon = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 dirs = { workspace = true }
 serde_json = { workspace = true }
-
+chrono = { workspace = true }
 reqwest = { workspace = true }
+sysinfo = { workspace = true }
 
 [build-dependencies]
 slint-build = { version = "1.16.1" }
