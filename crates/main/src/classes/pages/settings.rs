@@ -53,7 +53,9 @@ impl SettingsHandler {
         debug!("[Settings] discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
         if discord_rpc {
-            RPC.set_idle().unwrap();
+            if let Err(e) = RPC.set_idle() {
+                error!("[Settings] could not set Discord RPC to idle: {e}");
+            }
         }
 
         // Launcher
@@ -106,10 +108,9 @@ impl SettingsHandler {
         w.on_discord_rpc_changed(move |enabled| {
             info!("[Settings] discord_rpc changed → {enabled}");
             config::set(key::DISCORD_RPC, enabled);
-            if enabled {
-                RPC.set_idle().unwrap();
-            } else {
-                RPC.stop().unwrap();
+            let res = if enabled { RPC.set_idle() } else { RPC.stop() };
+            if let Err(e) = res {
+                error!("[Settings] could not update Discord RPC state: {e}");
             }
             debug!("[Settings] discord_rpc saved to config");
         });
