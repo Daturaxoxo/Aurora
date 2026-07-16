@@ -84,7 +84,7 @@ impl DiscordRpc {
                     match client.connect() {
                         Ok(()) => connected = true,
                         Err(e) => {
-                            eprintln!("Failed to connect to Discord IPC: {e:?}");
+                            error!("Failed to connect to Discord IPC: {e:?}");
                             continue;
                         }
                     }
@@ -136,7 +136,7 @@ impl DiscordRpc {
                 };
 
                 if let Err(e) = res {
-                    eprintln!("Discord RPC error processing command: {e:?}");
+                    error!("Discord RPC error processing command: {e:?}");
                     let _ = client.close();
                     connected = false;
                 }
