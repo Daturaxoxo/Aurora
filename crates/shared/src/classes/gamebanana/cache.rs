@@ -90,6 +90,22 @@ impl CacheManager {
         self.save_cache(&path, wrapper).await;
     }
 
+    pub async fn get_category_cache(&self, category_id: u32, page: u32) -> Option<Vec<NteMod>> {
+        let path = self.base_dir.join(format!("cat_{category_id}_p{page}.json"));
+        self.load_cache(&path).await
+    }
+
+    pub async fn save_category_cache(&self, category_id: u32, page: u32, mods: Vec<NteMod>) {
+        let path = self.base_dir.join(format!("cat_{category_id}_p{page}.json"));
+        let wrapper = CacheWrapper {
+            cached_at: Self::current_timestamp(),
+            page: Some(page),
+            query: None,
+            mods,
+        };
+        self.save_cache(&path, wrapper).await;
+    }
+
     async fn load_cache(&self, path: &PathBuf) -> Option<Vec<NteMod>> {
         if self.is_valid(path) {
             let data = fs::read_to_string(path).await.ok()?;

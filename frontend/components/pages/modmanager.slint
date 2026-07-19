@@ -1,43 +1,256 @@
 import { Palette } from "../../global.slint";
 import { ScrollView } from "std-widgets.slint";
+import { ModCard, ModItem, ToggleSwitch } from "../modcard.slint";
+import { PopupDialog } from "../popup.slint";
+import { Dropdown } from "settings.slint";
 
-export enum ModFilterStatus { All, EnabledOnly, DisabledOnly }
-
-export struct ModItem {
-    id: string,
-    name: string,
-    author: string,
-    version: string,
-    icon: image,
-    enabled: bool,
-    has-json: bool,
-    is-editing: bool,
-    group-id: string,
+export {
+    ModItem,
 }
+component GroupHeader inherits Rectangle {
+    in property <ModItem> item;
+    in property <bool> drop-target: false;
 
-export struct ModGroup {
-    id: string,
-    name: string,
-    is-editing: bool,
-    collapsed: bool,
+    callback collapse(string /* id */);
+    callback rename(string /* id */, string /* new name */);
+    callback request-delete(string /* id */);
+    callback toggle-enabled(string /* id */);
+    callback toggle-select(string /* id */);
+
+    property <bool> editing-name: false;
+    property <string> name-draft;
+    property <bool> hovered: header-ta.has-hover || rename-ta.has-hover
+        || delete-ta.has-hover || select-ta.has-hover;
+
+    function commit-name() {
+        if (root.editing-name) {
+            root.rename(root.item.id, root.name-draft);
+            root.editing-name = false;
+        }
+    }
+
+    height: 40px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: root.drop-target
+        ? #6db3f2
+        : root.hovered ? #ffffff38 : #ffffff24;
+    background: root.drop-target
+        ? #6db3f21c
+        : root.hovered
+        ? @linear-gradient(180deg, #ffffff1e 0%, #ffffff10 100%)
+        : @linear-gradient(180deg, #ffffff16 0%, #ffffff0a 100%);
+    animate border-color { duration: 120ms; }
+
+    header-ta := TouchArea {
+        clicked => { root.collapse(root.item.id); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 16px;
+        spacing: 10px;
+
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: root.item.selected
+                    ? #E8A020
+                    : (select-ta.has-hover ? #ffffff66 : #ffffff33);
+                background: root.item.selected ? #E8A020 : transparent;
+                animate background { duration: 120ms; }
+                animate border-color { duration: 120ms; }
+
+                if root.item.selected: Path {
+                    x: 2px;
+                    y: 3px;
+                    width: 12px;
+                    height: 10px;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 12;
+                    viewbox-height: 10;
+                    commands: "M1 5 L4 8 L11 1";
+                    stroke: #111111;
+                    stroke-width: 1.8px;
+                    fill: transparent;
+                }
+
+                select-ta := TouchArea {
+                    clicked => { root.toggle-select(root.item.id); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 14px;
+                height: 14px;
+
+                if root.item.collapsed: Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 14;
+                    viewbox-height: 14;
+                    commands: "M4 2 L10 7 L4 12";
+                    stroke: #ffffff88;
+                    stroke-width: 1.8px;
+                    fill: transparent;
+                }
+
+                if !root.item.collapsed: Path {
+                    width: 100%;
+                    height: 100%;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 14;
+                    viewbox-height: 14;
+                    commands: "M2 4 L7 10 L12 4";
+                    stroke: #ffffff88;
+                    stroke-width: 1.8px;
+                    fill: transparent;
+                }
+            }
+        }
+
+        if !root.editing-name: Text {
+            text: root.item.name;
+            color: Palette.text-primary;
+            font-family: "Segoe UI";
+            font-size: 13px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        if root.editing-name: Rectangle {
+            width: 200px;
+            border-radius: 4px;
+            background: #ffffff10;
+            border-width: 1px;
+            border-color: #ffffff33;
+
+            TextInput {
+                x: 6px;
+                width: parent.width - 12px;
+                color: Palette.text-primary;
+                font-family: "Segoe UI";
+                font-size: 12.5px;
+                vertical-alignment: center;
+                single-line: true;
+                init => {
+                    self.text = root.item.name;
+                    root.name-draft = root.item.name;
+                    self.focus();
+                }
+                edited => { root.name-draft = self.text; }
+                accepted => { root.commit-name(); }
+                changed has-focus => {
+                    if (!self.has-focus) { root.commit-name(); }
+                }
+            }
+        }
+
+        // Rename button
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                background: rename-ta.has-hover ? #ffffff16 : transparent;
+                animate background { duration: 100ms; }
+
+                Image {
+                    source: @image-url("../../../production/icons/edit.png");
+                    width: 11px;
+                    height: 11px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    colorize: rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                    animate colorize { duration: 100ms; }
+                }
+
+                rename-ta := TouchArea {
+                    clicked => {
+                        if (root.editing-name) {
+                            root.commit-name();
+                        } else {
+                            root.editing-name = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        // Delete group
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 26px;
+                height: 26px;
+                border-radius: 6px;
+                background: delete-ta.has-hover ? #ee493722 : transparent;
+                animate background { duration: 100ms; }
+
+                Image {
+                    source: @image-url("../../../production/icons/delete.png");
+                    width: 14px;
+                    height: 14px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    colorize: delete-ta.has-hover ? #ee4937 : #ffffff66;
+                    animate colorize { duration: 100ms; }
+                }
+
+                delete-ta := TouchArea {
+                    clicked => { root.request-delete(root.item.id); }
+                }
+            }
+        }
+
+        // Enable/disable every mod in the group
+        VerticalLayout {
+            alignment: center;
+            ToggleSwitch {
+                checked: root.item.enabled;
+                toggled => { root.toggle-enabled(root.item.id); }
+            }
+        }
+    }
 }
 
 export component ModManagerPage inherits Rectangle {
     in-out property <[ModItem]> mods: [];
-    in-out property <[ModGroup]> groups: [];
     in-out property <string> search-text: "";
-    in-out property <ModFilterStatus> filter-status: ModFilterStatus.All;
     in-out property <bool> view-grid: false;
-    in-out property <[string]> selected-ids: [];
+    in property <bool> all-selected: false;
+    in property <int> selected-count: 0;
+    in property <bool> file-hover: false;
 
     // [CALLBACKS]
     callback close-mod-manager();
     callback install-from-archive();
     callback install-from-folder();
+    callback install-from-gamebanana();
     callback open-gamebanana();
     callback toggle-mod(string);
     callback delete-mod(string);
     callback rename-mod(string, string);
+    callback select-mod(string);
+    callback select-all();
+    callback open-mod-link(string);
+    callback set-mod-notes(string, string);
     callback toggle-selected();
     callback delete-selected();
     callback create-group();
@@ -45,10 +258,32 @@ export component ModManagerPage inherits Rectangle {
     callback delete-group(string);
     callback toggle-group(string);
     callback collapse-group(string);
+    callback select-group(string);
     callback toggle-all();
     callback refresh();
+    callback open-mods-folder();
+    callback search-changed(string);
+    callback filter-changed(int);
     callback move-mod-to-group(string, string);
-    callback reorder-mod(string, int);
+
+    in-out property <string> pending-delete-id: "";
+    in-out property <string> pending-delete-group-id: "";
+    in-out property <bool> pending-delete-selected: false;
+
+    in-out property <string> drag-id: "";
+    in-out property <string> drag-name: "";
+    in-out property <length> drag-pos-x;
+    in-out property <length> drag-pos-y;
+    in property <string> drag-target-group: "";
+    callback mod-drag-moved(string, length);
+    callback mod-drag-dropped(string, length);
+
+    changed search-text => { root.search-changed(root.search-text); }
+
+    init => {
+        root.search-changed(root.search-text);
+        root.filter-changed(0);
+    }
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
@@ -72,7 +307,6 @@ export component ModManagerPage inherits Rectangle {
                 height: parent.height;
                 spacing: 8px;
 
-                // Title
                 VerticalLayout {
                     alignment: center;
                     width: self.preferred-width;
@@ -85,7 +319,9 @@ export component ModManagerPage inherits Rectangle {
                     }
                 }
 
-                Rectangle { width: 6px; }
+                Rectangle {
+                    width: 6px;
+                }
 
                 VerticalLayout {
                     alignment: center;
@@ -101,7 +337,139 @@ export component ModManagerPage inherits Rectangle {
                         animate border-color { duration: 100ms; }
 
                         add-mods-ta := TouchArea {
-                            // install overlay will be wired later
+                            clicked => { add-menu.show(); }
+                        }
+
+                        add-menu := PopupWindow {
+                            x: 0px;
+                            y: parent.height + 6px;
+                            width: 240px;
+
+                            Rectangle {
+                                background: #1e1e24;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #3f3f46;
+
+                                VerticalLayout {
+                                    padding: 6px;
+                                    spacing: 2px;
+
+                                    Rectangle {
+                                        height: 36px;
+                                        border-radius: 6px;
+                                        background: archive-ta.has-hover ? #ffffff10 : transparent;
+
+                                        archive-ta := TouchArea {
+                                            clicked => { root.install-from-archive(); }
+                                        }
+
+                                        HorizontalLayout {
+                                            padding-left: 10px;
+                                            padding-right: 10px;
+                                            spacing: 10px;
+                                            alignment: start;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Image {
+                                                    source: @image-url("../../../production/icons/download.png");
+                                                    width: 14px;
+                                                    height: 14px;
+                                                    image-rendering: smooth;
+                                                    image-fit: contain;
+                                                    colorize: #ffffffaa;
+                                                }
+                                            }
+
+                                            Text {
+                                                text: "Install from Archive";
+                                                color: #ffffffdd;
+                                                font-family: "Segoe UI";
+                                                font-size: 12.5px;
+                                                font-weight: 500;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        height: 36px;
+                                        border-radius: 6px;
+                                        background: folder-ta.has-hover ? #ffffff10 : transparent;
+
+                                        folder-ta := TouchArea {
+                                            clicked => { root.install-from-folder(); }
+                                        }
+
+                                        HorizontalLayout {
+                                            padding-left: 10px;
+                                            padding-right: 10px;
+                                            spacing: 10px;
+                                            alignment: start;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Image {
+                                                    source: @image-url("../../../production/icons/folder.png");
+                                                    width: 14px;
+                                                    height: 14px;
+                                                    image-rendering: smooth;
+                                                    image-fit: contain;
+                                                    colorize: #ffffffaa;
+                                                }
+                                            }
+
+                                            Text {
+                                                text: "Install from Folder";
+                                                color: #ffffffdd;
+                                                font-family: "Segoe UI";
+                                                font-size: 12.5px;
+                                                font-weight: 500;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        height: 36px;
+                                        border-radius: 6px;
+                                        background: gb-ta.has-hover ? #ffffff10 : transparent;
+
+                                        gb-ta := TouchArea {
+                                            clicked => { root.install-from-gamebanana(); }
+                                        }
+
+                                        HorizontalLayout {
+                                            padding-left: 10px;
+                                            padding-right: 10px;
+                                            spacing: 10px;
+                                            alignment: start;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Image {
+                                                    source: @image-url("../../../production/icons/gamebanana.png");
+                                                    width: 14px;
+                                                    height: 14px;
+                                                    image-rendering: smooth;
+                                                    image-fit: contain;
+                                                    colorize: #ffffffaa;
+                                                }
+                                            }
+
+                                            Text {
+                                                text: "Install from GameBanana";
+                                                color: #ffffffdd;
+                                                font-family: "Segoe UI";
+                                                font-size: 12.5px;
+                                                font-weight: 500;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         add-mods-row := HorizontalLayout {
@@ -143,21 +511,21 @@ export component ModManagerPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     width: self.preferred-width;
-                    gb-pill := Rectangle {
+                    group-pill := Rectangle {
                         height: 28px;
-                        width: gb-row.preferred-width + 24px;
+                        width: group-row.preferred-width + 24px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: gb-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: gb-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: group-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: group-ta.has-hover ? #ffffff12 : #ffffff08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
-                        gb-ta := TouchArea {
-                            clicked => { root.open-gamebanana(); }
+                        group-ta := TouchArea {
+                            clicked => { root.create-group(); }
                         }
 
-                        gb-row := HorizontalLayout {
+                        group-row := HorizontalLayout {
                             x: 12px;
                             y: 0px;
                             height: parent.height;
@@ -174,15 +542,15 @@ export component ModManagerPage inherits Rectangle {
                                     viewbox-y: 0;
                                     viewbox-width: 14;
                                     viewbox-height: 14;
-                                    commands: "M6 2 L2 2 Q1 2 1 3 L1 12 Q1 13 2 13 L11 13 Q12 13 12 12 L12 8 M8 1 L13 1 L13 6 M13 1 L6.5 7.5";
+                                    commands: "M1 4 Q1 3 2 3 L5 3 L6.5 4.5 L12 4.5 Q13 4.5 13 5.5 L13 11 Q13 12 12 12 L2 12 Q1 12 1 11 Z M10 7 L10 10 M8.5 8.5 L11.5 8.5";
                                     stroke: #ffffffbb;
-                                    stroke-width: 1.6px;
+                                    stroke-width: 1.4px;
                                     fill: transparent;
                                 }
                             }
 
                             Text {
-                                text: "Install from GameBanana";
+                                text: "Create Group";
                                 color: #ffffffcc;
                                 font-family: "Segoe UI";
                                 font-size: 12px;
@@ -195,6 +563,32 @@ export component ModManagerPage inherits Rectangle {
 
                 VerticalLayout {
                     horizontal-stretch: 1;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    open-folder-rect := Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 6px;
+                        background: open-folder-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Image {
+                            source: @image-url("../../../production/icons/folder.png");
+                            width: 14px;
+                            height: 14px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: open-folder-ta.has-hover ? #ffffffdd : #ffffff66;
+                            animate colorize { duration: 100ms; }
+                        }
+
+                        open-folder-ta := TouchArea {
+                            clicked => { root.open-mods-folder(); }
+                        }
+                    }
                 }
 
                 VerticalLayout {
@@ -281,6 +675,32 @@ export component ModManagerPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     width: self.preferred-width;
+                    refresh-rect := Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 6px;
+                        background: refresh-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Image {
+                            source: @image-url("../../../production/icons/refresh.png");
+                            width: 14px;
+                            height: 14px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: refresh-ta.has-hover ? #ffffffdd : #ffffff66;
+                            animate colorize { duration: 100ms; }
+                        }
+
+                        refresh-ta := TouchArea {
+                            clicked => { root.refresh(); }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
                     close-rect := Rectangle {
                         width: 28px;
                         height: 28px;
@@ -327,6 +747,7 @@ export component ModManagerPage inherits Rectangle {
                 padding-right: 20px;
                 spacing: 12px;
 
+                // Select all / deselect all
                 VerticalLayout {
                     alignment: center;
                     Rectangle {
@@ -334,11 +755,30 @@ export component ModManagerPage inherits Rectangle {
                         height: 16px;
                         border-radius: 4px;
                         border-width: 1px;
-                        border-color: #ffffff44;
-                        background: transparent;
-                        
-                        TouchArea {
-                            clicked => { root.toggle-all(); }
+                        border-color: root.all-selected
+                            ? #E8A020
+                            : (select-all-ta.has-hover ? #ffffff77 : #ffffff44);
+                        background: root.all-selected ? #E8A020 : transparent;
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        if root.all-selected: Path {
+                            x: 2px;
+                            y: 3px;
+                            width: 12px;
+                            height: 10px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 12;
+                            viewbox-height: 10;
+                            commands: "M1 5 L4 8 L11 1";
+                            stroke: #111111;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                        }
+
+                        select-all-ta := TouchArea {
+                            clicked => { root.select-all(); }
                         }
                     }
                 }
@@ -353,18 +793,29 @@ export component ModManagerPage inherits Rectangle {
                         border-width: 1px;
                         border-color: #ffffff16;
 
+                        Image {
+                            source: @image-url("../../../production/icons/search.png");
+                            x: 10px;
+                            y: (parent.height - self.height) / 2;
+                            width: 14px;
+                            height: 14px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: #ffffff66;
+                        }
+
                         TextInput {
-                            x: 12px;
-                            width: parent.width - 24px;
+                            x: 32px;
+                            width: parent.width - 44px;
                             text <=> root.search-text;
                             font-family: "Segoe UI";
                             font-size: 13px;
                             color: Palette.text-primary;
                             vertical-alignment: center;
                         }
-                        
-                        if (root.search-text == "") : Text {
-                            x: 12px;
+
+                        if (root.search-text == ""): Text {
+                            x: 32px;
                             text: "Search mods...";
                             color: #ffffff44;
                             font-family: "Segoe UI";
@@ -385,29 +836,11 @@ export component ModManagerPage inherits Rectangle {
 
                 VerticalLayout {
                     alignment: center;
-                    filter-btn := Rectangle {
-                        width: 76px;
+                    Dropdown {
+                        width: 110px;
                         height: 28px;
-                        border-radius: 7px;
-                        border-width: 1px;
-                        border-color: filter-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: filter-ta.has-hover ? #ffffff12 : #ffffff08;
-                        animate background { duration: 100ms; }
-                        animate border-color { duration: 100ms; }
-
-                        Text {
-                            text: "Filter";
-                            color: #ffffffcc;
-                            font-family: "Segoe UI";
-                            font-size: 12px;
-                            font-weight: 600;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                        
-                        filter-ta := TouchArea {
-                            clicked => {}
-                        }
+                        options: ["All", "Enabled", "Disabled"];
+                        selection-changed(idx) => { root.filter-changed(idx); }
                     }
                 }
 
@@ -438,6 +871,61 @@ export component ModManagerPage inherits Rectangle {
                         }
                     }
                 }
+
+                // Bulk actions for the current selection
+                if root.selected-count > 0: VerticalLayout {
+                    alignment: center;
+                    toggle-sel-btn := Rectangle {
+                        width: toggle-sel-text.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: toggle-sel-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: toggle-sel-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+
+                        toggle-sel-text := Text {
+                            text: "Toggle (" + root.selected-count + ")";
+                            color: #ffffffcc;
+                            font-family: "Segoe UI";
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        toggle-sel-ta := TouchArea {
+                            clicked => { root.toggle-selected(); }
+                        }
+                    }
+                }
+
+                if root.selected-count > 0: VerticalLayout {
+                    alignment: center;
+                    delete-sel-btn := Rectangle {
+                        width: delete-sel-text.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: #ee493766;
+                        background: delete-sel-ta.has-hover ? #ee4937 : #ee4937cc;
+                        animate background { duration: 100ms; }
+
+                        delete-sel-text := Text {
+                            text: "Delete (" + root.selected-count + ")";
+                            color: Palette.text-primary;
+                            font-family: "Segoe UI";
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        delete-sel-ta := TouchArea {
+                            clicked => { root.pending-delete-selected = true; }
+                        }
+                    }
+                }
             }
         }
 
@@ -445,21 +933,128 @@ export component ModManagerPage inherits Rectangle {
             vertical-stretch: 1;
             background: transparent;
 
-            if (!root.view-grid) : ScrollView {
+            if (!root.view-grid): list-scroll := ScrollView {
                 width: 100%;
                 height: 100%;
+                viewport-height: mod-list.preferred-height;
 
-                Text {
-                    x: 20px;
-                    y: 20px;
-                    text: "List view coming soon";
-                    color: #ffffff44;
-                    font-family: "Segoe UI";
-                    font-size: 13px;
+                function drag-content-y(wx: length, wy: length) -> length {
+                    if (wx < self.absolute-position.x
+                        || wx > self.absolute-position.x + self.width
+                        || wy < self.absolute-position.y
+                        || wy > self.absolute-position.y + self.height) {
+                        return -1px;
+                    }
+                    return wy - self.absolute-position.y - self.viewport-y;
+                }
+
+                // Auto-scroll while dragging near the top/bottom edge
+                property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
+                property <bool> drag-inside-x: root.drag-pos-x >= self.absolute-position.x
+                    && root.drag-pos-x <= self.absolute-position.x + self.width;
+                property <bool> drag-near-top: root.drag-id != ""
+                    && self.drag-inside-x
+                    && self.drag-local-y >= 0px && self.drag-local-y < 48px;
+                property <bool> drag-near-bottom: root.drag-id != ""
+                    && self.drag-inside-x
+                    && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
+                property <length> scroll-min: min(0px, self.height - self.viewport-height);
+
+                Timer {
+                    interval: 16ms;
+                    running: list-scroll.drag-near-top || list-scroll.drag-near-bottom;
+                    triggered => {
+                        if (list-scroll.drag-near-top) {
+                            list-scroll.viewport-y = min(0px, list-scroll.viewport-y + 8px);
+                        }
+                        if (list-scroll.drag-near-bottom) {
+                            list-scroll.viewport-y = max(list-scroll.scroll-min, list-scroll.viewport-y - 8px);
+                        }
+                        root.mod-drag-moved(root.drag-id,
+                            list-scroll.drag-content-y(root.drag-pos-x, root.drag-pos-y));
+                    }
+                }
+
+                mod-list := VerticalLayout {
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+                    spacing: 8px;
+                    alignment: start;
+
+                    for mod in root.mods: mod-row := Rectangle {
+                        height: mod.is-group-header ? 40px : 64px;
+
+                        property <bool> nested: !mod.is-group-header && mod.group-id != "";
+
+                        if mod.is-group-header: GroupHeader {
+                            width: 100%;
+                            height: 100%;
+                            item: mod;
+                            drop-target: root.drag-id != ""
+                                && root.drag-target-group != ""
+                                && mod.id == root.drag-target-group;
+                            collapse(id) => { root.collapse-group(id); }
+                            rename(id, name) => { root.rename-group(id, name); }
+                            request-delete(id) => { root.pending-delete-group-id = id; }
+                            toggle-enabled(id) => { root.toggle-group(id); }
+                            toggle-select(id) => { root.select-group(id); }
+                        }
+
+                        if mod-row.nested: Rectangle {
+                            x: 13px;
+                            y: -8px;
+                            width: 2px;
+                            height: parent.height + 8px;
+                            background: #ffffff18;
+                        }
+
+                        if !mod.is-group-header: ModCard {
+                            x: mod-row.nested ? 28px : 0px;
+                            width: parent.width - self.x;
+                            height: 100%;
+                            item: mod;
+                            toggle-select(id) => { root.select-mod(id); }
+                            rename(id, name) => { root.rename-mod(id, name); }
+                            set-notes(id, notes) => { root.set-mod-notes(id, notes); }
+                            toggle-enabled(id) => { root.toggle-mod(id); }
+                            request-delete(id, name) => { root.pending-delete-id = id; }
+                            open-link(id) => { root.open-mod-link(id); }
+                            drop-target: root.drag-id != ""
+                                && root.drag-target-group != ""
+                                && root.drag-id != mod.id
+                                && mod.group-id == root.drag-target-group;
+                            drag-started(id, name) => {
+                                root.drag-id = id;
+                                root.drag-name = (mod.selected && root.selected-count > 1)
+                                    ? root.selected-count + " mods"
+                                    : name;
+                            }
+                            drag-moved(wx, wy) => {
+                                root.drag-pos-x = wx;
+                                root.drag-pos-y = wy;
+                                root.mod-drag-moved(mod.id, list-scroll.drag-content-y(wx, wy));
+                            }
+                            drag-ended(wx, wy) => {
+                                root.mod-drag-dropped(mod.id, list-scroll.drag-content-y(wx, wy));
+                                root.drag-id = "";
+                                root.drag-name = "";
+                            }
+                        }
+                    }
+
+                    if root.mods.length == 0: Text {
+                        text: root.search-text == "" ? "No mods installed" : "No mods match your search";
+                        color: #ffffff44;
+                        font-family: "Segoe UI";
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                    }
                 }
             }
 
-            if (root.view-grid) : Rectangle {
+            if (root.view-grid): Rectangle {
                 width: 100%;
                 height: 100%;
 
@@ -472,6 +1067,91 @@ export component ModManagerPage inherits Rectangle {
                     font-size: 13px;
                 }
             }
+        }
+    }
+
+    if root.file-hover: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        border-width: 2px;
+        border-color: #6db3f2;
+        background: #6db3f214;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 8px;
+
+            Text {
+                text: "Drop to install";
+                color: Palette.text-primary;
+                font-family: "Segoe UI";
+                font-size: 17px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Archives (.zip, .rar, .7z, ...), mod folders or .pak files";
+                color: Palette.text-secondary;
+                font-family: "Segoe UI";
+                font-size: 12px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    if root.drag-id != "": Rectangle {
+        x: root.drag-pos-x - root.absolute-position.x + 14px;
+        y: root.drag-pos-y - root.absolute-position.y + 10px;
+        width: ghost-text.preferred-width + 28px;
+        height: 34px;
+        border-radius: 8px;
+        background: #1e1e24ee;
+        border-width: 1px;
+        border-color: #6db3f288;
+        drop-shadow-color: #00000088;
+        drop-shadow-blur: 14px;
+
+        ghost-text := Text {
+            text: root.drag-name;
+            color: Palette.text-primary;
+            font-family: "Segoe UI";
+            font-size: 12px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    delete-dialog := PopupDialog {
+        active: root.pending-delete-id != ""
+            || root.pending-delete-group-id != ""
+            || root.pending-delete-selected;
+        title: root.pending-delete-group-id != "" ? "Delete Group?"
+            : root.pending-delete-selected ? "Delete Selected Mods?"
+            : "Delete Mod?";
+        message: root.pending-delete-group-id != ""
+            ? "Are you sure you want to delete this group? The mods inside will be moved out of the group, not deleted."
+            : root.pending-delete-selected
+            ? "Are you sure you want to delete the " + root.selected-count + " selected mod(s)?"
+            : "Are you sure you want to delete this mod?";
+        confirm => {
+            if (root.pending-delete-selected) {
+                root.delete-selected();
+            } else if (root.pending-delete-group-id != "") {
+                root.delete-group(root.pending-delete-group-id);
+            } else if (root.pending-delete-id != "") {
+                root.delete-mod(root.pending-delete-id);
+            }
+            root.pending-delete-id = "";
+            root.pending-delete-group-id = "";
+            root.pending-delete-selected = false;
+        }
+        cancel => {
+            root.pending-delete-id = "";
+            root.pending-delete-group-id = "";
+            root.pending-delete-selected = false;
         }
     }
 }

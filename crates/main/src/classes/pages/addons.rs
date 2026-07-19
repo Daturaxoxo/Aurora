@@ -33,7 +33,7 @@ struct AddonData {
 }
 
 impl AddonData {
-    fn new(file_name: String, url: String, md5: String) -> Self {
+    const fn new(file_name: String, url: String, md5: String) -> Self {
         Self {
             file_name,
             url,
@@ -283,9 +283,6 @@ impl AddonsHandler {
         Self::scan_impl(true)
     }
 
-    /// Like [`Self::scan`] but skips the GameBanana API requests, so it only
-    /// reflects on-disk state (`install_data` stays empty and
-    /// `update_available` stays false). Fast enough for enable/disable toggles.
     fn scan_local() -> Vec<Addon> {
         Self::scan_impl(false)
     }
@@ -302,7 +299,7 @@ impl AddonsHandler {
             Ok(e) => e,
             Err(_e) => {
                 for key in unseen_keys {
-                    config::set(&key, false);
+                    config::set(key, false);
                 }
                 return addons;
             }
@@ -350,7 +347,7 @@ impl AddonsHandler {
                                 addon
                                     .link
                                     .split('/')
-                                    .last()
+                                    .next_back()
                                     .unwrap_or("0")
                                     .parse()
                                     .unwrap_or(0),
@@ -358,18 +355,17 @@ impl AddonsHandler {
                             .await
                         });
 
-                        addon.install_data = match mod_files {
-                            Some(files) => files
+                        addon.install_data = if let Some(files) = mod_files {
+                            files
                                 .into_iter()
-                                .filter_map(|f| Some(AddonData::new(f.name, f.url, f.md5)))
-                                .collect(),
-                            None => {
-                                warn!(
-                                    "Addons scan: could not fetch mod files for '{}'",
-                                    addon.name
-                                );
-                                Vec::new()
-                            }
+                                .map(|f| AddonData::new(f.name, f.url, f.md5))
+                                .collect()
+                        } else {
+                            warn!(
+                                "Addons scan: could not fetch mod files for '{}'",
+                                addon.name
+                            );
+                            Vec::new()
                         };
                     }
                     "IMAGE" => addon.image_url = value.trim().to_string(),
@@ -390,11 +386,7 @@ impl AddonsHandler {
 
             if addon.installed {
                 let local_hash = fs::read_to_string(folder.join("addon.md5")).unwrap_or_default();
-                let remote_hash = addon
-                    .install_data
-                    .first()
-                    .map(|d| d.md5.as_str())
-                    .unwrap_or("");
+                let remote_hash = addon.install_data.first().map_or("", |d| d.md5.as_str());
                 addon.update_available =
                     !remote_hash.is_empty() && local_hash.trim() != remote_hash.trim();
             }
@@ -410,7 +402,7 @@ impl AddonsHandler {
         }
 
         for key in unseen_keys {
-            config::set(&key, false);
+            config::set(key, false);
         }
 
         addons
@@ -463,14 +455,14 @@ impl AddonsHandler {
                             let extension = path.extension().unwrap_or_default();
                             let name = path.file_name().unwrap().to_str().unwrap();
                             if extension == "txt" {
-                                fs::remove_file(&path)?
+                                fs::remove_file(&path)?;
                             }
 
                             let _ = fs::write(addon.folder.join("addon.md5"), data.md5.clone());
 
                             // HACK: Red dots has 2 folders, need to get files from the "Disable" folder
                             if name == "Muted" {
-                                fs::remove_dir_all(&path)?
+                                fs::remove_dir_all(&path)?;
                             }
                             if name == "Disable" {
                                 let files = fs::read_dir(&path)?.collect::<Vec<_>>();
@@ -479,16 +471,16 @@ impl AddonsHandler {
                                     // put them in the parent
                                     fs::rename(
                                         &path,
-                                        &addon.folder.join(path.file_name().unwrap()),
+                                        addon.folder.join(path.file_name().unwrap()),
                                     )?;
                                 }
 
-                                fs::remove_dir_all(&path)?
+                                fs::remove_dir_all(&path)?;
                             }
 
                             // HACK: Hide UID also has 2 other mods inside, remove those
                             if name.contains("PingStatus") || name.contains("PhoneFunctions") {
-                                fs::remove_file(&path)?
+                                fs::remove_file(&path)?;
                             }
                         }
                         info!("Installed addon: extracted '{}'", dest.display());

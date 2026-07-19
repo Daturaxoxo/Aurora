@@ -12,8 +12,7 @@ use super::AuroraEngine;
 
 fn matches_process(exe: &Path, target_lower: &str) -> bool {
     exe.file_name()
-        .map(|f| f.to_string_lossy().to_lowercase() == target_lower)
-        .unwrap_or(false)
+        .is_some_and(|f| f.to_string_lossy().to_lowercase() == target_lower)
 }
 
 pub(super) struct ProcessSnapshot(System);

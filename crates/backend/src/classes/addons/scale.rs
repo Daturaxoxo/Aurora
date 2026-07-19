@@ -1,5 +1,6 @@
 use log::error;
 use std::env;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -129,7 +130,7 @@ pub fn apply_scale(scale: f64) -> bool {
     if !new_text.is_empty() {
         new_text.push_str("\n\n");
     }
-    new_text.push_str(&format!("{SECTION_HEADER}\n{KEY}={scale}\n"));
+    let _ = write!(new_text, "{SECTION_HEADER}\n{KEY}={scale}\n");
 
     match fs::write(&path, new_text) {
         Ok(()) => {

@@ -9,6 +9,7 @@ slint = { version = "1.17", default-features = false, features = [
     "backend-winit",
     "compat-1-2",
 ] }
+i-slint-backend-winit = { version = "1.17", default-features = false }
 # TODO: Needs testing on linux to see what features it needs.
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
 once_cell = { workspace = true }
@@ -47,6 +48,12 @@ winresource = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 mslnk = "0.1"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Ole",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [lints.clippy]
 enum_glob_use = "warn"

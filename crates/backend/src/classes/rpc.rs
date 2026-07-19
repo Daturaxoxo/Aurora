@@ -4,7 +4,6 @@ use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
 };
 use log::*;
-use once_cell::sync::Lazy;
 use shared::config::{self, key};
 use shared::utils::{self, get_current_timestamp};
 
@@ -14,8 +13,8 @@ use std::thread;
 const APPLICATION_ID: &str = "1505644188060876920";
 
 /// Global Discord RPC client
-pub static RPC: Lazy<DiscordRpc> =
-    Lazy::new(|| DiscordRpc::new(utils::get_current_timestamp()).unwrap());
+pub static RPC: std::sync::LazyLock<DiscordRpc> =
+    std::sync::LazyLock::new(|| DiscordRpc::new(utils::get_current_timestamp()).unwrap());
 
 #[derive(Debug)]
 enum RpcCommand {

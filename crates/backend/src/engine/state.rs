@@ -97,7 +97,7 @@ impl AuroraEngine {
         self.version = version;
         self.gpaths = gpaths;
         self.win64 = derived.win64;
-        self.pak_base = derived.pak_base.clone();
+        self.pak_base.clone_from(&derived.pak_base);
         self.pak_dir = derived.pak_dir;
         self.main_dlls = derived.main_dlls;
         self.targets = derived.targets;

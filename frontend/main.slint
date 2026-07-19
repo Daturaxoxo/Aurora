@@ -6,7 +6,8 @@ import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
 import { LuaScriptsPage } from "components/pages/menus/lua.slint";
-import { ModManagerPage } from "components/pages/modmanager.slint";
+import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
+import { GameBananaBrowser, GbModItem, GbFileItem } from "components/gbbrowser.slint";
 import {
     ScreenshotsPage,
     ScreenshotItem,
@@ -121,9 +122,82 @@ export component MainWindow inherits Window {
     callback addon-action(int);
     callback addon-open-link(int);
 
+    // Mod Manager Properties
+    in-out property <[ModItem]> mods: [];
+    in-out property <bool> mods-all-selected: false;
+    in-out property <int> mods-selected-count: 0;
+    callback mod-toggle(string);
+    callback mod-delete(string);
+    callback mod-rename(string, string);
+    callback mod-select(string);
+    callback mod-set-notes(string, string);
+    callback mod-open-link(string);
+    callback mod-move-to-group(string, string);
+    callback mod-drag-moved(string, length);
+    callback mod-drag-dropped(string, length);
+    in-out property <string> mods-drag-target: "";
+    callback mods-select-all();
+    callback mods-toggle-all();
+    callback mods-toggle-selected();
+    callback mods-delete-selected();
+    callback mods-search-changed(string);
+    callback mods-filter-changed(int);
+    callback mods-refresh();
+    callback open-mods-folder();
+    callback mod-group-create();
+    callback mod-group-rename(string, string);
+    callback mod-group-delete(string);
+    callback mod-group-toggle(string);
+    callback mod-group-collapse(string);
+    callback mod-group-select(string);
+    callback mods-install-archive();
+    callback mods-install-folder();
+    in-out property <bool> mods-file-hover: false;
+
+    // GameBanana Browser Properties
+    in-out property <bool> show-gb-browser: false;
+    in-out property <[GbModItem]> gb-mods: [];
+    in-out property <bool> gb-loading: false;
+    in-out property <bool> gb-show-nsfw: false;
+    in-out property <int> gb-selected-character: -1;
+    in-out property <string> gb-search-text: "";
+    in-out property <[GbFileItem]> gb-files: [];
+    in-out property <bool> gb-files-visible: false;
+    in-out property <string> gb-files-mod-name: "";
+    in-out property <bool> gb-preview-visible: false;
+    in-out property <image> gb-preview-image;
+    in-out property <bool> gb-preview-loading: false;
+    in-out property <int> gb-preview-index: 0;
+    in-out property <int> gb-preview-count: 0;
+    in-out property <string> gb-preview-name: "";
+    callback gb-preview-requested(int);
+    callback gb-preview-nav(int);
+    callback gb-opened();
+    callback gb-search-changed(string);
+    callback gb-character-selected(int);
+    callback gb-nsfw-toggled(bool);
+    callback gb-load-more();
+    callback gb-install(int);
+    callback gb-open-page(int);
+    callback gb-file-chosen(int);
+
     // Modules Page Properties
+    in-out property <[ModItem]> modules-list: [];
+    in-out property <bool> modules-feature-enabled: false;
+    in-out property <bool> modules-all-selected: false;
+    in-out property <int> modules-selected-count: 0;
     callback module-choose();
     callback module-drop-files(string);
+    callback module-rename(string, string);
+    callback module-set-notes(string, string);
+    callback module-delete(string, string);
+    callback module-toggle(string);
+    callback module-select(string);
+    callback modules-select-all();
+    callback modules-toggle-selected();
+    callback modules-delete-selected();
+    callback module-search-changed(string);
+    callback modules-feature-toggled(bool);
 
     // Screenshots Page Properties
     in-out property <[ScreenshotItem]> screenshots: [];
@@ -893,9 +967,23 @@ export component MainWindow inherits Window {
             y: Palette.topbar-height;
             width: parent.width;
             height: parent.height - Palette.topbar-height;
+            installed-modules <=> root.modules-list;
+            feature-enabled <=> root.modules-feature-enabled;
+            all-selected: root.modules-all-selected;
+            selected-count: root.modules-selected-count;
             close-modules => { root.show-modules = false; }
             choose-module => { root.module-choose(); }
             drop-files(path) => { root.module-drop-files(path); }
+            rename-module(id, name) => { root.module-rename(id, name); }
+            save-module-notes(id, notes) => { root.module-set-notes(id, notes); }
+            delete-module(id, name) => { root.module-delete(id, name); }
+            toggle-module(id) => { root.module-toggle(id); }
+            select-module(id) => { root.module-select(id); }
+            select-all => { root.modules-select-all(); }
+            toggle-selected => { root.modules-toggle-selected(); }
+            delete-selected => { root.modules-delete-selected(); }
+            search-changed(text) => { root.module-search-changed(text); }
+            feature-toggled(enabled) => { root.modules-feature-toggled(enabled); }
         }
 
         if root.show-screenshots: ScreenshotsPage {
@@ -938,7 +1026,78 @@ export component MainWindow inherits Window {
             y: Palette.topbar-height + 15px;
             width: parent.width - 40px;
             height: parent.height - (Palette.topbar-height + 35px);
+            mods: root.mods;
+            all-selected: root.mods-all-selected;
+            selected-count: root.mods-selected-count;
+            file-hover: root.mods-file-hover;
+            install-from-archive => { root.mods-install-archive(); }
+            install-from-folder => { root.mods-install-folder(); }
+            install-from-gamebanana => {
+                root.show-gb-browser = true;
+                root.gb-opened();
+            }
             close-mod-manager => { root.show-mod-manager = false; }
+            toggle-mod(id) => { root.mod-toggle(id); }
+            delete-mod(id) => { root.mod-delete(id); }
+            rename-mod(id, name) => { root.mod-rename(id, name); }
+            select-mod(id) => { root.mod-select(id); }
+            select-all => { root.mods-select-all(); }
+            set-mod-notes(id, notes) => { root.mod-set-notes(id, notes); }
+            open-mod-link(id) => { root.mod-open-link(id); }
+            toggle-all => { root.mods-toggle-all(); }
+            toggle-selected => { root.mods-toggle-selected(); }
+            delete-selected => { root.mods-delete-selected(); }
+            search-changed(text) => { root.mods-search-changed(text); }
+            filter-changed(idx) => { root.mods-filter-changed(idx); }
+            create-group => { root.mod-group-create(); }
+            rename-group(id, name) => { root.mod-group-rename(id, name); }
+            delete-group(id) => { root.mod-group-delete(id); }
+            toggle-group(id) => { root.mod-group-toggle(id); }
+            collapse-group(id) => { root.mod-group-collapse(id); }
+            select-group(id) => { root.mod-group-select(id); }
+            move-mod-to-group(id, group) => { root.mod-move-to-group(id, group); }
+            drag-target-group: root.mods-drag-target;
+            mod-drag-moved(id, y) => { root.mod-drag-moved(id, y); }
+            mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
+            refresh => { root.mods-refresh(); }
+            open-mods-folder => { root.open-mods-folder(); }
+            open-gamebanana => {
+                root.popup-id = "gamebanana-popup";
+                root.popup-title = "Open GameBanana?";
+                root.popup-message = "GameBanana is our mod hosting site partner where you can get mods to use on the game.";
+                root.popup-active = true;
+            }
+        }
+
+        if root.show-gb-browser: GameBananaBrowser {
+            x: 20px;
+            y: Palette.topbar-height + 15px;
+            width: parent.width - 40px;
+            height: parent.height - (Palette.topbar-height + 35px);
+            mods: root.gb-mods;
+            loading: root.gb-loading;
+            show-nsfw <=> root.gb-show-nsfw;
+            selected-character <=> root.gb-selected-character;
+            search-text <=> root.gb-search-text;
+            files: root.gb-files;
+            files-visible <=> root.gb-files-visible;
+            files-mod-name: root.gb-files-mod-name;
+            preview-visible <=> root.gb-preview-visible;
+            preview-image: root.gb-preview-image;
+            preview-loading: root.gb-preview-loading;
+            preview-index: root.gb-preview-index;
+            preview-count: root.gb-preview-count;
+            preview-name: root.gb-preview-name;
+            preview-requested(id) => { root.gb-preview-requested(id); }
+            preview-nav(i) => { root.gb-preview-nav(i); }
+            close => { root.show-gb-browser = false; }
+            search-changed(text) => { root.gb-search-changed(text); }
+            character-selected(i) => { root.gb-character-selected(i); }
+            nsfw-toggled(v) => { root.gb-nsfw-toggled(v); }
+            load-more => { root.gb-load-more(); }
+            install(id) => { root.gb-install(id); }
+            open-page(id) => { root.gb-open-page(id); }
+            file-chosen(i) => { root.gb-file-chosen(i); }
         }
 
         toast-widget := WindowToast {

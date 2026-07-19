@@ -38,7 +38,7 @@ pub fn get_bin_path() -> Option<PathBuf> {
             .parent()
             .and_then(|p| p.parent())
             .map(PathBuf::from)
-            .and_then(|p| Some(p.join("Bin")))
+            .map(|p| p.join("Bin"))
     }
     #[cfg(not(debug_assertions))]
     {
@@ -60,4 +60,18 @@ pub fn read_dir_recursive(path: &PathBuf) -> Vec<DirEntry<((), ())>> {
     }
 
     paths
+}
+
+pub fn format_size(bytes: u64) -> String {
+    #[allow(clippy::cast_precision_loss)]
+    let b = bytes as f64;
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.1} GB", b / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes >= 1024 * 1024 {
+        format!("{:.1} MB", b / (1024.0 * 1024.0))
+    } else if bytes >= 1024 {
+        format!("{:.1} KB", b / 1024.0)
+    } else {
+        format!("{bytes} B")
+    }
 }

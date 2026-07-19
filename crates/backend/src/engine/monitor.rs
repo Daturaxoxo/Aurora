@@ -37,7 +37,7 @@ impl AuroraEngine {
         self.ensure_processes_gone(POST_EXIT_KILL_GRACE)
     }
 
-    fn wait_for_launcher(&mut self, grace_secs: u32) -> Result<bool> {
+    fn wait_for_launcher(&self, grace_secs: u32) -> Result<bool> {
         let launcher_process = self.gpaths.launcher_process;
         let game_process = self.gpaths.game_process;
         let mut watch_names = vec![launcher_process];

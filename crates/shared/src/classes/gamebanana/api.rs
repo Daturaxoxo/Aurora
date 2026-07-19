@@ -94,6 +94,17 @@ impl GameBananaApi {
             .profile_url
             .clone()
             .unwrap_or_else(|| format!("{}/mods/{}", BASE_URL, record.id));
+        let preview_urls = record
+            .preview_media
+            .as_ref()
+            .and_then(|media| media.images.as_ref())
+            .map(|images| {
+                images
+                    .iter()
+                    .map(|img| format!("{}/{}", img.base_url, img.file))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Some(NteMod {
             id: record.id,
@@ -107,6 +118,7 @@ impl GameBananaApi {
             root_category: root_cat,
             sub_category: sub_cat,
             mod_url,
+            preview_urls,
         })
     }
 
@@ -239,6 +251,72 @@ impl GameBananaApi {
         if !nte_mods.is_empty() {
             self.cache
                 .save_search_cache(query, page, nte_mods.clone())
+                .await;
+        }
+
+        Some(nte_mods)
+    }
+
+    pub async fn get_category_mods(
+        &self,
+        category_id: u32,
+        page: u32,
+        force_refresh: bool,
+        on_mod_ready: Option<UnboundedSender<NteMod>>,
+    ) -> Option<Vec<NteMod>> {
+        if !force_refresh {
+            if let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+                if let Some(tx) = on_mod_ready {
+                    for m in &cached {
+                        let _ = tx.send(m.clone());
+                    }
+                }
+                return Some(cached);
+            }
+        }
+
+        let url = format!("{BASE_URL}/apiv11/Mod/Index");
+        let resp = self
+            .client
+            .get(&url)
+            .query(&[
+                (
+                    "_aFilters[Generic_Category]",
+                    category_id.to_string().as_str(),
+                ),
+                ("_nPage", &page.to_string()),
+                ("_nPerpage", "15"),
+            ])
+            .send()
+            .await
+            .ok()?;
+        let index: SearchResponse = resp.json().await.ok()?;
+
+        let only_mods: Vec<ApiRecord> = index
+            .records
+            .into_iter()
+            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
+            .collect();
+
+        let nte_mods: Vec<NteMod> = stream::iter(only_mods)
+            .map(|record| {
+                let value = on_mod_ready.clone();
+                async move {
+                    let m = Self::fetch_one(&self.client, record).await?;
+                    if let Some(tx) = &value {
+                        let _ = tx.send(m.clone());
+                    }
+                    Some(m)
+                }
+            })
+            .buffer_unordered(15)
+            .filter_map(|m| async { m })
+            .collect()
+            .await;
+
+        if !nte_mods.is_empty() {
+            self.cache
+                .save_category_cache(category_id, page, nte_mods.clone())
                 .await;
         }
 

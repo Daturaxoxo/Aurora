@@ -15,7 +15,7 @@ impl ButtonHandler {
                 #[allow(clippy::match_same_arms)]
                 match index {
                     0 => w.set_show_menu(!w.get_show_menu()),
-                    1 => {} // undone: mod manager
+                    1 => w.set_show_mod_manager(!w.get_show_mod_manager()),
                     2 => {} // handled by popup.rs: open discord
                     3 => {} // handled by popup.rs: open gamebanana
                     _ => {}

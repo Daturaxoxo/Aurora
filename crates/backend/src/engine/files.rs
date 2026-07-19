@@ -41,12 +41,11 @@ impl AuroraEngine {
             .all_dll_targets()
             .into_iter()
             .filter_map(|(label, destination)| {
-                let name = match destination.file_name() {
-                    Some(n) => n.to_owned(),
-                    None => {
-                        error!("DLL target has no file name: {}", destination.display());
-                        return None;
-                    }
+                let name = if let Some(n) = destination.file_name() {
+                    n.to_owned()
+                } else {
+                    error!("DLL target has no file name: {}", destination.display());
+                    return None;
                 };
                 debug!(
                     "Adding loader DLL target: {} -> {}",
@@ -105,7 +104,7 @@ impl AuroraEngine {
                     .into_iter()
                     .map(move |resolved| ManagedFile {
                         label: resolved.file_name.clone(),
-                        source: self.addons_path.join(&resolved.to_folder_name()).join(&resolved.file_name),
+                        source: self.addons_path.join(resolved.to_folder_name()).join(&resolved.file_name),
                         destination: resolved.path,
                         required: false,
                         enabled,

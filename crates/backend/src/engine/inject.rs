@@ -117,7 +117,7 @@ impl AuroraEngine {
     }
 
     fn copy_custom_files(&self, custom_files: &[PathBuf]) -> Result<()> {
-        let dst_dir = self.win64.join("AuroraThirdParty");
+        let dst_dir = self.win64.join("Plugins");
         if !dst_dir.exists() {
             fs::create_dir(&dst_dir)?;
         }
