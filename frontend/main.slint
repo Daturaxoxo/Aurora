@@ -5,6 +5,7 @@ import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
+import { LuaScriptsPage } from "components/pages/menus/lua.slint";
 import { ModManagerPage } from "components/pages/modmanager.slint";
 import {
     ScreenshotsPage,
@@ -63,6 +64,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-menu: false;
     in-out property <bool> show-addons: false;
     in-out property <bool> show-modules: false;
+    in-out property <bool> show-lua-scripts: false;
     in-out property <bool> show-mod-manager: false;
     in-out property <bool> show-screenshots: false;
 
@@ -872,9 +874,18 @@ export component MainWindow inherits Window {
             menu-item-clicked(i) => {
                 root.show-menu = false;
                 if (i == 0) { root.show-screenshots = true; }
-                if (i == 4) { root.show-addons = true; }
+                if (i == 2) { root.show-lua-scripts = true; }
                 if (i == 3) { root.show-modules = true; }
+                if (i == 4) { root.show-addons = true; }
             }
+        }
+
+        if root.show-lua-scripts: LuaScriptsPage {
+            x: 0px;
+            y: Palette.topbar-height;
+            width: parent.width;
+            height: parent.height - Palette.topbar-height;
+            close-lua-scripts => { root.show-lua-scripts = false; }
         }
 
         if root.show-modules: ModulesPage {

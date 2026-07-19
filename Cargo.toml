@@ -22,6 +22,7 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [profile.release]
+opt-level = "s"
 lto = true
 codegen-units = 1
 strip = "symbols"
