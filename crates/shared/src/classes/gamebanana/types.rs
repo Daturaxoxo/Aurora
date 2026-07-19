@@ -13,6 +13,8 @@ pub struct NteMod {
     pub root_category: String,
     pub sub_category: String,
     pub mod_url: String,
+    #[serde(default)]
+    pub preview_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

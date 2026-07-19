@@ -12,7 +12,6 @@ shared = { path = "../shared" }
 log = { workspace = true }
 anyhow = { workspace = true }
 jwalk = { workspace = true }
-once_cell = { workspace = true }
 sysinfo = { workspace = true }
 
 [lints.clippy]

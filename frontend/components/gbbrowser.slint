@@ -1,0 +1,1055 @@
+import { Palette } from "../global.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ToggleSwitch } from "modcard.slint";
+
+export struct GbModItem {
+    id: int,
+    name: string,
+    author: string,
+    thumbnail: image,
+    has-thumbnail: bool,
+    likes: int,
+    views: int,
+    downloads: string,
+}
+
+export struct GbFileItem {
+    name: string,
+    size: string,
+    downloads: int,
+}
+
+struct GbCharacter {
+    name: string,
+    icon: image,
+}
+
+component StatIcon inherits HorizontalLayout {
+    in property <string> commands;
+    in property <string> label;
+    in property <bool> filled: false;
+
+    spacing: 4px;
+    alignment: start;
+
+    VerticalLayout {
+        alignment: center;
+        Path {
+            width: 11px;
+            height: 11px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: 14;
+            viewbox-height: 14;
+            commands: root.commands;
+            stroke: #ffffff66;
+            stroke-width: 1.4px;
+            fill: root.filled ? #ffffff66 : transparent;
+        }
+    }
+
+    Text {
+        text: root.label;
+        color: #ffffff77;
+        font-family: "Segoe UI";
+        font-size: 10.5px;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+}
+
+component GbModCard inherits Rectangle {
+    in property <GbModItem> item;
+
+    callback install(int /* id */);
+    callback open-page(int /* id */);
+    callback preview(int /* id */);
+
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: card-ta.has-hover ? #ffffff22 : #ffffff10;
+    background: card-ta.has-hover ? #ffffff0a : #ffffff06;
+    clip: true;
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
+    card-ta := TouchArea { }
+
+    VerticalLayout {
+        spacing: 0px;
+
+        thumb := Rectangle {
+            vertical-stretch: 1;
+            background: #00000044;
+            clip: true;
+
+            if root.item.has-thumbnail: Image {
+                width: 100%;
+                height: 100%;
+                source: root.item.thumbnail;
+                image-fit: cover;
+                image-rendering: smooth;
+            }
+
+            if !root.item.has-thumbnail: Image {
+                width: 32px;
+                height: 32px;
+                source: @image-url("../../production/icons/gamebanana.png");
+                image-fit: contain;
+                image-rendering: smooth;
+                colorize: #ffffff22;
+            }
+
+            thumb-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.preview(root.item.id); }
+            }
+
+            if thumb-ta.has-hover: Rectangle {
+                background: #ffffff0a;
+            }
+        }
+
+        Rectangle {
+            height: 100px;
+            background: transparent;
+
+            VerticalLayout {
+                padding: 10px;
+                padding-bottom: 14px;
+                spacing: 4px;
+
+                Text {
+                    text: root.item.name;
+                    color: Palette.text-primary;
+                    font-family: "Segoe UI";
+                    font-size: 12.5px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    Text {
+                        text: "by " + root.item.author;
+                        color: Palette.text-secondary;
+                        font-family: "Segoe UI";
+                        font-size: 10.5px;
+                        overflow: elide;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    // Likes
+                    StatIcon {
+                        commands: "M7 12 L2.5 7.5 Q0.5 5.5 2.5 3.5 Q4.5 1.5 6.5 3.5 L7 4 L7.5 3.5 Q9.5 1.5 11.5 3.5 Q13.5 5.5 11.5 7.5 Z";
+                        label: root.item.likes;
+                        filled: true;
+                    }
+
+                    // Views
+                    StatIcon {
+                        commands: "M1 7 Q7 1.5 13 7 Q7 12.5 1 7 Z M7 5 Q9 5 9 7 Q9 9 7 9 Q5 9 5 7 Q5 5 7 5 Z";
+                        label: root.item.views;
+                    }
+
+                    // Downloads (hidden when browsing by category)
+                    if root.item.downloads != "": StatIcon {
+                        commands: "M7 1 L7 9 M3.5 5.5 L7 9 L10.5 5.5 M1.5 12.5 L12.5 12.5";
+                        label: root.item.downloads;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    install-btn := Rectangle {
+                        width: 92px;
+                        height: 26px;
+                        border-radius: 6px;
+                        background: install-ta.has-hover ? #34d399 : #10b981;
+                        animate background { duration: 100ms; }
+
+                        Text {
+                            text: "Install";
+                            color: #ffffff;
+                            font-family: "Segoe UI";
+                            font-size: 11.5px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        install-ta := TouchArea {
+                            clicked => { root.install(root.item.id); }
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    page-btn := Rectangle {
+                        width: 26px;
+                        height: 26px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: page-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: page-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        Image {
+                            source: @image-url("../../production/icons/gamebanana.png");
+                            width: 13px;
+                            height: 13px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: page-ta.has-hover ? #ffffffdd : #ffffff88;
+                            animate colorize { duration: 100ms; }
+                        }
+
+                        page-ta := TouchArea {
+                            clicked => { root.open-page(root.item.id); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component CharacterDropdown inherits Rectangle {
+    in property <[GbCharacter]> characters: [];
+    in-out property <int> selected: -1;
+
+    callback selection-changed(int /* index, -1 = cleared */);
+
+    width: 150px;
+    height: 26px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.selected >= 0
+        ? #E8A020
+        : (trigger-ta.has-hover ? #ffffff28 : #ffffff16);
+    background: root.selected >= 0
+        ? #E8A02022
+        : (trigger-ta.has-hover ? #ffffff12 : #ffffff08);
+    animate background { duration: 100ms; }
+    animate border-color { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 6px;
+
+        if root.selected >= 0: VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                background: #00000044;
+                clip: true;
+
+                Image {
+                    source: root.characters[root.selected].icon;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: contain;
+                    image-rendering: smooth;
+                }
+            }
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: root.selected >= 0
+                ? root.characters[root.selected].name
+                : "All Characters";
+            color: root.selected >= 0 ? #ffd280 : #ffffffcc;
+            font-family: "Segoe UI";
+            font-size: 11.5px;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Path {
+                width: 10px;
+                height: 6px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 10;
+                viewbox-height: 6;
+                commands: "M1 1 L5 5 L9 1";
+                stroke: #ffffff88;
+                stroke-width: 1.5px;
+                fill: transparent;
+            }
+        }
+    }
+
+    trigger-ta := TouchArea {
+        clicked => { popup.show(); }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: parent.height + 6px;
+        width: 160px;
+        height: 280px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #1e1e24;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #3f3f46;
+
+            list-scroll := ScrollView {
+                x: 6px;
+                y: 6px;
+                width: parent.width - 12px;
+                height: parent.height - 12px;
+                viewport-height: list-col.preferred-height;
+
+                list-col := VerticalLayout {
+                    spacing: 2px;
+
+                    // Clears the filter
+                    Rectangle {
+                        height: 30px;
+                        border-radius: 4px;
+                        background: all-ta.has-hover ? #ffffff10 : transparent;
+
+                        all-ta := TouchArea {
+                            clicked => {
+                                root.selected = -1;
+                                root.selection-changed(-1);
+                                popup.close();
+                            }
+                        }
+
+                        Text {
+                            x: 8px;
+                            text: "All Characters";
+                            color: Palette.text-primary;
+                            font-family: "Segoe UI";
+                            font-size: 12px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    for char[i] in root.characters: Rectangle {
+                        height: 30px;
+                        border-radius: 4px;
+                        background: root.selected == i
+                            ? #E8A02022
+                            : (option-ta.has-hover ? #ffffff10 : transparent);
+
+                        option-ta := TouchArea {
+                            clicked => {
+                                root.selected = i;
+                                root.selection-changed(i);
+                                popup.close();
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 8px;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 18px;
+                                    height: 18px;
+                                    border-radius: 9px;
+                                    background: #00000044;
+                                    clip: true;
+
+                                    Image {
+                                        source: char.icon;
+                                        width: 100%;
+                                        height: 100%;
+                                        image-fit: contain;
+                                        image-rendering: smooth;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                horizontal-stretch: 1;
+                                text: char.name;
+                                color: root.selected == i ? #ffd280 : Palette.text-primary;
+                                font-family: "Segoe UI";
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component GameBananaBrowser inherits Rectangle {
+    in property <[GbModItem]> mods: [];
+    in property <bool> loading: false;
+    in-out property <bool> show-nsfw: false;
+    in-out property <int> selected-character: -1;
+    in-out property <string> search-text: "";
+    in property <[GbFileItem]> files: [];
+    in-out property <bool> files-visible: false;
+    in property <string> files-mod-name: "";
+    in-out property <bool> preview-visible: false;
+    in property <image> preview-image;
+    in property <bool> preview-loading: false;
+    in property <int> preview-index: 0;
+    in property <int> preview-count: 0;
+    in property <string> preview-name: "";
+
+    callback close();
+    callback search-changed(string);
+    callback character-selected(int /* index, -1 = cleared */);
+    callback nsfw-toggled(bool);
+    callback load-more();
+    callback install(int /* id */);
+    callback open-page(int /* id */);
+    callback file-chosen(int /* index */);
+    callback preview-requested(int /* id */);
+    callback preview-nav(int /* new index */);
+
+    // Must stay in the same order as CHARACTERS in gbbrowser.rs.
+    // TODO: replace logo.png with the proper per-character icons
+    property <[GbCharacter]> characters: [
+        { name: "Adler", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Aurelia", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Baicang", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Chaos", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Chiz", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Daffodill", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Edgar", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Fadia", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Haniel", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Hathor", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Hotori", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Iroi", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Jiuyuan", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Lacrimosa", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Mint", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Nanally", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Sakiri", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Shinku", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Skia", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Zero (F)", icon: @image-url("../../production/icons/logo.png") },
+        { name: "Zero (M)", icon: @image-url("../../production/icons/logo.png") },
+    ];
+
+    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+    drop-shadow-color: Palette.shadow-color;
+    drop-shadow-blur: 25px;
+    drop-shadow-offset-y: 10px;
+
+    changed loading => {
+        if (!self.loading) {
+            grid-scroll.maybe-load-more();
+        }
+    }
+
+    search-debounce := Timer {
+        interval: 500ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.search-changed(root.search-text);
+        }
+    }
+
+    VerticalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            height: 60px;
+            width: 100%;
+
+            HorizontalLayout {
+                x: 20px;
+                y: 0px;
+                width: parent.width - 40px;
+                height: parent.height;
+                spacing: 12px;
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    Image {
+                        source: @image-url("../../production/icons/gamebanana.png");
+                        width: 18px;
+                        height: 18px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    Text {
+                        text: "Install from GameBanana";
+                        color: Palette.text-primary;
+                        font-family: "Segoe UI";
+                        font-size: 17px;
+                        font-weight: 700;
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    Text {
+                        text: "NSFW";
+                        color: #ffffff88;
+                        font-family: "Segoe UI";
+                        font-size: 12px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    ToggleSwitch {
+                        checked <=> root.show-nsfw;
+                        toggled => { root.nsfw-toggled(root.show-nsfw); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 1px;
+                        height: 20px;
+                        background: Palette.glass-border;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    close-rect := Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 6px;
+                        background: close-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 7px;
+                            y: 7px;
+                            width: 14px;
+                            height: 14px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        close-ta := TouchArea {
+                            clicked => { root.close(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Palette.glass-border;
+        }
+
+        Rectangle {
+            height: 48px;
+            width: 100%;
+            background: #ffffff02;
+
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    search-container := Rectangle {
+                        height: 32px;
+                        background: #ffffff08;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: #ffffff16;
+
+                        Image {
+                            source: @image-url("../../production/icons/search.png");
+                            x: 10px;
+                            y: (parent.height - self.height) / 2;
+                            width: 14px;
+                            height: 14px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: #ffffff66;
+                        }
+
+                        TextInput {
+                            x: 32px;
+                            width: char-dd.x - 40px;
+                            text <=> root.search-text;
+                            font-family: "Segoe UI";
+                            font-size: 13px;
+                            color: Palette.text-primary;
+                            vertical-alignment: center;
+                            single-line: true;
+                            edited => {
+                                root.selected-character = -1;
+                                search-debounce.running = false;
+                                search-debounce.running = true;
+                            }
+                        }
+
+                        if (root.search-text == ""): Text {
+                            x: 32px;
+                            text: "Search mods...";
+                            color: #ffffff44;
+                            font-family: "Segoe UI";
+                            font-size: 13px;
+                            vertical-alignment: center;
+                        }
+
+                        char-dd := CharacterDropdown {
+                            x: parent.width - self.width - 3px;
+                            y: (parent.height - self.height) / 2;
+                            characters: root.characters;
+                            selected <=> root.selected-character;
+                            selection-changed(i) => {
+                                root.search-text = "";
+                                search-debounce.running = false;
+                                root.character-selected(i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Palette.glass-border;
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+
+            grid-scroll := ScrollView {
+                width: 100%;
+                height: 100%;
+
+                property <length> gap: 14px;
+                property <int> columns: max(2, floor((self.width - 40px) / 250px));
+                // Rounded to whole pixels so cards (and their text) don't
+                // land on fractional positions and render blurry
+                property <length> cell-w: Math.floor(((self.width - 40px - self.gap * (self.columns - 1)) / self.columns) / 1px) * 1px;
+                property <length> cell-h: Math.round((self.cell-w * 9 / 16) / 1px) * 1px + 100px;
+
+                viewport-width: self.width;
+                viewport-height: Math.ceil(root.mods.length / self.columns)
+                    * (self.cell-h + self.gap) - self.gap + 32px;
+
+                // Fetch the next page when scrolled near the bottom, or when
+                // the loaded mods don't fill the view at all
+                function maybe-load-more() {
+                    if (-self.viewport-y + self.height > self.viewport-height - 300px) {
+                        root.load-more();
+                    }
+                }
+
+                changed viewport-y => { self.maybe-load-more(); }
+                changed viewport-height => { self.maybe-load-more(); }
+
+                for item[i] in root.mods: GbModCard {
+                    x: 20px + Math.mod(i, grid-scroll.columns) * (grid-scroll.cell-w + grid-scroll.gap);
+                    y: 16px + Math.floor(i / grid-scroll.columns) * (grid-scroll.cell-h + grid-scroll.gap);
+                    width: grid-scroll.cell-w;
+                    height: grid-scroll.cell-h;
+                    item: item;
+                    install(id) => { root.install(id); }
+                    open-page(id) => { root.open-page(id); }
+                    preview(id) => { root.preview-requested(id); }
+                }
+            }
+
+            if root.mods.length == 0 && !root.loading: Text {
+                text: "No mods found";
+                color: #ffffff44;
+                font-family: "Segoe UI";
+                font-size: 13px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            if root.loading: Rectangle {
+                y: parent.height - 40px;
+                width: 100%;
+                height: 40px;
+                background: transparent;
+
+                Text {
+                    text: "Loading...";
+                    color: #ffffff77;
+                    font-family: "Segoe UI";
+                    font-size: 12px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    if root.files-visible: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: #000000aa;
+
+        TouchArea { }
+
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                alignment: center;
+
+                Rectangle {
+                    width: 460px;
+                    background: Palette.glass-background;
+                    border-color: Palette.glass-border;
+                    border-width: 1px;
+                    border-radius: 12px;
+                    drop-shadow-color: Palette.shadow-color;
+                    drop-shadow-blur: 24px;
+                    drop-shadow-offset-y: 8px;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 14px;
+
+                        Text {
+                            text: "Choose a file to download";
+                            font-size: 16px;
+                            font-weight: 700;
+                            font-family: "Segoe UI";
+                            color: Palette.text-primary;
+                        }
+
+                        Text {
+                            text: root.files-mod-name;
+                            font-size: 12.5px;
+                            font-family: "Segoe UI";
+                            color: Palette.text-secondary;
+                            overflow: elide;
+                        }
+
+                        VerticalLayout {
+                            spacing: 6px;
+
+                            for file[i] in root.files: Rectangle {
+                                height: 48px;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: file-ta.has-hover ? #ffffff28 : #ffffff14;
+                                background: file-ta.has-hover ? #ffffff10 : #ffffff06;
+                                animate background { duration: 100ms; }
+                                animate border-color { duration: 100ms; }
+
+                                file-ta := TouchArea {
+                                    clicked => { root.file-chosen(i); }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        spacing: 2px;
+                                        horizontal-stretch: 1;
+
+                                        Text {
+                                            text: file.name;
+                                            color: Palette.text-primary;
+                                            font-family: "Segoe UI";
+                                            font-size: 12.5px;
+                                            font-weight: 600;
+                                            overflow: elide;
+                                        }
+
+                                        Text {
+                                            text: file.size + "  •  " + file.downloads + " downloads";
+                                            color: Palette.text-secondary;
+                                            font-family: "Segoe UI";
+                                            font-size: 10.5px;
+                                        }
+                                    }
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        width: self.preferred-width;
+                                        Path {
+                                            width: 13px;
+                                            height: 13px;
+                                            viewbox-x: 0;
+                                            viewbox-y: 0;
+                                            viewbox-width: 14;
+                                            viewbox-height: 14;
+                                            commands: "M7 1 L7 9 M3.5 5.5 L7 9 L10.5 5.5 M1.5 12.5 L12.5 12.5";
+                                            stroke: file-ta.has-hover ? #ffffffdd : #ffffff66;
+                                            stroke-width: 1.6px;
+                                            fill: transparent;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            alignment: end;
+
+                            Rectangle {
+                                width: 100px;
+                                height: 34px;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: Palette.glass-border;
+                                background: cancel-ta.has-hover ? #ffffff10 : transparent;
+                                animate background { duration: 100ms; }
+
+                                Text {
+                                    text: "Cancel";
+                                    color: Palette.text-secondary;
+                                    font-size: 13px;
+                                    font-family: "Segoe UI";
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                cancel-ta := TouchArea {
+                                    clicked => { root.files-visible = false; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.preview-visible: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: #000000d8;
+
+        TouchArea {
+            clicked => { root.preview-visible = false; }
+        }
+
+        FocusScope {
+            width: 0px;
+            init => { self.focus(); }
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.preview-visible = false;
+                    return accept;
+                }
+                if (event.text == Key.LeftArrow && root.preview-index > 0) {
+                    root.preview-nav(root.preview-index - 1);
+                    return accept;
+                }
+                if (event.text == Key.RightArrow
+                    && root.preview-index < root.preview-count - 1) {
+                    root.preview-nav(root.preview-index + 1);
+                    return accept;
+                }
+                reject
+            }
+        }
+
+        preview-img := Image {
+            x: (parent.width - self.width) / 2;
+            y: 24px;
+            width: parent.width - 152px;
+            height: parent.height - 92px;
+            source: root.preview-image;
+            image-fit: contain;
+            image-rendering: smooth;
+        }
+
+        property <float> img-scale: min(
+            preview-img.width / 1px / max(1, preview-img.source.width),
+            preview-img.height / 1px / max(1, preview-img.source.height));
+        property <length> img-disp-w: preview-img.source.width * self.img-scale * 1px;
+        property <length> img-disp-h: preview-img.source.height * self.img-scale * 1px;
+
+        TouchArea {
+            x: preview-img.x + (preview-img.width - parent.img-disp-w) / 2;
+            y: preview-img.y + (preview-img.height - parent.img-disp-h) / 2;
+            width: parent.img-disp-w;
+            height: parent.img-disp-h;
+        }
+
+        Rectangle {
+            x: parent.width - 44px;
+            y: 16px;
+            width: 32px;
+            height: 32px;
+            border-radius: 16px;
+            background: preview-close-ta.has-hover ? #ffffff22 : #ffffff10;
+            animate background { duration: 100ms; }
+
+            Path {
+                x: 9px;
+                y: 9px;
+                width: 14px;
+                height: 14px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 14;
+                viewbox-height: 14;
+                commands: "M1 1 L13 13 M13 1 L1 13";
+                stroke: preview-close-ta.has-hover ? #ffffffdd : #ffffff88;
+                stroke-width: 1.8px;
+                fill: transparent;
+                animate stroke { duration: 100ms; }
+            }
+
+            preview-close-ta := TouchArea {
+                clicked => { root.preview-visible = false; }
+            }
+        }
+
+        if root.preview-count > 1 && root.preview-index > 0: Rectangle {
+            x: 20px;
+            y: (parent.height - self.height) / 2 - 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: prev-ta.has-hover ? #ffffff22 : #ffffff10;
+            animate background { duration: 100ms; }
+
+            Path {
+                x: 14px;
+                y: 12px;
+                width: 12px;
+                height: 16px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 12;
+                viewbox-height: 16;
+                commands: "M9 1 L2 8 L9 15";
+                stroke: prev-ta.has-hover ? #ffffffdd : #ffffff88;
+                stroke-width: 2px;
+                fill: transparent;
+                animate stroke { duration: 100ms; }
+            }
+
+            prev-ta := TouchArea {
+                clicked => { root.preview-nav(root.preview-index - 1); }
+            }
+        }
+
+        if root.preview-count > 1 && root.preview-index < root.preview-count - 1: Rectangle {
+            x: parent.width - 60px;
+            y: (parent.height - self.height) / 2 - 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: next-ta.has-hover ? #ffffff22 : #ffffff10;
+            animate background { duration: 100ms; }
+
+            Path {
+                x: 14px;
+                y: 12px;
+                width: 12px;
+                height: 16px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 12;
+                viewbox-height: 16;
+                commands: "M3 1 L10 8 L3 15";
+                stroke: next-ta.has-hover ? #ffffffdd : #ffffff88;
+                stroke-width: 2px;
+                fill: transparent;
+                animate stroke { duration: 100ms; }
+            }
+
+            next-ta := TouchArea {
+                clicked => { root.preview-nav(root.preview-index + 1); }
+            }
+        }
+
+        VerticalLayout {
+            y: parent.height - 56px;
+            height: 44px;
+            spacing: 3px;
+            alignment: center;
+
+            Text {
+                text: root.preview-name;
+                color: Palette.text-primary;
+                font-family: "Segoe UI";
+                font-size: 13px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.preview-loading
+                    ? "Loading full resolution..."
+                    : (root.preview-count > 1
+                    ? (root.preview-index + 1) + " / " + root.preview-count
+                    : "");
+                color: #ffffff77;
+                font-family: "Segoe UI";
+                font-size: 11px;
+                font-weight: 600;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

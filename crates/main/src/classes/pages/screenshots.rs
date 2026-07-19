@@ -84,7 +84,7 @@ fn parse_name_timestamp(stem: &str) -> Option<NaiveDateTime> {
     let [yy, mm, dd, h, m, s] = parts.as_slice() else {
         return None;
     };
-    chrono::NaiveDate::from_ymd_opt(2000 + *yy as i32, *mm, *dd)?.and_hms_opt(*h, *m, *s)
+    chrono::NaiveDate::from_ymd_opt(2000 + (*yy).cast_signed(), *mm, *dd)?.and_hms_opt(*h, *m, *s)
 }
 
 fn created_timestamp(path: &Path) -> Option<NaiveDateTime> {
@@ -159,9 +159,7 @@ fn ordered(
 
     match sort_mode {
         SortMode::Newest => shots.sort_by_key(|s| s.timestamp),
-        SortMode::Name => {
-            shots.sort_by(|a, b| a.file_name.to_lowercase().cmp(&b.file_name.to_lowercase()))
-        }
+        SortMode::Name => shots.sort_by_key(|a| a.file_name.to_lowercase()),
         SortMode::Oldest => shots.sort_by_key(|s| std::cmp::Reverse(s.timestamp)),
     }
 
@@ -228,6 +226,8 @@ impl ScreenshotHandler {
                     state.displayed = shots.iter().map(|s| s.path.clone()).collect();
                     let existing: HashSet<PathBuf> = state.displayed.iter().cloned().collect();
                     state.selected.retain(|p| existing.contains(p));
+                    let selected = state.selected.clone();
+                    drop(state);
 
                     THUMB_CACHE.with(|cache| {
                         let mut cache = cache.borrow_mut();
@@ -240,7 +240,7 @@ impl ScreenshotHandler {
                                 date: s.date.clone().into(),
                                 image: cache.get(&s.path).cloned().unwrap_or_default(),
                                 favorite: s.favorite,
-                                selected: state.selected.contains(&s.path),
+                                selected: selected.contains(&s.path),
                             })
                             .collect();
                         let jobs: Vec<(usize, PathBuf)> = shots
@@ -249,12 +249,12 @@ impl ScreenshotHandler {
                             .filter(|(_, s)| !cache.contains_key(&s.path))
                             .map(|(i, s)| (i, s.path.clone()))
                             .collect();
-                        (items, jobs, state.selected.len())
+                        (items, jobs, selected.len())
                     })
                 };
 
                 w.set_screenshots(Rc::new(VecModel::from(items)).into());
-                w.set_screenshot_selected_count(selected_count as i32);
+                w.set_screenshot_selected_count(i32::try_from(selected_count).unwrap_or(0));
                 Self::load_thumbnails(&ww, generation, jobs);
             });
         });
@@ -528,7 +528,7 @@ impl ScreenshotHandler {
                     model.set_row_data(i, row);
                 }
             }
-            win.set_screenshot_selected_count(count as i32);
+            win.set_screenshot_selected_count(i32::try_from(count).unwrap_or(0));
         });
 
         let ww = window.clone();

@@ -1,0 +1,412 @@
+import { Palette } from "../global.slint";
+
+export struct ModItem {
+    id: string,
+    name: string,
+    author: string,
+    version: string,
+    icon: image,
+    notes: string,
+    enabled: bool,
+    selected: bool,
+    has-json: bool,
+    is-editing: bool,
+    group-id: string,
+    support-link: string,
+    is-group-header: bool,
+    collapsed: bool,
+}
+
+export component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled();
+
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? #10b981 : #3f3f46;
+
+    animate background { duration: 150ms; }
+
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ffffff;
+        x: root.checked ? parent.width - self.width - 4px : 4px;
+
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
+    }
+
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+}
+
+export component ModCard inherits Rectangle {
+    in property <ModItem> item;
+    // TODO: grid layout variant
+    in property <bool> grid-mode: false;
+    in property <bool> drop-target: false;
+
+    callback toggle-select(string /* id */);
+    callback rename(string /* id */, string /* new name */);
+    callback set-notes(string /* id */, string /* notes */);
+    callback request-delete(string /* id */, string /* name */);
+    callback toggle-enabled(string /* id */);
+    callback open-link(string /* id */);
+    callback drag-started(string /* id */, string /* name */);
+    callback drag-moved(length /* x */, length /* y */);
+    callback drag-ended(length /* x */, length /* y */);
+
+    out property <bool> dragging: false;
+
+    property <bool> editing-title: false;
+    property <bool> editing-notes: false;
+    property <string> title-draft;
+    property <string> notes-draft;
+
+    function commit-title() {
+        if (root.editing-title) {
+            root.rename(root.item.id, root.title-draft);
+            root.editing-title = false;
+        }
+    }
+
+    function commit-notes() {
+        if (root.editing-notes) {
+            root.set-notes(root.item.id, root.notes-draft);
+            root.editing-notes = false;
+        }
+    }
+
+    height: 64px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: root.drop-target
+        ? #6db3f2
+        : root.item.selected
+        ? #E8A02066
+        : (hover-ta.has-hover ? #ffffff22 : #ffffff10);
+    background: root.drop-target
+        ? #6db3f214
+        : root.item.selected
+        ? #E8A02014
+        : (hover-ta.has-hover ? #ffffff0a : #ffffff06);
+    opacity: root.dragging ? 0.4 : 1.0;
+    clip: true;
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+    animate opacity { duration: 120ms; }
+
+    hover-ta := TouchArea {
+        moved => {
+            if (!root.dragging
+                && self.pressed
+                && (Math.abs((self.mouse-x - self.pressed-x) / 1px) > 6
+                || Math.abs((self.mouse-y - self.pressed-y) / 1px) > 6)) {
+                root.dragging = true;
+                root.drag-started(root.item.id, root.item.name);
+            }
+            if (root.dragging) {
+                root.drag-moved(
+                    self.absolute-position.x + self.mouse-x,
+                    self.absolute-position.y + self.mouse-y);
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up && root.dragging) {
+                root.dragging = false;
+                root.drag-ended(
+                    self.absolute-position.x + self.mouse-x,
+                    self.absolute-position.y + self.mouse-y);
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 16px;
+        spacing: 12px;
+
+        VerticalLayout {
+            alignment: center;
+            select-box := Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: root.item.selected
+                    ? #E8A020
+                    : (select-ta.has-hover ? #ffffff66 : #ffffff33);
+                background: root.item.selected ? #E8A020 : transparent;
+                animate background { duration: 120ms; }
+                animate border-color { duration: 120ms; }
+
+                if root.item.selected: Path {
+                    x: 2px;
+                    y: 3px;
+                    width: 12px;
+                    height: 10px;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 12;
+                    viewbox-height: 10;
+                    commands: "M1 5 L4 8 L11 1";
+                    stroke: #111111;
+                    stroke-width: 1.8px;
+                    fill: transparent;
+                }
+
+                select-ta := TouchArea {
+                    clicked => { root.toggle-select(root.item.id); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 40px;
+                height: 40px;
+                border-radius: 8px;
+                background: #00000044;
+                clip: true;
+
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    // TODO: use the character icon
+                    source: @image-url("../../production/icons/logo.png");
+                    image-fit: contain;
+                    image-rendering: smooth;
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            horizontal-stretch: 0;
+
+            HorizontalLayout {
+                height: 18px;
+                spacing: 8px;
+                alignment: start;
+
+                if !root.editing-title: Text {
+                    text: root.item.name;
+                    color: Palette.text-primary;
+                    font-family: "Segoe UI";
+                    font-size: 14px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+
+                if root.editing-title: Rectangle {
+                    width: 200px;
+                    border-radius: 4px;
+                    background: #ffffff10;
+                    border-width: 1px;
+                    border-color: #ffffff33;
+
+                    TextInput {
+                        x: 6px;
+                        width: parent.width - 12px;
+                        color: Palette.text-primary;
+                        font-family: "Segoe UI";
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        single-line: true;
+                        init => {
+                            self.text = root.item.name;
+                            root.title-draft = root.item.name;
+                            self.focus();
+                        }
+                        edited => { root.title-draft = self.text; }
+                        accepted => { root.commit-title(); }
+                        changed has-focus => {
+                            if (!self.has-focus) { root.commit-title(); }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    rename-btn := Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: rename-ta.has-hover ? #ffffff16 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Image {
+                            source: @image-url("../../production/icons/edit.png");
+                            width: 11px;
+                            height: 11px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                            animate colorize { duration: 100ms; }
+                        }
+
+                        rename-ta := TouchArea {
+                            clicked => {
+                                if (root.editing-title) {
+                                    root.commit-title();
+                                } else {
+                                    root.editing-title = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                author-wrap := Rectangle {
+                    width: author-text.preferred-width;
+                    property <bool> is-link: root.item.support-link != "";
+
+                    author-text := Text {
+                        text: "by " + root.item.author;
+                        color: author-wrap.is-link
+                            ? (link-ta.has-hover ? #9ecfff : #6db3f2)
+                            : Palette.text-secondary;
+                        font-family: "Segoe UI";
+                        font-size: 11px;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                        animate color { duration: 100ms; }
+                    }
+
+                    if author-wrap.is-link && link-ta.has-hover: Rectangle {
+                        y: parent.height - 3px;
+                        width: author-text.preferred-width;
+                        height: 1px;
+                        background: #9ecfff;
+                    }
+
+                    link-ta := TouchArea {
+                        enabled: author-wrap.is-link;
+                        mouse-cursor: pointer;
+                        clicked => { root.open-link(root.item.id); }
+                    }
+                }
+
+                if root.item.version != "": Rectangle {
+                    width: version-text.preferred-width + 12px;
+                    height: 16px;
+                    border-radius: 4px;
+                    background: #ffffff10;
+                    border-width: 1px;
+                    border-color: #ffffff1c;
+
+                    version-text := Text {
+                        x: 6px;
+                        y: (parent.height - self.preferred-height) / 2;
+                        text: root.item.version;
+                        color: Palette.text-secondary;
+                        font-family: "Segoe UI";
+                        font-size: 9.5px;
+                        font-weight: 600;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                height: 16px;
+                alignment: start;
+
+                if !root.editing-notes: Rectangle {
+                    width: notes-text.preferred-width;
+
+                    notes-text := Text {
+                        text: root.item.notes == "" ? "Add notes..." : root.item.notes;
+                        color: notes-ta.has-hover
+                            ? #ffffffaa
+                            : (root.item.notes == "" ? #ffffff44 : #ffffff77);
+                        font-family: "Segoe UI";
+                        font-size: 11.5px;
+                        font-italic: root.item.notes == "";
+                        vertical-alignment: center;
+                        animate color { duration: 100ms; }
+                    }
+
+                    notes-ta := TouchArea {
+                        clicked => { root.editing-notes = true; }
+                    }
+                }
+
+                if root.editing-notes: Rectangle {
+                    width: 260px;
+                    border-radius: 4px;
+                    background: #ffffff10;
+                    border-width: 1px;
+                    border-color: #ffffff33;
+
+                    TextInput {
+                        x: 6px;
+                        width: parent.width - 12px;
+                        color: Palette.text-primary;
+                        font-family: "Segoe UI";
+                        font-size: 11.5px;
+                        vertical-alignment: center;
+                        single-line: true;
+                        init => {
+                            self.text = root.item.notes;
+                            root.notes-draft = root.item.notes;
+                            self.focus();
+                        }
+                        edited => { root.notes-draft = self.text; }
+                        accepted => { root.commit-notes(); }
+                        changed has-focus => {
+                            if (!self.has-focus) { root.commit-notes(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            delete-btn := Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 6px;
+                background: delete-ta.has-hover ? #ee493722 : transparent;
+                animate background { duration: 100ms; }
+
+                Image {
+                    source: @image-url("../../production/icons/delete.png");
+                    width: 15px;
+                    height: 15px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    colorize: delete-ta.has-hover ? #ee4937 : #ffffff66;
+                    animate colorize { duration: 100ms; }
+                }
+
+                delete-ta := TouchArea {
+                    clicked => { root.request-delete(root.item.id, root.item.name); }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            ToggleSwitch {
+                checked: root.item.enabled;
+                toggled => { root.toggle-enabled(root.item.id); }
+            }
+        }
+    }
+}
