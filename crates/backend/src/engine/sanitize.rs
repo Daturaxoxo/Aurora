@@ -19,10 +19,7 @@ impl AuroraEngine {
             .into_iter()
             .map(|f| (f.label, f.destination))
             .collect();
-        targets.push((
-            "AuroraThirdParty".to_string(),
-            self.win64.join("AuroraThirdParty"),
-        ));
+        targets.push(("Plugins".to_string(), self.win64.join("Plugins")));
 
         for (label, path) in targets {
             Self::remove_target(&label, &path);

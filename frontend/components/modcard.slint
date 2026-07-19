@@ -54,6 +54,7 @@ export component ModCard inherits Rectangle {
     // TODO: grid layout variant
     in property <bool> grid-mode: false;
     in property <bool> drop-target: false;
+    in property <bool> show-icon: true;
 
     callback toggle-select(string /* id */);
     callback rename(string /* id */, string /* new name */);
@@ -170,7 +171,7 @@ export component ModCard inherits Rectangle {
             }
         }
 
-        VerticalLayout {
+        if root.show-icon: VerticalLayout {
             alignment: center;
             Rectangle {
                 width: 40px;
@@ -268,7 +269,7 @@ export component ModCard inherits Rectangle {
                     }
                 }
 
-                author-wrap := Rectangle {
+                if root.item.author != "": author-wrap := Rectangle {
                     width: author-text.preferred-width;
                     property <bool> is-link: root.item.support-link != "";
 

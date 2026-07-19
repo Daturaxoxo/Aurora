@@ -22,6 +22,7 @@ use bridge::Bridge;
 
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modules::ModulesHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
 
 fn main() -> Result<()> {
@@ -91,6 +92,7 @@ fn main() -> Result<()> {
     AddonsHandler::setup(&window.as_weak());
     ScreenshotHandler::setup(&window.as_weak());
     ModManagerHandler::setup(&window.as_weak());
+    ModulesHandler::setup(&window.as_weak());
     GbBrowserHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());

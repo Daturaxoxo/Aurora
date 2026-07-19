@@ -321,11 +321,11 @@ struct State {
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
 
-fn config_map(key: &str) -> serde_json::Map<String, Value> {
+pub fn config_map(key: &str) -> serde_json::Map<String, Value> {
     config::get(key).as_object().cloned().unwrap_or_default()
 }
 
-fn config_map_set(key: &str, entry: &str, value: Option<&str>) {
+pub fn config_map_set(key: &str, entry: &str, value: Option<&str>) {
     let mut map = config_map(key);
     match value {
         Some(v) => {

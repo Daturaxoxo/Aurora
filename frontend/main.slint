@@ -180,8 +180,22 @@ export component MainWindow inherits Window {
     callback gb-file-chosen(int);
 
     // Modules Page Properties
+    in-out property <[ModItem]> modules-list: [];
+    in-out property <bool> modules-feature-enabled: false;
+    in-out property <bool> modules-all-selected: false;
+    in-out property <int> modules-selected-count: 0;
     callback module-choose();
     callback module-drop-files(string);
+    callback module-rename(string, string);
+    callback module-set-notes(string, string);
+    callback module-delete(string, string);
+    callback module-toggle(string);
+    callback module-select(string);
+    callback modules-select-all();
+    callback modules-toggle-selected();
+    callback modules-delete-selected();
+    callback module-search-changed(string);
+    callback modules-feature-toggled(bool);
 
     // Screenshots Page Properties
     in-out property <[ScreenshotItem]> screenshots: [];
@@ -942,9 +956,23 @@ export component MainWindow inherits Window {
             y: Palette.topbar-height;
             width: parent.width;
             height: parent.height - Palette.topbar-height;
+            installed-modules <=> root.modules-list;
+            feature-enabled <=> root.modules-feature-enabled;
+            all-selected: root.modules-all-selected;
+            selected-count: root.modules-selected-count;
             close-modules => { root.show-modules = false; }
             choose-module => { root.module-choose(); }
             drop-files(path) => { root.module-drop-files(path); }
+            rename-module(id, name) => { root.module-rename(id, name); }
+            save-module-notes(id, notes) => { root.module-set-notes(id, notes); }
+            delete-module(id, name) => { root.module-delete(id, name); }
+            toggle-module(id) => { root.module-toggle(id); }
+            select-module(id) => { root.module-select(id); }
+            select-all => { root.modules-select-all(); }
+            toggle-selected => { root.modules-toggle-selected(); }
+            delete-selected => { root.modules-delete-selected(); }
+            search-changed(text) => { root.module-search-changed(text); }
+            feature-toggled(enabled) => { root.modules-feature-toggled(enabled); }
         }
 
         if root.show-screenshots: ScreenshotsPage {
