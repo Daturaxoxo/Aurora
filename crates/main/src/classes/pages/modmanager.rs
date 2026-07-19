@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use shared::config;
 use shared::utils::{get_mods_path, read_dir_recursive};
-use slint::{Model, VecModel};
+use slint::{Model, ModelRc, VecModel};
 use unrar::Archive as RarArchive;
 
 use std::collections::HashSet;
@@ -19,6 +19,7 @@ use std::sync::Mutex;
 const GROUP_PREFIX: &str = "AU GRP - ";
 const NOTES_KEY: &str = "mod_notes";
 const DISPLAY_NAMES_KEY: &str = "mod_display_names";
+const VIEW_GRID_KEY: &str = "mod_view_grid";
 
 #[derive(Debug, Clone)]
 pub struct Group {
@@ -582,9 +583,10 @@ impl ModManagerHandler {
                 .to_string()
         };
 
-        let (items, selected_count, all_selected) = {
+        let (items, grid_sections, selected_count, all_selected) = {
             let mut state = STATE.lock().unwrap();
             let mut items: Vec<ModItem> = Vec::new();
+            let mut grid_sections: Vec<Vec<ModItem>> = Vec::new();
             let mut displayed: Vec<Mod> = Vec::new();
             let mut rows: Vec<(bool, String)> = Vec::new();
             let searching = !state.search.is_empty();
@@ -613,12 +615,13 @@ impl ModManagerHandler {
                     .collect();
 
                 let collapsed = !is_root && state.collapsed.contains(&group.id);
+                let mut section: Vec<ModItem> = Vec::new();
 
                 if !is_root {
                     if (searching || state.filter != 0) && visible.is_empty() && !group_matches {
                         continue;
                     }
-                    items.push(ModItem {
+                    let header = ModItem {
                         id: group.id.clone().into(),
                         name: group.name.clone().into(),
                         author: "".into(),
@@ -635,7 +638,9 @@ impl ModManagerHandler {
                         support_link: "".into(),
                         is_group_header: true,
                         collapsed,
-                    });
+                    };
+                    items.push(header.clone());
+                    section.push(header);
                     rows.push((true, group.id.clone()));
                 }
 
@@ -649,7 +654,7 @@ impl ModManagerHandler {
                             .clone()
                             .filter(|v| v != "Unknown")
                             .unwrap_or_default();
-                        items.push(ModItem {
+                        let item = ModItem {
                             id: mod_id(m).into(),
                             name: shown_name(m).into(),
                             author: m.author.clone().unwrap_or_default().into(),
@@ -668,9 +673,15 @@ impl ModManagerHandler {
                             support_link: m.support_link.clone().unwrap_or_default().into(),
                             is_group_header: false,
                             collapsed: false,
-                        });
+                        };
+                        items.push(item.clone());
+                        section.push(item);
                         rows.push((false, group.id.clone()));
                     }
+                }
+
+                if !section.is_empty() {
+                    grid_sections.push(section);
                 }
             }
 
@@ -683,10 +694,15 @@ impl ModManagerHandler {
             let all = !state.displayed.is_empty() && count == state.displayed.len();
             drop(state);
 
-            (items, count, all)
+            (items, grid_sections, count, all)
         };
 
         w.set_mods(Rc::new(VecModel::from(items)).into());
+        let sections: Vec<ModelRc<ModItem>> = grid_sections
+            .into_iter()
+            .map(|s| ModelRc::from(Rc::new(VecModel::from(s))))
+            .collect();
+        w.set_mods_grid(Rc::new(VecModel::from(sections)).into());
         w.set_mods_selected_count(i32::try_from(selected_count).unwrap_or(0));
         w.set_mods_all_selected(all_selected);
     }
@@ -708,7 +724,8 @@ impl ModManagerHandler {
     // Must match the list layout in modmanager.slint
     const LIST_PADDING_TOP: f32 = 12.0;
     const LIST_SPACING: f32 = 8.0;
-    const HEADER_ROW_H: f32 = 40.0;
+    // 40px header + 12px top margin separating groups (see modmanager.slint)
+    const HEADER_ROW_H: f32 = 52.0;
     const CARD_ROW_H: f32 = 64.0;
 
     fn zone_at(content_y: f32) -> Option<String> {
@@ -736,6 +753,34 @@ impl ModManagerHandler {
         }
 
         Some(String::new())
+    }
+
+    // Dragging a selected mod moves the whole selection, otherwise just that mod
+    fn drop_mods_on_zone(window: &slint::Weak<MainWindow>, id: String, zone: String) {
+        // Dropping onto the group the mod is already in moves it back to root
+        let zone = if !zone.is_empty()
+            && Self::mod_by_id(&id).is_some_and(|m| Self::current_zone(&m) == zone)
+        {
+            String::new()
+        } else {
+            zone
+        };
+
+        let ids: Vec<String> = {
+            let state = STATE.lock().unwrap();
+            if state.selected.contains(&id) && state.selected.len() > 1 {
+                state
+                    .displayed
+                    .iter()
+                    .map(mod_id)
+                    .filter(|i| state.selected.contains(i))
+                    .collect()
+            } else {
+                vec![id]
+            }
+        };
+
+        Self::move_mods_to_zone(window, ids, zone);
     }
 
     fn current_zone(m: &Mod) -> String {
@@ -799,6 +844,11 @@ impl ModManagerHandler {
 
     fn bind(window: &slint::Weak<MainWindow>) {
         let w = window.unwrap();
+
+        w.set_mods_view_grid(config::get(VIEW_GRID_KEY).as_bool().unwrap_or(false));
+        w.on_mods_view_changed(|grid| {
+            config::set(VIEW_GRID_KEY, Value::from(grid));
+        });
 
         let ww = window.clone();
         w.on_mod_toggle(move |id| {
@@ -1222,22 +1272,12 @@ impl ModManagerHandler {
                 return;
             };
 
-            let id = id.to_string();
-            let ids: Vec<String> = {
-                let state = STATE.lock().unwrap();
-                if state.selected.contains(&id) && state.selected.len() > 1 {
-                    state
-                        .displayed
-                        .iter()
-                        .map(mod_id)
-                        .filter(|i| state.selected.contains(i))
-                        .collect()
-                } else {
-                    vec![id]
-                }
-            };
+            Self::drop_mods_on_zone(&ww, id.to_string(), zone);
+        });
 
-            Self::move_mods_to_zone(&ww, ids, zone);
+        let ww = window.clone();
+        w.on_mod_drop_on_zone(move |id, zone| {
+            Self::drop_mods_on_zone(&ww, id.to_string(), zone.to_string());
         });
 
         w.on_mod_open_link(move |id| {
@@ -1311,6 +1351,22 @@ impl ModManagerHandler {
                     change(&mut row);
                     model.set_row_data(i, row);
                     break;
+                }
+            }
+        }
+
+        let sections = w.get_mods_grid();
+        for s in 0..sections.row_count() {
+            let Some(section) = sections.row_data(s) else {
+                continue;
+            };
+            for i in 0..section.row_count() {
+                if let Some(mut row) = section.row_data(i) {
+                    if row.id == id {
+                        change(&mut row);
+                        section.set_row_data(i, row);
+                        return;
+                    }
                 }
             }
         }
