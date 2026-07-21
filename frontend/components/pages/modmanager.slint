@@ -232,8 +232,12 @@ component GroupHeader inherits Rectangle {
 
 export component ModManagerPage inherits Rectangle {
     in-out property <[ModItem]> mods: [];
+    // Same data as `mods`, but split into sections for the grid view
+    in property <[[ModItem]]> mods-grid: [];
     in-out property <string> search-text: "";
     in-out property <bool> view-grid: false;
+    property <int> filter-index: 0;
+    callback view-changed(bool);
     in property <bool> all-selected: false;
     in property <int> selected-count: 0;
     in property <bool> file-hover: false;
@@ -277,6 +281,11 @@ export component ModManagerPage inherits Rectangle {
     in property <string> drag-target-group: "";
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
+    callback drop-mod-on-zone(string /* id */, string /* zone */);
+
+    in-out property <string> drag-source-zone: "";
+    in-out property <string> grid-drag-zone: "";
+    in-out property <bool> grid-drag-zone-valid: false;
 
     changed search-text => { root.search-changed(root.search-text); }
 
@@ -615,7 +624,10 @@ export component ModManagerPage inherits Rectangle {
                                 animate background { duration: 100ms; }
 
                                 list-ta := TouchArea {
-                                    clicked => { root.view-grid = false; }
+                                    clicked => {
+                                        root.view-grid = false;
+                                        root.view-changed(false);
+                                    }
                                 }
 
                                 VerticalLayout {
@@ -647,7 +659,10 @@ export component ModManagerPage inherits Rectangle {
                                 animate background { duration: 100ms; }
 
                                 grid-ta := TouchArea {
-                                    clicked => { root.view-grid = true; }
+                                    clicked => {
+                                        root.view-grid = true;
+                                        root.view-changed(true);
+                                    }
                                 }
 
                                 VerticalLayout {
@@ -840,7 +855,10 @@ export component ModManagerPage inherits Rectangle {
                         width: 110px;
                         height: 28px;
                         options: ["All", "Enabled", "Disabled"];
-                        selection-changed(idx) => { root.filter-changed(idx); }
+                        selection-changed(idx) => {
+                            root.filter-index = idx;
+                            root.filter-changed(idx);
+                        }
                     }
                 }
 
@@ -929,9 +947,23 @@ export component ModManagerPage inherits Rectangle {
             }
         }
 
-        Rectangle {
+        content-area := Rectangle {
             vertical-stretch: 1;
             background: transparent;
+
+            // True while a drag from inside a group would drop to root:
+            // hovering the ungrouped area, empty space, or the mod's own group
+            property <bool> pending-root-drop: root.drag-id != ""
+                && root.drag-source-zone != ""
+                && root.drag-pos-x >= self.absolute-position.x
+                && root.drag-pos-x <= self.absolute-position.x + self.width
+                && root.drag-pos-y >= self.absolute-position.y
+                && root.drag-pos-y <= self.absolute-position.y + self.height
+                && (root.view-grid
+                ? (!root.grid-drag-zone-valid
+                || root.grid-drag-zone == ""
+                || root.grid-drag-zone == root.drag-source-zone)
+                : root.drag-target-group == "");
 
             if (!root.view-grid): list-scroll := ScrollView {
                 width: 100%;
@@ -984,13 +1016,16 @@ export component ModManagerPage inherits Rectangle {
                     alignment: start;
 
                     for mod in root.mods: mod-row := Rectangle {
-                        height: mod.is-group-header ? 40px : 64px;
+                        // Header rows carry 12px extra top margin to separate groups
+                        // keep in sync with HEADER_ROW_H in modmanager.rs
+                        height: mod.is-group-header ? 52px : 64px;
 
                         property <bool> nested: !mod.is-group-header && mod.group-id != "";
 
                         if mod.is-group-header: GroupHeader {
                             width: 100%;
-                            height: 100%;
+                            y: 12px;
+                            height: parent.height - 12px;
                             item: mod;
                             drop-target: root.drag-id != ""
                                 && root.drag-target-group != ""
@@ -1027,6 +1062,7 @@ export component ModManagerPage inherits Rectangle {
                                 && mod.group-id == root.drag-target-group;
                             drag-started(id, name) => {
                                 root.drag-id = id;
+                                root.drag-source-zone = mod.group-id;
                                 root.drag-name = (mod.selected && root.selected-count > 1)
                                     ? root.selected-count + " mods"
                                     : name;
@@ -1045,7 +1081,9 @@ export component ModManagerPage inherits Rectangle {
                     }
 
                     if root.mods.length == 0: Text {
-                        text: root.search-text == "" ? "No mods installed" : "No mods match your search";
+                        text: root.search-text != "" ? "No mods match your search"
+                            : root.filter-index != 0 ? "No mods match your filter"
+                            : "No mods installed";
                         color: #ffffff44;
                         font-family: "Segoe UI";
                         font-size: 13px;
@@ -1054,17 +1092,184 @@ export component ModManagerPage inherits Rectangle {
                 }
             }
 
-            if (root.view-grid): Rectangle {
+            if (root.view-grid): grid-scroll := ScrollView {
                 width: 100%;
                 height: 100%;
+                viewport-height: grid-content.preferred-height;
 
-                Text {
-                    x: 20px;
-                    y: 20px;
-                    text: "Grid view coming soon";
-                    color: #ffffff44;
-                    font-family: "Segoe UI";
-                    font-size: 13px;
+                // Auto-scroll while dragging near the top/bottom edge
+                property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
+                property <bool> drag-inside-x: root.drag-pos-x >= self.absolute-position.x
+                    && root.drag-pos-x <= self.absolute-position.x + self.width;
+                property <bool> drag-near-top: root.drag-id != ""
+                    && self.drag-inside-x
+                    && self.drag-local-y >= 0px && self.drag-local-y < 48px;
+                property <bool> drag-near-bottom: root.drag-id != ""
+                    && self.drag-inside-x
+                    && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
+                property <length> scroll-min: min(0px, self.height - self.viewport-height);
+                // Anywhere inside the grid that is not a group section drops to root
+                property <bool> drag-inside: root.drag-id != ""
+                    && self.drag-inside-x
+                    && self.drag-local-y >= 0px && self.drag-local-y <= self.height;
+
+                Timer {
+                    interval: 16ms;
+                    running: grid-scroll.drag-near-top || grid-scroll.drag-near-bottom;
+                    triggered => {
+                        if (grid-scroll.drag-near-top) {
+                            grid-scroll.viewport-y = min(0px, grid-scroll.viewport-y + 8px);
+                        }
+                        if (grid-scroll.drag-near-bottom) {
+                            grid-scroll.viewport-y = max(grid-scroll.scroll-min, grid-scroll.viewport-y - 8px);
+                        }
+                    }
+                }
+
+                grid-content := VerticalLayout {
+                    padding-left: 20px;
+                    padding-right: 20px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+                    spacing: 20px;
+                    alignment: start;
+
+                    for section in root.mods-grid: section-root := VerticalLayout {
+                        spacing: 8px;
+
+                        property <bool> has-header: section.length > 0 && section[0].is-group-header;
+                        property <int> tile-count: section.length - (self.has-header ? 1 : 0);
+
+                        property <string> zone: self.has-header ? section[0].id : "";
+                        property <bool> drag-over: root.drag-id != ""
+                            && root.drag-pos-x >= self.absolute-position.x
+                            && root.drag-pos-x <= self.absolute-position.x + self.width
+                            && root.drag-pos-y >= self.absolute-position.y
+                            && root.drag-pos-y <= self.absolute-position.y + self.height;
+                        property <bool> drag-highlight: self.drag-over
+                            && self.zone != root.drag-source-zone;
+
+                        changed drag-over => {
+                            if (self.drag-over) {
+                                root.grid-drag-zone = self.zone;
+                                root.grid-drag-zone-valid = true;
+                            } else if (root.grid-drag-zone == self.zone) {
+                                root.grid-drag-zone-valid = false;
+                            }
+                        }
+
+                        if section-root.has-header: GroupHeader {
+                            item: section[0];
+                            drop-target: section-root.drag-highlight;
+                            collapse(id) => { root.collapse-group(id); }
+                            rename(id, name) => { root.rename-group(id, name); }
+                            request-delete(id) => { root.pending-delete-group-id = id; }
+                            toggle-enabled(id) => { root.toggle-group(id); }
+                            toggle-select(id) => { root.select-group(id); }
+                        }
+
+                        if section-root.tile-count > 0: tile-area := Rectangle {
+                            property <length> tile-spacing: 10px;
+                            property <int> cols: max(1, Math.floor(
+                                (self.width + self.tile-spacing) / (150px + self.tile-spacing)));
+                            property <length> tile-w: (self.width - (self.cols - 1) * self.tile-spacing) / self.cols;
+                            property <length> tile-h: 150px;
+
+                            height: Math.ceil(section-root.tile-count / self.cols)
+                                * (self.tile-h + self.tile-spacing) - self.tile-spacing;
+
+                            // The group header (index 0) renders above, not as a tile
+                            for mod[i] in section: Rectangle {
+                                property <int> tile-index: i - (section-root.has-header ? 1 : 0);
+                                visible: !mod.is-group-header;
+                                x: mod.is-group-header ? 0px : Math.mod(self.tile-index, tile-area.cols)
+                                    * (tile-area.tile-w + tile-area.tile-spacing);
+                                y: mod.is-group-header ? 0px : Math.floor(self.tile-index / tile-area.cols)
+                                    * (tile-area.tile-h + tile-area.tile-spacing);
+                                width: mod.is-group-header ? 0px : tile-area.tile-w;
+                                height: mod.is-group-header ? 0px : tile-area.tile-h;
+
+                                if !mod.is-group-header: ModCard {
+                                    width: 100%;
+                                    height: 100%;
+                                    grid-mode: true;
+                                    item: mod;
+                                    drop-target: section-root.drag-highlight
+                                        && mod.id != root.drag-id;
+                                    toggle-select(id) => { root.select-mod(id); }
+                                    rename(id, name) => { root.rename-mod(id, name); }
+                                    toggle-enabled(id) => { root.toggle-mod(id); }
+                                    request-delete(id, name) => { root.pending-delete-id = id; }
+                                    open-link(id) => { root.open-mod-link(id); }
+                                    drag-started(id, name) => {
+                                        root.drag-id = id;
+                                        root.drag-source-zone = mod.group-id;
+                                        root.drag-name = (mod.selected && root.selected-count > 1)
+                                            ? root.selected-count + " mods"
+                                            : name;
+                                    }
+                                    drag-moved(wx, wy) => {
+                                        root.drag-pos-x = wx;
+                                        root.drag-pos-y = wy;
+                                    }
+                                    drag-ended(wx, wy) => {
+                                        if (root.grid-drag-zone-valid) {
+                                            root.drop-mod-on-zone(mod.id, root.grid-drag-zone);
+                                        } else if (grid-scroll.drag-inside) {
+                                            root.drop-mod-on-zone(mod.id, "");
+                                        }
+                                        root.drag-id = "";
+                                        root.drag-name = "";
+                                        root.grid-drag-zone-valid = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if root.mods-grid.length == 0: Text {
+                        text: root.search-text != "" ? "No mods match your search"
+                            : root.filter-index != 0 ? "No mods match your filter"
+                            : "No mods installed";
+                        color: #ffffff44;
+                        font-family: "Segoe UI";
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            if content-area.pending-root-drop: Rectangle {
+                x: 12px;
+                y: 4px;
+                width: parent.width - 24px;
+                height: parent.height - 8px;
+                border-radius: 12px;
+                border-width: 2px;
+                border-color: #6db3f288;
+                background: #6db3f208;
+
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: parent.height - 44px;
+                    width: root-drop-label.preferred-width + 28px;
+                    height: 32px;
+                    border-radius: 8px;
+                    background: #1e1e24ee;
+                    border-width: 1px;
+                    border-color: #6db3f288;
+                    drop-shadow-color: #00000088;
+                    drop-shadow-blur: 14px;
+
+                    root-drop-label := Text {
+                        text: "Release to move out of group";
+                        color: Palette.text-primary;
+                        font-family: "Segoe UI";
+                        font-size: 12px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }

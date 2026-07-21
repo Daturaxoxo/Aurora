@@ -9,7 +9,11 @@ import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
 import { LuaScriptsPage } from "components/pages/menus/lua.slint";
 import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
-import { GameBananaBrowser, GbModItem, GbFileItem } from "components/gbbrowser.slint";
+import {
+    GameBananaBrowser,
+    GbModItem,
+    GbFileItem,
+} from "components/gbbrowser.slint";
 import {
     ScreenshotsPage,
     ScreenshotItem,
@@ -126,6 +130,9 @@ export component MainWindow inherits Window {
 
     // Mod Manager Properties
     in-out property <[ModItem]> mods: [];
+    in-out property <[[ModItem]]> mods-grid: [];
+    in-out property <bool> mods-view-grid: false;
+    callback mods-view-changed(bool);
     in-out property <bool> mods-all-selected: false;
     in-out property <int> mods-selected-count: 0;
     callback mod-toggle(string);
@@ -135,6 +142,7 @@ export component MainWindow inherits Window {
     callback mod-set-notes(string, string);
     callback mod-open-link(string);
     callback mod-move-to-group(string, string);
+    callback mod-drop-on-zone(string, string);
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
     in-out property <string> mods-drag-target: "";
@@ -927,6 +935,9 @@ export component MainWindow inherits Window {
             width: parent.width - 40px;
             height: parent.height - (Palette.topbar-height + 35px);
             mods: root.mods;
+            mods-grid: root.mods-grid;
+            view-grid <=> root.mods-view-grid;
+            view-changed(grid) => { root.mods-view-changed(grid); }
             all-selected: root.mods-all-selected;
             selected-count: root.mods-selected-count;
             file-hover: root.mods-file-hover;
@@ -956,6 +967,7 @@ export component MainWindow inherits Window {
             collapse-group(id) => { root.mod-group-collapse(id); }
             select-group(id) => { root.mod-group-select(id); }
             move-mod-to-group(id, group) => { root.mod-move-to-group(id, group); }
+            drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
             mod-drag-moved(id, y) => { root.mod-drag-moved(id, y); }
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
