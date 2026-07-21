@@ -1,3 +1,261 @@
-{
-    
-}
+[
+    {
+        "key": "settings.section.appearance",
+        "en": "APPEARANCE",
+        "tr": "GÖRÜNÜM",
+        "zh": "外观",
+        "es": "APARIENCIA"
+    },
+    {
+        "key": "settings.language.title",
+        "en": "Language",
+        "tr": "Dil",
+        "zh": "语言",
+        "es": "Idioma"
+    },
+    {
+        "key": "settings.language.subtitle",
+        "en": "Interface display language",
+        "tr": "Arayüz görüntüleme dili",
+        "zh": "界面显示语言",
+        "es": "Idioma de la interfaz"
+    },
+    {
+        "key": "settings.interface-minimization.title",
+        "en": "Interface Minimization",
+        "tr": "Arayüzü Küçültme",
+        "zh": "界面最小化",
+        "es": "Minimización de interfaz"
+    },
+    {
+        "key": "settings.interface-minimization.subtitle",
+        "en": "Closes the launcher window after the game process initializes.",
+        "tr": "Oyun işlemi başladıktan sonra başlatıcı penceresini kapatır.",
+        "zh": "游戏进程启动后关闭启动器窗口。",
+        "es": "Cierra la ventana del launcher después de iniciar el juego."
+    },
+    {
+        "key": "settings.section.integration",
+        "en": "INTEGRATION",
+        "tr": "ENTEGRASYON",
+        "zh": "集成",
+        "es": "INTEGRACIÓN"
+    },
+    {
+        "key": "settings.discord-rpc.title",
+        "en": "Discord RPC",
+        "tr": "Discord RPC",
+        "zh": "Discord RPC",
+        "es": "Discord RPC"
+    },
+    {
+        "key": "settings.discord-rpc.subtitle",
+        "en": "Toggle the in-built Rich Presence configuration status.",
+        "tr": "Yerleşik Rich Presence yapılandırma durumunu aç/kapat.",
+        "zh": "切换内置 Rich Presence 配置状态。",
+        "es": "Activa o desactiva la configuración de Rich Presence integrada."
+    },
+    {
+        "key": "settings.section.game-directory",
+        "en": "GAME DIRECTORY",
+        "tr": "OYUN DİZİNİ",
+        "zh": "游戏目录",
+        "es": "DIRECTORIO DEL JUEGO"
+    },
+    {
+        "key": "settings.game-directory.title",
+        "en": "Game Directory",
+        "tr": "Oyun Dizini",
+        "zh": "游戏目录",
+        "es": "Directorio del juego"
+    },
+    {
+        "key": "settings.game-directory.browse",
+        "en": "Browse",
+        "tr": "Gözat",
+        "zh": "浏览",
+        "es": "Examinar"
+    },
+    {
+        "key": "settings.section.engine",
+        "en": "ENGINE",
+        "tr": "MOTOR",
+        "zh": "引擎",
+        "es": "MOTOR"
+    },
+    {
+        "key": "settings.engine-method.title",
+        "en": "Engine Method",
+        "tr": "Motor Yöntemi",
+        "zh": "引擎方法",
+        "es": "Método del motor"
+    },
+    {
+        "key": "settings.engine-method.subtitle",
+        "en": "Choose what method the engine uses for loading mods.",
+        "tr": "Motorun modları yüklerken kullanacağı yöntemi seçin.",
+        "zh": "选择引擎加载模组时使用的方法。",
+        "es": "Elige el método que usará el motor para cargar los mods."
+    },
+    {
+        "key": "settings.engine-method.default",
+        "en": "Default",
+        "tr": "Varsayılan",
+        "zh": "默认",
+        "es": "Predeterminado"
+    },
+    {
+        "key": "settings.engine-method.alternate",
+        "en": "Alternate",
+        "tr": "Alternatif",
+        "zh": "备用",
+        "es": "Alternativo"
+    },
+    {
+        "key": "settings.section.debug",
+        "en": "DEBUG",
+        "tr": "HATA AYIKLAMA",
+        "zh": "调试",
+        "es": "DEPURACIÓN"
+    },
+    {
+        "key": "settings.developer-mode.title",
+        "en": "Developer Mode",
+        "tr": "Geliştirici Modu",
+        "zh": "开发者模式",
+        "es": "Modo desarrollador"
+    },
+    {
+        "key": "settings.developer-mode.subtitle",
+        "en": "Shows the log console for debugging.",
+        "tr": "Hata ayıklama için günlük konsolunu gösterir.",
+        "zh": "显示用于调试的日志控制台。",
+        "es": "Muestra la consola de registro para depuración."
+    },
+    {
+        "key": "settings.extensive-logging.title",
+        "en": "Extensive Logging",
+        "tr": "Ayrıntılı Günlükleme",
+        "zh": "详细日志",
+        "es": "Registro detallado"
+    },
+    {
+        "key": "settings.extensive-logging.subtitle",
+        "en": "Allows for more logs to be shown in the console.",
+        "tr": "Konsolda daha fazla günlük gösterilmesine izin verir.",
+        "zh": "允许在控制台中显示更多日志。",
+        "es": "Permite mostrar más registros en la consola."
+    },
+    {
+        "key": "settings.export-telemetry.title",
+        "en": "Export Telemetry",
+        "tr": "Telemetriyi Dışa Aktar",
+        "zh": "导出遥测数据",
+        "es": "Exportar telemetría"
+    },
+    {
+        "key": "settings.export-telemetry.subtitle",
+        "en": "Export your Aurora logs & system information to a file",
+        "tr": "Aurora günlüklerinizi ve sistem bilgilerinizi bir dosyaya aktarın",
+        "zh": "将您的 Aurora 日志和系统信息导出到文件",
+        "es": "Exporta tus registros de Aurora e información del sistema a un archivo"
+    },
+    {
+        "key": "settings.export-telemetry.button",
+        "en": "Export",
+        "tr": "Dışa Aktar",
+        "zh": "导出",
+        "es": "Exportar"
+    },
+    {
+        "key": "popup.discord.title",
+        "en": "Join Discord?",
+        "tr": "Discord'a Katıl?",
+        "zh": "加入 Discord？",
+        "es": "¿Unirse a Discord?"
+    },
+    {
+        "key": "popup.discord.message",
+        "en": "Join our Discord server to keep in touch with future updates, sneakpeeks and ask questions!",
+        "tr": "Gelecek güncellemeler, ön izlemeler ve sorularınız için Discord sunucumuza katılın!",
+        "zh": "加入我们的 Discord 服务器，获取未来更新、抢先预览并提出问题！",
+        "es": "¡Únete a nuestro servidor de Discord para enterarte de futuras actualizaciones, adelantos y hacer preguntas!"
+    },
+    {
+        "key": "popup.discord.agree-checkbox",
+        "en": "I agree that I am over 13 years old.",
+        "tr": "13 yaşından büyük olduğumu kabul ediyorum.",
+        "zh": "我同意本人已年满 13 周岁。",
+        "es": "Acepto que tengo más de 13 años."
+    },
+    {
+        "key": "popup.gamebanana.title",
+        "en": "Open GameBanana?",
+        "tr": "GameBanana'yı Aç?",
+        "zh": "打开 GameBanana？",
+        "es": "¿Abrir GameBanana?"
+    },
+    {
+        "key": "popup.gamebanana.message",
+        "en": "GameBanana is our mod hosting site partner where you can get mods to use on the game.",
+        "tr": "GameBanana, oyunda kullanabileceğiniz modları edinebileceğiniz mod barındırma sitesi ortağımızdır.",
+        "zh": "GameBanana 是我们的模组托管合作网站，您可以在这里获取游戏使用的模组。",
+        "es": "GameBanana es nuestro sitio asociado de alojamiento de mods, donde puedes obtener mods para usar en el juego."
+    },
+    {
+        "key": "test.toast-button",
+        "en": "Test Toast",
+        "tr": "Test Bildirimi",
+        "zh": "测试通知",
+        "es": "Probar aviso"
+    },
+    {
+        "key": "test.popup-button",
+        "en": "Test Popup",
+        "tr": "Test Penceresi",
+        "zh": "测试弹窗",
+        "es": "Probar ventana emergente"
+    },
+    {
+        "key": "test.apply-changes.title",
+        "en": "Apply Changes?",
+        "tr": "Değişiklikler Uygulansın mı?",
+        "zh": "应用更改？",
+        "es": "¿Aplicar cambios?"
+    },
+    {
+        "key": "test.apply-changes.message",
+        "en": "Do you understand this will lead to SERIOUS consequences...!",
+        "tr": "Bunun CİDDİ sonuçlara yol açacağını anlıyor musunuz...!",
+        "zh": "您是否明白这将导致严重后果……！",
+        "es": "¿Entiendes que esto tendrá consecuencias GRAVES...!"
+    },
+    {
+        "key": "test.apply-changes.checkbox",
+        "en": "I agree to the terms of service",
+        "tr": "Hizmet şartlarını kabul ediyorum",
+        "zh": "我同意服务条款",
+        "es": "Acepto los términos de servicio"
+    },
+    {
+        "key": "test.second-popup-button",
+        "en": "Second Popup",
+        "tr": "İkinci Pencere",
+        "zh": "第二个弹窗",
+        "es": "Segunda ventana emergente"
+    },
+    {
+        "key": "test.second-popup.title",
+        "en": "Placeholder Title",
+        "tr": "Yer Tutucu Başlık",
+        "zh": "占位标题",
+        "es": "Título de ejemplo"
+    },
+    {
+        "key": "test.second-popup.message",
+        "en": "Placeholder message for a second test popup.",
+        "tr": "İkinci test penceresi için yer tutucu mesaj.",
+        "zh": "第二个测试弹窗的占位消息。",
+        "es": "Mensaje de ejemplo para una segunda ventana de prueba."
+    }
+]

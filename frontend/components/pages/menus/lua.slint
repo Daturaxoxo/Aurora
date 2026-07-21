@@ -1,0 +1,276 @@
+import { Palette } from "../../../global.slint";
+import { ScrollView, TextEdit } from "std-widgets.slint";
+
+export struct LuaScriptItem {
+    id: string,
+    name: string,
+    enabled: bool,
+    is-editing: bool,
+    code: string,
+}
+
+export component LuaScriptsPage inherits Rectangle {
+    callback close-lua-scripts();
+
+    // Simulates checking whether Bin/UE4SS already exists on disk.
+    // When true, we skip the pre-install screen and go straight to {B}.
+    property <bool> ue4ss-installed: false;
+
+    // Id/index of the script currently open in the editor overlay ("" / -1 = none open).
+    property <string> editing-script-id: "";
+    property <int> editing-index: -1;
+
+    background: #00000066;
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.close-lua-scripts(); }
+    }
+
+    panel := Rectangle {
+        width: min(parent.width - 80px, 900px);
+        height: parent.height - 60px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Palette.glass-background;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+        drop-shadow-color: #00000099;
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 12px;
+        clip: true;
+
+        TouchArea {
+            width: 100%;
+            height: 100%;
+        }
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                height: 32px;
+
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+
+                        Image {
+                            source: @image-url("../../../../production/icons/menu/lua.png");
+                            width: 20px;
+                            height: 20px;
+                            image-rendering: smooth;
+                            image-fit: contain;
+                            colorize: Palette.text-primary;
+                        }
+
+                        Text {
+                            text: "Lua Scripts";
+                            color: Palette.text-primary;
+                            font-size: 17px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../production/icons/close.png");
+                        width: 22px;
+                        height: 22px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
+                    }
+
+                    close-ta := TouchArea {
+                        clicked => { root.close-lua-scripts(); }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Palette.glass-border;
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                background: transparent;
+
+                // ---------------------------------------------------------
+                // {A} Pre-install screen — shown when UE4SS is not detected
+                // ---------------------------------------------------------
+                if !root.ue4ss-installed: VerticalLayout {
+                    alignment: center;
+                    spacing: 20px;
+                    padding: 24px;
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: 64px;
+                            height: 64px;
+                            border-radius: 32px;
+                            background: Palette.glass-border;
+
+                            Image {
+                                source: @image-url("../../../../production/icons/menu/lua.png");
+                                width: 30px;
+                                height: 30px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                                colorize: Palette.text-primary;
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "Install Dependency";
+                        color: Palette.text-primary;
+                        font-size: 16px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        width: 100%;
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: "Lua scripts require UE4SS to be installed, in order to run scripts you must first download UE4SS.";
+                            color: Palette.text-secondary;
+                            font-size: 13px;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                            width: 420px;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: 320px;
+                            height: 68px;
+                            border-radius: 10px;
+                            background: #ffffff0d;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+
+                            HorizontalLayout {
+                                padding: 14px;
+                                spacing: 20px;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text {
+                                        text: "Download size";
+                                        color: Palette.text-secondary;
+                                        font-size: 11px;
+                                    }
+                                    Text {
+                                        text: "~16.0 MB";
+                                        color: Palette.text-primary;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                    }
+                                }
+
+                                Rectangle { width: 1px; background: Palette.glass-border; }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 2px;
+                                    Text {
+                                        text: "Install location";
+                                        color: Palette.text-secondary;
+                                        font-size: 11px;
+                                    }
+                                    Text {
+                                        text: "\\Aurora\\Bin";
+                                        color: Palette.text-primary;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 12px;
+                        height: 40px;
+
+                        cancel-btn := Rectangle {
+                            width: 120px;
+                            border-radius: 8px;
+                            background: cancel-ta.has-hover ? #ffffff16 : #ffffff0d;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            animate background { duration: 120ms; }
+
+                            Text {
+                                text: "Cancel";
+                                color: Palette.text-primary;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            cancel-ta := TouchArea {
+                                clicked => { root.close-lua-scripts(); }
+                            }
+                        }
+
+                        install-btn := Rectangle {
+                            width: 120px;
+                            border-radius: 8px;
+                            background: install-ta.has-hover ? #3b82f6dd : #3b82f6;
+                            animate background { duration: 120ms; }
+
+                            Text {
+                                text: "Install";
+                                color: #ffffff;
+                                font-size: 13px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            install-ta := TouchArea {
+                                clicked => {
+                                    // TODO: kick off the real UE4SS install here.
+                                    // For now we jump straight to {B}.
+                                    root.ue4ss-installed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.ue4ss-installed: VerticalLayout {
+                    // {B}, main page of Lua Scripts
+                }
+            }
+        }
+    }
+}
