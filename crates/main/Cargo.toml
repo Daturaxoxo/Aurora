@@ -26,6 +26,7 @@ arboard = { version = "3", default-features = false, features = ["image-data"] }
 
 backend = { path = "../backend" }
 shared = { path = "../shared" }
+ipc = { path = "../ipc" }
 
 log = { workspace = true }
 rayon = { workspace = true }
@@ -39,21 +40,16 @@ reqwest = { workspace = true }
 sysinfo = { workspace = true }
 
 [build-dependencies]
-slint-build = { version = "1.16.1" }
+slint-build = { version = "1.17" }
 image = "0.25"
 serde_json = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winresource = "0.1"
 
-[target.'cfg(target_os = "windows")'.dependencies]
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
 mslnk = "0.1"
-windows-sys = { version = "0.59", features = [
-    "Win32_Foundation",
-    "Win32_System_Ole",
-    "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging",
-] }
 
 [lints.clippy]
 enum_glob_use = "warn"

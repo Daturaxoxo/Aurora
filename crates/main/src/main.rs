@@ -17,6 +17,7 @@ use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
 use classes::toast::ToastHandler;
+use classes::updater::UpdateHandler;
 
 use bridge::Bridge;
 
@@ -32,6 +33,19 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     ensure_root();
+
+    let _instance_lock =
+        match ipc::lock::SingletonLock::acquire(&ipc::install_root().join(ipc::AURORA_LOCK_FILE)) {
+            Ok(Some(lock)) => Some(lock),
+            Ok(None) => {
+                error!("Another instance of Aurora is already running; exiting.");
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("Could not acquire the instance lock: {e}");
+                None
+            }
+        };
 
     config::set(
         key::APP_LOCATION,
@@ -89,6 +103,7 @@ fn main() -> Result<()> {
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
+    UpdateHandler::setup(&window.as_weak());
     AddonsHandler::setup(&window.as_weak());
     ScreenshotHandler::setup(&window.as_weak());
     ModManagerHandler::setup(&window.as_weak());

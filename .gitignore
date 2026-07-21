@@ -2,6 +2,7 @@
 **/*.rs.bk
 cargo-home/
 *.lock
+.aurora_manifest.json
 
 .slint-cache/
 

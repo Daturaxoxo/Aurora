@@ -311,11 +311,25 @@ impl AddonsHandler {
                 continue;
             }
 
-            let auadd_path = folder.join("addon.auadd");
+            let auadd_path = std::fs::read_dir(&folder).ok().and_then(|entries| {
+                entries.flatten().map(|e| e.path()).find(|p| {
+                    p.is_file()
+                        && p.extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("auadd"))
+                })
+            });
+            let Some(auadd_path) = auadd_path else {
+                warn!(
+                    "Addons scan: skipping '{}' - no .auadd file",
+                    folder.display()
+                );
+                continue;
+            };
             let Ok(contents) = std::fs::read_to_string(&auadd_path) else {
                 warn!(
-                    "Addons scan: skipping '{}' - no addon.auadd",
-                    folder.display()
+                    "Addons scan: skipping '{}' - could not read '{}'",
+                    folder.display(),
+                    auadd_path.display()
                 );
                 continue;
             };

@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/main", "crates/backend", "crates/shared"]
+members = [
+    "crates/main",
+    "crates/backend",
+    "crates/shared",
+    "crates/ipc",
+    "crates/updater",
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -18,8 +24,18 @@ reqwest = { version = "0.13", default-features = false, features = [
     "query",
 ] }
 once_cell = "1"
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = [
+    "std",
+    "clock",
+] }
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Ole",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+] }
 
 [profile.release]
 lto = true

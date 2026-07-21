@@ -36,7 +36,7 @@ pub fn payload_files(folder: &Path) -> Vec<PathBuf> {
         .filter(|p| {
             p.is_file()
                 && p.file_name().is_some_and(|n| {
-                    n != "addon.auadd"
+                    !n.to_str().is_some_and(|s| s.ends_with(".auadd"))
                         && !n
                             .to_str()
                             .is_some_and(|s| BLACKLISTED_EXTENSIONS.iter().any(|e| s.ends_with(e)))

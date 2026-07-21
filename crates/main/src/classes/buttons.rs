@@ -70,12 +70,12 @@ impl ButtonHandler {
     }
 
     fn check_for_updates(window: &slint::Weak<MainWindow>) {
-        // TODO: hook into the update checker in shared, or something.
         if let Some(w) = window.upgrade() {
             w.set_toast_text("Checking for updates...".into());
             w.set_toast_kind("info".into());
             w.set_toast_active(true);
         }
+        crate::classes::updater::UpdateHandler::run_update_check(window, true);
     }
 
     fn add_desktop_shortcut(window: &slint::Weak<MainWindow>) {

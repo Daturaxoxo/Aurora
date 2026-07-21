@@ -1,0 +1,26 @@
+[package]
+name = "ipc"
+version = "2.0.0"
+edition = "2021"
+
+[dependencies]
+interprocess = "2"
+sha2 = "0.10.9"
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+
+[lints.clippy]
+enum_glob_use = "warn"
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+empty_structs_with_brackets = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+too_many_lines = "allow"
+must_use_candidate = "allow"
+wildcard_imports = "allow"

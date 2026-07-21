@@ -5,3 +5,4 @@ pub mod filedrop;
 pub mod pages;
 pub mod popup;
 pub mod toast;
+pub mod updater;
