@@ -3,6 +3,8 @@
 cargo-home/
 *.lock
 .aurora_manifest.json
+/release
+/release-host
 
 .slint-cache/
 
