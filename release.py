@@ -165,6 +165,7 @@ def main():
     for file in get_all_files("./release/Bin", relative=True):
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
+    shutil.make_archive(base_name=f"aurora-host-{version}", format="zip", base_dir="./release-host")
 
 if __name__ == "__main__":
     main()
