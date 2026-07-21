@@ -21,6 +21,21 @@ impl PopupHandler {
                     "update-popup" => {
                         UpdateHandler::start_update(&w);
                     }
+                    "beta-phase-inactive" => {
+                        std::process::exit(0);
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let w = window.clone();
+        window.unwrap().on_popup_cancel_callback(move |id| {
+            if let Some(_w) = w.upgrade() {
+                match id.as_str() {
+                    "beta-phase-inactive" => {
+                        std::process::exit(0);
+                    }
                     _ => {}
                 }
             }

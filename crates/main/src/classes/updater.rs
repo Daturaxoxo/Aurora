@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::process::Command;
+use std::process::{self, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -10,9 +10,23 @@ use log::*;
 use ipc::manifest::{hash_file, LocalManifest, Manifest};
 use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
+use serde::Deserialize;
+use slint::ComponentHandle;
 
 use crate::bridge::Bridge;
 use crate::MainWindow;
+
+const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
+const BETA_PHASE_CHECK_URL: &str = "https://beta.luamoonzy.workers.dev/api/v2/status";
+const CURRENT_BETA_PHASE: i32 = 1;
+
+#[allow(dead_code)]
+#[derive(Deserialize)]
+struct BetaPhaseResponse {
+    active: bool,
+    phase: i32,
+    message: String,
+}
 
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -21,17 +35,57 @@ pub struct UpdateHandler;
 impl UpdateHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         let args: Vec<String> = std::env::args().collect();
+        let mut skip_beta_phasing = false;
 
-        if args.iter().any(|a| a == ipc::POST_UPDATE_ARG) {
-            info!("launched post-update. Sending init_confirmed");
-            std::thread::spawn(Self::send_init_confirmed);
-            return;
+        for arg in args {
+            match arg.as_str() {
+                ipc::POST_UPDATE_ARG => {
+                    info!("launched post-update. Sending init_confirmed");
+                    std::thread::spawn(Self::send_init_confirmed);
+                    return;
+                }
+                ipc::SKIP_UPDATE_CHECK_ARG => {
+                    // Relaunched by the updater after a failed, rolled-back update.
+                    warn!("startup update check skipped");
+                    return;
+                }
+                SKIP_BETA_PHASING_ARG => {
+                    info!("skipping beta phasing");
+                    skip_beta_phasing = true;
+                }
+
+                _ => {}
+            }
         }
 
-        if args.iter().any(|a| a == ipc::SKIP_UPDATE_CHECK_ARG) {
-            // Relaunched by the updater after a failed, rolled-back update.
-            warn!("startup update check skipped");
-            return;
+        if !skip_beta_phasing {
+            match Self::check_beta_phasing() {
+                Ok(active) => {
+                    if !active {
+                        warn!("beta phasing is not active");
+                        let w = window.clone();
+                        slint::invoke_from_event_loop(move || {
+                            if let Some(w) = w.upgrade() {
+                                w.set_popup_id("beta-phase-inactive".into());
+                                w.set_popup_title("Beta phase inactive".into());
+                                w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
+                                w.set_popup_confirm_delay(0);
+                                w.set_popup_required_count(0);
+                                w.set_popup_checkboxes(slint::ModelRc::default());
+                                w.set_popup_active(true);
+                            }
+                        })
+                        .ok();
+                        return;
+                    } else {
+                        info!("beta phasing is active");
+                    }
+                }
+                Err(e) => {
+                    error!("failed to check beta phasing: {e}");
+                    process::exit(0);
+                }
+            }
         }
 
         Self::run_update_check(window, false);
@@ -294,5 +348,14 @@ impl UpdateHandler {
             std::thread::sleep(Duration::from_millis(300));
         }
         warn!("could not deliver init_confirmed to the updater");
+    }
+
+    fn check_beta_phasing() -> Result<bool> {
+        let res: BetaPhaseResponse = reqwest::blocking::get(BETA_PHASE_CHECK_URL)
+            .with_context(|| "Couldn't connect to beta phasing endpoint")?
+            .json()
+            .with_context(|| "Couldn't parse JSON from beta phasing endpoint")?;
+
+        Ok(res.active && res.phase == CURRENT_BETA_PHASE)
     }
 }
