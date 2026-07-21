@@ -88,7 +88,7 @@ fn run(root: &Path, conn: &Conn) -> Result<(), String> {
         }
     };
 
-    let changed = diff(root, &manifest, &local);
+    let changed = manifest.changed_files(root, &local);
     if changed.is_empty() {
         log("no changes; local state matches manifest");
         local.version = manifest.version;
@@ -105,23 +105,6 @@ fn run(root: &Path, conn: &Conn) -> Result<(), String> {
     let result = apply_update(root, conn, &manifest, &mut local, &changed);
     heartbeat.stop();
     result
-}
-
-fn diff<'a>(root: &'a Path, manifest: &'a Manifest, local: &LocalManifest) -> Vec<&'a FileEntry> {
-    manifest
-        .files
-        .iter()
-        .filter(|entry| {
-            // updater.exe self-update is Aurora's job
-            if entry.path == ipc::UPDATER_EXE {
-                return false;
-            }
-            if !root.join(&entry.path).exists() {
-                return true;
-            }
-            local.files.get(&entry.path) != Some(&entry.sha256)
-        })
-        .collect()
 }
 
 fn apply_update(

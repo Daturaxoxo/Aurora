@@ -1,4 +1,5 @@
 use crate::classes::pages::screenshots::ScreenshotHandler;
+use crate::classes::updater::UpdateHandler;
 use crate::MainWindow;
 pub struct PopupHandler;
 
@@ -16,6 +17,9 @@ impl PopupHandler {
                     }
                     "screenshot-delete" => {
                         ScreenshotHandler::confirm_delete(&w);
+                    }
+                    "update-popup" => {
+                        UpdateHandler::start_update(&w);
                     }
                     _ => {}
                 }

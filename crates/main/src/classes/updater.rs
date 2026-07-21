@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, Context, Result};
 use log::*;
 
-use ipc::manifest::{hash_file, Manifest};
+use ipc::manifest::{hash_file, LocalManifest, Manifest};
 use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
 
@@ -71,8 +71,45 @@ impl UpdateHandler {
 
     fn run_update_flow(window: &slint::Weak<MainWindow>, interactive: bool) -> Result<()> {
         let root = ipc::install_root();
+        let manifest = Self::fetch_manifest()?;
 
-        Self::self_update_updater(&root)?;
+        Self::self_update_updater(&root, &manifest)?;
+
+        let local = match LocalManifest::load(&root) {
+            Ok(Some(local)) => local,
+            _ => LocalManifest::build_manifest_from_disk(&root, &manifest),
+        };
+
+        if manifest.changed_files(&root, &local).is_empty() {
+            info!("no update available");
+            if interactive {
+                Bridge::show_toast(window, "Aurora is up to date.", "success");
+            }
+            return Ok(());
+        }
+
+        info!("update {} available; asking the user", manifest.version);
+        Self::show_update_popup(window, &manifest.version);
+        Ok(())
+    }
+
+    pub fn start_update(window: &slint::Weak<MainWindow>) {
+        if UPDATE_RUNNING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
+        let w = window.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = Self::run_updater(&w) {
+                warn!("update failed: {e}");
+                Bridge::show_toast(&w, "Update failed. Try again later.", "error");
+            }
+            UPDATE_RUNNING.store(false, Ordering::SeqCst);
+        });
+    }
+
+    fn run_updater(window: &slint::Weak<MainWindow>) -> Result<()> {
+        let root = ipc::install_root();
 
         let listener =
             protocol::listen(ipc::MAIN_PIPE_NAME).context("failed to open updater pipe")?;
@@ -113,10 +150,9 @@ impl UpdateHandler {
                     return Ok(());
                 }
                 Ok(Message::NoUpdate) => {
+                    // The check already found changes, so this only happens if a
+                    // new manifest landed while the popup was open.
                     info!("updater: no update available");
-                    if interactive {
-                        Bridge::show_toast(window, "Aurora is up to date.", "success");
-                    }
                     return Ok(());
                 }
                 Ok(Message::CloseNow) => {
@@ -162,9 +198,7 @@ impl UpdateHandler {
         }
     }
 
-    fn self_update_updater(root: &Path) -> Result<()> {
-        let manifest = Self::fetch_manifest()?;
-
+    fn self_update_updater(root: &Path, manifest: &Manifest) -> Result<()> {
         let updater_path = root.join(ipc::UPDATER_EXE);
         let local_hash = if updater_path.exists() {
             hash_file(&updater_path).context("failed to hash local updater")?
@@ -218,6 +252,24 @@ impl UpdateHandler {
             }
         }
         Err(last_err.context("all manifest sources failed"))
+    }
+
+    fn show_update_popup(window: &slint::Weak<MainWindow>, version: &str) {
+        let message =
+            format!("Aurora has detected a new update ({version}), do you want to update?");
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                w.set_popup_id("update-popup".into());
+                w.set_popup_title("Update available".into());
+                w.set_popup_message(message.into());
+                w.set_popup_confirm_delay(0);
+                w.set_popup_required_count(0);
+                w.set_popup_checkboxes(slint::ModelRc::default());
+                w.set_popup_active(true);
+            }
+        })
+        .ok();
     }
 
     fn set_locked(window: &slint::Weak<MainWindow>, locked: bool) {

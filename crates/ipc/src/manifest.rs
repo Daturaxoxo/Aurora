@@ -22,6 +22,23 @@ pub struct FileEntry {
     pub url: String,
 }
 
+impl Manifest {
+    pub fn changed_files(&self, install_root: &Path, local: &LocalManifest) -> Vec<&FileEntry> {
+        self.files
+            .iter()
+            .filter(|entry| {
+                if entry.path == crate::UPDATER_EXE {
+                    return false;
+                }
+                if !install_root.join(&entry.path).exists() {
+                    return true;
+                }
+                local.files.get(&entry.path) != Some(&entry.sha256)
+            })
+            .collect()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LocalManifest {
     #[serde(default)]
