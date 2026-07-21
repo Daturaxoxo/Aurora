@@ -38,6 +38,7 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [profile.release]
+opt-level = "s"
 lto = true
 codegen-units = 1
 strip = "symbols"

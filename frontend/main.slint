@@ -1,10 +1,13 @@
 import { SettingsPage } from "components/pages/settings.slint";
+import { Tr, TrKey } from "translations.slint";
+export { Tr, TrKey } from "translations.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
+import { LuaScriptsPage } from "components/pages/menus/lua.slint";
 import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
 import {
     GameBananaBrowser,
@@ -68,6 +71,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-menu: false;
     in-out property <bool> show-addons: false;
     in-out property <bool> show-modules: false;
+    in-out property <bool> show-lua-scripts: false;
     in-out property <bool> show-mod-manager: false;
     in-out property <bool> show-screenshots: false;
 
@@ -343,108 +347,6 @@ export component MainWindow inherits Window {
                                     source: @image-url("../production/icons/close.png");
                                     icon-size: 22px;
                                     clicked => { root.close-clicked(); }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Main Content Area
-            Rectangle {
-                vertical-stretch: 1.0;
-                VerticalLayout {
-                    padding: 30px;
-                    spacing: 20px;
-                    alignment: center;
-
-                    HorizontalLayout {
-                        spacing: 16px;
-                        alignment: center;
-
-                        Rectangle {
-                            width: 150px;
-                            height: 38px;
-                            background: ta-toast.has-hover ? #ffffff14 : Palette.glass-background;
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: Palette.glass-border;
-                            animate background { duration: 100ms; }
-
-                            Text {
-                                text: "Test Toast";
-                                color: #ffffff;
-                                font-family: "Segoe UI";
-                                font-size: 13px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            ta-toast := TouchArea {
-                                clicked => {
-                                    root.trigger-toast();
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: 150px;
-                            height: 38px;
-                            background: ta-dialog.has-hover ? #ffffff14 : Palette.glass-background;
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: Palette.glass-border;
-                            animate background { duration: 100ms; }
-
-                            Text {
-                                text: "Test Popup";
-                                color: #ffffff;
-                                font-family: "Segoe UI";
-                                font-size: 13px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            ta-dialog := TouchArea {
-                                clicked => {
-                                    root.popup-id = "apply-changes";
-                                    root.popup-title = "Apply Changes?";
-                                    root.popup-message = "Do you understand this will lead to SERIOUS consequences...!";
-                                    root.popup-checkboxes = [{ label: "I agree to the terms of service", required: true, checked: false }];
-                                    root.popup-confirm-delay = 5;
-                                    root.popup-required-count = 1;
-                                    root.popup-active = true;
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: 150px;
-                            height: 38px;
-                            background: ta-dialog0.has-hover ? #ffffff14 : Palette.glass-background;
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: Palette.glass-border;
-                            animate background { duration: 100ms; }
-
-                            Text {
-                                text: "Second poupup";
-                                color: #ffffff;
-                                font-family: "Segoe UI";
-                                font-size: 13px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            ta-dialog0 := TouchArea {
-                                clicked => {
-                                    root.popup-id = "second-popup";
-                                    root.popup-title = "bomb venezuela?";
-                                    root.popup-message = "this will give us oil!";
-                                    root.popup-active = true;
                                 }
                             }
                         }
@@ -954,9 +856,18 @@ export component MainWindow inherits Window {
             menu-item-clicked(i) => {
                 root.show-menu = false;
                 if (i == 0) { root.show-screenshots = true; }
-                if (i == 4) { root.show-addons = true; }
+                if (i == 2) { root.show-lua-scripts = true; }
                 if (i == 3) { root.show-modules = true; }
+                if (i == 4) { root.show-addons = true; }
             }
+        }
+
+        if root.show-lua-scripts: LuaScriptsPage {
+            x: 0px;
+            y: Palette.topbar-height;
+            width: parent.width;
+            height: parent.height - Palette.topbar-height;
+            close-lua-scripts => { root.show-lua-scripts = false; }
         }
 
         if root.show-modules: ModulesPage {

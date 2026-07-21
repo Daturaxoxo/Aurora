@@ -92,11 +92,18 @@ impl SettingsHandler {
 
         // [GENERAL]
 
+        let ww = window.clone();
         w.on_language_index_changed(move |index| {
             let code = Self::index_to_code(index);
             info!("[Settings] language changed → index={index}, code={code:?}");
             config::set(key::LANGUAGE, code);
             debug!("[Settings] language saved to config");
+
+            if let Some(w) = ww.upgrade() {
+                crate::translations::apply_language(&w, code);
+            } else {
+                error!("[Settings] window handle dead when applying language change");
+            }
         });
 
         w.on_interface_minimization_changed(move |enabled| {

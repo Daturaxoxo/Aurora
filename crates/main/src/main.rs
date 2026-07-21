@@ -4,6 +4,7 @@ slint::include_modules!();
 
 mod bridge;
 mod classes;
+mod translations;
 
 use anyhow::Result;
 use display_info::DisplayInfo;
@@ -55,6 +56,7 @@ fn main() -> Result<()> {
     let window = MainWindow::new()?;
     let slint_window = window.window();
     let monitor_size = get_monitor_size().unwrap();
+    translations::apply_saved_language(&window);
 
     if monitor_size.width < 1366 {
         info!("Setting window size to 960x540");
