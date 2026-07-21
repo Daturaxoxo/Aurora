@@ -11,13 +11,12 @@ use ipc::manifest::{hash_file, LocalManifest, Manifest};
 use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
 use serde::Deserialize;
-use slint::ComponentHandle;
 
 use crate::bridge::Bridge;
 use crate::MainWindow;
 
 const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
-const BETA_PHASE_CHECK_URL: &str = "https://beta.luamoonzy.workers.dev/api/v2/status";
+const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
 const CURRENT_BETA_PHASE: i32 = 1;
 
 #[allow(dead_code)]
