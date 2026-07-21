@@ -5,7 +5,8 @@ import shutil
 import sys
 from urllib.parse import quote
 
-BASE_URL = "https://github.com/Alawapr/aurora-test/releases/latest/download/"
+BASE_URL = "https://host.getaurora.moe/files/app/"
+# BASE_URL = "https://github.com/Alawapr/aurora-test/releases/latest/download/"
 BLACKLISTED_EXTENSIONS = (
     "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4", 
     "md5", "json", "py", "log", "ucas", "utoc", "pak", "disabled"
@@ -32,8 +33,9 @@ def copy_file(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        raise FileNotFoundError(f"Source file not found: {src}")
-
+        print(f"[COPY FILE]: File not found: {src}")
+        return
+    
     # Ensure parent folder for destination exists
     dst_dir = os.path.dirname(dst_path)
     if dst_dir:
@@ -51,10 +53,13 @@ def copy_folder(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        raise FileNotFoundError(f"Source folder not found: {src}")
-    
+        print(f"[COPY FOLDER]: Source folder not found: {src}")
+        return
+
     if not os.path.isdir(src_path):
-        raise NotADirectoryError(f"Source path is not a directory: {src}")
+        print(f"[COPY FOLDER]: Source path is not a directory: {src}")
+        return
+
 
     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
     print(f"Copied {src_path} to {dst_path}")
@@ -77,12 +82,14 @@ def get_all_files(folder_path, relative=False):
     file_paths = []
     
     if not os.path.exists(folder_path):
-        raise FileNotFoundError(f"Folder not found: {folder_path}")
+        print(f"[GET ALL FILES]: Folder not found: {folder_path}")
+        return
 
     for root, _, files in os.walk(folder_path):
         for file in files:
             if file.endswith(BLACKLISTED_EXTENSIONS):
                 continue
+            
             full_path = os.path.join(root, file)
             
             if relative:
@@ -162,7 +169,7 @@ def main():
     copy_file("./target/release/aurora.exe", "./release-host/aurora.exe")
     copy_file("./target/release/updater.exe", "./release-host/updater.exe")
     copy_file("./release/manifest.json", "./release-host/manifest.json")
-    for file in get_all_files("./release/Bin", relative=True):
+    for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
     shutil.make_archive(base_name=f"aurora-host-{version}", format="zip", base_dir="./release-host")
