@@ -69,20 +69,29 @@ impl UpdateHandler {
                     Ok(active) => {
                         if !active {
                             warn!("beta phasing is not active");
-                            let w = window.clone();
-                            slint::invoke_from_event_loop(move || {
-                            if let Some(w) = w.upgrade() {
-                                w.set_popup_id("beta-phase-inactive".into());
-                                w.set_popup_title("Beta phase inactive".into());
-                                w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
-                                w.set_popup_confirm_delay(0);
-                                w.set_popup_required_count(0);
-                                w.set_popup_checkboxes(slint::ModelRc::default());
-                                w.set_popup_active(true);
+                            match Self::update_available() {
+                                Ok(true) => {
+                                    info!(
+                                        "beta phase inactive but an update is available; updating"
+                                    );
+                                }
+                                Ok(false) | Err(_) => {
+                                    let w = window.clone();
+                                    slint::invoke_from_event_loop(move || {
+                                    if let Some(w) = w.upgrade() {
+                                        w.set_popup_id("beta-phase-inactive".into());
+                                        w.set_popup_title("Beta phase inactive".into());
+                                        w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
+                                        w.set_popup_confirm_delay(0);
+                                        w.set_popup_required_count(0);
+                                        w.set_popup_checkboxes(slint::ModelRc::default());
+                                        w.set_popup_active(true);
+                                    }
+                                })
+                                .ok();
+                                    return;
+                                }
                             }
-                        })
-                        .ok();
-                            return;
                         } else {
                             info!("beta phasing is active");
                         }
@@ -355,6 +364,17 @@ impl UpdateHandler {
             std::thread::sleep(Duration::from_millis(300));
         }
         warn!("could not deliver init_confirmed to the updater");
+    }
+
+    #[cfg(feature = "beta")]
+    fn update_available() -> Result<bool> {
+        let root = ipc::install_root();
+        let manifest = Self::fetch_manifest()?;
+        let local = match LocalManifest::load(&root) {
+            Ok(Some(local)) => local,
+            _ => LocalManifest::build_manifest_from_disk(&root, &manifest),
+        };
+        Ok(!manifest.changed_files(&root, &local).is_empty())
     }
 
     #[cfg(feature = "beta")]

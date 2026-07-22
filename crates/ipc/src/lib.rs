@@ -5,7 +5,7 @@ pub mod protocol;
 use std::path::PathBuf;
 use std::time::Duration;
 
-pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/manifest.json";
+pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/manifest.json";
 // TODO: fill in fallback before release
 pub const MANIFEST_URL_FALLBACK: &str = "";
 
