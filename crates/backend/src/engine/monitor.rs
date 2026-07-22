@@ -2,7 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
-use log::{error, info, warn};
+use log::*;
 use shared::classes::info::NTE_PROCESSES;
 
 use crate::classes::rpc::RPC;
