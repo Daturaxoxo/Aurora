@@ -7,17 +7,21 @@ use log::*;
 use shared::config::{self, key};
 use shared::utils::{self, get_current_timestamp};
 
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
+use std::time::Duration;
 
 const APPLICATION_ID: &str = "1505644188060876920";
+
+const MIN_BACKOFF: Duration = Duration::from_secs(15);
+const MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
 
 /// Global Discord RPC client
 pub static RPC: std::sync::LazyLock<DiscordRpc> = std::sync::LazyLock::new(|| {
     DiscordRpc::new(utils::get_current_timestamp()).unwrap_or_default()
 });
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RpcCommand {
     SetIdle,
     SetLaunching,
@@ -55,48 +59,16 @@ impl DiscordRpc {
                     .large_text("Aurora Mod Launcher")
             }
 
-            let mut client = DiscordIpcClient::new(APPLICATION_ID);
-            let mut connected = false;
+            fn rpc_enabled() -> bool {
+                config::get(key::DISCORD_RPC).as_bool().unwrap_or(true)
+            }
 
-            for cmd in rx {
-                match cmd {
-                    RpcCommand::Stop => {
-                        if connected {
-                            let _ = client.close();
-                            connected = false;
-                        }
-                        continue;
-                    }
-                    RpcCommand::Reconnect => {
-                        let res = if connected {
-                            client.reconnect()
-                        } else {
-                            client.connect()
-                        };
-                        match res {
-                            Ok(()) => connected = true,
-                            Err(e) => error!("Failed to reconnect to Discord IPC: {e:?}"),
-                        }
-                        continue;
-                    }
-                    _ => {}
-                }
-
-                if !config::get(key::DISCORD_RPC).as_bool().unwrap_or(true) {
-                    continue;
-                }
-
-                if !connected {
-                    match client.connect() {
-                        Ok(()) => connected = true,
-                        Err(e) => {
-                            error!("Failed to connect to Discord IPC: {e:?}");
-                            continue;
-                        }
-                    }
-                }
-
-                let res = match cmd {
+            fn apply(
+                client: &mut DiscordIpcClient,
+                state: RpcCommand,
+                start_timestamp: i64,
+            ) -> std::result::Result<(), discord_rich_presence::error::Error> {
+                match state {
                     RpcCommand::SetIdle => client.set_activity(
                         Activity::new()
                             .state("Idle")
@@ -136,15 +108,96 @@ impl DiscordRpc {
                                 .buttons(get_buttons()),
                         )
                     }
-                    RpcCommand::ClearActivity => client.clear_activity(),
-                    // Handled before the connection (check above)
-                    RpcCommand::Reconnect | RpcCommand::Stop => unreachable!(),
+                    RpcCommand::ClearActivity | RpcCommand::Reconnect | RpcCommand::Stop => {
+                        unreachable!("non-activity command reached apply()")
+                    }
+                }
+            }
+
+            let mut client = DiscordIpcClient::new(APPLICATION_ID);
+            let mut connected = false;
+            let mut desired: Option<RpcCommand> = None;
+            let mut backoff = MIN_BACKOFF;
+
+            loop {
+                let want_retry = !connected && desired.is_some() && rpc_enabled();
+                let cmd = if want_retry {
+                    match rx.recv_timeout(backoff) {
+                        Ok(cmd) => Some(cmd),
+                        Err(RecvTimeoutError::Timeout) => None, // time to retry connect
+                        Err(RecvTimeoutError::Disconnected) => break,
+                    }
+                } else {
+                    match rx.recv() {
+                        Ok(cmd) => Some(cmd),
+                        Err(_) => break,
+                    }
                 };
 
-                if let Err(e) = res {
-                    error!("Discord RPC error processing command: {e:?}");
+                if let Some(cmd) = cmd {
+                    match cmd {
+                        RpcCommand::Stop => {
+                            if connected {
+                                let _ = client.close();
+                                connected = false;
+                            }
+                            desired = None;
+                            continue;
+                        }
+                        RpcCommand::ClearActivity => {
+                            desired = None;
+                            if connected {
+                                if let Err(e) = client.clear_activity() {
+                                    debug!("Discord RPC clear failed, dropping connection: {e:?}");
+                                    let _ = client.close();
+                                    connected = false;
+                                }
+                            }
+                            continue;
+                        }
+                        RpcCommand::Reconnect => {
+                            if connected {
+                                let _ = client.close();
+                                connected = false;
+                            }
+                            backoff = MIN_BACKOFF;
+                            // Fall through to the (re)connect + apply below
+                        }
+                        state => desired = Some(state),
+                    }
+                }
+
+                if !rpc_enabled() {
+                    continue;
+                }
+
+                let Some(state) = desired else {
+                    continue;
+                };
+
+                if !connected {
+                    match client.connect() {
+                        Ok(()) => {
+                            connected = true;
+                            backoff = MIN_BACKOFF;
+                            info!("Connected to Discord IPC");
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Discord IPC unavailable, retrying in {}s: {e:?}",
+                                backoff.as_secs()
+                            );
+                            backoff = (backoff * 2).min(MAX_BACKOFF);
+                            continue;
+                        }
+                    }
+                }
+
+                if let Err(e) = apply(&mut client, state, start_timestamp) {
+                    debug!("Discord RPC error, dropping connection: {e:?}");
                     let _ = client.close();
                     connected = false;
+                    backoff = MIN_BACKOFF;
                 }
             }
         });

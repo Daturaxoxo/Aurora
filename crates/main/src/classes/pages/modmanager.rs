@@ -494,8 +494,8 @@ impl ModManagerHandler {
             archive.extract_all(&target)?;
         } else if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
             let data = std::fs::read(path)?;
-            // Max file size is 200MB
-            let extractor = ArchiveExtractor::new().with_max_file_size(200 * 1024 * 1024);
+            // Max file size is 1GB
+            let extractor = ArchiveExtractor::new().with_max_file_size(1 * 1024 * 1024 * 1024);
             let files = match ext.as_str() {
                 "zip" => extractor.extract(&data, ArchiveFormat::Zip)?,
                 "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
