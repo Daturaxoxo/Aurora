@@ -31,7 +31,31 @@ fn validate_game_path(path: &PathBuf) -> Result<bool> {
     Ok(game_found)
 }
 
+fn default_install_paths() -> Vec<PathBuf> {
+    if !cfg!(windows) {
+        return vec![];
+    }
+    let mut paths = vec![PathBuf::from(r"C:\Program Files").join(GAME_FOLDER_NAME)];
+    for root in get_root_paths() {
+        if root != PathBuf::from(r"C:\") {
+            paths.push(root.join("Program Files").join(GAME_FOLDER_NAME));
+        }
+    }
+    paths
+}
+
 pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
+    for candidate in default_install_paths() {
+        trace!("Probing default install path {}", candidate.display());
+        if candidate.is_dir() && validate_game_path(&candidate).unwrap_or(false) {
+            info!(
+                "Found game directory via default install path {}",
+                candidate.display()
+            );
+            return Ok(Some(candidate));
+        }
+    }
+
     const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
         &[
             "Windows",
