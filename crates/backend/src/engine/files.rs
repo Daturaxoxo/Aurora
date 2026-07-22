@@ -70,14 +70,24 @@ impl AuroraEngine {
             .iter()
             .map(|(target, destination)| {
                 let is_asi_plugin = *target == Target::AsiPlugin;
+                let source = self.bin_path.join(target.as_file());
+                // The AsiPlugin is always required. The rest
+                // (NET_TFMAIN.asi / cutils.dll) only matter for the censorship
+                // remover, and are optional: we only copy them when the remover
+                // is enabled AND the file is actually installed in Bin.
+                let censorship_active = self.crr && source.exists();
+                if self.crr && !is_asi_plugin && !source.exists() {
+                    debug!(
+                        "Censorship remover is enabled but '{}' is not installed; skipping.",
+                        source.display()
+                    );
+                }
                 ManagedFile {
                     label: target.as_file().to_string(),
-                    source: self.bin_path.join(target.as_file()),
+                    source,
                     destination: destination.clone(),
-                    // AsiPlugin is always required; the rest only matter
-                    // when the censorship remover is on.
-                    required: is_asi_plugin || self.crr,
-                    enabled: is_asi_plugin || self.crr,
+                    required: is_asi_plugin,
+                    enabled: is_asi_plugin || censorship_active,
                     group: FileGroup::SignatureBypass,
                     addon: None,
                 }

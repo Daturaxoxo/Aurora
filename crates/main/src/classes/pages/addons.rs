@@ -16,6 +16,9 @@ use std::rc::Rc;
 pub const ARCHIVE_EXTENSIONS: [&str; 9] =
     ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4"];
 
+// TEMP:
+const UNAVAILABLE_ADDONS: [&str; 1] = ["Censorship Remover"];
+
 const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
     ("No 3D Driving Waypoint", "drv_lin"),
     ("Hide UID", "uid_rem"),
@@ -578,6 +581,8 @@ impl AddonsHandler {
             enabled: addon.enabled,
             update_available: addon.update_available,
             installing: false,
+            // TEMP:
+            unavailable: UNAVAILABLE_ADDONS.contains(&addon.name.as_str()),
         }
     }
 }

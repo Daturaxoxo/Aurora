@@ -40,8 +40,6 @@ impl PakAddon {
             Self::new("uid_rem".to_string(), "HideUI_UserID_P".to_string()),
             // key::HIDE_NOTIF_DOTS
             Self::new("nor_rem".to_string(), "Disable_RedDot_P".to_string()),
-            // key::CENSORSHIP_REMOVE
-            Self::new("csn_rem".to_string(), "NET_TFMAIN".to_string()),
             // key::COOLDOWN_TIMER
             Self::new("col_tim".to_string(), "CooldownTimer_P".to_string()),
             // key::COLLECTIBLES
@@ -70,7 +68,6 @@ impl ResolvedAddonFile {
             "Disable_RedDot_P" => "HideRedDots",
             "CooldownTimer_P" => "CooldownTimers",
             "ItemOutline_P" => "Collectibles",
-            "NET_TFMAIN" => "Censorship",
             _ => base_name,
         }
         .to_string()

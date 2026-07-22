@@ -2,7 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
-use log::{error, info, warn};
+use log::*;
 use shared::classes::info::NTE_PROCESSES;
 
 use crate::classes::rpc::RPC;
@@ -53,8 +53,6 @@ impl AuroraEngine {
 
             if !snapshot.matching(game_process).is_empty() {
                 info!("NTE process ({game_process}) was detected, game is running.");
-                // TODO:
-                error!("UNIMPLEMENTED: on game started");
                 RPC.set_ingame()?;
                 return Ok(true);
             }
@@ -64,8 +62,6 @@ impl AuroraEngine {
                 if !launcher_seen {
                     info!("NTE Launcher activity detected.");
                     launcher_seen = true;
-                    // TODO:
-                    error!("UNIMPLEMENTED: on launcher detected");
                     RPC.set_launching()?;
                 }
                 continue;
