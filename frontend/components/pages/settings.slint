@@ -446,7 +446,7 @@ export component SettingsPage inherits Rectangle {
 
                                 SettingCard {
                                     title: "Game Directory";
-                                    subtitle: ".";
+                                    subtitle: root.game-directory == "" ? "No directory selected" : root.game-directory;
 
                                     Rectangle {
                                         width: 76px;
