@@ -32,8 +32,6 @@ fn main() -> Result<()> {
         panic!("Logger failed to initialize: {e}");
     });
 
-    error!("error test");
-
     #[cfg(target_os = "linux")]
     ensure_root();
 
