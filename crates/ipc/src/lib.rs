@@ -5,10 +5,9 @@ pub mod protocol;
 use std::path::PathBuf;
 use std::time::Duration;
 
-// TODO: fill in real endpoints before release
-pub const MANIFEST_URL_PRIMARY: &str = "https://getaurora.moe/files/manifest.json";
-pub const MANIFEST_URL_FALLBACK: &str =
-    "https://github.com/Alawapr/aurora-test/releases/latest/download/manifest.json";
+pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/manifest.json";
+// TODO: fill in fallback before release
+pub const MANIFEST_URL_FALLBACK: &str = "";
 
 pub const MAIN_PIPE_NAME: &str = "aurora-updater";
 pub const INIT_PIPE_NAME: &str = "aurora-updater-init";
