@@ -20,7 +20,7 @@ const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
 #[cfg(feature = "beta")]
 const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
 #[cfg(feature = "beta")]
-const CURRENT_BETA_PHASE: i32 = 1;
+const CURRENT_BETA_PHASE: i32 = 2;
 
 #[cfg(feature = "beta")]
 #[allow(dead_code)]
