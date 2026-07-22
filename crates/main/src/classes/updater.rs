@@ -368,6 +368,7 @@ impl UpdateHandler {
     }
 
     #[cfg(feature = "beta")]
+    #[cfg(not(debug_assertions))]
     fn update_available() -> Result<bool> {
         let root = ipc::install_root();
         let manifest = Self::fetch_manifest()?;
