@@ -69,6 +69,7 @@ impl UpdateHandler {
                     Ok(active) => {
                         if !active {
                             warn!("beta phasing is not active");
+                            #[cfg(not(debug_assertions))]
                             match Self::update_available() {
                                 Ok(true) => {
                                     info!(

@@ -55,6 +55,9 @@ winresource = "0.1"
 windows-sys = { workspace = true }
 mslnk = "0.1"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = { workspace = true }
+
 [lints.clippy]
 enum_glob_use = "warn"
 pedantic = { level = "warn", priority = -1 }

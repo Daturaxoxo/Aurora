@@ -29,6 +29,7 @@ chrono = { version = "0.4", default-features = false, features = [
     "clock",
 ] }
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+libc = "0.2"
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_System_Ole",
