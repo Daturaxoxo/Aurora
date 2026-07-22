@@ -16,7 +16,7 @@ use std::sync::Mutex;
 const NOTES_KEY: &str = "module_notes";
 const DISPLAY_NAMES_KEY: &str = "module_display_names";
 const DISABLED_SUFFIX: &str = ".disabled";
-const MODULE_EXTENSIONS: [&str; 2] = ["asi", "dll"];
+const MODULE_EXTENSIONS: [&str; 1] = ["asi"];
 
 #[derive(Debug, Clone)]
 struct Module {
