@@ -23,7 +23,6 @@ impl fmt::Display for Version {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VersionSpec {
-    pub launcher_subfolder: &'static str,
     pub launcher_process: &'static str,
     pub helper_processes: &'static [&'static str],
 }
@@ -32,17 +31,14 @@ impl Version {
     pub const fn spec(&self) -> VersionSpec {
         match self {
             Self::Global => VersionSpec {
-                launcher_subfolder: "NTEGlobal",
                 launcher_process: "NTEGlobalLauncher.exe",
                 helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe"],
             },
             Self::CN => VersionSpec {
-                launcher_subfolder: "NTELauncher",
                 launcher_process: "NTELauncher.exe",
                 helper_processes: &["NTEGame.exe"],
             },
             Self::TW => VersionSpec {
-                launcher_subfolder: "NTETW",
                 launcher_process: "NTETWLauncher.exe",
                 helper_processes: &["NTETWGame.exe"],
             },

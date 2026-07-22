@@ -13,6 +13,9 @@ serde_json = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
 
+[target.'cfg(not(windows))'.dependencies]
+libc = { workspace = true }
+
 [lints.clippy]
 enum_glob_use = "warn"
 pedantic = { level = "warn", priority = -1 }

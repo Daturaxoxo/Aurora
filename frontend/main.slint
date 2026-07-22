@@ -1,6 +1,6 @@
 import { SettingsPage } from "components/pages/settings.slint";
 import { Tr, TrKey } from "translations.slint";
-export { Tr, TrKey } from "translations.slint";
+export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem } from "components/popup.slint";
@@ -74,6 +74,9 @@ export component MainWindow inherits Window {
     in-out property <bool> show-lua-scripts: false;
     in-out property <bool> show-mod-manager: false;
     in-out property <bool> show-screenshots: false;
+
+    // App Version Property
+    in-out property <string> app-version: "";
 
     // Launch Button Properties
     in-out property <string> launch-button-text: "Launch";
@@ -473,6 +476,16 @@ export component MainWindow inherits Window {
                     }
                 }
             }
+        }
+
+        // App version — bottom-left corner
+        Text {
+            x: 4px;
+            y: parent.height - self.height - 2px;
+            text: root.app-version;
+            color: #ffffff55;
+            font-family: "Segoe UI";
+            font-size: 10px;
         }
 
         // Launch Button

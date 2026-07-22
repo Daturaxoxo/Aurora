@@ -22,16 +22,11 @@ pub struct DllSlot {
     pub name: String,
     pub root: PathBuf,
     pub bin: PathBuf,
-    pub launcher: Option<PathBuf>,
 }
 
 impl DllSlot {
     pub fn all_targets(&self) -> Vec<(&'static str, PathBuf)> {
-        let mut targets = vec![("root", self.root.clone()), ("bin", self.bin.clone())];
-        if let Some(launcher) = &self.launcher {
-            targets.push(("launcher", launcher.clone()));
-        }
-        targets
+        vec![("root", self.root.clone()), ("bin", self.bin.clone())]
     }
 }
 
@@ -73,7 +68,6 @@ pub fn get_version_paths(
 
     let win64 = game_path.join(CLIENT_WIN64);
     let pak_base = game_path.join(CLIENT_PAK_DIR);
-    let launcher_dir = game_path.join(spec.launcher_subfolder);
 
     let dll_names = engine_method.to_dll_names(version);
 
@@ -83,7 +77,6 @@ pub fn get_version_paths(
             name: dll_name.to_string(),
             root: game_path.join(dll_name),
             bin: win64.join(dll_name),
-            launcher: Some(launcher_dir.join(dll_name)),
         })
         .collect();
 

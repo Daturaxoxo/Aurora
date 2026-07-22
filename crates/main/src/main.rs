@@ -54,6 +54,7 @@ fn main() -> Result<()> {
     );
 
     let window = MainWindow::new()?;
+    window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
     let slint_window = window.window();
     let monitor_size = match get_monitor_size() {
         Ok(size) => size,
