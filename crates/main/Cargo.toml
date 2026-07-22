@@ -3,6 +3,10 @@ name = "Aurora"
 version = "2.0.0"
 edition = "2021"
 
+[features]
+default = ["beta"]
+beta = []
+
 [dependencies]
 slint = { version = "1.17", default-features = false, features = [
     "renderer-femtovg",

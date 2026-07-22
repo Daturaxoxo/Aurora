@@ -3,7 +3,7 @@ use backend::classes::addons::payload_files;
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::{config, utils};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use slint::{Model, VecModel};
@@ -355,7 +355,13 @@ impl AddonsHandler {
                             continue;
                         }
                         let gb = GameBananaApi::new();
-                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        let rt = match tokio::runtime::Runtime::new() {
+                            Ok(rt) => rt,
+                            Err(e) => {
+                                error!("Addons scan: could not create tokio runtime: {e}");
+                                continue;
+                            }
+                        };
                         let mod_files = rt.block_on(async {
                             gb.get_mod_files(
                                 addon
@@ -467,7 +473,15 @@ impl AddonsHandler {
                         for file in files {
                             let path = file?.path();
                             let extension = path.extension().unwrap_or_default();
-                            let name = path.file_name().unwrap().to_str().unwrap();
+                            let name = path
+                                .file_name()
+                                .with_context(|| {
+                                    "install download file: couldn't get path file name"
+                                })?
+                                .to_str()
+                                .with_context(|| {
+                                    "install download file: couldn't get path file name as str"
+                                })?;
                             if extension == "txt" {
                                 fs::remove_file(&path)?;
                             }

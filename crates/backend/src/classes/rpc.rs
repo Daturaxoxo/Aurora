@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use discord_rich_presence::{
     activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
@@ -13,8 +13,9 @@ use std::thread;
 const APPLICATION_ID: &str = "1505644188060876920";
 
 /// Global Discord RPC client
-pub static RPC: std::sync::LazyLock<DiscordRpc> =
-    std::sync::LazyLock::new(|| DiscordRpc::new(utils::get_current_timestamp()).unwrap());
+pub static RPC: std::sync::LazyLock<DiscordRpc> = std::sync::LazyLock::new(|| {
+    DiscordRpc::new(utils::get_current_timestamp()).unwrap_or_default()
+});
 
 #[derive(Debug)]
 enum RpcCommand {
@@ -27,7 +28,13 @@ enum RpcCommand {
 }
 
 pub struct DiscordRpc {
-    sender: Sender<RpcCommand>,
+    sender: Option<Sender<RpcCommand>>,
+}
+
+impl Default for DiscordRpc {
+    fn default() -> Self {
+        Self { sender: None }
+    }
 }
 
 impl DiscordRpc {
@@ -142,41 +149,53 @@ impl DiscordRpc {
             }
         });
 
-        Ok(Self { sender: tx })
+        Ok(Self { sender: Some(tx) })
     }
 
     pub fn reconnect(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::Reconnect)
             .context("Failed to send Reconnect command to RPC thread")
     }
 
     pub fn clear_activity(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::ClearActivity)
             .context("Failed to send ClearActivity command to RPC thread")
     }
 
     pub fn set_idle(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::SetIdle)
             .context("Failed to send SetIdle command to RPC thread")
     }
 
     pub fn set_launching(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::SetLaunching)
             .context("Failed to send SetLaunching command to RPC thread")
     }
 
     pub fn set_ingame(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::SetInGame)
             .context("Failed to send SetInGame command to RPC thread")
     }
 
     pub fn stop(&self) -> Result<()> {
         self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::Stop)
             .context("Failed to send Stop command to RPC thread")
     }

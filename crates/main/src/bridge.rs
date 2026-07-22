@@ -21,7 +21,10 @@ impl Bridge {
         let w_launch = window.clone();
         if let Some(w) = window.upgrade() {
             w.on_launch_clicked(move || {
-                if config::get(key::CUSTOM_ADDONS_TOGGLED).as_bool().unwrap() {
+                if config::get(key::CUSTOM_ADDONS_TOGGLED)
+                    .as_bool()
+                    .unwrap_or(false)
+                {
                     let plugin_files = config::get(key::CUSTOM_ADDONS)
                         .as_array()
                         .unwrap()

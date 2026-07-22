@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::*;
 
 use crate::classes::validate::ensure_dir;
@@ -98,7 +98,11 @@ impl AuroraEngine {
             if !missing.is_empty() {
                 let msg = format!(
                     "PAK Addon '{addon}'. Path: {}. Missing required files: {}",
-                    entries.first().unwrap().source.display(),
+                    entries
+                        .first()
+                        .with_context(|| "Failed to get first pak addon")?
+                        .source
+                        .display(),
                     missing.join(", ")
                 );
                 error!("{msg}");

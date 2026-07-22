@@ -188,10 +188,13 @@ impl ScreenshotHandler {
             RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()),
         );
 
-        rayon::ThreadPoolBuilder::new()
+        match rayon::ThreadPoolBuilder::new()
             .num_threads(s.cpus().iter().count() / 2)
             .build_global()
-            .unwrap();
+        {
+            Ok(_) => (),
+            Err(e) => error!("Could not create rayon pool: {e}"),
+        }
         Self::bind(window);
         Self::reload(window);
         info!("[Screenshots] setup() complete");

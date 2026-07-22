@@ -87,7 +87,7 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
                             .extension()
                             .ok_or_else(|| anyhow!("Could not get file extension"))?
                             .to_str()
-                            .unwrap(),
+                            .ok_or_else(|| anyhow!("Could not get file extension"))?,
                     )
                 {
                     issues.push(Issue::new(

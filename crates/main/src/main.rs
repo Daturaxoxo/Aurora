@@ -6,7 +6,7 @@ mod bridge;
 mod classes;
 mod translations;
 
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use display_info::DisplayInfo;
 use log::*;
 
@@ -32,6 +32,8 @@ fn main() -> Result<()> {
         panic!("Logger failed to initialize: {e}");
     });
 
+    error!("error test");
+
     #[cfg(target_os = "linux")]
     ensure_root();
 
@@ -55,7 +57,14 @@ fn main() -> Result<()> {
 
     let window = MainWindow::new()?;
     let slint_window = window.window();
-    let monitor_size = get_monitor_size().unwrap();
+    let monitor_size = match get_monitor_size() {
+        Ok(size) => size,
+        Err(e) => {
+            error!("Could not get monitor size: {e}");
+            return Ok(());
+        }
+    };
+
     translations::apply_saved_language(&window);
 
     if monitor_size.width < 1366 {
@@ -116,11 +125,12 @@ fn main() -> Result<()> {
     Ok(window.run()?)
 }
 
-fn get_monitor_size() -> Option<DisplayInfo> {
+fn get_monitor_size() -> Result<DisplayInfo> {
     DisplayInfo::all()
-        .unwrap()
+        .with_context(|| "Failed to get monitor information")?
         .into_iter()
         .find(|display| display.is_primary)
+        .ok_or_else(|| anyhow!("No primary display found"))
 }
 
 #[cfg(target_os = "linux")]

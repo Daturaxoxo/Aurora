@@ -23,9 +23,9 @@ fn validate_game_path(path: &PathBuf) -> Result<bool> {
         }
     }
 
-    let game_found = path.read_dir()?.any(|entry| {
-        let entry = entry.unwrap();
-        entry.file_name().to_str().unwrap() == GAME_FOLDER_NAME
+    let game_found = path.read_dir()?.any(|entry| match entry {
+        Ok(e) => e.file_name().to_str().unwrap() == GAME_FOLDER_NAME,
+        Err(_) => false,
     });
 
     Ok(game_found)

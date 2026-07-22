@@ -152,7 +152,9 @@ impl GameBananaApi {
         let only_mods: Vec<ApiRecord> = subfeed
             .records
             .into_iter()
-            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
+            .filter(|r| {
+                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
+            })
             .collect();
 
         if only_mods.is_empty() {
@@ -223,7 +225,9 @@ impl GameBananaApi {
         let only_mods: Vec<ApiRecord> = search_response
             .records
             .into_iter()
-            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
+            .filter(|r| {
+                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
+            })
             .collect();
 
         let nte_mods: Vec<NteMod> = stream::iter(only_mods)
@@ -295,7 +299,9 @@ impl GameBananaApi {
         let only_mods: Vec<ApiRecord> = index
             .records
             .into_iter()
-            .filter(|r| r.model_name.is_some() && r.model_name.as_ref().unwrap() == "Mod")
+            .filter(|r| {
+                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
+            })
             .collect();
 
         let nte_mods: Vec<NteMod> = stream::iter(only_mods)

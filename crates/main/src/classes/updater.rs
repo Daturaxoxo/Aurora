@@ -15,10 +15,14 @@ use serde::Deserialize;
 use crate::bridge::Bridge;
 use crate::MainWindow;
 
+#[cfg(feature = "beta")]
 const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
+#[cfg(feature = "beta")]
 const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
+#[cfg(feature = "beta")]
 const CURRENT_BETA_PHASE: i32 = 1;
 
+#[cfg(feature = "beta")]
 #[allow(dead_code)]
 #[derive(Deserialize)]
 struct BetaPhaseResponse {
@@ -48,6 +52,7 @@ impl UpdateHandler {
                     warn!("startup update check skipped");
                     return;
                 }
+                #[cfg(feature = "beta")]
                 SKIP_BETA_PHASING_ARG => {
                     info!("skipping beta phasing");
                     skip_beta_phasing = true;
@@ -57,13 +62,15 @@ impl UpdateHandler {
             }
         }
 
-        if !skip_beta_phasing {
-            match Self::check_beta_phasing() {
-                Ok(active) => {
-                    if !active {
-                        warn!("beta phasing is not active");
-                        let w = window.clone();
-                        slint::invoke_from_event_loop(move || {
+        #[cfg(feature = "beta")]
+        {
+            if !skip_beta_phasing {
+                match Self::check_beta_phasing() {
+                    Ok(active) => {
+                        if !active {
+                            warn!("beta phasing is not active");
+                            let w = window.clone();
+                            slint::invoke_from_event_loop(move || {
                             if let Some(w) = w.upgrade() {
                                 w.set_popup_id("beta-phase-inactive".into());
                                 w.set_popup_title("Beta phase inactive".into());
@@ -75,14 +82,15 @@ impl UpdateHandler {
                             }
                         })
                         .ok();
-                        return;
-                    } else {
-                        info!("beta phasing is active");
+                            return;
+                        } else {
+                            info!("beta phasing is active");
+                        }
                     }
-                }
-                Err(e) => {
-                    error!("failed to check beta phasing: {e}");
-                    process::exit(0);
+                    Err(e) => {
+                        error!("failed to check beta phasing: {e}");
+                        process::exit(0);
+                    }
                 }
             }
         }
@@ -349,6 +357,7 @@ impl UpdateHandler {
         warn!("could not deliver init_confirmed to the updater");
     }
 
+    #[cfg(feature = "beta")]
     fn check_beta_phasing() -> Result<bool> {
         let res: BetaPhaseResponse = reqwest::blocking::get(BETA_PHASE_CHECK_URL)
             .with_context(|| "Couldn't connect to beta phasing endpoint")?

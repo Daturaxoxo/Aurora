@@ -1,7 +1,7 @@
 use crate::classes::pages::addons::ARCHIVE_EXTENSIONS;
 use crate::{MainWindow, ModItem};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use once_cell::sync::Lazy;
@@ -484,7 +484,10 @@ impl ModManagerHandler {
 
         if ext == "pak" || ext == "utoc" || ext == "ucas" {
             std::fs::create_dir_all(&target)?;
-            std::fs::copy(path, target.join(path.file_name().unwrap()))?;
+            std::fs::copy(
+                path,
+                target.join(path.file_name().with_context(|| "invalid file name")?),
+            )?;
         } else if ext == "rar" {
             std::fs::create_dir_all(&target)?;
             let archive = RarArchive::new(path).open_for_processing()?;
