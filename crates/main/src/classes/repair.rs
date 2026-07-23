@@ -9,7 +9,7 @@ use shared::{
 pub struct RepairHandler;
 
 impl RepairHandler {
-    // - 6. Display any warnings, done actions, etc in a final window.
+    // TODO: Display any warnings, done actions, etc in a final window.
     pub fn repair(validate_files: bool, clean_cache: bool, remove_files: bool) -> Result<()> {
         let engine_handler = backend::handler::get_tx()?;
         engine_handler.send(EngineCommand::KillProcesses)?;
