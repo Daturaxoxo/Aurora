@@ -69,7 +69,7 @@ pub fn get_version_paths(
     let win64 = game_path.join(CLIENT_WIN64);
     let pak_base = game_path.join(CLIENT_PAK_DIR);
 
-    let dll_names = engine_method.to_dll_names(version);
+    let dll_names = engine_method.to_dll_names();
 
     let dll_slots: Vec<DllSlot> = dll_names
         .into_iter()

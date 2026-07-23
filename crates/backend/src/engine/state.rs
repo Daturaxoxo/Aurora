@@ -50,7 +50,7 @@ impl AuroraEngine {
         let engine_method_raw = get(key::ENGINE_METHOD)
             .as_i64()
             .ok_or_else(|| anyhow!("Error when reading config: ENGINE_METHOD"))?;
-        let engine_method = BypassMethod::from_num(engine_method_raw, version)?;
+        let engine_method = BypassMethod::from_num(engine_method_raw)?;
         trace!("Engine method: {engine_method}");
 
         let bin_path =

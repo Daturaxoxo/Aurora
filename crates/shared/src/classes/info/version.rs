@@ -78,7 +78,6 @@ pub fn detect_version(game_path: &Path) -> Result<Version> {
 pub enum BypassMethod {
     Version,
     DSound,
-    DDraw,
 }
 
 impl fmt::Display for BypassMethod {
@@ -86,38 +85,24 @@ impl fmt::Display for BypassMethod {
         let s = match self {
             Self::Version => "version.dll",
             Self::DSound => "dsound.dll",
-            Self::DDraw => "ddraw.dll",
         };
         write!(f, "{s}")
     }
 }
 
 impl BypassMethod {
-    pub fn to_dll_names(&self, version: Version) -> Vec<&'static str> {
+    pub fn to_dll_names(&self) -> Vec<&'static str> {
         match self {
             Self::Version => vec!["version.dll"],
-            Self::DSound => {
-                if version == Version::CN {
-                    vec!["dsound.dll", "ddraw.dll"]
-                } else {
-                    vec!["dsound.dll"]
-                }
-            }
-            Self::DDraw => vec!["ddraw.dll"],
+            Self::DSound => vec!["dsound.dll"]
         }
     }
 
-    pub fn from_num(i: impl Into<i64>, version: Version) -> Result<Self> {
+    pub fn from_num(i: impl Into<i64>) -> Result<Self> {
         let i = i.into();
         match i {
             0 => Ok(Self::Version),
-            1 => {
-                if version == Version::CN {
-                    Ok(Self::DSound)
-                } else {
-                    Ok(Self::DDraw)
-                }
-            }
+            1 => Ok(Self::DSound),
             _ => Err(anyhow!("Invalid bypass method: {i}")),
         }
     }
