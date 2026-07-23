@@ -106,7 +106,7 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
     Ok(issues)
 }
 
-pub fn validate_builtins(
+pub fn validate_files(
     bin_dir: impl Into<PathBuf>,
     required_names: Vec<String>,
 ) -> Result<Vec<String>> {

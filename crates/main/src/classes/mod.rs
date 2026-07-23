@@ -4,5 +4,6 @@ pub mod buttons;
 pub mod filedrop;
 pub mod pages;
 pub mod popup;
+pub mod repair;
 pub mod toast;
 pub mod updater;

@@ -1,8 +1,9 @@
-use crate::MainWindow;
+use crate::{CheckboxItem, MainWindow};
 use log::error;
 #[cfg(target_os = "windows")]
 use mslnk::ShellLink;
 use shared::{classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory};
+use slint::VecModel;
 
 pub struct ButtonHandler;
 
@@ -49,24 +50,37 @@ impl ButtonHandler {
         }
     }
 
-    fn repair_aurora(_window: &slint::Weak<MainWindow>) {
-        // NOTE: When finishing up, change _window to window (prefixed with _ right now to make sure we don't get any warnings since its not being used) -Daturas
-        /*
-            Repair Aurora: Used to repair any issues with the application and clean up anything unnecessary
-            Pre-Repair: Creates a Popup Dialog
-            - 1. Checkbox: Validate Aurora Files | Should Repair validate Bin and Builtins?
-            - 2. Checkbox: Clean Cache | Should Aurora clean any Aurora related cache? (GameBanana cache, telemetry data, etc)
-            - 3. Checkbox: Remove Injected Files | Should Aurora clean any related files in the game directory?
-            Flow:
-            - 1. Close any and all NTE processes before doing anything (prompt the user first before doing anything)
-            - 2. Validate \Bin (check everything to make sure no DLLs/ASIs are missing, redownload if they are required)
-            - 3. Validate \Builtins (check everything to make sure no DLLs/ASIs are missing, don't redownload but warn the user)
-            - 4. Validate game path to see if its correct
-            - 5. Clean up any aurora related files in the game path (dlls, asi files, plugins [?])
-                - NOTE: should also have checks for any old files.
-            - 6. Display any warnings, done actions, etc in a final window.
-        */
-        todo!()
+    fn repair_aurora(window: &slint::Weak<MainWindow>) {
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                let checkboxes = vec![
+                    CheckboxItem {
+                        label: "Validate Aurora Files".into(),
+                        required: true,
+                        checked: true,
+                    },
+                    CheckboxItem {
+                        label: "Clean Cache".into(),
+                        required: true,
+                        checked: false,
+                    },
+                    CheckboxItem {
+                        label: "Remove Injected Files".into(),
+                        required: true,
+                        checked: true,
+                    },
+                ];
+                w.set_popup_id("repair".into());
+                w.set_popup_title("Repair".into());
+                w.set_popup_message("This will repair any issues with Aurora".into());
+                w.set_popup_confirm_delay(0);
+                w.set_popup_required_count(0);
+                w.set_popup_checkboxes(slint::ModelRc::new(VecModel::from(checkboxes)));
+                w.set_popup_active(true);
+            }
+        })
+        .ok();
     }
 
     fn check_for_updates(window: &slint::Weak<MainWindow>) {

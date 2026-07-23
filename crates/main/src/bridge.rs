@@ -104,6 +104,7 @@ impl Bridge {
         });
     }
 
+    // TODO: Refactor kind to an enum plz
     pub fn show_toast(window: &slint::Weak<MainWindow>, text: &str, kind: &str) {
         let text = text.to_string();
         let kind = kind.to_string();

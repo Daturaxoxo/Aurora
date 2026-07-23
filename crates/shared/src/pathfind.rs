@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[allow(clippy::ptr_arg)]
-fn validate_game_path(path: &PathBuf) -> Result<bool> {
+pub fn validate_game_path(path: &PathBuf) -> Result<bool> {
     if !path.exists() {
         return Ok(false);
     }

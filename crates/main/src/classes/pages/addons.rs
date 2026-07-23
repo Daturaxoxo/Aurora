@@ -1,6 +1,7 @@
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::classes::gamebanana::api::GameBananaApi;
+use shared::utils::get_config_cache_dir;
 use shared::{config, utils};
 
 use anyhow::{Context, Result};
@@ -91,9 +92,7 @@ impl AddonsHandler {
     }
 
     fn image_cache_dir() -> PathBuf {
-        let base = dirs::config_dir().unwrap_or_else(|| ".".into());
-
-        base.join("Aurora").join("Cache").join("Addons")
+        get_config_cache_dir().join("Addons")
     }
 
     fn cache_filename(url: &str) -> String {

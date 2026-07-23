@@ -78,3 +78,18 @@ pub fn format_size(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
+
+pub fn get_cache_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        .join("Cache")
+}
+
+pub fn get_config_cache_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| ".".into())
+        .join("Aurora")
+        .join("Cache")
+}

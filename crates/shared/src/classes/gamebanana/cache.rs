@@ -1,6 +1,7 @@
+use crate::utils::get_cache_dir;
+
 use super::types::NteMod;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -26,11 +27,7 @@ impl Default for CacheManager {
 
 impl CacheManager {
     pub fn new() -> Self {
-        let base_dir = env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-            .unwrap_or_else(|| env::current_dir().unwrap_or_default())
-            .join("Cache/GameBanana");
+        let base_dir = get_cache_dir().join("GameBanana");
         std::fs::create_dir_all(&base_dir).ok();
         Self { base_dir }
     }
@@ -91,12 +88,16 @@ impl CacheManager {
     }
 
     pub async fn get_category_cache(&self, category_id: u32, page: u32) -> Option<Vec<NteMod>> {
-        let path = self.base_dir.join(format!("cat_{category_id}_p{page}.json"));
+        let path = self
+            .base_dir
+            .join(format!("cat_{category_id}_p{page}.json"));
         self.load_cache(&path).await
     }
 
     pub async fn save_category_cache(&self, category_id: u32, page: u32, mods: Vec<NteMod>) {
-        let path = self.base_dir.join(format!("cat_{category_id}_p{page}.json"));
+        let path = self
+            .base_dir
+            .join(format!("cat_{category_id}_p{page}.json"));
         let wrapper = CacheWrapper {
             cached_at: Self::current_timestamp(),
             page: Some(page),

@@ -1,13 +1,16 @@
 use anyhow::Result;
 use shared::classes::info::Target;
 
-use crate::classes::validate::validate_builtins;
+use crate::classes::validate::validate_files;
 
 use super::AuroraEngine;
 
 impl AuroraEngine {
-    // TODO: This isn't used anywhere, would have to see where it's used
-    // in the python version to see if it's dead code or not.
+    pub fn validate(&self) -> Result<()> {
+        self.validate_builtins()?;
+        Ok(())
+    }
+
     pub fn validate_builtins(&self) -> Result<Vec<String>> {
         let mut required = vec![Target::AsiPlugin.as_file().to_string()];
         required.extend(self.main_dlls.clone());
@@ -20,6 +23,6 @@ impl AuroraEngine {
             );
         }
 
-        validate_builtins(self.bin_path.clone(), required)
+        validate_files(self.bin_path.clone(), required)
     }
 }
