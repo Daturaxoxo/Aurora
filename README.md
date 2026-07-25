@@ -8,14 +8,22 @@
   <img src="https://img.shields.io/github/contributors/Daturaxoxo/Aurora?color=dfb317&v=2" alt="Contributors" />
 </p>
 
-> [!NOTE]
-> Due to our application not having a signed certificate, Windows Defender (or other Antivirus software) may false-flag Aurora, we do not support Microsoft's [Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview) system. You are most likely to get blocked by Smart App Control while running Aurora for the first time.
->
-> Find out how to disable Smart App Control: [Click Me!](https://github.com/Daturaxoxo/Aurora/blob/main/docs/SmartAppControl.md)
+<p align="center">
+  <object data="https://getaurora.moe" type="text/html">
+    <a href="https://getaurora.moe">
+      <img src="https://img.shields.io/badge/Official-Website-blue&color=FFFFFF?logo=cloudnativebuild&v=0" alt="Website Link" />
+    </a>
+  </object>
+</p>
 
 Aurora is a light-weight high performance mod launcher built for [Neverness to Everness](https://nte.perfectworld.com/) that allows you to freely edit models inside the game using UE5 (Unreal Engine 5) PAKs.
 
 Aurora is an open-source community project, any help with the source code is greatly appreciated. We are open to anyone who wants to help develop this project further, whether it be translations or contribution to the source-code.
+
+> [!NOTE]
+> Due to our application not having a signed certificate, Windows Defender (or other Antivirus software) may false-flag Aurora, we do not support Microsoft's [Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview) system. You are most likely to get blocked by Smart App Control while running Aurora for the first time.
+>
+> Find out how to disable Smart App Control: [Click Me!](https://github.com/Daturaxoxo/Aurora/blob/main/docs/SmartAppControl.md)
 ### ᅠ
 ## Features
 - **Easy Installation** — Download a release and open the executable file, that's it.
