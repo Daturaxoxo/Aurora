@@ -223,7 +223,7 @@ def patch_localconfig(config_path: Path, app_id: str, launch_option: str) -> boo
     def find_section(text: str, *keys: str) -> tuple[int, int] | None:
         pos = 0
         for key in keys:
-            pattern = re.compile(rf'"{re.escape(key)}"\s*\{{', re.DOTALL)
+            pattern = re.compile(rf'"{re.escape(key)}"\s*\{{', re.DOTALL | re.IGNORECASE)
             m = pattern.search(text, pos)
             if not m:
                 logger.warning(f"Steam Wrapper: section key '{key}' not found in config.", extra={"el": True})
@@ -239,6 +239,13 @@ def patch_localconfig(config_path: Path, app_id: str, launch_option: str) -> boo
     result = find_section(original, "Software", "Valve", "Steam", "apps")
     if not result:
         logger.warning("Steam Wrapper: could not find Software > Valve > Steam > apps section.", extra={"el": True})
+        result = find_section(original, "Software", "Valve", "Steam", "apps")
+        if not result:
+            logger.warning(
+                f"[SEND THIS TO A DEVELOPER] Steam Wrapper: VDF dump (first 2000 chars):\n{original[:2000]}",
+                extra={"el": True}
+            )
+            return False
         return False
 
     apps_inner_start, apps_end = result
