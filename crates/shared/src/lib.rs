@@ -1,6 +1,10 @@
+#![feature(integer_casts)]
+#![feature(file_buffered)]
+
 pub mod config;
 pub mod logger;
 pub mod pathfind;
+pub mod telemetry;
 pub mod utils;
 pub mod classes {
     pub mod export;

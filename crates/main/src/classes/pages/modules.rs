@@ -13,8 +13,6 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Mutex;
 
-const NOTES_KEY: &str = "module_notes";
-const DISPLAY_NAMES_KEY: &str = "module_display_names";
 const DISABLED_SUFFIX: &str = ".disabled";
 const MODULE_EXTENSIONS: [&str; 1] = ["asi"];
 
@@ -142,8 +140,8 @@ impl ModulesHandler {
     }
 
     fn rebuild(w: &MainWindow) {
-        let display_names = config_map(DISPLAY_NAMES_KEY);
-        let notes = config_map(NOTES_KEY);
+        let display_names = config_map(key::MOD_DISPLAY_NAMES);
+        let notes = config_map(key::MOD_NOTES);
 
         let shown_name = |m: &Module| -> String {
             display_names
@@ -344,7 +342,11 @@ impl ModulesHandler {
             };
             let name = new_name.trim();
 
-            config_map_set(DISPLAY_NAMES_KEY, &m.id, (!name.is_empty()).then_some(name));
+            config_map_set(
+                key::MOD_DISPLAY_NAMES,
+                &m.id,
+                (!name.is_empty()).then_some(name),
+            );
 
             let shown = if name.is_empty() {
                 Self::default_name(&m.id)
@@ -362,7 +364,7 @@ impl ModulesHandler {
             };
             let notes = notes.trim().to_string();
 
-            config_map_set(NOTES_KEY, &m.id, (!notes.is_empty()).then_some(&notes));
+            config_map_set(key::MOD_NOTES, &m.id, (!notes.is_empty()).then_some(&notes));
             Self::update_row(&win, &id, |row| row.notes = notes.as_str().into());
         });
 
@@ -377,8 +379,8 @@ impl ModulesHandler {
                         Ok(()) => {
                             info!("[Modules] deleted '{}'", m.path.display());
                             // Drop leftover per-module config entries
-                            config_map_set(NOTES_KEY, &m.id, None);
-                            config_map_set(DISPLAY_NAMES_KEY, &m.id, None);
+                            config_map_set(key::MOD_NOTES, &m.id, None);
+                            config_map_set(key::MOD_DISPLAY_NAMES, &m.id, None);
 
                             let ww2 = ww.clone();
                             let _ = slint::invoke_from_event_loop(move || {
@@ -486,8 +488,8 @@ impl ModulesHandler {
                     match std::fs::remove_file(&m.path) {
                         Ok(()) => {
                             info!("[Modules] deleted '{}'", m.path.display());
-                            config_map_set(NOTES_KEY, &m.id, None);
-                            config_map_set(DISPLAY_NAMES_KEY, &m.id, None);
+                            config_map_set(key::MOD_NOTES, &m.id, None);
+                            config_map_set(key::MOD_DISPLAY_NAMES, &m.id, None);
                         }
                         Err(e) => {
                             error!("[Modules] could not delete '{}': {e}", m.path.display());

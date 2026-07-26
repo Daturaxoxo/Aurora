@@ -50,6 +50,13 @@ pub mod key {
     pub const APP_LOCATION: &str = "app_location";
     pub const CUSTOM_ADDONS: &str = "custom_addons";
     pub const CUSTOM_ADDONS_TOGGLED: &str = "custom_addons_toggled";
+    pub const GB_NSFW: &str = "gb_show_nsfw";
+    pub const MODMNG_NOTES: &str = "mod_notes";
+    pub const MODMNG_DISPLAY_NAMES: &str = "mod_display_names";
+    pub const MODMNG_VIEW_GRID: &str = "mod_view_grid";
+    pub const MOD_NOTES: &str = "module_notes";
+    pub const MOD_DISPLAY_NAMES: &str = "module_display_names";
+    pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -66,13 +73,20 @@ pub fn default_value(k: &str) -> Value {
         | key::CUSTOM_ADDONS_TOGGLED
         | key::CENSORSHIP_REMOVE
         | key::COLLECTIBLES
-        | key::COOLDOWN_TIMER => {
+        | key::COOLDOWN_TIMER
+        | key::GB_NSFW => {
             json!(false)
         }
 
         key::GAME_PATH | key::APP_LOCATION => json!(""),
 
-        key::CUSTOM_ADDONS => json!([]),
+        key::CUSTOM_ADDONS
+        | key::MODMNG_NOTES
+        | key::MODMNG_DISPLAY_NAMES
+        | key::MODMNG_VIEW_GRID
+        | key::MOD_NOTES
+        | key::MOD_DISPLAY_NAMES
+        | key::SCREENSHOT_FAVORITES => json!([]),
 
         key::LANGUAGE => json!("en"),
 
@@ -93,7 +107,7 @@ pub fn get_userdata_path() -> PathBuf {
         .join("UserData")
 }
 
-fn config_file_path() -> PathBuf {
+pub fn config_file_path() -> PathBuf {
     let config_path = get_userdata_path().join("config.json");
 
     if !config_path.parent().unwrap().exists() {
@@ -133,4 +147,8 @@ pub fn set(k: &str, value: impl Into<Value>) {
     let mut data = load_raw();
     data.insert(k.to_string(), value.into());
     save_raw(&data);
+}
+
+pub fn get_all_configs() -> Map<String, Value> {
+    load_raw()
 }

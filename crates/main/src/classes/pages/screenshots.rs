@@ -3,7 +3,7 @@ use crate::{MainWindow, ScreenshotItem};
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
-use shared::config;
+use shared::config::{self, key};
 use slint::{Model, VecModel};
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
@@ -14,7 +14,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-const FAVORITES_KEY: &str = "screenshot_favorites";
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
 
@@ -59,7 +58,7 @@ fn screenshot_folder() -> Option<PathBuf> {
 }
 
 fn favorites() -> HashSet<String> {
-    config::get(FAVORITES_KEY)
+    config::get(key::SCREENSHOT_FAVORITES)
         .as_array()
         .map(|arr| {
             arr.iter()
@@ -72,7 +71,7 @@ fn favorites() -> HashSet<String> {
 fn save_favorites(favs: &HashSet<String>) {
     let mut list: Vec<String> = favs.iter().cloned().collect();
     list.sort();
-    config::set(FAVORITES_KEY, list);
+    config::set(key::SCREENSHOT_FAVORITES, list);
 }
 
 fn parse_name_timestamp(stem: &str) -> Option<NaiveDateTime> {

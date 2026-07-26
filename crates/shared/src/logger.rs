@@ -1,29 +1,14 @@
-use std::{
-    fs,
-    io::Write,
-    path::Path,
-    sync::mpsc::{sync_channel, SyncSender},
-    thread,
-    time::Duration,
-};
+use std::{fs, io::Write, path::Path, sync::mpsc::SyncSender};
 
 use env_filter::{Builder, Filter};
 
-use log::{Log, Metadata, Record, SetLoggerError};
+use log::*;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use crate::utils::get_local_version;
+use crate::telemetry::{spawn_error_worker, ErrorEvent};
 
 const FILTER_ENV: &str = "AURORA_LOG";
 const LOG_FILE: &str = "Logs/aurora";
-
-const TELEMETRY_ENDPOINT: &str = "https://beta.getaurora.moe/api/v2/telemetry";
-
-struct ErrorEvent {
-    timestamp: String,
-    module: String,
-    message: String,
-}
 
 pub struct Logger {
     inner: Filter,
@@ -145,38 +130,23 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
-fn spawn_error_worker() -> SyncSender<ErrorEvent> {
-    let (tx, rx) = sync_channel::<ErrorEvent>(256);
+pub fn get_latest_logs() -> Option<String> {
+    let log_dir_path = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
+        .join("Logs");
 
-    let spawned = thread::Builder::new()
-        .name("error-telemetry".into())
-        .spawn(move || {
-            let client = reqwest::blocking::Client::builder()
-                .user_agent(format!("AuroraLauncher/{}", get_local_version()))
-                .timeout(Duration::from_secs(10))
-                .build()
-                .unwrap_or_default();
+    let last_modified_file = std::fs::read_dir(log_dir_path)
+        .expect("Couldn't access local directory")
+        .flatten()
+        .filter(|f| f.metadata().unwrap().is_file())
+        .max_by_key(|x| x.metadata().unwrap().modified().unwrap());
 
-            let version = get_local_version().trim().to_string();
-
-            while let Ok(event) = rx.recv() {
-                let payload = serde_json::json!({
-                    "message": event.message,
-                    "module": event.module,
-                    "version": version,
-                    "timestamp": event.timestamp,
-                });
-
-                match client.post(TELEMETRY_ENDPOINT).json(&payload).send() {
-                    Ok(_) => {}
-                    Err(e) => eprintln!("error telemetry: failed to send error: {e}"),
-                }
-            }
-        });
-
-    if spawned.is_err() {
-        eprintln!("error telemetry: failed to spawn worker thread");
+    if let Some(file) = last_modified_file {
+        Some(std::fs::read_to_string(file.path()).unwrap_or_default())
+    } else {
+        None
     }
-
-    tx
 }

@@ -65,7 +65,7 @@ pub fn read_dir_recursive(path: &PathBuf) -> Vec<DirEntry<((), ())>> {
     paths
 }
 
-pub fn format_size(bytes: u64) -> String {
+pub fn format_bytes(bytes: u64) -> String {
     #[allow(clippy::cast_precision_loss)]
     let b = bytes as f64;
     if bytes >= 1024 * 1024 * 1024 {

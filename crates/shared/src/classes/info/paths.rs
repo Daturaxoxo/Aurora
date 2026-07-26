@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::classes::info::Target;
+use crate::classes::info::{Target, NTE_GAME_EXE};
 
 use super::version::{BypassMethod, Version};
 
@@ -88,6 +88,6 @@ pub fn get_version_paths(
         asi_plugin: win64.join(Target::AsiPlugin.as_file()),
         launcher_process: spec.launcher_process,
         helper_processes: spec.helper_processes.to_vec(),
-        game_process: "HTGame.exe",
+        game_process: NTE_GAME_EXE,
     }
 }

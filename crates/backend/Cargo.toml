@@ -4,7 +4,7 @@ version = "2.0.0"
 edition = "2021"
 
 [dependencies]
-fastrand = "2.4.1"
+fastrand = "2.5.0"
 discord-rich-presence = "1.1"
 
 shared = { path = "../shared" }

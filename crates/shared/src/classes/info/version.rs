@@ -3,11 +3,13 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Version {
     Global,
     CN,
     TW,
+    #[default]
+    Unknown,
 }
 
 impl fmt::Display for Version {
@@ -16,6 +18,7 @@ impl fmt::Display for Version {
             Self::Global => "global",
             Self::CN => "cn",
             Self::TW => "tw",
+            Self::Unknown => "Unknown",
         };
         write!(f, "{s}")
     }
@@ -41,6 +44,10 @@ impl Version {
             Self::TW => VersionSpec {
                 launcher_process: "NTETWLauncher.exe",
                 helper_processes: &["NTETWGame.exe"],
+            },
+            Self::Unknown => VersionSpec {
+                launcher_process: "Unknown",
+                helper_processes: &[],
             },
         }
     }
@@ -94,7 +101,7 @@ impl BypassMethod {
     pub fn to_dll_names(&self) -> Vec<&'static str> {
         match self {
             Self::Version => vec!["version.dll"],
-            Self::DSound => vec!["dsound.dll"]
+            Self::DSound => vec!["dsound.dll"],
         }
     }
 

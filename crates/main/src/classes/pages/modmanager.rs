@@ -6,7 +6,7 @@ use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use shared::config;
+use shared::config::{self, key};
 use shared::utils::{get_mods_path, read_dir_recursive};
 use slint::{Model, ModelRc, VecModel};
 use unrar::Archive as RarArchive;
@@ -17,9 +17,6 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 const GROUP_PREFIX: &str = "AU GRP - ";
-const NOTES_KEY: &str = "mod_notes";
-const DISPLAY_NAMES_KEY: &str = "mod_display_names";
-const VIEW_GRID_KEY: &str = "mod_view_grid";
 
 #[derive(Debug, Clone)]
 pub struct Group {
@@ -575,8 +572,8 @@ impl ModManagerHandler {
     }
 
     fn rebuild(w: &MainWindow) {
-        let display_names = config_map(DISPLAY_NAMES_KEY);
-        let notes = config_map(NOTES_KEY);
+        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+        let notes = config_map(key::MODMNG_NOTES);
 
         let shown_name = |m: &Mod| -> String {
             display_names
@@ -848,9 +845,13 @@ impl ModManagerHandler {
     fn bind(window: &slint::Weak<MainWindow>) {
         let w = window.unwrap();
 
-        w.set_mods_view_grid(config::get(VIEW_GRID_KEY).as_bool().unwrap_or(false));
+        w.set_mods_view_grid(
+            config::get(key::MODMNG_VIEW_GRID)
+                .as_bool()
+                .unwrap_or(false),
+        );
         w.on_mods_view_changed(|grid| {
-            config::set(VIEW_GRID_KEY, Value::from(grid));
+            config::set(key::MODMNG_VIEW_GRID, Value::from(grid));
         });
 
         let ww = window.clone();
@@ -891,8 +892,8 @@ impl ModManagerHandler {
                         Ok(()) => {
                             info!("[ModManager] deleted '{}'", m.path.display());
                             // Drop leftover per-mod config entries
-                            config_map_set(NOTES_KEY, &m.folder_name, None);
-                            config_map_set(DISPLAY_NAMES_KEY, &m.folder_name, None);
+                            config_map_set(key::MODMNG_NOTES, &m.folder_name, None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &m.folder_name, None);
                         }
                         Err(e) => {
                             error!("[ModManager] could not delete '{}': {e}", m.path.display());
@@ -912,7 +913,7 @@ impl ModManagerHandler {
             let name = new_name.trim();
 
             config_map_set(
-                DISPLAY_NAMES_KEY,
+                key::MODMNG_DISPLAY_NAMES,
                 &m.folder_name,
                 (!name.is_empty()).then_some(name),
             );
@@ -934,7 +935,7 @@ impl ModManagerHandler {
             let notes = notes.trim().to_string();
 
             config_map_set(
-                NOTES_KEY,
+                key::MODMNG_NOTES,
                 &m.folder_name,
                 (!notes.is_empty()).then_some(&notes),
             );
@@ -1037,8 +1038,8 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("[ModManager] deleted '{}'", m.path.display());
-                            config_map_set(NOTES_KEY, &m.folder_name, None);
-                            config_map_set(DISPLAY_NAMES_KEY, &m.folder_name, None);
+                            config_map_set(key::MODMNG_NOTES, &m.folder_name, None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &m.folder_name, None);
                         }
                         Err(e) => {
                             error!("[ModManager] could not delete '{}': {e}", m.path.display());
