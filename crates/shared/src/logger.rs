@@ -144,9 +144,5 @@ pub fn get_latest_logs() -> Option<String> {
         .filter(|f| f.metadata().unwrap().is_file())
         .max_by_key(|x| x.metadata().unwrap().modified().unwrap());
 
-    if let Some(file) = last_modified_file {
-        Some(std::fs::read_to_string(file.path()).unwrap_or_default())
-    } else {
-        None
-    }
+    last_modified_file.map(|file| std::fs::read_to_string(file.path()).unwrap_or_default())
 }

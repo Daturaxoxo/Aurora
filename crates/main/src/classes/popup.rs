@@ -39,7 +39,7 @@ impl PopupHandler {
                         let remove_files = checkboxes[2].checked;
 
                         match RepairHandler::repair(validate_files, clean_cache, remove_files) {
-                            Ok(_) => {}
+                            Ok(()) => {}
                             Err(e) => {
                                 Bridge::show_toast(&w, &e.to_string(), "error");
                             }
@@ -53,11 +53,8 @@ impl PopupHandler {
         let w = window.clone();
         window.unwrap().on_popup_cancel_callback(move |id| {
             if let Some(_w) = w.upgrade() {
-                match id.as_str() {
-                    "beta-phase-inactive" => {
-                        std::process::exit(0);
-                    }
-                    _ => {}
+                if id.as_str() == "beta-phase-inactive" {
+                    std::process::exit(0);
                 }
             }
         });

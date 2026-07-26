@@ -106,10 +106,10 @@ fn generate_translations_slint() {
         })
         .collect();
 
-    let json = fs::read_to_string(JSON_PATH)
-        .unwrap_or_else(|e| panic!("Could not read {JSON_PATH}: {e}"));
-    let entries: Vec<serde_json::Value> = serde_json::from_str(&json)
-        .unwrap_or_else(|e| panic!("Invalid JSON in {JSON_PATH}: {e}"));
+    let json =
+        fs::read_to_string(JSON_PATH).unwrap_or_else(|e| panic!("Could not read {JSON_PATH}: {e}"));
+    let entries: Vec<serde_json::Value> =
+        serde_json::from_str(&json).unwrap_or_else(|e| panic!("Invalid JSON in {JSON_PATH}: {e}"));
 
     let mut key_props = Vec::with_capacity(entries.len());
     let mut default_values = Vec::with_capacity(entries.len());
@@ -135,7 +135,7 @@ fn generate_translations_slint() {
             "    out property <int> {}: {index};",
             slintify_key(key)
         ));
-        default_values.push(format!("        {:?}", default_en));
+        default_values.push(format!("        {default_en:?}"));
     }
 
     let slint = format!(
@@ -160,7 +160,13 @@ fn generate_translations_slint() {
 
 fn slintify_key(key: &str) -> String {
     key.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 

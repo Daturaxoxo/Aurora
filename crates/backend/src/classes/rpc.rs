@@ -14,7 +14,7 @@ use std::time::Duration;
 const APPLICATION_ID: &str = "1505644188060876920";
 
 const MIN_BACKOFF: Duration = Duration::from_secs(15);
-const MAX_BACKOFF: Duration = Duration::from_secs(5 * 60);
+const MAX_BACKOFF: Duration = Duration::from_mins(5);
 
 /// Global Discord RPC client
 pub static RPC: std::sync::LazyLock<DiscordRpc> = std::sync::LazyLock::new(|| {
@@ -31,14 +31,9 @@ enum RpcCommand {
     Stop,
 }
 
+#[derive(Debug, Default)]
 pub struct DiscordRpc {
     sender: Option<Sender<RpcCommand>>,
-}
-
-impl Default for DiscordRpc {
-    fn default() -> Self {
-        Self { sender: None }
-    }
 }
 
 impl DiscordRpc {

@@ -25,12 +25,9 @@ use crate::{logger::get_latest_logs, utils};
 const TELEMETRY_ENDPOINT: &str = "https://beta.getaurora.moe/api/v2/telemetry";
 
 pub fn export_telemetry() -> Result<()> {
-    let logs = match get_latest_logs() {
-        Some(logs) => logs,
-        None => {
-            error!("Failed to get logs for telemetry");
-            return Ok(());
-        }
+    let Some(logs) = get_latest_logs() else {
+        error!("Failed to get logs for telemetry");
+        return Ok(());
     };
 
     let utc_timestamp = chrono::Utc::now();
@@ -63,13 +60,13 @@ pub fn export_telemetry() -> Result<()> {
     writeln!(
         file,
         "OS:                  {}",
-        System::name().unwrap_or("Unknown".to_string())
+        System::name().unwrap_or_else(|| "Unknown".to_string())
     )?;
 
     writeln!(
         file,
         "Kernel:              {}",
-        System::kernel_version().unwrap_or("Unknown".to_string())
+        System::kernel_version().unwrap_or_else(|| "Unknown".to_string())
     )?;
 
     writeln!(file, "Architecture:        {}", System::cpu_arch())?;
@@ -77,7 +74,7 @@ pub fn export_telemetry() -> Result<()> {
     writeln!(
         file,
         "Hostname:            {}",
-        System::host_name().unwrap_or("Unknown".to_string())
+        System::host_name().unwrap_or_else(|| "Unknown".to_string())
     )?;
 
     writeln!(
@@ -107,7 +104,7 @@ pub fn export_telemetry() -> Result<()> {
 
     let configs = get_all_configs();
     for (k, v) in configs {
-        writeln!(file, "{}: {}", k, v)?;
+        writeln!(file, "{k}: {v}")?;
     }
 
     writeln!(file)?;
@@ -115,23 +112,20 @@ pub fn export_telemetry() -> Result<()> {
     writeln!(file, "=== Game Information ===")?;
 
     let game_path = get_game_directory()?;
-    writeln!(file, "Game Path:       {:#?}", game_path)?;
+    writeln!(file, "Game Path:       {}", game_path.display())?;
 
-    let version = detect_version(&game_path.as_path()).unwrap_or_default();
-    writeln!(file, "Version:         {}", version)?;
+    let version = detect_version(game_path.as_path()).unwrap_or_default();
+    writeln!(file, "Version:         {version}")?;
 
-    let write_access = match std::fs::metadata(&game_path) {
-        Ok(_) => true,
-        Err(_) => false,
-    };
-    writeln!(file, "Write Access:    {}", write_access)?;
+    let write_access = std::fs::metadata(&game_path).is_ok();
+    writeln!(file, "Write Access:    {write_access}")?;
 
     let disks = Disks::new_with_refreshed_list();
-    for d in disks.into_iter() {
+    for d in &disks {
         writeln!(
             file,
-            "Disk {:#?}:     {} free of {}",
-            d.mount_point(),
+            "Disk {}:     {} free of {}",
+            d.mount_point().display(),
             utils::format_bytes(d.available_space()),
             utils::format_bytes(d.total_space())
         )?;
@@ -198,15 +192,15 @@ pub fn export_telemetry() -> Result<()> {
             .parse::<i64>()?,
     };
     let engine_method = BypassMethod::from_num(engine_method_raw)?;
-    let vpaths = get_version_paths(&game_path.as_path(), version, engine_method);
+    let vpaths = get_version_paths(game_path.as_path(), version, engine_method);
     for (name, path) in vpaths.all_dll_targets() {
-        print_entry(&name, &path.as_path())?;
+        print_entry(&name, path.as_path())?;
     }
 
-    print_entry("Mod folder", &mods_path.as_path())?;
+    print_entry("Mod folder", mods_path.as_path())?;
 
     let config_path = config::config_file_path();
-    print_entry("Config file", &config_path.as_path())?;
+    print_entry("Config file", config_path.as_path())?;
 
     let addon_dir = utils::get_bin_path()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -218,16 +212,22 @@ pub fn export_telemetry() -> Result<()> {
     for entry in entries {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
-            for entry in std::fs::read_dir(&entry.path())? {
+            for entry in std::fs::read_dir(entry.path())? {
                 let entry = entry?;
                 if entry.file_type()?.is_file() {
                     let name = entry.file_name().into_string().unwrap_or_default();
-                    if name.ends_with(".pak") {
+                    if std::path::Path::new(&name)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
+                    {
                         let path = entry.path();
-                        print_entry(&format!("ENABLED: {}", &name), &path.as_path())?;
-                    } else if name.ends_with(".disabled") {
+                        print_entry(&format!("ENABLED: {name}"), path.as_path())?;
+                    } else if std::path::Path::new(&name)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("disabled"))
+                    {
                         let path = entry.path();
-                        print_entry(&format!("DISABLED: {}", &name), &path.as_path())?;
+                        print_entry(&format!("DISABLED: {name}"), path.as_path())?;
                     }
                 }
             }
@@ -237,7 +237,7 @@ pub fn export_telemetry() -> Result<()> {
     writeln!(file)?;
 
     writeln!(file, "=== Session Log ===")?;
-    file.write(logs.as_bytes())?;
+    file.write_all(logs.as_bytes())?;
 
     file.flush()?;
 
@@ -259,13 +259,13 @@ fn windows_defender_on() -> bool {
 
         let hr = WscGetSecurityProviderHealth(
             WSC_SECURITY_PROVIDER_ANTIVIRUS.unchecked_cast(),
-            &mut health,
+            &raw mut health,
         );
 
         if hr == S_OK {
             health == WSC_SECURITY_PROVIDER_HEALTH_GOOD
         } else {
-            warn!("Failed to query Windows Defender health: hr = {}", hr);
+            warn!("Failed to query Windows Defender health: hr = {hr}");
             false
         }
     }

@@ -55,11 +55,8 @@ pub fn read_dir_recursive(path: &PathBuf) -> Vec<DirEntry<((), ())>> {
 
     let mut paths = vec![];
 
-    for entry in WalkDir::new(path) {
-        match entry {
-            Ok(e) => paths.push(e),
-            Err(_) => continue,
-        }
+    for e in WalkDir::new(path).into_iter().flatten() {
+        paths.push(e);
     }
 
     paths

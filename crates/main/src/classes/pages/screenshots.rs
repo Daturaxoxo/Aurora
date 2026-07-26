@@ -191,7 +191,7 @@ impl ScreenshotHandler {
             .num_threads(s.cpus().iter().count() / 2)
             .build_global()
         {
-            Ok(_) => (),
+            Ok(()) => (),
             Err(e) => error!("Could not create rayon pool: {e}"),
         }
         Self::bind(window);

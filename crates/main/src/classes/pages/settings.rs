@@ -182,7 +182,7 @@ impl SettingsHandler {
             std::thread::spawn(|| {
                 debug!("[Settings] telemetry export thread spawned");
                 match shared::telemetry::export_telemetry() {
-                    Ok(_) => info!("[Settings] telemetry export complete"),
+                    Ok(()) => info!("[Settings] telemetry export complete"),
                     Err(e) => error!("[Settings] telemetry export failed: {e}"),
                 }
             });

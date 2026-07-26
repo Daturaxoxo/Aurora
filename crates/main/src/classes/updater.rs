@@ -67,7 +67,9 @@ impl UpdateHandler {
             if !skip_beta_phasing {
                 match Self::check_beta_phasing() {
                     Ok(active) => {
-                        if !active {
+                        if active {
+                            info!("beta phasing is active");
+                        } else {
                             warn!("beta phasing is not active");
                             #[cfg(not(debug_assertions))]
                             match Self::update_available() {
@@ -93,8 +95,6 @@ impl UpdateHandler {
                                     return;
                                 }
                             }
-                        } else {
-                            info!("beta phasing is active");
                         }
                     }
                     Err(e) => {

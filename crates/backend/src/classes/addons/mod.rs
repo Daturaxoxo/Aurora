@@ -36,10 +36,13 @@ pub fn payload_files(folder: &Path) -> Vec<PathBuf> {
         .filter(|p| {
             p.is_file()
                 && p.file_name().is_some_and(|n| {
-                    !n.to_str().is_some_and(|s| s.ends_with(".auadd"))
-                        && !n
-                            .to_str()
-                            .is_some_and(|s| BLACKLISTED_EXTENSIONS.iter().any(|e| s.ends_with(e)))
+                    !n.to_str().is_some_and(|s| {
+                        std::path::Path::new(s)
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("auadd"))
+                    }) && !n
+                        .to_str()
+                        .is_some_and(|s| BLACKLISTED_EXTENSIONS.iter().any(|e| s.ends_with(e)))
                 })
         })
         .collect()
