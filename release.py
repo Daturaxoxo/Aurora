@@ -8,9 +8,25 @@ from urllib.parse import quote
 BASE_URL = "https://host.getaurora.moe/files/app/"
 # BASE_URL = "https://github.com/Alawapr/aurora-test/releases/latest/download/"
 BLACKLISTED_EXTENSIONS = (
-    "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4", 
-    "md5", "json", "py", "log", "ucas", "utoc", "pak", "disabled"
+    "zip",
+    "rar",
+    "7z",
+    "tar",
+    "gz",
+    "bz2",
+    "xz",
+    "zst",
+    "lz4",
+    "md5",
+    "json",
+    "py",
+    "log",
+    "ucas",
+    "utoc",
+    "pak",
+    "disabled",
 )
+
 
 def calculate_sha256(filepath, chunk_size=8192):
     """Calculate the SHA256 hash of a file."""
@@ -24,6 +40,7 @@ def calculate_sha256(filepath, chunk_size=8192):
         print(f"Skipping {filepath}: {e}")
         return None
 
+
 def copy_file(src, dst):
     """
     Copies a file from `src` to `dst` relative paths.
@@ -35,7 +52,7 @@ def copy_file(src, dst):
     if not os.path.exists(src_path):
         print(f"[COPY FILE]: File not found: {src}")
         return
-    
+
     # Ensure parent folder for destination exists
     dst_dir = os.path.dirname(dst_path)
     if dst_dir:
@@ -43,7 +60,8 @@ def copy_file(src, dst):
 
     shutil.copy(src_path, dst_path)
     print(f"Copied {path_to_filename(src_path)} to {dst_path}")
-    
+
+
 def copy_folder(src, dst):
     """
     Recursively copies a folder and all its contents from `src` to `dst`.
@@ -60,27 +78,29 @@ def copy_folder(src, dst):
         print(f"[COPY FOLDER]: Source path is not a directory: {src}")
         return
 
-
     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
     print(f"Copied {src_path} to {dst_path}")
-    
+
+
 def folder_exists(path):
     return os.path.isdir(path)
+
 
 def path_to_filename(path):
     return os.path.basename(path)
 
+
 def get_all_files(folder_path, relative=False):
     """
     Recursively finds all files inside a directory and its subdirectories.
-    
+
     :param folder_path: The root directory to scan.
     :param relative: If True, returns paths relative to folder_path.
                      If False, returns full/absolute paths.
     :return: A list of file path strings.
     """
     file_paths = []
-    
+
     if not os.path.exists(folder_path):
         print(f"[GET ALL FILES]: Folder not found: {folder_path}")
         return
@@ -89,19 +109,22 @@ def get_all_files(folder_path, relative=False):
         for file in files:
             if file.endswith(BLACKLISTED_EXTENSIONS):
                 continue
-            
+
             full_path = os.path.join(root, file)
-            
+
             if relative:
                 # Get path relative to the input folder and normalize slashes
-                rel_path = os.path.relpath(full_path, folder_path).replace(os.sep, '/')
+                rel_path = os.path.relpath(full_path, folder_path).replace(os.sep, "/")
                 file_paths.append(rel_path)
             else:
                 file_paths.append(full_path)
 
     return file_paths
 
-def build_manifest(version, base_dir=".", output_filename="manifest.json", base_url=BASE_URL):
+
+def build_manifest(
+    version, base_dir=".", output_filename="manifest.json", base_url=BASE_URL
+):
     """Scans base_dir and generates a manifest JSON file with file hashes."""
     files_list = []
 
@@ -113,33 +136,33 @@ def build_manifest(version, base_dir=".", output_filename="manifest.json", base_
                 continue
 
             filepath = os.path.join(root, file)
-            
+
             # Relative path with forward slashes
-            rel_path = os.path.relpath(filepath, base_dir).replace(os.sep, '/')
-            
+            rel_path = os.path.relpath(filepath, base_dir).replace(os.sep, "/")
+
             # Skip manifest output file if scanning current dir
             if rel_path == output_filename:
                 continue
 
             file_hash = calculate_sha256(filepath)
-            
+
             if file_hash:
                 file_name = os.path.basename(rel_path)
                 file_url = base_url + quote(file_name)
 
-                files_list.append({
-                    "path": rel_path,
-                    "sha256": file_hash,
-                    "url": file_url
-                })
+                files_list.append(
+                    {"path": rel_path, "sha256": file_hash, "url": file_url}
+                )
 
     updater_path = os.path.join(base_dir, "updater.exe")
-    updater_hash = calculate_sha256(updater_path) if os.path.exists(updater_path) else None
+    updater_hash = (
+        calculate_sha256(updater_path) if os.path.exists(updater_path) else None
+    )
 
     output_data = {
         "version": version,
         "updater_hash": updater_hash,
-        "files": files_list
+        "files": files_list,
     }
 
     manifest_path = os.path.join(base_dir, output_filename)
@@ -148,6 +171,7 @@ def build_manifest(version, base_dir=".", output_filename="manifest.json", base_
 
     print(f"Done! Processed {len(files_list)} files. Results saved to {manifest_path}")
     return output_data
+
 
 def main():
     if sys.argv[1] is None:
@@ -161,8 +185,11 @@ def main():
     copy_file("./target/release/updater.exe", "./release/updater.exe")
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
-    shutil.make_archive(base_name=f"aurora-{version}", format="zip", base_dir="./release")
-    
+    copy_file("./steam_appid.txt", "./release/steam_appid.txt")
+    shutil.make_archive(
+        base_name=f"aurora-{version}", format="zip", base_dir="./release"
+    )
+
     if folder_exists("./release-host"):
         shutil.rmtree("./release-host")
     os.mkdir("./release-host")
@@ -172,7 +199,10 @@ def main():
     for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
-    shutil.make_archive(base_name=f"aurora-host-{version}", format="zip", base_dir="./release-host")
+    shutil.make_archive(
+        base_name=f"aurora-host-{version}", format="zip", base_dir="./release-host"
+    )
+
 
 if __name__ == "__main__":
     main()
