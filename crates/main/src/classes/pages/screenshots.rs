@@ -5,7 +5,6 @@ use log::*;
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
 use slint::{Model, VecModel};
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -183,17 +182,6 @@ pub struct ScreenshotHandler;
 impl ScreenshotHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         info!("[Screenshots] setup() called");
-        let s = System::new_with_specifics(
-            RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()),
-        );
-
-        match rayon::ThreadPoolBuilder::new()
-            .num_threads(s.cpus().iter().count() / 2)
-            .build_global()
-        {
-            Ok(()) => (),
-            Err(e) => error!("Could not create rayon pool: {e}"),
-        }
         Self::bind(window);
         Self::reload(window);
         info!("[Screenshots] setup() complete");

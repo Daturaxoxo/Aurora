@@ -9,6 +9,7 @@ mod translations;
 use anyhow::{anyhow, Context, Result};
 use display_info::DisplayInfo;
 use log::*;
+use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use shared::config::{self, key};
 use shared::logger::Logger;
@@ -121,6 +122,22 @@ fn main() -> Result<()> {
         classes::logwindow::hide();
         slint::CloseRequestResponse::HideWindow
     });
+
+    let s = System::new_with_specifics(
+        RefreshKind::nothing().with_cpu(
+            CpuRefreshKind::everything()
+                .without_cpu_usage()
+                .without_frequency(),
+        ),
+    );
+
+    match rayon::ThreadPoolBuilder::new()
+        .num_threads(s.cpus().iter().count() / 2)
+        .build_global()
+    {
+        Ok(()) => (),
+        Err(e) => error!("Could not create rayon pool: {e}"),
+    }
 
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
