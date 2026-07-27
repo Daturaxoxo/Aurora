@@ -1,6 +1,7 @@
 #![feature(integer_casts)]
 #![feature(file_buffered)]
 
+pub mod archive;
 pub mod config;
 pub mod logger;
 pub mod pathfind;

@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
+use shared::archive::ARCHIVE_EXTENSIONS;
 
-const ARCHIVE_EXTENSIONS: [&str; 7] = [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"];
 const MOD_EXTENSIONS: [&str; 3] = [".pak", ".utoc", ".ucas"];
 const IGNORED_INI_FILES: [&str; 1] = ["desktop.ini"];
 

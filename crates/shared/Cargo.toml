@@ -14,6 +14,18 @@ termcolor = "1.4"
 futures = { version = "0.3", default-features = false }
 iana-time-zone = "0.1.65"
 cpu_info = "=0.1.0"
+unrar = { package = "unrar-ng", version = "0.7" }
+archive = "0.3"
+zip = { version = "9.0.0-pre2", default-features = false, features = [
+    "lzma",
+    "deflate",
+    "deflate64",
+    "aes-crypto",
+    "bzip2",
+    "ppmd",
+    "xz",
+    "zstd",
+] }
 
 anyhow = { workspace = true }
 rayon = { workspace = true }

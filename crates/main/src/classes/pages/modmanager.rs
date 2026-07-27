@@ -1,15 +1,13 @@
-use crate::classes::pages::addons::ARCHIVE_EXTENSIONS;
 use crate::{MainWindow, ModItem};
 
 use anyhow::{anyhow, Context, Result};
-use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
+use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::config::{self, key};
 use shared::utils::{get_mods_path, read_dir_recursive};
 use slint::{Model, ModelRc, VecModel};
-use unrar::Archive as RarArchive;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -485,42 +483,8 @@ impl ModManagerHandler {
                 path,
                 target.join(path.file_name().with_context(|| "invalid file name")?),
             )?;
-        } else if ext == "rar" {
-            std::fs::create_dir_all(&target)?;
-            let archive = RarArchive::new(path).open_for_processing()?;
-            archive.extract_all(&target)?;
         } else if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
-            let data = std::fs::read(path)?;
-            // Max file size is 2GB
-            #[allow(clippy::identity_op)]
-            let extractor = ArchiveExtractor::new().with_max_file_size(2 * 1024 * 1024 * 1024);
-            let files = match ext.as_str() {
-                "zip" => extractor.extract(&data, ArchiveFormat::Zip)?,
-                "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
-                "tar" => extractor.extract(&data, ArchiveFormat::Tar)?,
-                "gz" => extractor.extract(&data, ArchiveFormat::Gz)?,
-                "bz2" => extractor.extract(&data, ArchiveFormat::Bz2)?,
-                "xz" => extractor.extract(&data, ArchiveFormat::Xz)?,
-                "zst" => extractor.extract(&data, ArchiveFormat::Zst)?,
-                "lz4" => extractor.extract(&data, ArchiveFormat::Lz4)?,
-                _ => return Err(anyhow!("unsupported archive format")),
-            };
-
-            std::fs::create_dir_all(&target)?;
-            for file in files {
-                let dest = target.join(&file.path);
-                if file.is_directory {
-                    std::fs::create_dir_all(&dest)?;
-                } else {
-                    if let Some(parent) = dest.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    match std::fs::write(&dest, file.data) {
-                        Ok(()) => (),
-                        Err(e) => return Err(anyhow!("could not write file: {e}")),
-                    }
-                }
-            }
+            extract_archive(path, &target)?;
         } else {
             return Err(anyhow!("unsupported file type '.{ext}'"));
         }
