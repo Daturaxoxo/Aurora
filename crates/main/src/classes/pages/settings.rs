@@ -1,3 +1,4 @@
+use crate::classes::logwindow;
 use crate::MainWindow;
 use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
@@ -77,6 +78,10 @@ impl SettingsHandler {
         let dev_mode = raw_dev.as_bool().unwrap_or(false);
         debug!("[Settings] developer_mode: raw={raw_dev:?} → {dev_mode}");
         w.set_developer_mode(dev_mode);
+        if dev_mode {
+            debug!("[Settings] developer_mode was left on, reopening the log window");
+            logwindow::set_visible(true, window);
+        }
 
         let raw_logging = config::get(key::EXTENSIVE_LOGGING);
         let extensive_logging = raw_logging.as_bool().unwrap_or(false);
@@ -164,11 +169,12 @@ impl SettingsHandler {
 
         // [DEVELOPER]
 
+        let ww = window.clone();
         w.on_developer_mode_changed(move |enabled| {
             info!("[Settings] developer_mode changed → {enabled}");
-            // w.set_show_dev_console(enabled); // TODO: add show-dev-console to MainWindow
             config::set(key::DEV_MODE, enabled);
             debug!("[Settings] developer_mode saved to config");
+            logwindow::set_visible(enabled, &ww);
         });
 
         w.on_extensive_logging_changed(move |enabled| {

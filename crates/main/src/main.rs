@@ -21,6 +21,7 @@ use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 
 use bridge::Bridge;
+use slint::{LogicalPosition, WindowPosition};
 
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
@@ -74,6 +75,12 @@ fn main() -> Result<()> {
         slint_window.set_size(slint::PhysicalSize::new(1280, 720));
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    slint_window.set_position(WindowPosition::Logical(LogicalPosition::new(
+        (monitor_size.width / 2 - slint_window.size().width / 2) as f32,
+        (monitor_size.height / 2 - slint_window.size().height / 2) as f32,
+    )));
+
     // DRAGGING
     let window_weak = window.as_weak();
     window.on_window_dragged(move |delta_x, delta_y| {
@@ -81,7 +88,7 @@ fn main() -> Result<()> {
             let logical_pos = w.window().position();
             #[allow(clippy::cast_precision_loss)]
             w.window()
-                .set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
+                .set_position(WindowPosition::Logical(LogicalPosition::new(
                     logical_pos.x as f32 + delta_x,
                     logical_pos.y as f32 + delta_y,
                 )));
@@ -104,9 +111,15 @@ fn main() -> Result<()> {
 
     let window_weak = window.as_weak();
     window.on_close_clicked(move || {
+        classes::logwindow::hide();
         if let Some(w) = window_weak.upgrade() {
             let _ = w.hide();
         }
+    });
+
+    window.window().on_close_requested(|| {
+        classes::logwindow::hide();
+        slint::CloseRequestResponse::HideWindow
     });
 
     ToastHandler::setup(window.as_weak());

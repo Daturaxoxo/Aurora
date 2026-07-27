@@ -1,18 +1,96 @@
-use std::{fs, io::Write, path::Path, sync::mpsc::SyncSender};
+use std::{
+    collections::VecDeque,
+    fs,
+    io::Write,
+    path::Path,
+    sync::{mpsc::SyncSender, Mutex},
+};
 
 use env_filter::{Builder, Filter};
 
 use log::*;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
 use crate::telemetry::{spawn_error_worker, ErrorEvent};
 
 const FILTER_ENV: &str = "AURORA_LOG";
 const LOG_FILE: &str = "Logs/aurora";
 
+/// Maximum amount of log entries allowed in the in-memory buffer
+pub const LOG_BUFFER_CAPACITY: usize = 10_000;
+
+#[derive(Clone, Debug)]
+pub struct LogEntry {
+    pub id: u64,
+    pub timestamp: String,
+    pub level: Level,
+    pub module: String,
+    pub message: String,
+}
+
+struct LogBuffer {
+    entries: VecDeque<LogEntry>,
+    next_seq: u64,
+}
+
+impl LogBuffer {
+    const fn new() -> Self {
+        Self {
+            entries: VecDeque::new(),
+            next_seq: 0,
+        }
+    }
+}
+
+static LOG_BUFFER: Mutex<LogBuffer> = Mutex::new(LogBuffer::new());
+
+fn buffer_record(timestamp: &str, record: &Record) {
+    let Ok(mut buffer) = LOG_BUFFER.lock() else {
+        return;
+    };
+
+    if buffer.entries.len() >= LOG_BUFFER_CAPACITY {
+        buffer.entries.pop_front();
+    }
+
+    let seq = buffer.next_seq;
+    buffer.next_seq += 1;
+
+    buffer.entries.push_back(LogEntry {
+        id: seq,
+        timestamp: timestamp.to_string(),
+        level: record.level(),
+        module: record.module_path().unwrap_or_default().to_string(),
+        message: record.args().to_string(),
+    });
+}
+
+pub fn for_each_log_since<F: FnMut(&LogEntry)>(cursor: u64, mut visit: F) -> u64 {
+    let Ok(buffer) = LOG_BUFFER.lock() else {
+        return cursor;
+    };
+
+    let Some(front) = buffer.entries.front() else {
+        return buffer.next_seq;
+    };
+
+    let skip = usize::try_from(cursor.saturating_sub(front.id)).unwrap_or(usize::MAX);
+    for entry in buffer.entries.iter().skip(skip) {
+        visit(entry);
+    }
+
+    buffer.next_seq
+}
+
+struct Sink {
+    console: Buffer,
+    file: Option<fs::File>,
+}
+
 pub struct Logger {
     inner: Filter,
-    log_file_path: String,
+    writer: BufferWriter,
+    sink: Mutex<Sink>,
     error_tx: Option<SyncSender<ErrorEvent>>,
 }
 
@@ -29,9 +107,25 @@ impl Logger {
             let _ = fs::create_dir_all(p);
         }
 
+        let file = match fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file_path)
+        {
+            Ok(file) => Some(file),
+            Err(e) => {
+                eprintln!("Failed to open log file {log_file_path}: {e}");
+                None
+            }
+        };
+
+        let writer = BufferWriter::stdout(ColorChoice::Always);
+        let console = writer.buffer();
+
         Self {
             inner: builder.build(),
-            log_file_path,
+            writer,
+            sink: Mutex::new(Sink { console, file }),
             error_tx: Some(spawn_error_worker()),
         }
     }
@@ -65,62 +159,60 @@ impl Log for Logger {
         {
             return;
         }
-        macro_rules! set_stdout_color {
-            ($r: expr, $g: expr, $b: expr, $stdout: ident) => {
-                $stdout
-                    .set_color(ColorSpec::new().set_fg(Some(Color::Rgb($r, $g, $b))))
-                    .unwrap()
-            };
-        }
-
         let timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
-        let mut stdout = StandardStream::stdout(ColorChoice::Always);
-        set_stdout_color!(131, 141, 140, stdout);
-        write!(&mut stdout, "[").unwrap();
+        buffer_record(&timestamp, record);
 
-        stdout.reset().expect("Failed to reset stdout");
+        let level = record.level();
+        let module = record.module_path().unwrap_or_default();
 
-        write!(&mut stdout, "{timestamp}").unwrap();
+        if let Ok(mut sink) = self.sink.lock() {
+            let sink = &mut *sink;
 
-        let str = format!(
-            "[{timestamp} {} {}] {}",
-            record.level(),
-            record.module_path().unwrap_or_default(),
-            record.args()
-        );
+            macro_rules! set_color {
+                ($r: expr, $g: expr, $b: expr) => {{
+                    let _ = sink
+                        .console
+                        .set_color(ColorSpec::new().set_fg(Some(Color::Rgb($r, $g, $b))));
+                }};
+            }
 
-        match record.level() {
-            log::Level::Error => set_stdout_color!(255, 0, 0, stdout),
-            log::Level::Warn => set_stdout_color!(255, 255, 0, stdout),
-            log::Level::Info => set_stdout_color!(79, 184, 150, stdout),
-            log::Level::Debug => set_stdout_color!(0, 255, 255, stdout),
-            log::Level::Trace => set_stdout_color!(0, 0, 255, stdout),
+            sink.console.clear();
+
+            set_color!(131, 141, 140);
+            let _ = write!(sink.console, "[");
+            let _ = sink.console.reset();
+
+            let _ = write!(sink.console, "{timestamp}");
+
+            match level {
+                Level::Error => set_color!(255, 0, 0),
+                Level::Warn => set_color!(255, 255, 0),
+                Level::Info => set_color!(79, 184, 150),
+                Level::Debug => set_color!(0, 255, 255),
+                Level::Trace => set_color!(0, 0, 255),
+            }
+            let _ = write!(sink.console, " {level} ");
+            let _ = sink.console.reset();
+
+            let _ = write!(sink.console, "{module}");
+
+            set_color!(131, 141, 140);
+            let _ = write!(sink.console, "] ");
+            let _ = sink.console.reset();
+
+            let _ = writeln!(sink.console, "{}", record.args());
+            let _ = self.writer.print(&sink.console);
+
+            if let Some(file) = sink.file.as_mut() {
+                let _ = writeln!(file, "[{timestamp} {level} {module}] {}", record.args());
+            }
         }
-        write!(&mut stdout, " {} ", record.level()).unwrap();
 
-        stdout.reset().expect("Failed to reset stdout");
-        write!(&mut stdout, "{}", record.module_path().unwrap_or_default()).unwrap();
-
-        set_stdout_color!(131, 141, 140, stdout);
-        write!(&mut stdout, "] ").unwrap();
-
-        stdout.reset().expect("Failed to reset stdout");
-        write!(&mut stdout, "{}", record.args()).unwrap();
-        println!();
-
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.log_file_path)
-            .expect("Failed to open log file");
-
-        writeln!(file, "{str}").unwrap();
-
-        if record.level() == log::Level::Error {
+        if level == Level::Error {
             if let Some(tx) = &self.error_tx {
                 let _ = tx.try_send(ErrorEvent {
                     timestamp,
-                    module: record.module_path().unwrap_or_default().to_string(),
+                    module: module.to_string(),
                     message: record.args().to_string(),
                 });
             }
