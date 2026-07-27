@@ -53,7 +53,49 @@ thread_local! {
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn screenshot_folder() -> Option<PathBuf> {
-    dirs::picture_dir().map(|p| p.join("NevernessToEverness"))
+    let game_path = PathBuf::from(config::get(key::GAME_PATH).as_str()?);
+    let selfie_folder = game_path
+        .join("Client")
+        .join("WindowsNoEditor")
+        .join("Selfie");
+    if selfie_folder.exists() {
+        Some(selfie_folder)
+    } else {
+        None
+    }
+}
+
+fn get_screenshots() -> Option<Vec<PathBuf>> {
+    let Some(selfie_folder) = screenshot_folder() else {
+        return None;
+    };
+
+    let mut entries = vec![];
+    for entry in selfie_folder.read_dir().ok()? {
+        let Some(entry) = entry.ok() else { continue };
+
+        if entry.file_type().is_ok_and(|t| t.is_dir())
+            && !entry.file_name().eq_ignore_ascii_case("66666")
+        {
+            let screenshots_folder = entry.path().join("ScreenShots");
+            if screenshots_folder.exists() {
+                for entry in screenshots_folder.read_dir().ok()? {
+                    let Some(entry) = entry.ok() else { continue };
+                    if entry.file_type().is_ok_and(|t| t.is_file()) {
+                        entries.push(entry.path());
+                    }
+                }
+            } else {
+                warn!("Screenshots folder not found: {:?}", screenshots_folder);
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        None
+    } else {
+        Some(entries)
+    }
 }
 
 fn favorites() -> HashSet<String> {
@@ -92,28 +134,19 @@ fn created_timestamp(path: &Path) -> Option<NaiveDateTime> {
 }
 
 fn scan() -> Vec<Screenshot> {
-    let Some(folder) = screenshot_folder() else {
-        warn!("Could not resolve the Pictures directory");
+    let Some(screenshots) = get_screenshots() else {
+        warn!("Couldn't get screenshots");
         return Vec::new();
-    };
-
-    let entries = match std::fs::read_dir(&folder) {
-        Ok(e) => e,
-        Err(e) => {
-            warn!("Could not read '{}': {e}", folder.display());
-            return Vec::new();
-        }
     };
 
     let favs = favorites();
     let mut shots = Vec::new();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
+    for path in screenshots {
         let is_png = path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("png"));
-        if !path.is_file() || !is_png {
+        if !is_png {
             continue;
         }
 
