@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::thread;
 use std::time::Duration;
 
@@ -16,17 +16,15 @@ impl AuroraEngine {
             self.kill_nte_processes()?;
         }
 
-        let mut targets: Vec<(String, PathBuf)> = self
+        let handles: Vec<_> = self
             .managed_files()
             .into_iter()
             .map(|f| (f.label, f.destination))
-            .collect();
-        targets.push(("Plugins".to_string(), self.win64.join("Plugins")));
-        targets.push(("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")));
-        targets.push(("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")));
-
-        let handles: Vec<_> = targets
-            .into_iter()
+            .chain([
+                ("Plugins".to_string(), self.win64.join("Plugins")),
+                ("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
+                ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
+            ])
             .map(|(label, path)| thread::spawn(move || Self::remove_target(&label, &path)))
             .collect();
 

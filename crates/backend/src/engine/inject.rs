@@ -31,7 +31,7 @@ impl AuroraEngine {
                 self.bin_path.join("Lua").display(),
                 self.win64.display()
             );
-            LuaManager::setup(&self.bin_path, self.win64.clone())?;
+            LuaManager::setup(&self.bin_path, &self.win64)?;
         }
 
         if let Some(custom_files) = custom_files {

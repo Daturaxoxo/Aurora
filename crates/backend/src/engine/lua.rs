@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use log::*;
@@ -10,19 +10,17 @@ pub struct LuaManager;
 
 impl LuaManager {
     pub fn exists(bin_path: &Path) -> bool {
-        let marker = bin_path
+        bin_path
             .join("Lua")
             .join("ue4ss")
-            .join("UE4SS.dll");
-        let found = marker.exists();
-        info!("LuaManager::exists checking {} -> {found}", marker.display());
-        found
+            .join("UE4SS.dll")
+            .exists()
     }
 
-    pub fn setup(bin_path: &Path, win64_path: PathBuf) -> Result<()> {
+    pub fn setup(bin_path: &Path, win64_path: &Path) -> Result<()> {
         let lua_dir = bin_path.join("Lua");
 
-        ensure_dir(&win64_path)?;
+        ensure_dir(&win64_path.to_path_buf())?;
 
         let dwmapi_src = lua_dir.join("dwmapi.dll");
         let dwmapi_dst = win64_path.join("dwmapi.dll");

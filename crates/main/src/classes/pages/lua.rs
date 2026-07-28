@@ -13,41 +13,22 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/main.zip";
+const BLOCKLISTED_NAMES: &[&str] = &[
+    "shared", 
+    "keybinds"
+];
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
 
-/// Backend for the Lua Scripts page.
-///
-/// `LuaScriptsPage`'s script data and callbacks live on the `LuaScriptsAdapter`
-/// global (see lua.slint) rather than directly on `MainWindow`, so we reach
-/// them via `window.global::<LuaScriptsAdapter>()` instead of `window.*`.
-/// This works regardless of where `LuaScriptsPage` ends up instantiated in
-/// the component tree.
-///
-/// Disk layout:
-///   `<bin_dir>\ue4ss`                                   <- existence check ({A} vs {B})
-///   `<bin_dir>\Lua`                                      <- extraction target for the addon zip
-///   `<bin_dir>\Lua\ue4ss\Mods\<name>\Scripts\main.lua`   <- per-script save location
-///
-/// NOTE: the existence check looks at `<bin_dir>\ue4ss`, but the zip is
-/// extracted into `<bin_dir>\Lua` (landing at `<bin_dir>\Lua\ue4ss` once
-/// unpacked). Those are two different folders per the spec this was written
-/// against — worth double-checking whether that's intentional (e.g.
-/// detecting an externally-installed UE4SS vs. the Lua-addon one), since as
-/// written a fresh install here won't satisfy the existence check again on
-/// next launch.
 pub struct LuaScriptsHandler;
 
 impl LuaScriptsHandler {
-    /// `bin_dir` is the game's `\Bin` directory. Wire this up to whatever
-    /// already resolves the active game/install path elsewhere in the app
-    /// (mirrors the `VersionPaths` resolution from the v1.x launcher).
-    pub fn setup(window: &Weak<MainWindow>, bin_dir: PathBuf) {
+    pub fn setup(window: &Weak<MainWindow>, bin_dir: &Path) {
         let win = window.unwrap();
         let adapter = win.global::<LuaScriptsAdapter>();
 
-        // --- {A}/{B} branch --------------------------------------------
+        // [A]/[B] branch switch
         let ue4ss_marker = bin_dir.join("Lua").join("ue4ss").join("UE4SS.dll");
         let already_installed = ue4ss_marker.exists();
         info!(
@@ -56,9 +37,8 @@ impl LuaScriptsHandler {
         );
         adapter.set_ue4ss_installed(already_installed);
 
-        // Load whatever scripts already exist on disk (if any) instead of
-        // hardcoded demo data.
-        let mods_dir = Self::mods_dir(&bin_dir);
+        // Load scripts from disk
+        let mods_dir = Self::mods_dir(bin_dir);
         let model: Rc<VecModel<LuaScriptItem>> =
             Rc::new(VecModel::from(scan_existing_scripts(&mods_dir)));
         adapter.set_scripts(ModelRc::from(model.clone()));
@@ -72,7 +52,7 @@ impl LuaScriptsHandler {
                 + 1,
         ));
 
-        // --- refresh ---------------------------------------------------------
+        // Refresh
         {
             let model = model.clone();
             let mods_dir = mods_dir.clone();
@@ -92,37 +72,29 @@ impl LuaScriptsHandler {
             });
         }
 
-        // --- install-ue4ss -------------------------------------------------
+        // Install Handler
         {
             let window = window.clone();
-            let bin_dir = bin_dir.clone();
+            let bin_dir = bin_dir.to_path_buf();
             adapter.on_install_ue4ss(move || {
                 Self::start_install(window.clone(), bin_dir.clone());
             });
         }
 
-        // --- create-script -------------------------------------------------
+        // Create Script
         {
             let model = model.clone();
-            let next_id = next_id.clone();
             let mods_dir = mods_dir.clone();
             adapter.on_create_script(move || {
                 let mut id_ref = next_id.borrow_mut();
                 let id = id_ref.to_string();
                 *id_ref += 1;
 
-                // Guard against colliding with a reserved built-in helper
-                // mod name (e.g. if a future id sequence ever produced
-                // "new_script_shared" or similar) — not currently possible
-                // given the "new_script_<id>" format, but kept in case this
-                // naming scheme changes later.
-                let mut name = format!("new_script_{id}");
+                let mut name = format!("lua_script_{id}");
                 if is_blocklisted_name(&name) {
                     name = format!("{name}_script");
                 }
-                let code = "-- new script\n".to_string();
-
-                info!("Creating new Lua script '{name}' (id {id})");
+                let code = "-- Aurora uses UE4SS' LUA API to load scripts, for more information see their documentation.\n".to_string();
 
                 if let Err(e) = write_script(&mods_dir, &name, &code) {
                     error!("Failed to write new script '{name}' to disk: {e}");
@@ -139,21 +111,20 @@ impl LuaScriptsHandler {
             });
         }
 
-        // --- toggle-script --------------------------------------------------
+        // Toggle
         {
             let model = model.clone();
             let mods_dir = mods_dir.clone();
             adapter.on_toggle_script(move |id| {
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
                     item.enabled = !item.enabled;
-                    info!("Toggled script {id} -> enabled = {}", item.enabled);
                     set_mod_enabled_in_config(&mods_dir, &item.name, item.enabled);
                     model.set_row_data(idx, item);
                 }
             });
         }
 
-        // --- rename-script ---------------------------------------------------
+        // -Rename
         {
             let model = model.clone();
             let mods_dir = mods_dir.clone();
@@ -171,7 +142,6 @@ impl LuaScriptsHandler {
 
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
                     let old_name = item.name.to_string();
-                    info!("Renaming script {id}: '{old_name}' -> '{new_name}'");
 
                     match rename_script_folder(&mods_dir, &old_name, &new_name) {
                         Ok(()) => {
@@ -179,7 +149,7 @@ impl LuaScriptsHandler {
                         }
                         Err(e) => {
                             error!(
-                                "Failed to rename script folder '{old_name}' -> '{new_name}': {e}"
+                                "Failed to rename script folder from '{old_name}' to '{new_name}': {e}"
                             );
                         }
                     }
@@ -190,14 +160,12 @@ impl LuaScriptsHandler {
             });
         }
 
-        // --- delete-script ---------------------------------------------------
+        // Delete Script
         {
             let model = model.clone();
             let mods_dir = mods_dir.clone();
             adapter.on_delete_script(move |id| {
                 if let Some((idx, item)) = find_by_id(&model, &id) {
-                    info!("Deleting script {id}");
-
                     let script_dir = mods_dir.join(item.name.as_str());
                     if let Err(e) = fs::remove_dir_all(&script_dir) {
                         if e.kind() != std::io::ErrorKind::NotFound {
@@ -214,13 +182,10 @@ impl LuaScriptsHandler {
             });
         }
 
-        // --- save-script-code -------------------------------------------------
+        // Save Code
         {
-            let model = model.clone();
-            let mods_dir = mods_dir.clone();
             adapter.on_save_script_code(move |id, code| {
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
-                    info!("Saving code for script {id} ({} bytes)", code.len());
 
                     if let Err(e) = write_script(&mods_dir, &item.name, &code) {
                         error!("Failed to save script '{}' to disk: {e}", item.name);
@@ -237,9 +202,7 @@ impl LuaScriptsHandler {
         bin_dir.join("Lua").join("ue4ss").join("Mods")
     }
 
-    /// Kicks off the download + extract on the shared tokio runtime so the
-    /// UI thread never blocks on network/disk IO. Progress is reported back
-    /// via `slint::invoke_from_event_loop`.
+    /// UE4SS Install Main
     fn start_install(window: Weak<MainWindow>, bin_dir: PathBuf) {
         RUNTIME.spawn(async move {
             let result = Self::download_and_extract(&bin_dir, &window).await;
@@ -288,8 +251,6 @@ impl LuaScriptsHandler {
 
         for (i, entry) in files.iter().enumerate() {
             let Some(relative_path) = sanitize_archive_path(&entry.path) else {
-                // Skip anything with a path that could escape lua_dir
-                // (zip-slip protection).
                 warn!("Skipping unsafe archive entry: {:?}", entry.path);
                 continue;
             };
@@ -304,7 +265,7 @@ impl LuaScriptsHandler {
                 tokio::fs::write(&out_path, &entry.data).await?;
             }
 
-            let pct = 50 + ((i + 1) * 50 / count) as i32;
+            let pct = 50 + i32::try_from((i + 1) * 50 / count).unwrap_or(50);
             Self::report(window, true, pct.clamp(0, 100), "Extracting UE4SS…");
         }
 
@@ -325,9 +286,6 @@ impl LuaScriptsHandler {
     }
 }
 
-/// Validates that an archive entry's path is relative and doesn't try to
-/// escape the extraction directory (no `..` components, no absolute paths).
-/// Mirrors the protection `zip::enclosed_name()` used to give us for free.
 fn sanitize_archive_path(path: &str) -> Option<PathBuf> {
     use std::path::Component;
 
@@ -345,8 +303,6 @@ fn sanitize_archive_path(path: &str) -> Option<PathBuf> {
     Some(safe)
 }
 
-/// Finds a `LuaScriptItem` by id in the model, returning its row index
-/// alongside a cloned copy so callers can mutate + `set_row_data` it back.
 fn find_by_id(
     model: &Rc<VecModel<LuaScriptItem>>,
     id: &str,
@@ -354,17 +310,12 @@ fn find_by_id(
     model.iter().enumerate().find(|(_, item)| item.id == id)
 }
 
-/// Writes `code` to `<mods_dir>\<name>\Scripts\main.lua`, creating any
-/// missing directories along the way.
 fn write_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()> {
     let scripts_dir = mods_dir.join(name).join("Scripts");
     fs::create_dir_all(&scripts_dir)?;
     fs::write(scripts_dir.join("main.lua"), code)
 }
 
-/// Renames `<mods_dir>\<old_name>` to `<mods_dir>\<new_name>` (moving the
-/// `Scripts\main.lua` inside it along for the ride). No-ops if the old
-/// folder doesn't exist yet (e.g. a script that was never saved).
 fn rename_script_folder(mods_dir: &Path, old_name: &str, new_name: &str) -> std::io::Result<()> {
     let old_dir = mods_dir.join(old_name);
     if !old_dir.exists() {
@@ -373,35 +324,16 @@ fn rename_script_folder(mods_dir: &Path, old_name: &str, new_name: &str) -> std:
     fs::rename(old_dir, mods_dir.join(new_name))
 }
 
-/// Built-in helper mod folders (`shared`, `Keybinds`) that ship alongside
-/// the UE4SS addon zip. These aren't user scripts, so they're:
-///   1. Refused as a rename target (`on_rename_script` below rejects the
-///      rename and surfaces a toast instead of touching disk/model state).
-///   2. Skipped entirely when scanning `<mods_dir>\*` for the script list
-///      (see `scan_existing_scripts`).
-///   3. Always kept at the bottom of `mods.txt` (see `write_mods_txt`).
-/// Matched case-insensitively since folder casing isn't guaranteed to stay
-/// consistent across zip repackagings.
-const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
-
 fn is_blocklisted_name(name: &str) -> bool {
     BLOCKLISTED_NAMES
         .iter()
         .any(|blocked| blocked.eq_ignore_ascii_case(name))
 }
 
-/// `mods.txt` doesn't support spaces in mod identifiers (e.g. "Line Trace
-/// Mod" needs to become "LineTraceMod"), and `mods.json`'s `mod_name` has
-/// to match whatever identifier `mods.txt` uses for the two files to stay
-/// in sync — so this same sanitizer is used for both. Strips all
-/// whitespace, not just plain spaces, to be safe against tabs or stray
-/// characters from copy-pasted names.
 fn sanitize_mod_config_name(name: &str) -> String {
     name.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
-/// A single entry in `mods.json` — UE4SS's record of which mod folders
-/// exist and whether each is registered/enabled.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModJsonEntry {
     mod_name: String,
@@ -416,9 +348,6 @@ fn mods_txt_path(mods_dir: &Path) -> PathBuf {
     mods_dir.join("mods.txt")
 }
 
-/// Reads `mods.json`. Returns an empty list if the file doesn't exist yet
-/// or fails to parse (logged), rather than erroring out — a missing/blank
-/// mods.json shouldn't block the rest of the app from working.
 fn read_mods_json(mods_dir: &Path) -> Vec<ModJsonEntry> {
     let path = mods_json_path(mods_dir);
     let Ok(contents) = fs::read_to_string(&path) else {
@@ -440,9 +369,6 @@ fn write_mods_json(mods_dir: &Path, entries: &[ModJsonEntry]) -> std::io::Result
     fs::write(mods_json_path(mods_dir), json)
 }
 
-/// Reads `mods.txt`, returning `(name, enabled)` pairs in on-disk order.
-/// Lines are formatted `Name : 1` / `Name : 0`; blank or malformed lines
-/// are skipped.
 fn read_mods_txt(mods_dir: &Path) -> Vec<(String, bool)> {
     let path = mods_txt_path(mods_dir);
     let Ok(contents) = fs::read_to_string(&path) else {
@@ -462,12 +388,6 @@ fn read_mods_txt(mods_dir: &Path) -> Vec<(String, bool)> {
         .collect()
 }
 
-/// Writes `mods.txt`, enforcing the invariant that built-in mods
-/// (`BLOCKLISTED_NAMES`) always sit at the bottom of the file — UE4SS
-/// breaks otherwise. Non-built-in entries are written first, in whatever
-/// order they're passed in (callers prepend newly-created mods so they
-/// land at the very top), followed by built-in entries in their existing
-/// relative order.
 fn write_mods_txt(mods_dir: &Path, entries: &[(String, bool)]) -> std::io::Result<()> {
     let (builtin, user): (Vec<_>, Vec<_>) = entries
         .iter()
@@ -477,15 +397,12 @@ fn write_mods_txt(mods_dir: &Path, entries: &[(String, bool)]) -> std::io::Resul
     let lines: Vec<String> = user
         .into_iter()
         .chain(builtin)
-        .map(|(name, enabled)| format!("{name} : {}", if enabled { 1 } else { 0 }))
+        .map(|(name, enabled)| format!("{name} : {}", i32::from(enabled)))
         .collect();
 
     fs::write(mods_txt_path(mods_dir), lines.join("\r\n"))
 }
 
-/// Registers a newly-created mod in `mods.json` and `mods.txt`, inserting
-/// it at the very top of `mods.txt` (ahead of every existing mod, but
-/// still above the built-in block per `write_mods_txt`'s invariant).
 fn register_mod_in_config(mods_dir: &Path, name: &str, enabled: bool) {
     let config_name = sanitize_mod_config_name(name);
 
@@ -507,7 +424,6 @@ fn register_mod_in_config(mods_dir: &Path, name: &str, enabled: bool) {
     }
 }
 
-/// Removes a mod's entry from `mods.json` and `mods.txt`.
 fn unregister_mod_from_config(mods_dir: &Path, name: &str) {
     let config_name = sanitize_mod_config_name(name);
 
@@ -524,17 +440,14 @@ fn unregister_mod_from_config(mods_dir: &Path, name: &str) {
     }
 }
 
-/// Renames a mod's entry in `mods.json`/`mods.txt` in place — position in
-/// `mods.txt` (and therefore the built-in-mods-at-bottom invariant) is
-/// preserved, only the identifier text changes.
 fn rename_mod_in_config(mods_dir: &Path, old_name: &str, new_name: &str) {
     let old_config = sanitize_mod_config_name(old_name);
     let new_config = sanitize_mod_config_name(new_name);
 
     let mut json_entries = read_mods_json(mods_dir);
-    for entry in json_entries.iter_mut() {
+    for entry in &mut json_entries {
         if entry.mod_name == old_config {
-            entry.mod_name = new_config.clone();
+            entry.mod_name.clone_from(&new_config);
         }
     }
     if let Err(e) = write_mods_json(mods_dir, &json_entries) {
@@ -542,9 +455,9 @@ fn rename_mod_in_config(mods_dir: &Path, old_name: &str, new_name: &str) {
     }
 
     let mut txt_entries = read_mods_txt(mods_dir);
-    for (n, _) in txt_entries.iter_mut() {
+    for (n, _) in &mut txt_entries {
         if *n == old_config {
-            *n = new_config.clone();
+            n.clone_from(&new_config);
         }
     }
     if let Err(e) = write_mods_txt(mods_dir, &txt_entries) {
@@ -552,9 +465,6 @@ fn rename_mod_in_config(mods_dir: &Path, old_name: &str, new_name: &str) {
     }
 }
 
-/// Updates a mod's enabled flag in both `mods.json` and `mods.txt` in
-/// place, without touching ordering. If the mod has no existing entry
-/// (shouldn't normally happen), it's added at the top of `mods.txt`.
 fn set_mod_enabled_in_config(mods_dir: &Path, name: &str, enabled: bool) {
     let config_name = sanitize_mod_config_name(name);
 
@@ -582,15 +492,6 @@ fn set_mod_enabled_in_config(mods_dir: &Path, name: &str, enabled: bool) {
     }
 }
 
-/// Scans `<mods_dir>\*` for existing mod folders and loads their
-/// `Scripts\main.lua` contents, so a previously-installed UE4SS with
-/// existing Lua mods shows up instead of an empty list.
-///
-/// Skips the built-in helper folders (see `BLOCKLISTED_NAMES`) so they
-/// don't show up as editable "scripts" in the UI. Each script's `enabled`
-/// state is read from `mods.txt` (matched via the same sanitized
-/// identifier used when writing it), not assumed — a mod not listed in
-/// `mods.txt` at all is treated as disabled.
 fn scan_existing_scripts(mods_dir: &Path) -> Vec<LuaScriptItem> {
     let mut scripts = Vec::new();
 

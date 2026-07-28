@@ -155,7 +155,7 @@ fn main() -> Result<()> {
         .parent()
         .map(|p| p.join("Bin"))
         .ok_or_else(|| anyhow!("could not determine the executable's directory"))?;
-    LuaScriptsHandler::setup(&window.as_weak(), bin_dir);
+    LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
     Ok(window.run()?)
