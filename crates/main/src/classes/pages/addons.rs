@@ -1,4 +1,5 @@
 use crate::{AddonItem, MainWindow};
+use crate::classes::toast::ToastHandler;
 use backend::classes::addons::payload_files;
 use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::classes::gamebanana::api::GameBananaApi;
@@ -203,8 +204,6 @@ impl AddonsHandler {
             let is_toggle = row.installed && !row.update_available;
             row.installing = true;
             if is_toggle {
-                // Flip the button immediately; the file renames happen in the
-                // background and the row is reconciled once they're done
                 row.enabled = !row.enabled;
             }
             model.set_row_data(i, row);
@@ -212,7 +211,6 @@ impl AddonsHandler {
             let ww = ww.clone();
             std::thread::spawn(move || {
                 let updated = if is_toggle {
-                    // No network needed to rename payload files on disk
                     let mut addons = Self::scan_local();
                     if let Some(addon) = addons.get_mut(i) {
                         Self::set_enabled(addon, !addon.enabled);
@@ -221,12 +219,25 @@ impl AddonsHandler {
                 } else {
                     let mut addons = Self::scan();
                     if let Some(addon) = addons.get_mut(i) {
-                        if let Err(e) = Self::install(addon) {
-                            // TODO: probably should display an error message @daturas
-                            error!(
-                                "Addons manager could not install addon '{}': {e}",
-                                addon.name
-                            );
+                        match Self::install(addon) {
+                            Err(e) => {
+                                error!(
+                                    "Addons manager could not install addon '{}': {e}",
+                                    addon.name
+                                );
+                                ToastHandler::show(
+                                    &ww,
+                                    format!("Failed to install {}: {e}", addon.name),
+                                    "error",
+                                );
+                            }
+                            Ok(()) => {
+                                ToastHandler::show(
+                                    &ww,
+                                    format!("{} installed successfully.", addon.name),
+                                    "success",
+                                );
+                            }
                         }
                     }
                     Self::scan().into_iter().nth(i)
@@ -427,6 +438,7 @@ impl AddonsHandler {
     }
 
     fn install(addon: &Addon) -> Result<()> {
+        let mut failures: Vec<String> = Vec::new();
         for data in &addon.install_data {
             debug!(
                 "Installing addon: downloading '{}' → '{}'",
@@ -479,6 +491,7 @@ impl AddonsHandler {
                             }
 
                             // HACK: Hide UID also has 2 other mods inside, remove those
+                            // wow what a hack -daturas
                             if name.contains("PingStatus") || name.contains("PhoneFunctions") {
                                 fs::remove_file(&path)?;
                             }
@@ -487,23 +500,69 @@ impl AddonsHandler {
                     }
                     info!("Installed addon: saved '{}'", dest.display());
                 }
-                Err(e) => error!(
-                    "Could not install addon: failed to download '{}': {e}",
-                    data.file_name
-                ),
+                Err(e) => {
+                    error!(
+                        "Could not install addon: failed to download '{}': {e}",
+                        data.file_name
+                    );
+                    failures.push(format!("{}: {e}", data.file_name));
+                }
             }
         }
 
-        Ok(())
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "{} of {} file(s) failed to install: {}",
+                failures.len(),
+                addon.install_data.len(),
+                failures.join("; ")
+            ))
+        }
     }
 
-    fn download_file(file_name: &str, url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
-        let response = reqwest::blocking::get(url)?;
+    const DOWNLOAD_MAX_ATTEMPTS: u32 = 4;
 
-        let dest = dest_folder.join(file_name);
-        let bytes = response.bytes()?;
-        std::fs::write(&dest, &bytes)?;
-        Ok(dest)
+    fn download_file(file_name: &str, url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?;
+
+        let mut last_err = None;
+        for attempt in 1..=Self::DOWNLOAD_MAX_ATTEMPTS {
+            match client
+                .get(url)
+                .send()
+                .and_then(reqwest::blocking::Response::error_for_status)
+                .and_then(|r| r.bytes())
+            {
+                Ok(bytes) => {
+                    let dest = dest_folder.join(file_name);
+                    std::fs::write(&dest, &bytes)
+                        .with_context(|| format!("writing '{}' to disk", dest.display()))?;
+                    return Ok(dest);
+                }
+                Err(e) => {
+                    warn!(
+                        "Addon download attempt {attempt}/{} failed for '{file_name}': {e}",
+                        Self::DOWNLOAD_MAX_ATTEMPTS
+                    );
+                    last_err = Some(e);
+                    if attempt < Self::DOWNLOAD_MAX_ATTEMPTS {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            500 * u64::from(attempt),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!(
+            "failed to download '{file_name}' after {} attempts: {}",
+            Self::DOWNLOAD_MAX_ATTEMPTS,
+            last_err.map(|e| e.to_string()).unwrap_or_default()
+        ))
     }
 
     fn set_enabled(addon: &Addon, enable: bool) {
