@@ -58,6 +58,9 @@ impl EngineHandler {
                 }
             };
 
+            #[cfg(target_os = "linux")]
+            crate::classes::linux::ensure_dll_overrides();
+
             let mut engine = match AuroraEngine::new(&game_path) {
                 Ok(e) => e,
                 Err(e) => {
