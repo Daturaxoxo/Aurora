@@ -17,31 +17,19 @@ export struct LuaScriptItem {
 export global LuaScriptsAdapter {
     in-out property <[LuaScriptItem]> scripts: [];
 
-    // Whether `\Bin\ue4ss` was found on disk. Set by Rust on startup.
-    in-out property <bool> ue4ss-installed: false;
-
-    // Driven by Rust while the download/extract is in progress.
-    in-out property <bool> installing: false;
-    in-out property <int> install-progress: 0; // 0-100
-    in-out property <string> install-status: "";
-    in-out property <string> install-error: "";
-
     callback create-script();
     callback toggle-script(string);
     callback rename-script(string, string);
     callback delete-script(string);
     callback save-script-code(string /* id */, string /* code */);
-    callback install-ue4ss();
-    callback refresh();
-
-    // Set by Rust (e.g. when a rename to a reserved name is rejected) to
-    // surface a transient toast in the UI. Cleared automatically after a
-    // few seconds by a Timer in LuaScriptsPage.
-    in-out property <string> toast-message: "";
 }
 
 export component LuaScriptsPage inherits Rectangle {
     callback close-lua-scripts();
+
+    // Simulates checking whether Bin/UE4SS already exists on disk.
+    // When true, we skip the pre-install screen and go straight to {B}.
+    property <bool> ue4ss-installed: false;
 
     // Id/index of the script currently open in the editor overlay ("" / -1 = none open).
     property <string> editing-script-id: "";
@@ -142,52 +130,25 @@ export component LuaScriptsPage inherits Rectangle {
                     }
                 }
 
-                HorizontalLayout {
-                    spacing: 8px;
+                close-btn := Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    animate background { duration: 120ms; }
 
-                    refresh-rect := Rectangle {
-                        width: 30px;
-                        height: 30px;
-                        border-radius: 6px;
-                        background: refresh-ta.has-hover ? #ffffff16 : transparent;
-                        animate background { duration: 120ms; }
-
-                        Image {
-                            source: @image-url("../../../../production/icons/refresh.png");
-                            width: 16px;
-                            height: 16px;
-                            image-rendering: smooth;
-                            image-fit: contain;
-                            colorize: Palette.text-primary;
-                            opacity: refresh-ta.has-hover ? 1.0 : 0.6;
-                            animate opacity { duration: 120ms; }
-                        }
-
-                        refresh-ta := TouchArea {
-                            clicked => { LuaScriptsAdapter.refresh(); }
-                        }
+                    Image {
+                        source: @image-url("../../../../production/icons/close.png");
+                        width: 22px;
+                        height: 22px;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        opacity: close-ta.has-hover ? 1.0 : 0.6;
+                        animate opacity { duration: 120ms; }
                     }
 
-                    close-btn := Rectangle {
-                        width: 30px;
-                        height: 30px;
-                        border-radius: 6px;
-                        background: close-ta.has-hover ? #ffffff16 : transparent;
-                        animate background { duration: 120ms; }
-
-                        Image {
-                            source: @image-url("../../../../production/icons/close.png");
-                            width: 22px;
-                            height: 22px;
-                            image-rendering: smooth;
-                            image-fit: contain;
-                            opacity: close-ta.has-hover ? 1.0 : 0.6;
-                            animate opacity { duration: 120ms; }
-                        }
-
-                        close-ta := TouchArea {
-                            clicked => { root.close-lua-scripts(); }
-                        }
+                    close-ta := TouchArea {
+                        clicked => { root.close-lua-scripts(); }
                     }
                 }
             }
@@ -204,7 +165,7 @@ export component LuaScriptsPage inherits Rectangle {
                 // ---------------------------------------------------------
                 // {A} Pre-install screen — shown when UE4SS is not detected
                 // ---------------------------------------------------------
-                if !LuaScriptsAdapter.ue4ss-installed: VerticalLayout {
+                if !root.ue4ss-installed: VerticalLayout {
                     alignment: center;
                     spacing: 20px;
                     padding: 24px;
@@ -303,52 +264,7 @@ export component LuaScriptsPage inherits Rectangle {
                         }
                     }
 
-                    if LuaScriptsAdapter.install-error != "": HorizontalLayout {
-                        alignment: center;
-                        Text {
-                            text: LuaScriptsAdapter.install-error;
-                            color: #ee4937;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            wrap: word-wrap;
-                            width: 380px;
-                        }
-                    }
-
-                    if LuaScriptsAdapter.installing: VerticalLayout {
-                        spacing: 8px;
-
-                        HorizontalLayout {
-                            alignment: center;
-                            Text {
-                                text: LuaScriptsAdapter.install-status + " (" + LuaScriptsAdapter.install-progress + "%)";
-                                color: Palette.text-secondary;
-                                font-size: 12px;
-                            }
-                        }
-
-                        HorizontalLayout {
-                            alignment: center;
-                            Rectangle {
-                                width: 320px;
-                                height: 6px;
-                                border-radius: 3px;
-                                background: #ffffff16;
-                                clip: true;
-
-                                Rectangle {
-                                    x: 0;
-                                    width: parent.width * LuaScriptsAdapter.install-progress / 100;
-                                    height: 100%;
-                                    border-radius: 3px;
-                                    background: #3b82f6;
-                                    animate width { duration: 150ms; }
-                                }
-                            }
-                        }
-                    }
-
-                    if !LuaScriptsAdapter.installing: HorizontalLayout {
+                    HorizontalLayout {
                         alignment: center;
                         spacing: 12px;
                         height: 40px;
@@ -392,8 +308,9 @@ export component LuaScriptsPage inherits Rectangle {
 
                             install-ta := TouchArea {
                                 clicked => {
-                                    LuaScriptsAdapter.install-error = "";
-                                    LuaScriptsAdapter.install-ue4ss();
+                                    // TODO: kick off the real UE4SS install here.
+                                    // For now we jump straight to {B}.
+                                    root.ue4ss-installed = true;
                                 }
                             }
                         }
@@ -403,7 +320,7 @@ export component LuaScriptsPage inherits Rectangle {
                 // ---------------------------------------------------------
                 // {B} Main Lua Scripts page — script list + code editor
                 // ---------------------------------------------------------
-                if LuaScriptsAdapter.ue4ss-installed: VerticalLayout {
+                if root.ue4ss-installed: VerticalLayout {
                     spacing: 14px;
 
                     // Toolbar
@@ -686,7 +603,7 @@ export component LuaScriptsPage inherits Rectangle {
                 // ---------------------------------------------------------
                 // {B} Code editor overlay — shown when a script is open
                 // ---------------------------------------------------------
-                if LuaScriptsAdapter.ue4ss-installed && root.editing-script-id != "": Rectangle {
+                if root.ue4ss-installed && root.editing-script-id != "": Rectangle {
                     background: #101014f2;
                     border-radius: 12px;
                     border-width: 1px;
@@ -818,35 +735,6 @@ export component LuaScriptsPage inherits Rectangle {
                         }
                     }
                 }
-            }
-        }
-
-        Timer {
-            interval: 3000ms;
-            running: LuaScriptsAdapter.toast-message != "";
-            triggered => { LuaScriptsAdapter.toast-message = ""; }
-        }
-
-        if LuaScriptsAdapter.toast-message != "": Rectangle {
-            x: (panel.width - self.width) / 2;
-            y: panel.height - self.height - 24px;
-            height: 40px;
-            width: toast-text.preferred-width + 32px;
-            border-radius: 8px;
-            background: #1a1a1eee;
-            border-width: 1px;
-            border-color: #ee4937;
-            drop-shadow-color: #00000099;
-            drop-shadow-blur: 16px;
-
-            toast-text := Text {
-                text: LuaScriptsAdapter.toast-message;
-                color: Palette.text-primary;
-                font-family: "Segoe UI";
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
             }
         }
     }

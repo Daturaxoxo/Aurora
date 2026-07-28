@@ -6,6 +6,7 @@ use log::*;
 
 use crate::classes::validate::ensure_dir;
 use crate::engine::files::{group_by_addon, FileGroup, ManagedFile};
+use crate::engine::lua::LuaManager;
 
 use super::AuroraEngine;
 
@@ -24,6 +25,15 @@ impl AuroraEngine {
         Self::copy_non_addon_files(&files)?;
         self.copy_pak_addons(&files)?;
 
+        if LuaManager::exists(&self.bin_path) {
+            info!(
+                "UE4SS Lua runtime detected in {}, copying into {}",
+                self.bin_path.join("Lua").display(),
+                self.win64.display()
+            );
+            LuaManager::setup(&self.bin_path, self.win64.clone())?;
+        }
+
         if let Some(custom_files) = custom_files {
             self.copy_custom_files(&custom_files)?;
         }
@@ -35,6 +45,7 @@ impl AuroraEngine {
         for f in files.iter().filter(|f| f.required) {
             if !f.source.exists() {
                 // TODO: Maybe we could instead try to redownload any missing files?
+                // maybe -daturas
                 error!(
                     "Missing required Bin file, the following file is required for Aurora to function properly: {}",
                     f.source.display()
@@ -45,9 +56,6 @@ impl AuroraEngine {
         Ok(())
     }
 
-    /// Copies every enabled loader-DLL / signature-bypass file. PAK
-    /// addons are handled separately by `copy_pak_addons` since they need
-    /// per-addon atomicity (see `group_by_addon`), not a flat parallel copy.
     fn copy_non_addon_files(files: &[ManagedFile]) -> Result<()> {
         let to_copy: Vec<&ManagedFile> = files
             .iter()

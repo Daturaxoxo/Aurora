@@ -7,17 +7,11 @@ import { PopupDialog, CheckboxItem } from "components/popup.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
-import { LuaScriptsPage } from "components/pages/menus/lua.slint";
+import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
+export { LuaScriptsAdapter }
 import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
-import {
-    GameBananaBrowser,
-    GbModItem,
-    GbFileItem,
-} from "components/gbbrowser.slint";
-import {
-    ScreenshotsPage,
-    ScreenshotItem,
-} from "components/pages/menus/screenshots.slint";
+import {GameBananaBrowser, GbModItem, GbFileItem} from "components/gbbrowser.slint";
+import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
 
 component IconButton inherits Rectangle {
     in property <image> source;

@@ -26,6 +26,7 @@ use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::modules::ModulesHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
+use crate::classes::pages::lua::LuaScriptsHandler;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
@@ -119,6 +120,12 @@ fn main() -> Result<()> {
     ModManagerHandler::setup(&window.as_weak());
     ModulesHandler::setup(&window.as_weak());
     GbBrowserHandler::setup(&window.as_weak());
+
+    let bin_dir = std::env::current_exe()?
+        .parent()
+        .map(|p| p.join("Bin"))
+        .ok_or_else(|| anyhow!("could not determine the executable's directory"))?;
+    LuaScriptsHandler::setup(&window.as_weak(), bin_dir);
 
     Bridge::setup(&window.as_weak());
     Ok(window.run()?)

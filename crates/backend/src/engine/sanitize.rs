@@ -20,6 +20,8 @@ impl AuroraEngine {
             .map(|f| (f.label, f.destination))
             .collect();
         targets.push(("Plugins".to_string(), self.win64.join("Plugins")));
+        targets.push(("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")));
+        targets.push(("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")));
 
         for (label, path) in targets {
             Self::remove_target(&label, &path);
