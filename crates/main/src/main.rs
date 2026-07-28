@@ -35,6 +35,10 @@ fn main() -> Result<()> {
         panic!("Logger failed to initialize: {e}");
     });
 
+    std::panic::set_hook(Box::new(|info| {
+        error!("PANIC: {info}");
+    }));
+
     #[cfg(target_os = "linux")]
     ensure_root();
 
@@ -86,15 +90,44 @@ fn main() -> Result<()> {
     // DRAGGING
     let window_weak = window.as_weak();
     window.on_window_dragged(move |delta_x, delta_y| {
-        if let Some(w) = window_weak.upgrade() {
-            let logical_pos = w.window().position();
-            #[allow(clippy::cast_precision_loss)]
-            w.window()
-                .set_position(WindowPosition::Logical(LogicalPosition::new(
-                    logical_pos.x as f32 + delta_x,
-                    logical_pos.y as f32 + delta_y,
-                )));
+        let Some(w) = window_weak.upgrade() else { return };
+        let win = w.window();
+        let scale = win.scale_factor();
+        let phys = win.position();
+        let win_size = win.size();
+        let mut new_x = phys.x as f32 / scale + delta_x;
+        let mut new_y = phys.y as f32 / scale + delta_y;
+
+        match DisplayInfo::all() {
+            Ok(displays) if !displays.is_empty() => {
+                let win_w = win_size.width as f32 / scale;
+
+                let min_x = displays.iter().map(|d| d.x).min().unwrap_or(0) as f32;
+                let min_y = displays.iter().map(|d| d.y).min().unwrap_or(0) as f32;
+                let max_x = displays
+                    .iter()
+                    .map(|d| d.x + d.width as i32)
+                    .max()
+                    .unwrap_or(i32::MAX) as f32;
+                let max_y = displays
+                    .iter()
+                    .map(|d| d.y + d.height as i32)
+                    .max()
+                    .unwrap_or(i32::MAX) as f32;
+                let margin = 40.0;
+                new_x = new_x.clamp(min_x - win_w + margin, max_x - margin);
+                new_y = new_y.clamp(min_y, max_y - margin);
+            }
+            Ok(_) => warn!("DisplayInfo::all() returned no displays during drag"),
+            Err(e) => warn!("Could not query displays during drag: {e}"),
         }
+
+        if !new_x.is_finite() || !new_y.is_finite() {
+            error!("Computed non-finite window position during drag ({new_x}, {new_y}), ignoring");
+            return;
+        }
+
+        win.set_position(WindowPosition::Logical(LogicalPosition::new(new_x, new_y)));
     });
 
     let window_weak = window.as_weak();
