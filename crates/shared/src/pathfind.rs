@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::{ffi::OsStr, path::PathBuf, time::Instant};
 
 use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[allow(clippy::ptr_arg)]
-fn validate_game_path(path: &PathBuf) -> Result<bool> {
+pub fn validate_game_path(path: &PathBuf) -> Result<bool> {
     if !path.exists() {
         return Ok(false);
     }
@@ -23,10 +23,9 @@ fn validate_game_path(path: &PathBuf) -> Result<bool> {
         }
     }
 
-    let game_found = path.read_dir()?.any(|entry| match entry {
-        Ok(e) => e.file_name().to_str().unwrap() == GAME_FOLDER_NAME,
-        Err(_) => false,
-    });
+    let game_found = path
+        .read_dir()?
+        .any(|entry| entry.is_ok_and(|e| e.file_name().to_str().unwrap() == GAME_FOLDER_NAME));
 
     Ok(game_found)
 }
@@ -37,12 +36,43 @@ fn default_install_paths() -> Vec<PathBuf> {
     }
     let mut paths = vec![PathBuf::from(r"C:\Program Files").join(GAME_FOLDER_NAME)];
     for root in get_root_paths() {
-        if root != PathBuf::from(r"C:\") {
+        if root.as_os_str() != OsStr::new(r"C:\") {
             paths.push(root.join("Program Files").join(GAME_FOLDER_NAME));
         }
     }
     paths
 }
+
+const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
+    &[
+        "Windows",
+        "AppData",
+        "ProgramData",
+        "Program Files",
+        "Program Files (x86)",
+        "$Recycle.Bin",
+        "System Volume Information",
+    ]
+} else {
+    &[
+        "proc",
+        "sys",
+        "dev",
+        "run",
+        "bin",
+        "sbin",
+        "lib",
+        "lib64",
+        "usr",
+        "boot",
+        "tmp",
+        "var",
+        "etc",
+        "mnt",
+        "media",
+        "lost+found",
+    ]
+};
 
 pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
     for candidate in default_install_paths() {
@@ -56,36 +86,6 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
         }
     }
 
-    const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
-        &[
-            "Windows",
-            "AppData",
-            "ProgramData",
-            "Program Files",
-            "Program Files (x86)",
-            "$Recycle.Bin",
-            "System Volume Information",
-        ]
-    } else {
-        &[
-            "proc",
-            "sys",
-            "dev",
-            "run",
-            "bin",
-            "sbin",
-            "lib",
-            "lib64",
-            "usr",
-            "boot",
-            "tmp",
-            "var",
-            "etc",
-            "mnt",
-            "media",
-            "lost+found",
-        ]
-    };
     let roots = get_root_paths();
 
     let result = roots.into_par_iter().find_map_any(|root| {

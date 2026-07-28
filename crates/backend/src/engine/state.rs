@@ -47,9 +47,13 @@ impl AuroraEngine {
         let version = detect_version(&game_path)?;
         trace!("Game version: {version}");
 
-        let engine_method_raw = get(key::ENGINE_METHOD)
-            .as_i64()
-            .ok_or_else(|| anyhow!("Error when reading config: ENGINE_METHOD"))?;
+        let engine_method_raw = match get(key::ENGINE_METHOD).as_i64() {
+            Some(v) => v,
+            None => get(key::ENGINE_METHOD)
+                .as_str()
+                .unwrap_or("0")
+                .parse::<i64>()?,
+        };
         let engine_method = BypassMethod::from_num(engine_method_raw)?;
         trace!("Engine method: {engine_method}");
 

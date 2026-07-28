@@ -28,7 +28,7 @@ chrono = { version = "0.4", default-features = false, features = [
     "std",
     "clock",
 ] }
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+sysinfo = { version = "0.39" }
 libc = "0.2"
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
@@ -36,6 +36,7 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
+    "Win32_System_SecurityCenter",
 ] }
 
 [profile.release]

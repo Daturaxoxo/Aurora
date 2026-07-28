@@ -24,8 +24,6 @@ image = { version = "0.25", default-features = false, features = [
     "jpeg",
     "webp",
 ] }
-unrar = { package = "unrar-ng", version = "0.7" }
-archive = "0.3"
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 
 backend = { path = "../backend" }

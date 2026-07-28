@@ -1,20 +1,17 @@
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
+use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::classes::gamebanana::api::GameBananaApi;
+use shared::utils::get_config_cache_dir;
 use shared::{config, utils};
 
 use anyhow::{Context, Result};
-use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use slint::{Model, VecModel};
-use unrar::Archive as RarArchive;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-
-pub const ARCHIVE_EXTENSIONS: [&str; 9] =
-    ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4"];
 
 // TEMP:
 const UNAVAILABLE_ADDONS: [&str; 1] = ["Censorship Remover"];
@@ -91,9 +88,7 @@ impl AddonsHandler {
     }
 
     fn image_cache_dir() -> PathBuf {
-        let base = dirs::config_dir().unwrap_or_else(|| ".".into());
-
-        base.join("Aurora").join("Cache").join("Addons")
+        get_config_cache_dir().join("Addons")
     }
 
     fn cache_filename(url: &str) -> String {
@@ -444,33 +439,7 @@ impl AddonsHandler {
                         .extension()
                         .is_some_and(|e| ARCHIVE_EXTENSIONS.contains(&e.to_str().unwrap_or("")))
                     {
-                        let extension = dest.extension().unwrap_or_default();
-                        if extension == "rar" {
-                            let archive = RarArchive::new(&dest).open_for_processing()?;
-                            archive.extract_all(&addon.folder)?;
-                        } else {
-                            let data = fs::read(&dest)?;
-                            let extractor = ArchiveExtractor::new();
-                            let files = match extension.to_str().unwrap_or("") {
-                                "zip" => extractor.extract(&data, ArchiveFormat::Zip)?,
-                                "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
-                                "tar" => extractor.extract(&data, ArchiveFormat::Tar)?,
-                                "gz" => extractor.extract(&data, ArchiveFormat::Gz)?,
-                                "bz2" => extractor.extract(&data, ArchiveFormat::Bz2)?,
-                                "xz" => extractor.extract(&data, ArchiveFormat::Xz)?,
-                                "zst" => extractor.extract(&data, ArchiveFormat::Zst)?,
-                                "lz4" => extractor.extract(&data, ArchiveFormat::Lz4)?,
-                                _ => unreachable!(),
-                            };
-
-                            for file in files {
-                                if file.is_directory {
-                                    fs::create_dir_all(addon.folder.join(file.path))?;
-                                } else {
-                                    fs::write(addon.folder.join(file.path), file.data)?;
-                                }
-                            }
-                        }
+                        extract_archive(&dest, &addon.folder)?;
 
                         let files = fs::read_dir(&addon.folder)?.collect::<Vec<_>>();
                         for file in files {

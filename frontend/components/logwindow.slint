@@ -1,0 +1,285 @@
+import { Palette } from "../global.slint";
+import { ListView } from "std-widgets.slint";
+import { Dropdown } from "pages/settings.slint";
+
+export struct LogLine {
+    timestamp: string,
+    level: string,
+    module: string,
+    message: string,
+    color: color,
+}
+
+component TitleBarButton inherits Rectangle {
+    in property <image> source;
+    callback clicked();
+
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: ta.has-hover ? #ffffff10 : transparent;
+
+    animate background { duration: 100ms; }
+
+    Image {
+        source: root.source;
+        width: 14px;
+        height: 14px;
+        image-rendering: smooth;
+        image-fit: contain;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        opacity: ta.has-hover ? 1.0 : 0.7;
+        animate opacity { duration: 100ms; }
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component ToolButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+
+    width: 76px;
+    height: 28px;
+    background: ta.has-hover ? #ffffff14 : #ffffff08;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #ffffff18;
+
+    animate background { duration: 100ms; }
+
+    Text {
+        text: root.text;
+        color: Palette.text-primary;
+        font-size: 13px;
+        font-family: "Segoe UI";
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component LogWindow inherits Window {
+    title: "Aurora Logs";
+    no-frame: true;
+    background: transparent;
+    resize-border-width: 6px;
+    min-width: 480px;
+    min-height: 240px;
+    preferred-width: 900px;
+    preferred-height: 520px;
+
+    in property <[LogLine]> lines: [];
+
+    in property <length> content-width: 0px;
+    in property <length> module-column-width: 200px;
+
+    in property <int> line-count: 0;
+
+    // 0 = All, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5 = Trace
+    in-out property <int> level-filter: 0;
+
+    in-out property <bool> follow: true;
+
+    property <length> row-height: 18px;
+    property <length> content-height: root.line-count * root.row-height;
+
+    callback level-filter-changed(int);
+    callback copy-logs();
+    callback minimize-clicked();
+    callback maximize-clicked();
+    callback close-window();
+    callback window-dragged(length, length);
+
+    public function scroll-to-bottom() {
+        if (list.visible-height > 0px) {
+            list.viewport-y = min(0px, list.visible-height - root.content-height);
+        }
+    }
+
+    changed line-count => {
+        if (root.follow) {
+            root.scroll-to-bottom();
+        }
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: @linear-gradient(180deg, #111115f7 0%, #16161af7 100%);
+        border-width: 1px;
+        border-color: Palette.glass-border;
+
+        VerticalLayout {
+            // TITLE BAR
+            Rectangle {
+                height: 40px;
+                background: Palette.glass-background;
+                drop-shadow-color: Palette.shadow-color;
+                drop-shadow-blur: 15px;
+                drop-shadow-offset-y: 4px;
+
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    moved => {
+                        if (self.pressed) {
+                            root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 10px;
+                    spacing: 10px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: "LOGS";
+                            color: Palette.text-secondary;
+                            font-size: 11px;
+                            font-weight: 700;
+                            font-family: "Segoe UI";
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        Dropdown {
+                            options: ["All", "Error", "Warn", "Info", "Debug", "Trace"];
+                            selected-index <=> root.level-filter;
+                            selection-changed(idx) => {
+                                root.level-filter-changed(idx);
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        ToolButton {
+                            text: "Copy";
+                            clicked => {
+                                root.copy-logs();
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            spacing: 4px;
+
+                            TitleBarButton {
+                                source: @image-url("../../production/icons/processed/minimize.png");
+                                clicked => {
+                                    root.minimize-clicked();
+                                }
+                            }
+
+                            TitleBarButton {
+                                source: root.maximized
+                                    ? @image-url("../../production/icons/processed/maximized.png")
+                                    : @image-url("../../production/icons/processed/maximize.png");
+                                clicked => {
+                                    root.maximize-clicked();
+                                }
+                            }
+
+                            TitleBarButton {
+                                source: @image-url("../../production/icons/processed/close.png");
+                                clicked => {
+                                    root.close-window();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // LOG VIEW
+            Rectangle {
+                vertical-stretch: 1;
+                clip: true;
+
+                list := ListView {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    viewport-width: max(root.content-width, self.visible-width);
+
+                    changed visible-height => {
+                        if (root.follow) {
+                            root.scroll-to-bottom();
+                        }
+                    }
+
+                    changed viewport-y => {
+                        root.follow = self.viewport-y <= min(0px, self.visible-height - self.viewport-height) + root.row-height;
+                    }
+
+                    for line in root.lines: Rectangle {
+                        height: root.row-height;
+                        width: max(root.content-width, list.visible-width);
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 10px;
+                            alignment: start;
+
+                            Text {
+                                text: line.timestamp;
+                                width: 128px;
+                                color: #838d8c;
+                                font-size: 12px;
+                                font-family: "Consolas";
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: line.level;
+                                width: 46px;
+                                color: line.color;
+                                font-size: 12px;
+                                font-family: "Consolas";
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: line.module;
+                                width: root.module-column-width;
+                                color: Palette.text-secondary;
+                                font-size: 12px;
+                                font-family: "Consolas";
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: line.message;
+                                color: Palette.text-primary;
+                                font-size: 12px;
+                                font-family: "Consolas";
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

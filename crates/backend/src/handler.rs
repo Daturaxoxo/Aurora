@@ -22,6 +22,8 @@ pub enum EngineCommand {
     Launch(Option<Vec<PathBuf>>),
     Sanitize,
     Update,
+    KillProcesses,
+    Validate,
 }
 
 pub enum EngineEvent {
@@ -89,6 +91,16 @@ impl EngineHandler {
                     EngineCommand::Update => {
                         if let Err(e) = engine.reinit(&game_path) {
                             error!("Update failed: {e}");
+                        }
+                    }
+                    EngineCommand::KillProcesses => {
+                        if let Err(e) = engine.kill_nte_processes() {
+                            error!("KillProcesses failed: {e}");
+                        }
+                    }
+                    EngineCommand::Validate => {
+                        if let Err(e) = engine.validate() {
+                            error!("Validate failed: {e}");
                         }
                     }
                 }

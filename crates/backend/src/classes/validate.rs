@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
+use shared::archive::ARCHIVE_EXTENSIONS;
 
-const ARCHIVE_EXTENSIONS: [&str; 7] = [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"];
 const MOD_EXTENSIONS: [&str; 3] = [".pak", ".utoc", ".ucas"];
 const IGNORED_INI_FILES: [&str; 1] = ["desktop.ini"];
 
@@ -106,7 +106,7 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
     Ok(issues)
 }
 
-pub fn validate_builtins(
+pub fn validate_files(
     bin_dir: impl Into<PathBuf>,
     required_names: Vec<String>,
 ) -> Result<Vec<String>> {

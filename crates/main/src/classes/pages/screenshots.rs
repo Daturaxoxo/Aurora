@@ -3,9 +3,8 @@ use crate::{MainWindow, ScreenshotItem};
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
-use shared::config;
+use shared::config::{self, key};
 use slint::{Model, VecModel};
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -14,7 +13,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-const FAVORITES_KEY: &str = "screenshot_favorites";
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
 
@@ -55,11 +53,53 @@ thread_local! {
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn screenshot_folder() -> Option<PathBuf> {
-    dirs::picture_dir().map(|p| p.join("NevernessToEverness"))
+    let game_path = PathBuf::from(config::get(key::GAME_PATH).as_str()?);
+    let selfie_folder = game_path
+        .join("Client")
+        .join("WindowsNoEditor")
+        .join("Selfie");
+    if selfie_folder.exists() {
+        Some(selfie_folder)
+    } else {
+        None
+    }
+}
+
+fn get_screenshots() -> Option<Vec<PathBuf>> {
+    let Some(selfie_folder) = screenshot_folder() else {
+        return None;
+    };
+
+    let mut entries = vec![];
+    for entry in selfie_folder.read_dir().ok()? {
+        let Some(entry) = entry.ok() else { continue };
+
+        if entry.file_type().is_ok_and(|t| t.is_dir())
+            && !entry.file_name().eq_ignore_ascii_case("66666")
+        {
+            let screenshots_folder = entry.path().join("ScreenShots");
+            if screenshots_folder.exists() {
+                for entry in screenshots_folder.read_dir().ok()? {
+                    let Some(entry) = entry.ok() else { continue };
+                    if entry.file_type().is_ok_and(|t| t.is_file()) {
+                        entries.push(entry.path());
+                    }
+                }
+            } else {
+                warn!("Screenshots folder not found: {:?}", screenshots_folder);
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        None
+    } else {
+        Some(entries)
+    }
 }
 
 fn favorites() -> HashSet<String> {
-    config::get(FAVORITES_KEY)
+    config::get(key::SCREENSHOT_FAVORITES)
         .as_array()
         .map(|arr| {
             arr.iter()
@@ -72,7 +112,7 @@ fn favorites() -> HashSet<String> {
 fn save_favorites(favs: &HashSet<String>) {
     let mut list: Vec<String> = favs.iter().cloned().collect();
     list.sort();
-    config::set(FAVORITES_KEY, list);
+    config::set(key::SCREENSHOT_FAVORITES, list);
 }
 
 fn parse_name_timestamp(stem: &str) -> Option<NaiveDateTime> {
@@ -94,28 +134,19 @@ fn created_timestamp(path: &Path) -> Option<NaiveDateTime> {
 }
 
 fn scan() -> Vec<Screenshot> {
-    let Some(folder) = screenshot_folder() else {
-        warn!("Could not resolve the Pictures directory");
+    let Some(screenshots) = get_screenshots() else {
+        warn!("Couldn't get screenshots");
         return Vec::new();
-    };
-
-    let entries = match std::fs::read_dir(&folder) {
-        Ok(e) => e,
-        Err(e) => {
-            warn!("Could not read '{}': {e}", folder.display());
-            return Vec::new();
-        }
     };
 
     let favs = favorites();
     let mut shots = Vec::new();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
+    for path in screenshots {
         let is_png = path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("png"));
-        if !path.is_file() || !is_png {
+        if !is_png {
             continue;
         }
 
@@ -184,17 +215,6 @@ pub struct ScreenshotHandler;
 impl ScreenshotHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         info!("[Screenshots] setup() called");
-        let s = System::new_with_specifics(
-            RefreshKind::nothing().with_cpu(CpuRefreshKind::everything()),
-        );
-
-        match rayon::ThreadPoolBuilder::new()
-            .num_threads(s.cpus().iter().count() / 2)
-            .build_global()
-        {
-            Ok(_) => (),
-            Err(e) => error!("Could not create rayon pool: {e}"),
-        }
         Self::bind(window);
         Self::reload(window);
         info!("[Screenshots] setup() complete");

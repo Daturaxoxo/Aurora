@@ -65,43 +65,47 @@ impl UpdateHandler {
         #[cfg(feature = "beta")]
         {
             if !skip_beta_phasing {
-                match Self::check_beta_phasing() {
-                    Ok(active) => {
-                        if !active {
-                            warn!("beta phasing is not active");
-                            #[cfg(not(debug_assertions))]
-                            match Self::update_available() {
-                                Ok(true) => {
-                                    info!(
-                                        "beta phase inactive but an update is available; updating"
-                                    );
-                                }
-                                Ok(false) | Err(_) => {
-                                    let w = window.clone();
-                                    slint::invoke_from_event_loop(move || {
-                                    if let Some(w) = w.upgrade() {
-                                        w.set_popup_id("beta-phase-inactive".into());
-                                        w.set_popup_title("Beta phase inactive".into());
-                                        w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
-                                        w.set_popup_confirm_delay(0);
-                                        w.set_popup_required_count(0);
-                                        w.set_popup_checkboxes(slint::ModelRc::default());
-                                        w.set_popup_active(true);
-                                    }
-                                })
-                                .ok();
-                                    return;
-                                }
-                            }
-                        } else {
-                            info!("beta phasing is active");
-                        }
+                let w = window.clone();
+                std::thread::spawn(move || Self::run_beta_phase_gate(&w));
+                return;
+            }
+        }
+
+        Self::run_update_check(window, false);
+    }
+
+    #[cfg(feature = "beta")]
+    fn run_beta_phase_gate(window: &slint::Weak<MainWindow>) {
+        match Self::check_beta_phasing() {
+            Ok(true) => info!("beta phasing is active"),
+            Ok(false) => {
+                warn!("beta phasing is not active");
+                #[cfg(not(debug_assertions))]
+                match Self::update_available() {
+                    Ok(true) => {
+                        info!("beta phase inactive but an update is available; updating");
                     }
-                    Err(e) => {
-                        error!("failed to check beta phasing: {e}");
-                        process::exit(0);
+                    Ok(false) | Err(_) => {
+                        let w = window.clone();
+                        slint::invoke_from_event_loop(move || {
+                            if let Some(w) = w.upgrade() {
+                                w.set_popup_id("beta-phase-inactive".into());
+                                w.set_popup_title("Beta phase inactive".into());
+                                w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
+                                w.set_popup_confirm_delay(0);
+                                w.set_popup_required_count(0);
+                                w.set_popup_checkboxes(slint::ModelRc::default());
+                                w.set_popup_active(true);
+                            }
+                        })
+                        .ok();
+                        return;
                     }
                 }
+            }
+            Err(e) => {
+                error!("failed to check beta phasing: {e}");
+                process::exit(0);
             }
         }
 

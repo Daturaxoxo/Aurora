@@ -5,15 +5,14 @@ use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::gamebanana::types::{NteMod, NteModFile};
-use shared::config;
-use shared::utils::format_size;
+use shared::config::{self, key};
+use shared::utils::format_bytes;
 use slint::{Model, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Mutex;
 
-const NSFW_KEY: &str = "gb_show_nsfw";
 const PAGE_SIZE: usize = 15;
 
 /// Must stay in the same order as the character list in gbbrowser.slint.
@@ -97,7 +96,7 @@ impl Default for GbState {
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
 
 fn show_nsfw() -> bool {
-    config::get(NSFW_KEY).as_bool().unwrap_or(false)
+    config::get(key::GB_NSFW).as_bool().unwrap_or(false)
 }
 
 fn decode_thumb(bytes: &[u8]) -> Option<Thumbnail> {
@@ -447,7 +446,7 @@ impl GbBrowserHandler {
         let ww = window.clone();
         w.on_gb_nsfw_toggled(move |enabled| {
             let Some(win) = ww.upgrade() else { return };
-            config::set(NSFW_KEY, enabled);
+            config::set(key::GB_NSFW, enabled);
             Self::rebuild_model(&win);
         });
 
@@ -481,7 +480,7 @@ impl GbBrowserHandler {
                                 .iter()
                                 .map(|f| GbFileItem {
                                     name: f.name.as_str().into(),
-                                    size: format_size(f.size).into(),
+                                    size: format_bytes(f.size).into(),
                                     downloads: i32::try_from(f.download_count).unwrap_or(i32::MAX),
                                 })
                                 .collect();

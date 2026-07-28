@@ -18,6 +18,8 @@ pub const NTE_PROCESSES: &[&str] = &[
     "htgame.exe",
 ];
 
+pub const NTE_GAME_EXE: &str = "HTGame.exe";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Target {
     AsiPlugin,

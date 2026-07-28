@@ -55,17 +55,14 @@ pub fn read_dir_recursive(path: &PathBuf) -> Vec<DirEntry<((), ())>> {
 
     let mut paths = vec![];
 
-    for entry in WalkDir::new(path) {
-        match entry {
-            Ok(e) => paths.push(e),
-            Err(_) => continue,
-        }
+    for e in WalkDir::new(path).into_iter().flatten() {
+        paths.push(e);
     }
 
     paths
 }
 
-pub fn format_size(bytes: u64) -> String {
+pub fn format_bytes(bytes: u64) -> String {
     #[allow(clippy::cast_precision_loss)]
     let b = bytes as f64;
     if bytes >= 1024 * 1024 * 1024 {
@@ -77,4 +74,19 @@ pub fn format_size(bytes: u64) -> String {
     } else {
         format!("{bytes} B")
     }
+}
+
+pub fn get_cache_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        .join("Cache")
+}
+
+pub fn get_config_cache_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| ".".into())
+        .join("Aurora")
+        .join("Cache")
 }
