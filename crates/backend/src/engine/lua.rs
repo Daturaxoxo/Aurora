@@ -6,36 +6,19 @@ use log::*;
 
 use crate::classes::validate::ensure_dir;
 
-/// Handles installing the UE4SS Lua scripting runtime — which Aurora's Lua
-/// Scripts page (see the main crate's `lua.rs`) downloads into
-/// `<bin_dir>\Lua` — into the game's actual `Win64` folder so UE4SS loads
-/// when the game launches.
-///
-/// Disk layout (mirrors the main crate's `lua.rs`):
-///   `<bin_dir>\Lua\dwmapi.dll`   <- UE4SS's proxy-DLL entry point
-///   `<bin_dir>\Lua\ue4ss\...`    <- UE4SS runtime + Mods folder
-///
-/// Unreal loads `dwmapi.dll` via DLL search-order hijacking from the same
-/// directory as the game's executable, so both `dwmapi.dll` and the
-/// `ue4ss` folder need to actually live in `Win64` — not just in
-/// `<bin_dir>\Lua` — for UE4SS to take effect.
 pub struct LuaManager;
 
 impl LuaManager {
-    /// Mirrors the existence check in the main crate's `lua.rs`
-    /// (`LuaScriptsHandler::setup`): if `<bin_dir>\Lua\ue4ss\UE4SS.dll`
-    /// isn't there, UE4SS was never installed via the Lua Scripts page and
-    /// there's nothing to inject.
     pub fn exists(bin_path: &Path) -> bool {
-        bin_path
+        let marker = bin_path
             .join("Lua")
             .join("ue4ss")
-            .join("UE4SS.dll")
-            .exists()
+            .join("UE4SS.dll");
+        let found = marker.exists();
+        info!("LuaManager::exists checking {} -> {found}", marker.display());
+        found
     }
 
-    /// Copies `<bin_dir>\Lua`'s contents (`dwmapi.dll` and the `ue4ss`
-    /// folder) into `win64_path`, overwriting anything already there.
     pub fn setup(bin_path: &Path, win64_path: PathBuf) -> Result<()> {
         let lua_dir = bin_path.join("Lua");
 
@@ -89,9 +72,6 @@ impl LuaManager {
     }
 }
 
-/// Recursively copies `src` into `dst`, creating directories as needed and
-/// overwriting any existing files. `std::fs` has no built-in directory
-/// copy, so this walks the tree by hand.
 fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
     ensure_dir(&dst.to_path_buf())?;
 
@@ -112,7 +92,6 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
                 )
             })?;
         }
-        // Symlinks are skipped — not expected inside a UE4SS distribution.
     }
 
     Ok(())
