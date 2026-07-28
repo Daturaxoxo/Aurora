@@ -4,6 +4,7 @@ use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
+use backend::handler::{get_tx, EngineCommand};
 
 #[derive(serde::Deserialize)]
 #[allow(dead_code)]
@@ -142,9 +143,19 @@ impl SettingsHandler {
                 match picked {
                     Some(path) => {
                         let path_str: String = path.to_string_lossy().into_owned();
-                        info!("[Settings] game directory selected → {path_str:?}");
+                        info!("[Settings] game directory selected -> {path_str:?}");
                         config::set(key::GAME_PATH, path_str.clone());
                         debug!("[Settings] game_path saved to config");
+
+                        match get_tx() {
+                            Ok(tx) => {
+                                if let Err(e) = tx.send(EngineCommand::Update) {
+                                    error!("[Settings] failed to notify engine of game_path change: {e}");
+                                }
+                            }
+                            Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
+                        }
+
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(w) = ww.upgrade() {
                                 w.set_game_directory(path_str.into());
@@ -162,9 +173,18 @@ impl SettingsHandler {
         });
 
         w.on_engine_method_index_changed(move |index| {
-            info!("[Settings] engine_method changed → {index}");
+            info!("[Settings] engine_method changed -> {index}");
             config::set(key::ENGINE_METHOD, index);
             debug!("[Settings] engine_method saved to config");
+
+            match get_tx() {
+                Ok(tx) => {
+                    if let Err(e) = tx.send(EngineCommand::Update) {
+                        error!("[Settings] failed to notify engine of engine_method change: {e}");
+                    }
+                }
+                Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
+            }
         });
 
         // [DEVELOPER]

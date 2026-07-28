@@ -93,11 +93,28 @@ impl AuroraEngine {
         let game_path = game_path.into();
         info!("Reinitializing engine with path: {}", game_path.display());
 
+        let crr: bool = get(key::CENSORSHIP_REMOVE)
+            .as_bool()
+            .ok_or_else(|| anyhow!("Error when reading config: CENSORSHIP_REMOVE"))?;
+        trace!("CRR: {crr}");
+
+        let engine_method_raw = match get(key::ENGINE_METHOD).as_i64() {
+            Some(v) => v,
+            None => get(key::ENGINE_METHOD)
+                .as_str()
+                .unwrap_or("0")
+                .parse::<i64>()?,
+        };
+        let engine_method = BypassMethod::from_num(engine_method_raw)?;
+        trace!("Engine method: {engine_method}");
+
         let version = detect_version(&game_path)?;
-        let gpaths = get_version_paths(&game_path, version, self.engine_method);
+        let gpaths = get_version_paths(&game_path, version, engine_method);
         let derived = Self::derive_paths(&gpaths)?;
 
         self.game_path = game_path;
+        self.crr = crr;
+        self.engine_method = engine_method;
         self.version = version;
         self.gpaths = gpaths;
         self.win64 = derived.win64;

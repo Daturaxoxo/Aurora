@@ -92,6 +92,13 @@ impl EngineHandler {
                         }
                     }
                     EngineCommand::Update => {
+                        let game_path = match get_game_directory() {
+                            Ok(p) => p,
+                            Err(e) => {
+                                error!("Update failed: could not resolve game path: {e}");
+                                continue;
+                            }
+                        };
                         if let Err(e) = engine.reinit(&game_path) {
                             error!("Update failed: {e}");
                         }
