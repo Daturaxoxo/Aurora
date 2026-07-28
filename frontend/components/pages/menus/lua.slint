@@ -20,6 +20,10 @@ export global LuaScriptsAdapter {
     // Whether `\Bin\ue4ss` was found on disk. Set by Rust on startup.
     in-out property <bool> ue4ss-installed: false;
 
+    // Whether the UE4SS debug console is enabled. Mirrors
+    // GuiConsoleEnabled/GuiConsoleVisible in UE4SS-settings.ini.
+    in-out property <bool> debug-enabled: false;
+
     // Driven by Rust while the download/extract is in progress.
     in-out property <bool> installing: false;
     in-out property <int> install-progress: 0; // 0-100
@@ -33,6 +37,7 @@ export global LuaScriptsAdapter {
     callback save-script-code(string /* id */, string /* code */);
     callback install-ue4ss();
     callback refresh();
+    callback toggle-debug();
 
     // Set by Rust (e.g. when a rename to a reserved name is rejected) to
     // surface a transient toast in the UI. Cleared automatically after a
@@ -461,6 +466,50 @@ export component LuaScriptsPage inherits Rectangle {
                         }
 
                         Rectangle { horizontal-stretch: 1; }
+
+                        // Debug console toggle
+                        HorizontalLayout {
+                            horizontal-stretch: 0;
+                            spacing: 6px;
+
+                            VerticalLayout {
+                                horizontal-stretch: 0;
+                                alignment: center;
+                                Text {
+                                    text: "Debugging";
+                                    color: Palette.text-secondary;
+                                    font-family: "Segoe UI";
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                horizontal-stretch: 0;
+                                alignment: center;
+                                Rectangle {
+                                    width: 30px;
+                                    height: 17px;
+                                    border-radius: 8.5px;
+                                    background: LuaScriptsAdapter.debug-enabled ? #3b82f6 : #ffffff22;
+                                    animate background { duration: 120ms; }
+
+                                    Rectangle {
+                                        x: LuaScriptsAdapter.debug-enabled ? parent.width - self.width - 2px : 2px;
+                                        y: 2px;
+                                        width: 13px;
+                                        height: 13px;
+                                        border-radius: 6.5px;
+                                        background: #ffffff;
+                                        animate x { duration: 120ms; }
+                                    }
+
+                                    debug-toggle-ta := TouchArea {
+                                        clicked => { LuaScriptsAdapter.toggle-debug(); }
+                                    }
+                                }
+                            }
+                        }
 
                         VerticalLayout {
                             alignment: center;

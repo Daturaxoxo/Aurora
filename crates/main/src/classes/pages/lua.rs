@@ -12,7 +12,7 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
-const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/main.zip";
+const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
 const BLOCKLISTED_NAMES: &[&str] = &[
     "shared", 
     "keybinds"
@@ -36,6 +36,20 @@ impl LuaScriptsHandler {
             ue4ss_marker.display()
         );
         adapter.set_ue4ss_installed(already_installed);
+        adapter.set_debug_enabled(read_debug_enabled(bin_dir));
+        {
+            let window = window.clone();
+            let bin_dir = bin_dir.to_path_buf();
+            adapter.on_toggle_debug(move || {
+                let Some(win) = window.upgrade() else {
+                    return;
+                };
+                let adapter = win.global::<LuaScriptsAdapter>();
+                let enabled = !adapter.get_debug_enabled();
+                set_debug_enabled(&bin_dir, enabled);
+                adapter.set_debug_enabled(enabled);
+            });
+        }
 
         // Load scripts from disk
         let mods_dir = Self::mods_dir(bin_dir);
@@ -346,6 +360,84 @@ fn mods_json_path(mods_dir: &Path) -> PathBuf {
 
 fn mods_txt_path(mods_dir: &Path) -> PathBuf {
     mods_dir.join("mods.txt")
+}
+
+fn settings_ini_path(bin_dir: &Path) -> PathBuf {
+    bin_dir.join("Lua").join("ue4ss").join("UE4SS-settings.ini")
+}
+
+fn read_debug_enabled(bin_dir: &Path) -> bool {
+    let path = settings_ini_path(bin_dir);
+    let Ok(contents) = fs::read_to_string(&path) else {
+        return false;
+    };
+
+    let mut in_debug_section = false;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_debug_section = trimmed.eq_ignore_ascii_case("[Debug]");
+            continue;
+        }
+        if !in_debug_section {
+            continue;
+        }
+        if let Some((key, value)) = trimmed.split_once('=') {
+            if key.trim().eq_ignore_ascii_case("GuiConsoleEnabled") {
+                return value.trim() == "1";
+            }
+        }
+    }
+
+    false
+}
+
+fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
+    let path = settings_ini_path(bin_dir);
+    let Ok(contents) = fs::read_to_string(&path) else {
+        warn!(
+            "Could not read {} to toggle debugging; skipping",
+            path.display()
+        );
+        return;
+    };
+
+    let line_ending = if contents.contains("\r\n") { "\r\n" } else { "\n" };
+    let value = if enabled { "1" } else { "0" };
+
+    let mut updated = String::with_capacity(contents.len());
+    let mut debug_section = false;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            debug_section = trimmed.eq_ignore_ascii_case("[Debug]");
+            updated.push_str(line);
+            updated.push_str(line_ending);
+            continue;
+        }
+
+        if debug_section {
+            if let Some((key, _)) = trimmed.split_once('=') {
+                let key_name = key.trim();
+                if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
+                    || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
+                {
+                    updated.push_str(&format!("{key_name} = {value}"));
+                    updated.push_str(line_ending);
+                    continue;
+                }
+            }
+        }
+
+        updated.push_str(line);
+        updated.push_str(line_ending);
+    }
+
+    if let Err(e) = fs::write(&path, updated) {
+        error!("Failed to write {}: {e}", path.display());
+    }
 }
 
 fn read_mods_json(mods_dir: &Path) -> Vec<ModJsonEntry> {
