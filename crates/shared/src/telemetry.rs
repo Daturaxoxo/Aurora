@@ -1,10 +1,15 @@
 use std::{
     io::Write as _,
-    os::windows::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::mpsc::{sync_channel, SyncSender},
     time::Duration,
 };
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+
+#[cfg(target_os = "linux")]
+use std::os::{linux::fs::MetadataExt as _, unix::fs::MetadataExt as _};
 
 use anyhow::{Context, Result};
 use cpu_info::CpuInfo;
@@ -140,7 +145,14 @@ pub fn export_telemetry() -> Result<()> {
             continue;
         }
         file_count += 1;
-        total_size += entry.metadata()?.file_size();
+        cfg_select! {
+            windows => {
+                total_size += entry.metadata()?.file_size();
+            },
+            unix => {
+                total_size += entry.metadata()?.size();
+            },
+        };
     }
     writeln!(
         file,
@@ -159,8 +171,23 @@ pub fn export_telemetry() -> Result<()> {
 
         if path.is_file() {
             let metadata = path.metadata()?;
-            let size = metadata.file_size();
-            let mtime = metadata.last_write_time();
+            let size = cfg_select! {
+                windows => {
+                    metadata.file_size()
+                },
+                unix => {
+                    metadata.size()
+                },
+            };
+
+            let mtime = cfg_select! {
+                windows => {
+                    metadata.last_write_time()
+                },
+                unix => {
+                    metadata.st_atime()
+                },
+            };
             writeln!(
                 file,
                 "{} EXISTS ({}, modified {}) [{}]",

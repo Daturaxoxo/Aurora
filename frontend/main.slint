@@ -125,6 +125,7 @@ export component MainWindow inherits Window {
     in-out property <[AddonItem]> addons: [];
     callback addon-action(int);
     callback addon-open-link(int);
+    callback addon-delete(int);
 
     // Mod Manager Properties
     in-out property <[ModItem]> mods: [];
@@ -910,6 +911,7 @@ export component MainWindow inherits Window {
             close-addons => { root.show-addons = false; }
             addon-action(i) => { root.addon-action(i); }
             addon-open-link(i) => { root.addon-open-link(i); }
+            addon-delete(i) => { root.addon-delete(i); }
         }
 
         if root.show-mod-manager: Rectangle {

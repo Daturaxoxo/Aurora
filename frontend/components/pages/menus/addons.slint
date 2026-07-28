@@ -21,6 +21,7 @@ component AddonCard inherits Rectangle {
 
     callback action(int);
     callback open-link(int);
+    callback delete(int);
 
     height: 310px;
     border-radius: 12px;
@@ -29,8 +30,6 @@ component AddonCard inherits Rectangle {
     background: #ffffff08;
     clip: true;
 
-    // Only actual installs/updates show a busy state; enable/disable toggles
-    // flip instantly (installing then merely blocks re-clicks for a moment)
     property <bool> busy: root.item.installing && (!root.item.installed || root.item.update_available);
 
     property <brush> action-color:
@@ -48,6 +47,13 @@ component AddonCard inherits Rectangle {
         !root.item.installed ? "INSTALL" :
         root.item.enabled ? "DISABLE" :
         "ENABLE";
+
+    property <bool> show-delete: root.item.installed && !root.item.unavailable && !root.busy;
+
+    property <length> trailing-width:
+        root.item.unavailable ? 0px :
+        root.show-delete ? 106px :
+        53px;
 
     Rectangle {
         x: 0;
@@ -150,7 +156,7 @@ component AddonCard inherits Rectangle {
             x: 0;
             y: 0;
             // TEMP
-            width: root.item.unavailable ? parent.width : parent.width - 53px;
+            width: parent.width - root.trailing-width;
             height: 48px;
             background: action-ta.has-hover
                 ? root.action-color.brighter(0.15)
@@ -194,6 +200,41 @@ component AddonCard inherits Rectangle {
         if !root.item.unavailable:
             // Divider
             Rectangle {
+            x: parent.width - root.trailing-width;
+            y: 0;
+            width: 1px;
+            height: 48px;
+            background: #00000033;
+        }
+
+        if root.show-delete: delete-btn := Rectangle {
+            x: parent.width - 105px;
+            y: 0;
+            width: 52px;
+            height: 48px;
+            background: delete-ta.has-hover
+                ? #ee4937
+                : root.action-color.darker(0.08);
+            animate background { duration: 120ms; }
+
+            delete-ta := TouchArea {
+                clicked => { root.delete(root.index); }
+            }
+
+            Image {
+                source: @image-url("../../../../production/icons/delete.png");
+                width: 20px;
+                height: 20px;
+                image-rendering: smooth;
+                image-fit: contain;
+                colorize: Palette.text-primary;
+                opacity: delete-ta.has-hover ? 1.0 : 0.85;
+                animate opacity { duration: 120ms; }
+            }
+        }
+
+        // Divider between delete and gamebanana
+        if root.show-delete: Rectangle {
             x: parent.width - 53px;
             y: 0;
             width: 1px;
@@ -235,6 +276,7 @@ export component AddonsPage inherits Rectangle {
     callback close-addons();
     callback addon-action(int);
     callback addon-open-link(int);
+    callback addon-delete(int);
     in property <[AddonItem]> addons: [];
     background: #00000066;
 
@@ -397,6 +439,7 @@ export component AddonsPage inherits Rectangle {
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
+                                delete(idx) => { root.addon-delete(idx); }
                             }
                         }
 
@@ -413,6 +456,7 @@ export component AddonsPage inherits Rectangle {
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
+                                delete(idx) => { root.addon-delete(idx); }
                             }
                         }
                     }

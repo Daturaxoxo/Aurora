@@ -6,10 +6,14 @@ use log::{debug, info, warn};
 
 const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 2] = ["version", "dsound"];
+
 #[cfg(target_os = "linux")]
 pub fn ensure_dll_overrides() {
     match apply_overrides() {
-        Ok(()) => info!("Applied WINEDLLOVERRIDES for {:?} to Proton prefix", DLL_OVERRIDES),
+        Ok(()) => info!(
+            "Applied WINEDLLOVERRIDES for {:?} to Proton prefix",
+            DLL_OVERRIDES
+        ),
         Err(e) => warn!(
             "Could not automatically configure Wine DLL overrides ({e:#}); \
              mods will not load this is set manually via `winecfg` \
@@ -20,6 +24,48 @@ pub fn ensure_dll_overrides() {
 
 #[cfg(not(target_os = "linux"))]
 pub fn ensure_dll_overrides() {}
+
+#[cfg(target_os = "linux")]
+pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
+    let prefix = find_proton_prefix(STEAM_APP_ID)
+        .ok_or_else(|| anyhow!("could not locate NTE's Proton prefix in any Steam library"))?;
+
+    debug!("Found NTE Proton prefix at {}", prefix.display());
+
+    // compatdata/<appid> is the parent of .../pfx
+    let compat_data = prefix
+        .parent()
+        .ok_or_else(|| anyhow!("prefix {} has no parent directory", prefix.display()))?;
+
+    let steam_root = find_steam_root()
+        .ok_or_else(|| anyhow!("could not determine Steam client install directory"))?;
+
+    debug!("Using Steam root at {}", steam_root.display());
+
+    let proton_bin = find_proton_script(&prefix)
+        .ok_or_else(|| anyhow!("could not locate a `proton` script for this prefix"))?;
+
+    info!(
+        "Launching {} via Proton at {}",
+        exe.display(),
+        proton_bin.display()
+    );
+
+    let child = Command::new(&proton_bin)
+        .arg("waitforexitandrun")
+        .arg(exe)
+        .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root)
+        .env("STEAM_COMPAT_DATA_PATH", compat_data)
+        .spawn()
+        .with_context(|| format!("failed to spawn proton for {}", exe.display()))?;
+
+    Ok(child)
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn launch_via_proton(_exe: &Path) -> Result<std::process::Child> {
+    Err(anyhow!("launch_via_proton is only supported on Linux"))
+}
 
 fn apply_overrides() -> Result<()> {
     let prefix = find_proton_prefix(STEAM_APP_ID)
@@ -86,10 +132,7 @@ fn steam_libraries() -> Vec<PathBuf> {
         return libraries;
     };
 
-    let default_roots = [
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-    ];
+    let default_roots = [home.join(".steam/steam"), home.join(".local/share/Steam")];
 
     for root in &default_roots {
         if root.is_dir() {
@@ -106,6 +149,32 @@ fn steam_libraries() -> Vec<PathBuf> {
 
     libraries.dedup();
     libraries
+}
+
+/// Locates the root Steam client install directory (i.e. what Steam sets
+/// `STEAM_COMPAT_CLIENT_INSTALL_PATH` to when it launches a game). This is
+/// distinct from `steam_libraries()`, which also returns *additional*
+/// library folders that may live on other drives/mounts — the client
+/// install path must be the actual Steam installation, not a library.
+fn find_steam_root() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+
+    for candidate in [
+        home.join(".steam/steam"),
+        home.join(".steam/root"),
+        home.join(".local/share/Steam"),
+    ] {
+        // Resolve symlinks (common on Arch, where ~/.steam/steam is a
+        // symlink into ~/.local/share/Steam) and confirm it actually
+        // points somewhere that looks like a Steam install.
+        if let Ok(resolved) = candidate.canonicalize() {
+            if resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir() {
+                return Some(resolved);
+            }
+        }
+    }
+
+    None
 }
 
 fn parse_library_folders(vdf_path: &Path) -> Result<Vec<PathBuf>> {
@@ -157,6 +226,36 @@ fn find_wine_binary(prefix: &Path) -> Option<PathBuf> {
     }
 
     which_wine()
+}
+
+/// Locates the top-level `proton` launcher script (not the `wine` binary
+/// buried inside it) for whichever Proton build owns `prefix`. This is
+/// what needs to be invoked with `waitforexitandrun` so Steam-style env
+/// vars and prefix setup are honored the same way Steam itself would do it.
+fn find_proton_script(prefix: &Path) -> Option<PathBuf> {
+    let library_root = prefix
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)?;
+
+    let common = library_root.join("common");
+    let entries = std::fs::read_dir(&common).ok()?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("Proton") {
+            continue;
+        }
+
+        let script = path.join("proton");
+        if script.is_file() {
+            return Some(script);
+        }
+    }
+
+    None
 }
 
 fn which_wine() -> Option<PathBuf> {

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
 
+#[cfg(target_os = "windows")]
 fn get_windows_ini_path() -> PathBuf {
     let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
     PathBuf::from(local_app_data).join("HT/Saved_Global/Config/Windows/Engine.ini")
