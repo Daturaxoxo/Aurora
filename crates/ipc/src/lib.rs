@@ -5,7 +5,14 @@ pub mod protocol;
 use std::path::PathBuf;
 use std::time::Duration;
 
-pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/manifest.json";
+#[cfg(windows)]
+pub const MANIFEST_URL_PRIMARY: &str =
+    "https://host.getaurora.moe/files/app/windows/manifest.json";
+#[cfg(target_os = "linux")]
+pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/linux/manifest.json";
+#[cfg(not(any(windows, target_os = "linux")))]
+compile_error!("unsupported target: no manifest URL");
+
 // TODO: fill in fallback before release
 pub const MANIFEST_URL_FALLBACK: &str = "";
 

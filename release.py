@@ -223,7 +223,7 @@ def main():
         copy_file("./target/release/Aurora", "./release-host/Aurora")
         copy_file("./target/release/updater", "./release-host/updater")
 
-    copy_file("./release/manifest.json", "./release-host/manifest.json")
+    copy_file("./release/manifest.json", f"./release-host/{os_name}/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
