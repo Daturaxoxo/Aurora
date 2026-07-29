@@ -10,6 +10,9 @@ use shared::classes::info::{
 use shared::config::{get, key};
 use shared::utils;
 
+use super::files::FileGroup;
+use super::process::{set_kill_snapshot, KillSnapshot};
+
 pub struct AuroraEngine {
     pub game_path: PathBuf,
     pub crr: bool,
@@ -72,7 +75,7 @@ impl AuroraEngine {
         trace!("Game paths: {gpaths:#?}");
         let derived = Self::derive_paths(&gpaths)?;
 
-        Ok(Self {
+        let engine = Self {
             game_path,
             crr,
             engine_method,
@@ -86,7 +89,9 @@ impl AuroraEngine {
             addons_path,
             targets: derived.targets,
             last_addon_warnings: vec![],
-        })
+        };
+        engine.publish_kill_snapshot();
+        Ok(engine)
     }
 
     pub fn reinit(&mut self, game_path: impl Into<PathBuf>) -> Result<()> {
@@ -125,7 +130,24 @@ impl AuroraEngine {
         self.last_addon_warnings = vec![];
 
         trace!("Finished reinitializing engine");
+        self.publish_kill_snapshot();
         Ok(())
+    }
+
+    fn publish_kill_snapshot(&self) {
+        let loader_dlls = self
+            .managed_files()
+            .into_iter()
+            .filter(|f| f.group == FileGroup::LoaderDll)
+            .map(|f| (f.label, f.destination))
+            .collect();
+
+        set_kill_snapshot(KillSnapshot {
+            launcher_process: self.gpaths.launcher_process,
+            game_process: self.gpaths.game_process,
+            helper_processes: self.gpaths.helper_processes.clone(),
+            loader_dlls,
+        });
     }
 
     fn derive_paths(gpaths: &VersionPaths) -> Result<DerivedPaths> {

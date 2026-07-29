@@ -11,4 +11,5 @@ pub mod classes {
     pub mod export;
     pub mod gamebanana;
     pub mod info;
+    pub mod games;
 }

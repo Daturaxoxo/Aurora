@@ -635,7 +635,7 @@ export component MainWindow inherits Window {
                 drop-shadow-offset-y: 8px;
                 height: menu-items-layout.preferred-height + 16px;
 
-                property <bool> card-hover: card-padding-ta.has-hover || ri0.has-hover || ri1.has-hover || ri2.has-hover || ri4.has-hover;
+                property <bool> card-hover: card-padding-ta.has-hover || ri0.has-hover || ri1.has-hover || ri2.has-hover || ri4.has-hover || ri5.has-hover;
 
                 changed card-hover => { root.launch-menu-hover = self.card-hover || gap-filler-ta.has-hover || menu-ta.has-hover }
 
@@ -802,6 +802,45 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: "Open Mods Folder";
+                                    color: #ffffffdd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
+                        background: ri5.has-hover ? #ffffff12 : transparent;
+                        animate background { duration: 80ms; }
+                        ri5 := TouchArea {
+                            clicked => { root.launch-menu-action(5); root.launch-menu-open = false; }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: @image-url("../production/icons/kill.png");
+                                    width: 16px;
+                                    height: 16px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: #ffffffaa;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Kill Game";
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;

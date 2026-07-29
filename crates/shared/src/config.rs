@@ -57,6 +57,7 @@ pub mod key {
     pub const MOD_NOTES: &str = "module_notes";
     pub const MOD_DISPLAY_NAMES: &str = "module_display_names";
     pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
+    pub const SELECTED_GAME: &str = "selected_game";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -78,7 +79,7 @@ pub fn default_value(k: &str) -> Value {
             json!(false)
         }
 
-        key::GAME_PATH | key::APP_LOCATION => json!(""),
+        key::GAME_PATH | key::APP_LOCATION | key::SELECTED_GAME => json!(""),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

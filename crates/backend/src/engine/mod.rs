@@ -1,8 +1,9 @@
 mod files;
 mod inject;
 mod lua;
+mod lua;
 mod monitor;
-mod process;
+pub mod process;
 mod sanitize;
 mod state;
 mod validate;

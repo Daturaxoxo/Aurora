@@ -1,5 +1,6 @@
 use crate::{CheckboxItem, MainWindow};
-use log::error;
+use backend::handler::{self, EngineCommand};
+use log::*;
 #[cfg(target_os = "windows")]
 use mslnk::ShellLink;
 use shared::{classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory};
@@ -33,6 +34,7 @@ impl ButtonHandler {
                 1 => Self::check_for_updates(&w),
                 2 => Self::add_desktop_shortcut(&w),
                 4 => Self::open_mods_folder(),
+                5 => Self::kill_game(),
                 _ => {}
             }
         });
@@ -139,6 +141,17 @@ impl ButtonHandler {
                 w.set_toast_kind("error".into());
                 w.set_toast_active(true);
             }
+        }
+    }
+
+    fn kill_game() {
+        match handler::get_tx() {
+            Ok(tx) => {
+                if let Err(err) = tx.send(EngineCommand::KillProcesses) {
+                    error!("Failed to send kill process command: {err}");
+                }
+            }
+            Err(err) => error!("Failed to get engine command sender: {err}"),
         }
     }
 }
