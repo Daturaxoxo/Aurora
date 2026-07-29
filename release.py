@@ -192,8 +192,13 @@ def main():
     if folder_exists("./release"):
         shutil.rmtree("./release")
     os.mkdir("./release")
-    copy_file("./target/release/aurora.exe", "./release/aurora.exe")
-    copy_file("./target/release/updater.exe", "./release/updater.exe")
+    if os_name == "windows":
+        copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
+        copy_file("./target/release/updater.exe", "./release/updater.exe")
+    elif os_name == "linux":
+        copy_file("./target/release/Aurora", "./release/Aurora")
+        copy_file("./target/release/updater", "./release/updater")
+
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
     copy_file("./steam_appid.txt", "./release/steam_appid.txt")
@@ -209,12 +214,19 @@ def main():
     if folder_exists("./release-host"):
         shutil.rmtree("./release-host")
     os.mkdir("./release-host")
-    copy_file("./target/release/aurora.exe", "./release-host/aurora.exe")
-    copy_file("./target/release/updater.exe", "./release-host/updater.exe")
+    if os_name == "windows":
+        copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
+        copy_file("./target/release/updater.exe", "./release-host/updater.exe")
+    elif os_name == "linux":
+        copy_file("./target/release/Aurora", "./release-host/Aurora")
+        copy_file("./target/release/updater", "./release-host/updater")
+
     copy_file("./release/manifest.json", "./release-host/manifest.json")
+
     for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
+
     if os_name == "windows":
         shutil.make_archive(
             base_name=f"aurora-host-{version}-WINDOWS", format="zip", base_dir="./release-host"
