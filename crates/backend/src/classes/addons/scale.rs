@@ -1,5 +1,4 @@
 use log::error;
-use std::env;
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,13 +8,16 @@ pub const KEY: &str = "ApplicationScale";
 
 #[cfg(target_os = "windows")]
 fn get_windows_ini_path() -> PathBuf {
+    use std::env;
+
     let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
     PathBuf::from(local_app_data).join("HT/Saved_Global/Config/Windows/Engine.ini")
 }
 
 #[cfg(unix)]
 fn get_unix_ini_path() -> PathBuf {
-    todo!("Linux/Proton path for Engine.ini is not yet implemented");
+    error!("Linux/Proton path for Engine.ini is not yet implemented");
+    PathBuf::new()
 }
 
 pub fn get_ini_path() -> PathBuf {
@@ -23,10 +25,6 @@ pub fn get_ini_path() -> PathBuf {
         windows => get_windows_ini_path(),
         unix => get_unix_ini_path()
     }
-}
-
-pub fn ini_path() -> PathBuf {
-    get_ini_path()
 }
 
 pub fn is_readonly(path: &Path) -> bool {

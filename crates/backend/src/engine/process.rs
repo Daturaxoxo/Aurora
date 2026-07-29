@@ -10,9 +10,25 @@ use crate::engine::files::FileGroup;
 
 use super::AuroraEngine;
 
-fn matches_process(exe: &Path, target_lower: &str) -> bool {
-    exe.file_name()
-        .is_some_and(|f| f.to_string_lossy().to_lowercase() == target_lower)
+fn basename(arg: &str) -> &str {
+    arg.rsplit(['/', '\\']).next().unwrap_or(arg)
+}
+
+fn matches_process(process: &Process, target_lower: &str) -> bool {
+    let name_matches = |s: &str| basename(s).to_lowercase() == target_lower;
+
+    if process
+        .exe()
+        .and_then(Path::file_name)
+        .is_some_and(|f| name_matches(&f.to_string_lossy()))
+    {
+        return true;
+    }
+
+    process
+        .cmd()
+        .iter()
+        .any(|arg| arg.to_string_lossy().contains(target_lower))
 }
 
 pub(super) struct ProcessSnapshot(System);
@@ -32,7 +48,9 @@ impl ProcessSnapshot {
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+            ProcessRefreshKind::nothing()
+                .with_exe(UpdateKind::Always)
+                .with_cmd(UpdateKind::Always),
         );
     }
 
@@ -41,7 +59,7 @@ impl ProcessSnapshot {
         self.0
             .processes()
             .iter()
-            .filter(|(_, p)| p.exe().is_some_and(|e| matches_process(e, &target_lower)))
+            .filter(|(_, p)| matches_process(p, &target_lower))
             .collect()
     }
 

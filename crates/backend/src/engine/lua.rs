@@ -54,11 +54,7 @@ impl LuaManager {
                     ue4ss_dst.display()
                 )
             })?;
-            info!(
-                "Copied {} to {}",
-                ue4ss_src.display(),
-                ue4ss_dst.display()
-            );
+            info!("Copied {} to {}", ue4ss_src.display(), ue4ss_dst.display());
         } else {
             warn!(
                 "Expected {} to exist but it's missing; skipping",

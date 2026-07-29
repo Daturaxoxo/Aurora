@@ -42,6 +42,10 @@ impl AuroraEngine {
         let game_process = self.gpaths.game_process;
         let mut watch_names = vec![launcher_process];
         watch_names.extend(self.gpaths.helper_processes.iter().copied());
+        #[cfg(not(target_os = "windows"))]
+        {
+            watch_names.push("wineserver");
+        }
 
         let mut snapshot = ProcessSnapshot::refresh();
         let mut launcher_seen = false;
