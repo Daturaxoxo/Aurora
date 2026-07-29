@@ -4,6 +4,7 @@ pub mod handler;
 pub mod classes {
     pub mod addons;
     pub mod game;
+    pub mod linux;
     pub mod rpc;
     pub mod validate;
 }

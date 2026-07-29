@@ -157,9 +157,19 @@ impl AuroraEngine {
     fn launch_game(&self) -> Result<()> {
         let launcher_exe = self.game_path.join(self.gpaths.launcher_process);
         info!("Launching NTE: {}", launcher_exe.display());
-        std::process::Command::new(&launcher_exe)
-            .spawn()
-            .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
-        Ok(())
+
+        #[cfg(target_os = "linux")]
+        {
+            crate::classes::linux::launch_via_proton(&launcher_exe)?;
+            return Ok(());
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            std::process::Command::new(&launcher_exe)
+                .spawn()
+                .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
+            Ok(())
+        }
     }
 }

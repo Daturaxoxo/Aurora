@@ -1,4 +1,5 @@
 use crate::bridge::Bridge;
+use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
 use crate::classes::repair::RepairHandler;
 use crate::classes::updater::UpdateHandler;
@@ -22,6 +23,9 @@ impl PopupHandler {
                     }
                     "screenshot-delete" => {
                         ScreenshotHandler::confirm_delete(&w);
+                    }
+                    "addon-delete" => {
+                        AddonsHandler::confirm_delete(&w);
                     }
                     "update-popup" => {
                         UpdateHandler::start_update(&w);

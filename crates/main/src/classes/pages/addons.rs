@@ -1,5 +1,5 @@
-use crate::{AddonItem, MainWindow};
 use crate::classes::toast::ToastHandler;
+use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::classes::gamebanana::api::GameBananaApi;
@@ -13,6 +13,9 @@ use slint::{Model, VecModel};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Mutex;
+
+static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 
 // TEMP:
 const UNAVAILABLE_ADDONS: [&str; 1] = ["Censorship Remover"];
@@ -285,7 +288,126 @@ impl AddonsHandler {
             }
         });
 
+        let ww = window.clone();
+        w.on_addon_delete(move |index| {
+            let Ok(i) = usize::try_from(index) else {
+                return;
+            };
+
+            let Some(win) = ww.upgrade() else { return };
+            let Some(row) = win.get_addons().row_data(i) else {
+                return;
+            };
+
+            if !row.installed || row.installing {
+                return;
+            }
+
+            *PENDING_DELETE.lock().unwrap() = Some(i);
+
+            win.set_popup_id("addon-delete".into());
+            win.set_popup_title("Delete Addon?".into());
+            win.set_popup_message(
+                format!(
+                    "\"{}\" will be uninstalled and its files permanently deleted. You can install it again later.",
+                    row.name
+                )
+                .into(),
+            );
+            win.set_popup_active(true);
+        });
+
         info!("Addons bind() complete");
+    }
+
+    pub fn confirm_delete(window: &slint::Weak<MainWindow>) {
+        let Some(i) = PENDING_DELETE.lock().unwrap().take() else {
+            return;
+        };
+
+        let Some(win) = window.upgrade() else { return };
+        let model = win.get_addons();
+        let Some(mut row) = model.row_data(i) else {
+            return;
+        };
+        row.installing = true;
+        model.set_row_data(i, row);
+
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let addons = Self::scan_local();
+            let result = addons.get(i).map_or_else(
+                || Err(anyhow::anyhow!("addon no longer exists")),
+                |addon| Self::delete(addon).map(|()| addon.name.clone()),
+            );
+
+            match &result {
+                Ok(name) => ToastHandler::show(&ww, format!("{name} deleted."), "success"),
+                Err(e) => ToastHandler::show(&ww, format!("Failed to delete addon: {e}"), "error"),
+            }
+
+            // Re-scan so the config keys line up with what is left on disk
+            let updated = Self::scan_local().into_iter().nth(i);
+
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(win) = ww.upgrade() else {
+                    error!("Could not reload addons: window handle is dead");
+                    return;
+                };
+
+                let model = win.get_addons();
+                if let Some(mut row) = model.row_data(i) {
+                    if let Some(addon) = updated {
+                        row.installed = addon.installed;
+                        row.enabled = addon.enabled;
+                        row.update_available = addon.update_available;
+                    }
+                    row.installing = false;
+                    model.set_row_data(i, row);
+                }
+            });
+        });
+    }
+
+    fn delete(addon: &Addon) -> Result<()> {
+        let entries = fs::read_dir(&addon.folder)
+            .with_context(|| format!("reading '{}'", addon.folder.display()))?;
+
+        let mut failures: Vec<String> = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("auadd"))
+            {
+                continue;
+            }
+
+            let removed = if path.is_dir() {
+                fs::remove_dir_all(&path)
+            } else {
+                fs::remove_file(&path)
+            };
+
+            if let Err(e) = removed {
+                error!("Could not delete '{}': {e}", path.display());
+                failures.push(format!("{}: {e}", path.display()));
+            } else {
+                debug!("Deleted addon file '{}'", path.display());
+            }
+        }
+
+        if failures.is_empty() {
+            info!("Deleted addon '{}'", addon.name);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "{} file(s) could not be removed: {}",
+                failures.len(),
+                failures.join("; ")
+            ))
+        }
     }
 
     fn scan() -> Vec<Addon> {
