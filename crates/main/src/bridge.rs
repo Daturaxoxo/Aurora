@@ -96,6 +96,16 @@ impl Bridge {
                         .ok();
                         Self::show_toast(&w, "Game closed.", "success");
                     }
+                    EngineEvent::GamePathUpdated(path) => {
+                        let path_str: String = path.to_string_lossy().into_owned();
+                        let w_ui = w.clone();
+                        slint::invoke_from_event_loop(move || {
+                            if let Some(w) = w_ui.upgrade() {
+                                w.set_game_directory(path_str.into());
+                            }
+                        })
+                        .ok();
+                    }
                     EngineEvent::Toast { text, kind } => {
                         Self::show_toast(&w, &text, &kind);
                     }

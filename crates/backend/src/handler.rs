@@ -31,6 +31,7 @@ pub enum EngineEvent {
     LaunchFailed(String),
     GameClosed,
     Toast { text: String, kind: String },
+    GamePathUpdated(PathBuf),
 }
 
 pub struct EngineHandler {
@@ -57,6 +58,7 @@ impl EngineHandler {
                     return;
                 }
             };
+            evt_tx.send(EngineEvent::GamePathUpdated(game_path.clone())).ok();
 
             #[cfg(target_os = "linux")]
             crate::classes::linux::ensure_dll_overrides();
@@ -99,6 +101,7 @@ impl EngineHandler {
                                 continue;
                             }
                         };
+                        evt_tx.send(EngineEvent::GamePathUpdated(game_path.clone())).ok();
                         if let Err(e) = engine.reinit(&game_path) {
                             error!("Update failed: {e}");
                         }

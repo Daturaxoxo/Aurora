@@ -4,14 +4,23 @@ use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
 use log::*;
 use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
+use crate::classes::games::markers::find_marker;
 
 use crate::{
     classes::info::{paths::GAME_FOLDER_NAME, version::LAUNCHER_MAP},
     config::{get, key, set},
 };
 
+fn selected_game_folder_name() -> String {
+    let selected = get(key::SELECTED_GAME);
+    match selected.as_str() {
+        Some(s) if !s.is_empty() => s.to_string(),
+        _ => GAME_FOLDER_NAME.to_string(),
+    }
+}
+
 #[allow(clippy::ptr_arg)]
-pub fn validate_game_path(path: &PathBuf) -> Result<bool> {
+pub fn validate_game_path(path: &PathBuf, game_folder_name: &str) -> Result<bool> {
     if !path.exists() {
         return Ok(false);
     }
@@ -19,15 +28,27 @@ pub fn validate_game_path(path: &PathBuf) -> Result<bool> {
     for launcher in LAUNCHER_MAP {
         let launcher_path = path.join(launcher.0);
         if launcher_path.exists() {
+            trace!("Validated {} via launcher marker {}", path.display(), launcher.0);
             return Ok(true);
         }
     }
 
-    let game_found = path
-        .read_dir()?
-        .any(|entry| entry.is_ok_and(|e| e.file_name().to_str().unwrap() == GAME_FOLDER_NAME));
+    if let Some(markers) = find_marker(game_folder_name) {
+        for marker in markers {
+            if path.join(marker).exists() {
+                trace!("Validated {} via game marker {}", path.display(), marker);
+                return Ok(true);
+            }
+        }
+    } else {
+        error!("No marker set registered for game '{}'", game_folder_name);
+    }
 
-    Ok(game_found)
+    warn!(
+        "Validation failed for {}: no launcher or marker match",
+        path.display()
+    );
+    Ok(false)
 }
 
 fn default_install_paths() -> Vec<PathBuf> {
@@ -48,8 +69,6 @@ const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
         "Windows",
         "AppData",
         "ProgramData",
-        "Program Files",
-        "Program Files (x86)",
         "$Recycle.Bin",
         "System Volume Information",
     ]
@@ -75,9 +94,11 @@ const EXCLUDED_FOLDERS: &[&str] = if cfg!(windows) {
 };
 
 pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
+    let game_folder_name = selected_game_folder_name();
+
     for candidate in default_install_paths() {
         trace!("Probing default install path {}", candidate.display());
-        if candidate.is_dir() && validate_game_path(&candidate).unwrap_or(false) {
+        if candidate.is_dir() && validate_game_path(&candidate, &game_folder_name).unwrap_or(false) {
             info!(
                 "Found game directory via default install path {}",
                 candidate.display()
@@ -109,7 +130,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
             .into_iter()
             .find_map(|dir_entry_result| {
                 let entry = dir_entry_result.ok()?;
-                if entry.file_type().is_dir() && entry.file_name() == GAME_FOLDER_NAME {
+                if entry.file_type().is_dir() && entry.file_name().to_string_lossy() == game_folder_name {
                     Some(entry.path())
                 } else {
                     None
@@ -134,11 +155,13 @@ fn get_root_paths() -> Vec<PathBuf> {
 }
 
 pub fn get_game_directory() -> Result<PathBuf> {
+    let game_folder_name = selected_game_folder_name();
+
     let path = get(key::GAME_PATH)
         .as_str()
         .ok_or_else(|| anyhow!("Game directory not found"))?
         .into();
-    if validate_game_path(&path)? {
+    if validate_game_path(&path, &game_folder_name)? {
         return Ok(path);
     }
 
@@ -147,7 +170,7 @@ pub fn get_game_directory() -> Result<PathBuf> {
     let instant = Instant::now();
     if let Some(candidate) = candidate_directories()? {
         trace!("Trying {}", candidate.display());
-        if validate_game_path(&candidate)? {
+        if validate_game_path(&candidate, &game_folder_name)? {
             info!("Found game directory {}", candidate.display());
             let elapsed = instant.elapsed();
             info!("Candidate search took {elapsed:?}");
