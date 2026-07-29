@@ -1,12 +1,11 @@
 use std::fs::OpenOptions;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{OnceLock, RwLock};
 use std::time::Duration;
 
 use anyhow::Result;
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-
-use crate::engine::files::FileGroup;
 
 use super::AuroraEngine;
 
@@ -50,68 +49,98 @@ impl ProcessSnapshot {
     }
 }
 
+/// Snapshot of everything `kill_nte_processes` needs, decoupled from
+/// `Mutex<AuroraEngine>` so it can run while `monitor()` holds that lock
+/// for the duration of a play session. Published by
+/// `AuroraEngine::new`/`reinit`, read by `kill_nte_processes_standalone`.
+#[derive(Clone)]
+pub struct KillSnapshot {
+    pub launcher_process: &'static str,
+    pub game_process: &'static str,
+    pub helper_processes: Vec<&'static str>,
+    pub loader_dlls: Vec<(String, PathBuf)>,
+}
+
+static KILL_SNAPSHOT: OnceLock<RwLock<Option<KillSnapshot>>> = OnceLock::new();
+
+fn kill_snapshot_lock() -> &'static RwLock<Option<KillSnapshot>> {
+    KILL_SNAPSHOT.get_or_init(|| RwLock::new(None))
+}
+
+pub fn set_kill_snapshot(snapshot: KillSnapshot) {
+    if let Ok(mut guard) = kill_snapshot_lock().write() {
+        *guard = Some(snapshot);
+    }
+}
+
+/// Same body as `AuroraEngine::kill_nte_processes`, but reads from the
+/// lock-free snapshot instead of `&self`, so it never has to compete with
+/// `monitor()` for the engine mutex.
+pub fn kill_nte_processes_standalone() -> Result<()> {
+    let snapshot = {
+        let guard = kill_snapshot_lock()
+            .read()
+            .map_err(|e| anyhow::anyhow!("Kill snapshot poisoned: {e}"))?;
+        guard
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Kill snapshot not initialized yet"))?
+    };
+
+    let snapshot_data = ProcessSnapshot::refresh();
+
+    let mut names = vec![snapshot.launcher_process, snapshot.game_process];
+    names.extend(snapshot.helper_processes.iter().copied());
+    trace!("Processes to kill: {}", names.join(", "));
+
+    for name in names {
+        for (pid, process) in snapshot_data.matching(name) {
+            let exe = process
+                .exe()
+                .map(|e| e.display().to_string())
+                .unwrap_or_default();
+            trace!("Killing process {exe} (pid {pid})");
+            if process.kill() {
+                info!("Process {exe} killed");
+            } else {
+                error!("Process {exe} could not be killed");
+            }
+        }
+    }
+
+    for (label, destination) in &snapshot.loader_dlls {
+        if !destination.exists() {
+            continue;
+        }
+        trace!("Checking {}", destination.display());
+
+        let mut still_locked = false;
+        for attempt in 0..5 {
+            match OpenOptions::new().write(true).open(destination) {
+                Ok(_) => {
+                    trace!("{label} is not locked");
+                    still_locked = false;
+                    break;
+                }
+                Err(e) => {
+                    trace!("{label} is locked: {e}");
+                    still_locked = true;
+                    if attempt < 4 {
+                        warn!("{label} is still locked, Aurora Engine is waiting...");
+                        std::thread::sleep(Duration::from_millis(300));
+                    }
+                }
+            }
+        }
+        if still_locked {
+            warn!("{label} is still locked after 5 attempts, proceeding anyway");
+        }
+    }
+
+    Ok(())
+}
+
 impl AuroraEngine {
     pub fn kill_nte_processes(&self) -> Result<()> {
-        let snapshot = ProcessSnapshot::refresh();
-
-        let mut names = vec![self.gpaths.launcher_process, self.gpaths.game_process];
-        names.extend(self.gpaths.helper_processes.iter().copied());
-        trace!("Processes to kill: {}", names.join(", "));
-
-        for name in names {
-            for (pid, process) in snapshot.matching(name) {
-                let exe = process
-                    .exe()
-                    .map(|e| e.display().to_string())
-                    .unwrap_or_default();
-                trace!("Killing process {exe} (pid {pid})");
-                if process.kill() {
-                    info!("Process {exe} killed");
-                } else {
-                    error!("Process {exe} could not be killed");
-                }
-            }
-        }
-
-        for file in self
-            .managed_files()
-            .into_iter()
-            .filter(|f| f.group == FileGroup::LoaderDll)
-        {
-            if !file.destination.exists() {
-                continue;
-            }
-            trace!("Checking {}", file.destination.display());
-
-            let mut still_locked = false;
-            for attempt in 0..5 {
-                match OpenOptions::new().write(true).open(&file.destination) {
-                    Ok(_) => {
-                        trace!("{} is not locked", file.label);
-                        still_locked = false;
-                        break;
-                    }
-                    Err(e) => {
-                        trace!("{} is locked: {e}", file.label);
-                        still_locked = true;
-                        if attempt < 4 {
-                            warn!(
-                                "{} is still locked, Aurora Engine is waiting...",
-                                file.label
-                            );
-                            std::thread::sleep(Duration::from_millis(300));
-                        }
-                    }
-                }
-            }
-            if still_locked {
-                warn!(
-                    "{} is still locked after 5 attempts, proceeding anyway",
-                    file.label
-                );
-            }
-        }
-
-        Ok(())
+        kill_nte_processes_standalone()
     }
 }
