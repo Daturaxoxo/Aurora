@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sys
+import platform
 from urllib.parse import quote
 
 BASE_URL = "https://host.getaurora.moe/files/app/"
@@ -27,6 +28,15 @@ BLACKLISTED_EXTENSIONS = (
     "disabled",
 )
 
+def get_os():
+    os_name = platform.system().lower()
+
+    if os_name == "windows":
+        return "windows"
+    elif os_name == "linux":
+        return "linux"
+    else:
+        return os_name
 
 def calculate_sha256(filepath, chunk_size=8192):
     """Calculate the SHA256 hash of a file."""
@@ -178,6 +188,7 @@ def main():
         print(f"Usage: python {sys.argv[0]} <version>")
         sys.exit(1)
     version = sys.argv[1]
+    os_name = get_os()
     if folder_exists("./release"):
         shutil.rmtree("./release")
     os.mkdir("./release")
@@ -186,9 +197,14 @@ def main():
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
     copy_file("./steam_appid.txt", "./release/steam_appid.txt")
-    shutil.make_archive(
-        base_name=f"aurora-{version}", format="zip", base_dir="./release"
-    )
+    if os_name == "windows":
+        shutil.make_archive(
+            base_name=f"aurora-{version}-WINDOWS", format="zip", base_dir="./release"
+        )
+    elif os_name == "linux":
+        shutil.make_archive(
+            base_name=f"aurora-{version}-LINUX", format="zip", base_dir="./release"
+        )
 
     if folder_exists("./release-host"):
         shutil.rmtree("./release-host")
@@ -199,9 +215,14 @@ def main():
     for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
-    shutil.make_archive(
-        base_name=f"aurora-host-{version}", format="zip", base_dir="./release-host"
-    )
+    if os_name == "windows":
+        shutil.make_archive(
+            base_name=f"aurora-host-{version}-WINDOWS", format="zip", base_dir="./release-host"
+        )
+    elif os_name == "linux":
+        shutil.make_archive(
+            base_name=f"aurora-host-{version}-LINUX", format="zip", base_dir="./release-host"
+        )
 
 
 if __name__ == "__main__":
