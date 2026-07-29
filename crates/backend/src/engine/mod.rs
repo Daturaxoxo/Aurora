@@ -1,7 +1,6 @@
 mod files;
 mod inject;
 mod lua;
-mod lua;
 mod monitor;
 pub mod process;
 mod sanitize;
