@@ -164,7 +164,9 @@ def build_manifest(
                     {"path": rel_path, "sha256": file_hash, "url": file_url}
                 )
 
-    updater_path = os.path.join(base_dir, "updater.exe")
+    os_name = get_os()
+    updater_name = "updater.exe" if os_name == "windows" else "updater"
+    updater_path = os.path.join(base_dir, updater_name)
     updater_hash = (
         calculate_sha256(updater_path) if os.path.exists(updater_path) else None
     )
