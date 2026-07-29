@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context, Result};
 use log::{debug, info, warn};
 
 const STEAM_APP_ID: &str = "4508340";
-const DLL_OVERRIDES: [&str; 2] = ["version", "dsound"];
+const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
 #[cfg(target_os = "linux")]
 pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
