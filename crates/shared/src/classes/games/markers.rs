@@ -7,7 +7,7 @@ const NTE: &[&str] = &[
     "NTELauncher.exe",
     "NTEGlobalLauncher.exe",
     "NTETWLauncher.exe",
-    ""
+    "Client"
 ];
 
 const SP: &[&str] = &[
