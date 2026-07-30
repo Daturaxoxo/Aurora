@@ -39,9 +39,6 @@ fn main() -> Result<()> {
         error!("PANIC: {info}");
     }));
 
-    #[cfg(target_os = "linux")]
-    ensure_root();
-
     let _instance_lock =
         match ipc::lock::SingletonLock::acquire(&ipc::install_root().join(ipc::AURORA_LOCK_FILE)) {
             Ok(Some(lock)) => Some(lock),
@@ -200,21 +197,4 @@ fn get_monitor_size() -> Result<DisplayInfo> {
         .into_iter()
         .find(|display| display.is_primary)
         .ok_or_else(|| anyhow!("No primary display found"))
-}
-
-#[cfg(target_os = "linux")]
-fn ensure_root() {
-    if unsafe { libc::getuid() } == 0 {
-        return;
-    }
-
-    let exe = std::env::current_exe().expect("Could not get exe path");
-    std::process::exit(
-        std::process::Command::new("pkexec")
-            .arg(exe)
-            .status()
-            .expect("Failed to launch pkexec")
-            .code()
-            .unwrap_or(1),
-    );
 }
