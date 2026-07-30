@@ -45,30 +45,31 @@ impl EngineHandler {
         let _ = ENGINE_CMD_TX.set(cmd_tx.clone());
 
         std::thread::spawn(move || {
-            let game_path = match get_game_directory() {
-                Ok(p) => p,
+            let engine: Arc<Mutex<Option<AuroraEngine>>> = Arc::new(Mutex::new(None));
+
+            match get_game_directory() {
+                Ok(game_path) => {
+                    evt_tx
+                        .send(EngineEvent::GamePathUpdated(game_path.clone()))
+                        .ok();
+                    match AuroraEngine::new(&game_path) {
+                        Ok(e) => {
+                            info!("Game Path: {}", game_path.display());
+                            *engine.lock().unwrap() = Some(e);
+                        }
+                        Err(e) => {
+                            evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
+                        }
+                    }
+                }
                 Err(e) => {
                     evt_tx
                         .send(EngineEvent::LaunchFailed(format!(
                             "Game path not found: {e}"
                         )))
                         .ok();
-                    return;
                 }
-            };
-            evt_tx
-                .send(EngineEvent::GamePathUpdated(game_path.clone()))
-                .ok();
-
-            let engine = match AuroraEngine::new(&game_path) {
-                Ok(e) => Arc::new(Mutex::new(e)),
-                Err(e) => {
-                    evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
-                    return;
-                }
-            };
-
-            info!("Game Path: {}", game_path.display());
+            }
 
             for cmd in cmd_rx {
                 let engine = engine.clone();
@@ -76,29 +77,42 @@ impl EngineHandler {
                 match cmd {
                     EngineCommand::Launch(custom_files) => {
                         std::thread::spawn(move || {
-                            if let Err(e) = engine.lock().unwrap().inject(custom_files) {
+                            let result = engine.lock().unwrap().as_mut().map_or_else(
+                                || {
+                                    Err(anyhow!(
+                                        "Engine not initialized, set a valid game path in settings"
+                                    ))
+                                },
+                                |e| e.inject(custom_files),
+                            );
+                            if let Err(e) = result {
                                 error!("Inject failed: {e}");
                                 evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
-                                engine.lock().unwrap().sanitize(false).ok();
+                                if let Some(e) = engine.lock().unwrap().as_mut() {
+                                    e.sanitize(false).ok();
+                                }
                                 return;
                             }
                             evt_tx.send(EngineEvent::LaunchSuccess).ok();
 
-                            let monitor_engine = engine.clone();
-                            let monitor_evt_tx = evt_tx.clone();
                             std::thread::spawn(move || {
-                                if let Err(e) = monitor_engine.lock().unwrap().monitor() {
-                                    error!("Monitor failed: {e}");
+                                if let Some(e) = engine.lock().unwrap().as_mut() {
+                                    if let Err(e) = e.monitor() {
+                                        error!("Monitor failed: {e}");
+                                    }
                                 }
-                                monitor_evt_tx.send(EngineEvent::GameClosed).ok();
+                                evt_tx.send(EngineEvent::GameClosed).ok();
                             });
                         });
                     }
                     EngineCommand::Sanitize => {
-                        std::thread::spawn(move || {
-                            if let Err(e) = engine.lock().unwrap().sanitize(true) {
-                                error!("Sanitize failed: {e}");
+                        std::thread::spawn(move || match engine.lock().unwrap().as_mut() {
+                            Some(e) => {
+                                if let Err(e) = e.sanitize(true) {
+                                    error!("Sanitize failed: {e}");
+                                }
                             }
+                            None => error!("Sanitize failed: engine not initialized"),
                         });
                     }
                     EngineCommand::Update => {
@@ -113,7 +127,19 @@ impl EngineHandler {
                             evt_tx
                                 .send(EngineEvent::GamePathUpdated(game_path.clone()))
                                 .ok();
-                            if let Err(e) = engine.lock().unwrap().reinit(&game_path) {
+                            #[allow(clippy::option_if_let_else)]
+                            let result = {
+                                let mut guard = engine.lock().unwrap();
+                                if let Some(e) = guard.as_mut() {
+                                    e.reinit(&game_path)
+                                } else {
+                                    AuroraEngine::new(&game_path).map(|e| {
+                                        info!("Game Path: {}", game_path.display());
+                                        *guard = Some(e);
+                                    })
+                                }
+                            };
+                            if let Err(e) = result {
                                 error!("Update failed: {e}");
                             }
                         });
@@ -124,10 +150,13 @@ impl EngineHandler {
                         }
                     }
                     EngineCommand::Validate => {
-                        std::thread::spawn(move || {
-                            if let Err(e) = engine.lock().unwrap().validate() {
-                                error!("Validate failed: {e}");
+                        std::thread::spawn(move || match engine.lock().unwrap().as_mut() {
+                            Some(e) => {
+                                if let Err(e) = e.validate() {
+                                    error!("Validate failed: {e}");
+                                }
                             }
+                            None => error!("Validate failed: engine not initialized"),
                         });
                     }
                 }
