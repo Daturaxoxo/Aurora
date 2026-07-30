@@ -17,7 +17,7 @@ pub fn extract_archive<P: AsRef<Path>>(src: P, dest: P) -> Result<()> {
     match extension.to_str().unwrap_or("") {
         "" => return Err(anyhow!("Couldn't get file extension")),
         "rar" => {
-            let archive = RarArchive::new(&dest).open_for_processing()?;
+            let archive = RarArchive::new(&src).open_for_processing()?;
             archive.extract_all(dest)?;
         }
         ext if ARCHIVE_EXTENSIONS.contains(&ext) => {
