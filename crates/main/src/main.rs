@@ -6,7 +6,7 @@ mod bridge;
 mod classes;
 mod translations;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use display_info::DisplayInfo;
 use log::*;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
@@ -192,9 +192,28 @@ fn main() -> Result<()> {
 }
 
 fn get_monitor_size() -> Result<DisplayInfo> {
-    DisplayInfo::all()
-        .with_context(|| "Failed to get monitor information")?
-        .into_iter()
-        .find(|display| display.is_primary)
-        .ok_or_else(|| anyhow!("No primary display found"))
+    let mut last_err = None;
+
+    for attempt in 1..=10 {
+        match DisplayInfo::all() {
+            Ok(displays) => {
+                if let Some(display) = displays.into_iter().find(|d| d.is_primary) {
+                    if attempt > 1 {
+                        info!("get_monitor_size: primary monitor found on attempt {attempt}");
+                    }
+                    return Ok(display);
+                }
+                info!("get_monitor_size: primary monitor not found after {attempt} attempts.");
+            }
+            Err(e) => {
+                last_err = Some(anyhow!("Failed to get monitor information: {e}"));
+            }
+        }
+
+        if attempt < 10 {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| anyhow!("No primary display found")))
 }
