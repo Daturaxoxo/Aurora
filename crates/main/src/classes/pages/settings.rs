@@ -94,11 +94,6 @@ impl SettingsHandler {
             logwindow::set_visible(true, window);
         }
 
-        let raw_logging = config::get(key::EXTENSIVE_LOGGING);
-        let extensive_logging = raw_logging.as_bool().unwrap_or(false);
-        debug!("[Settings] extensive_logging: raw={raw_logging:?} → {extensive_logging}");
-        w.set_extensive_logging(extensive_logging);
-
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
 
@@ -215,42 +210,40 @@ impl SettingsHandler {
             logwindow::set_visible(enabled, &ww);
         });
 
-        w.on_extensive_logging_changed(move |enabled| {
-            info!("[Settings] extensive_logging changed → {enabled}");
-            config::set(key::EXTENSIVE_LOGGING, enabled);
-            debug!("[Settings] extensive_logging saved to config");
-        });
-
         w.on_export_telemetry({
-        let ww = window.clone();
-        move || {
-            info!("[Settings] export_telemetry triggered");
-            let ww = ww.clone(); 
-            std::thread::spawn(move || {
-                debug!("[Settings] telemetry export thread spawned");
-                match shared::telemetry::export_telemetry() {
-                    Ok(()) => {
-                        info!("[Settings] telemetry export complete");
-                        ToastHandler::show(&ww, "Exported debugging logs to the logs folder.", "success");
-                        let logs_dir = std::env::current_exe()
-                            .ok()
-                            .and_then(|p| p.parent().map(|p| p.join("Logs")));
+            let ww = window.clone();
+            move || {
+                info!("[Settings] export_telemetry triggered");
+                let ww = ww.clone();
+                std::thread::spawn(move || {
+                    debug!("[Settings] telemetry export thread spawned");
+                    match shared::telemetry::export_telemetry() {
+                        Ok(()) => {
+                            info!("[Settings] telemetry export complete");
+                            ToastHandler::show(&ww, "Exported debugging logs to the logs folder.", "success");
 
-                        if let Some(path) = logs_dir {
-                            #[cfg(target_os = "windows")]
-                            std::process::Command::new("explorer").arg(&path).spawn().ok();
+                            let logs_dir = std::env::current_exe()
+                                .ok()
+                                .and_then(|p| p.parent().map(|p| p.join("Logs")));
 
-                            #[cfg(target_os = "linux")]
-                            std::process::Command::new("xdg-open").arg(&path).spawn().ok();
-                        } else {
-                            error!("[Settings] failed to resolve Logs directory path");
+                            if let Some(path) = logs_dir {
+                                if let Err(e) = open::that(&path) {
+                                    error!("[Settings] failed to open Logs directory: {e}");
+                                    ToastHandler::show(&ww, "Failed to open logs folder.", "error");
+                                }
+                            } else {
+                                error!("[Settings] failed to resolve Logs directory path");
+                                ToastHandler::show(&ww, "Failed to resolve logs directory path.", "error");
+                            }
+                        }
+                        Err(e) => {
+                            error!("[Settings] telemetry export failed: {e}");
+                            ToastHandler::show(&ww, format!("Telemetry export failed: {e}"), "error");
                         }
                     }
-                    Err(e) => error!("[Settings] telemetry export failed: {e}"),
-                }
-            });
-        }
-    });
+                });
+            }
+        });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");
     }

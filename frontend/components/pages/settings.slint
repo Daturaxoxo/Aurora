@@ -654,15 +654,6 @@ export component SettingsPage inherits Rectangle {
                                 }
 
                                 SettingCard {
-                                    title: "Extensive Logging";
-                                    subtitle: "Allows for more logs to be shown in the console.";
-                                    ToggleSwitch {
-                                        checked <=> root.extensive-logging;
-                                        toggled => { root.extensive-logging-changed(self.checked); }
-                                    }
-                                }
-
-                                SettingCard {
                                     title: "Export Telemetry";
                                     subtitle: "Export your Aurora logs & system information to a file";
 
