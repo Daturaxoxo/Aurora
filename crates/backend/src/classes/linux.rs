@@ -28,7 +28,7 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
     if is_in_steam_library(exe) {
         debug!("launch_via_proton: exe lives inside a Steam library");
     } else {
-        debug!("launch_via_proton: exe is outside any Steam library, using DW-Proton");
+        debug!("launch_via_proton: exe is outside any Steam library");
     }
 
     // Steam runs a game from its own install directory, and protonfixes reads
