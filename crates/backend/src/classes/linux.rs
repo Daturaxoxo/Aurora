@@ -60,9 +60,15 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
         compat_data.display()
     );
 
-    let child = command_as_real_user(&proton_bin)
-        .arg("waitforexitandrun")
-        .arg(exe)
+    let (extra_env, extra_args) = proton_launch_options();
+
+    let mut cmd = command_as_real_user(&proton_bin);
+    cmd.arg("waitforexitandrun").arg(exe).args(&extra_args);
+    for (k, v) in &extra_env {
+        cmd.env(k, v);
+    }
+
+    let child = cmd
         .current_dir(work_dir)
         .env("PWD", work_dir)
         .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root)
@@ -73,6 +79,69 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
         .with_context(|| format!("failed to spawn proton for {}", exe.display()))?;
 
     Ok(child)
+}
+
+fn proton_launch_options() -> (Vec<(String, String)>, Vec<String>) {
+    let raw = shared::config::get(shared::config::key::PROTON_ARGS);
+    let raw = raw.as_str().unwrap_or("").trim();
+
+    if raw.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    let tokens = split_launch_options(raw);
+
+    let mut env = Vec::new();
+    let mut args = Vec::new();
+
+    for token in tokens {
+        if args.is_empty() {
+            if let Some((k, v)) = token.split_once('=') {
+                if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                    env.push((k.to_string(), v.to_string()));
+                    continue;
+                }
+            }
+        }
+        args.push(token);
+    }
+
+    info!("Proton launch options: env={env:?} args={args:?}");
+
+    (env, args)
+}
+
+fn split_launch_options(input: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_token = false;
+    let mut quote: Option<char> = None;
+
+    for ch in input.chars() {
+        match quote {
+            Some(q) if ch == q => quote = None,
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                quote = Some(ch);
+                in_token = true;
+            }
+            None if ch.is_whitespace() => {
+                if in_token {
+                    tokens.push(std::mem::take(&mut current));
+                    in_token = false;
+                }
+            }
+            None => {
+                current.push(ch);
+                in_token = true;
+            }
+        }
+    }
+    if in_token {
+        tokens.push(current);
+    }
+
+    tokens
 }
 
 /// Runs Proton once with no real work to do, purely so it creates and

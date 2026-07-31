@@ -74,6 +74,15 @@ impl SettingsHandler {
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
+        // Proton (Linux only)
+        w.set_is_linux(cfg!(target_os = "linux"));
+        if cfg!(target_os = "linux") {
+            let raw_proton = config::get(key::PROTON_ARGS);
+            let proton_args = raw_proton.as_str().unwrap_or("").to_string();
+            debug!("[Settings] proton_args: raw={raw_proton:?} → {proton_args:?}");
+            w.set_proton_launch_args(proton_args.into());
+        }
+
         // Developer
         let raw_dev = config::get(key::DEV_MODE);
         let dev_mode = raw_dev.as_bool().unwrap_or(false);
@@ -185,6 +194,14 @@ impl SettingsHandler {
                 }
                 Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
             }
+        });
+
+        // [PROTON]
+
+        w.on_proton_launch_args_changed(move |args| {
+            info!("[Settings] proton_launch_args changed → {args:?}");
+            config::set(key::PROTON_ARGS, args.as_str());
+            debug!("[Settings] proton_args saved to config");
         });
 
         // [DEVELOPER]

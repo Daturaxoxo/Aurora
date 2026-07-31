@@ -101,6 +101,8 @@ export component MainWindow inherits Window {
     in-out property <int> engine-method-index: 0;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
+    in-out property <bool> is-linux: false;
+    in-out property <string> proton-launch-args: "";
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
@@ -109,6 +111,7 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
+    callback proton-launch-args-changed(string);
 
     // Popup Dialog Properties
     in-out property <bool> popup-active: false;
@@ -1072,6 +1075,8 @@ export component MainWindow inherits Window {
             engine-method-index <=> root.engine-method-index;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
+            is-linux: root.is-linux;
+            proton-launch-args <=> root.proton-launch-args;
 
             browse-game-directory => { root.browse-game-directory(); }
             export-telemetry => { root.export-telemetry(); }
@@ -1081,6 +1086,7 @@ export component MainWindow inherits Window {
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
+            proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
         }
 
         toast-widget := WindowToast {
