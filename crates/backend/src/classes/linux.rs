@@ -16,38 +16,20 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
 
     debug!("Using Steam root at {}", steam_root.display());
 
-    let (proton_bin, compat_data) = if is_in_steam_library(exe) {
+    let proton_bin = find_dwproton_script(&steam_root).ok_or_else(|| {
+        anyhow!(
+            "DW-Proton is not installed (looked for a DW-Proton build in {})",
+            steam_root.join("compatibilitytools.d").display()
+        )
+    })?;
+
+    let compat_data = aurora_compat_data()?;
+
+    if is_in_steam_library(exe) {
         debug!("launch_via_proton: exe lives inside a Steam library");
-
-        let prefix = find_proton_prefix(STEAM_APP_ID)
-            .ok_or_else(|| anyhow!("could not locate NTE's Proton prefix in any Steam library"))?;
-
-        debug!("Found NTE Proton prefix at {}", prefix.display());
-
-        // compatdata/<appid> is the parent of .../pfx
-        let compat_data = prefix
-            .parent()
-            .ok_or_else(|| anyhow!("prefix {} has no parent directory", prefix.display()))?
-            .to_path_buf();
-
-        let proton_bin = find_proton_script(&prefix)
-            .ok_or_else(|| anyhow!("could not locate a `proton` script for this prefix"))?;
-
-        (proton_bin, compat_data)
     } else {
         debug!("launch_via_proton: exe is outside any Steam library, using DW-Proton");
-
-        let proton_bin = find_dwproton_script(&steam_root).ok_or_else(|| {
-            anyhow!(
-                "DW-Proton is not installed (looked for a DW-Proton build in {})",
-                steam_root.join("compatibilitytools.d").display()
-            )
-        })?;
-
-        let compat_data = aurora_compat_data()?;
-
-        (proton_bin, compat_data)
-    };
+    }
 
     // Steam runs a game from its own install directory, and protonfixes reads
     // `PWD` to work out which library the game belongs to.
@@ -183,20 +165,6 @@ fn set_override(wine: &Path, prefix: &Path, dll_name: &str) -> Result<()> {
     Ok(())
 }
 
-fn find_proton_prefix(app_id: &str) -> Option<PathBuf> {
-    for library in steam_libraries() {
-        let candidate = library
-            .join("steamapps")
-            .join("compatdata")
-            .join(app_id)
-            .join("pfx");
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
 /// Whether `exe` lives inside one of the Steam library folders we know about.
 /// Both sides are canonicalized first so symlinked library roots (very common
 /// on Arch, where `~/.steam/steam` points into `~/.local/share/Steam`) still
@@ -216,8 +184,8 @@ fn is_in_steam_library(exe: &Path) -> bool {
         .any(|library| exe.starts_with(&library))
 }
 
-/// The compat data directory Aurora owns for exes that don't belong to a Steam
-/// library. Proton creates and populates `pfx/` inside it on first launch.
+/// The compat data directory Aurora owns.
+/// Proton creates and populates `pfx/` inside it on first launch.
 ///
 /// The app id leaf mirrors Steam's own `compatdata/<appid>` layout. It isn't
 /// cosmetic: protonfixes recovers the game id by pulling the last run of digits
@@ -540,36 +508,6 @@ fn find_wine_binary(proton_bin: &Path) -> Option<PathBuf> {
     }
 
     which_wine()
-}
-
-/// Locates the top-level `proton` launcher script (not the `wine` binary
-/// buried inside it) for whichever Proton build owns `prefix`. This is
-/// what needs to be invoked with `waitforexitandrun` so Steam-style env
-/// vars and prefix setup are honored the same way Steam itself would do it.
-fn find_proton_script(prefix: &Path) -> Option<PathBuf> {
-    let library_root = prefix
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)?;
-
-    let common = library_root.join("common");
-    let entries = std::fs::read_dir(&common).ok()?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if !name.starts_with("Proton") {
-            continue;
-        }
-
-        let script = path.join("proton");
-        if script.is_file() {
-            return Some(script);
-        }
-    }
-
-    None
 }
 
 fn which_wine() -> Option<PathBuf> {

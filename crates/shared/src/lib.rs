@@ -10,6 +10,6 @@ pub mod utils;
 pub mod classes {
     pub mod export;
     pub mod gamebanana;
-    pub mod info;
     pub mod games;
+    pub mod info;
 }
