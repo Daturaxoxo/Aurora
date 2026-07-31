@@ -16,6 +16,20 @@ use std::sync::Mutex;
 
 const GROUP_PREFIX: &str = "AU GRP - ";
 
+const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
+
+const DISABLED_SUFFIX: &str = ".disabled";
+
+fn is_mod_file(name: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .is_some_and(|ext| MOD_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+}
+
+fn is_disabled_mod_file(name: &str) -> bool {
+    name.strip_suffix(DISABLED_SUFFIX).is_some_and(is_mod_file)
+}
+
 pub type InstallDoneCallback = Box<dyn FnOnce(&MainWindow) + Send>;
 
 #[derive(Debug, Clone)]
@@ -76,45 +90,73 @@ impl Default for Mod {
 pub struct ModManager;
 
 impl ModManager {
-    fn get_mod_data(folder: &PathBuf) -> Option<Mod> {
-        let mod_name = folder.file_name()?.to_str()?;
+    fn find_mod_json(folder: &Path) -> Option<PathBuf> {
+        let json_path = folder.join("mod.json");
+        if json_path.exists() {
+            return Some(json_path);
+        }
+
+        let entries = folder
+            .read_dir()
+            .map_err(|e| warn!("[ModManager] could not read '{}': {e}", folder.display()))
+            .ok()?;
+
+        for sub in entries.flatten() {
+            let nested = sub.path().join("mod.json");
+            if sub.file_type().is_ok_and(|t| t.is_dir()) && nested.exists() {
+                return Some(nested);
+            }
+        }
+
+        None
+    }
+
+    fn get_mod_data(folder: &PathBuf) -> Mod {
+        let mod_name = folder
+            .file_name()
+            .unwrap_or(folder.as_os_str())
+            .to_string_lossy()
+            .into_owned();
 
         let files = read_dir_recursive(folder);
         let is_enabled = files
             .iter()
-            .filter(|p| {
-                Path::new(p.file_name().to_str().unwrap())
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
-            })
-            .count()
-            > 0;
+            .any(|p| is_mod_file(&p.file_name().to_string_lossy()));
 
         let mut mod_data = Mod {
-            folder_name: mod_name.to_string(),
-            display_name: mod_name.to_string().replace("_P", ""),
+            folder_name: mod_name.clone(),
+            display_name: mod_name.replace("_P", ""),
             path: folder.clone(),
             is_enabled,
             ..Default::default()
         };
 
-        let mut json_path = folder.join("mod.json");
-        if !json_path.exists() {
-            for sub in folder.read_dir().ok()? {
-                let sub = sub.ok()?;
-                if sub.file_type().ok()?.is_dir() && sub.path().join("mod.json").exists() {
-                    json_path = sub.path().join("mod.json");
-                    break;
-                }
-            }
+        let Some(json_path) = Self::find_mod_json(folder) else {
+            return mod_data;
+        };
 
-            if !json_path.exists() {
-                return Some(mod_data);
+        let raw = match std::fs::read_to_string(&json_path) {
+            Ok(raw) => raw,
+            Err(e) => {
+                warn!(
+                    "[ModManager] could not read '{}' ({e}); falling back to the folder name",
+                    json_path.display()
+                );
+                return mod_data;
             }
-        }
+        };
 
-        let json = std::fs::read_to_string(json_path).ok()?;
-        let json: serde_json::Value = serde_json::from_str(&json).ok()?;
+        let json: serde_json::Value = match serde_json::from_str(raw.trim_start_matches('\u{feff}'))
+        {
+            Ok(json) => json,
+            Err(e) => {
+                warn!(
+                    "[ModManager] '{}' is not valid JSON ({e}); falling back to the folder name",
+                    json_path.display()
+                );
+                return mod_data;
+            }
+        };
         mod_data.has_json = true;
 
         let binding = serde_json::Map::new();
@@ -142,11 +184,13 @@ impl ModManager {
             }
             icon = custom_image_url;
         }
-        Some(Mod {
-            display_name: json["Name"]
-                .as_str()
-                .or(Some(&mod_data.display_name))
-                .map(ToString::to_string)?,
+        let display_name = json["Name"]
+            .as_str()
+            .unwrap_or(&mod_data.display_name)
+            .to_string();
+
+        Mod {
+            display_name,
             version: json["Version"]
                 .as_str()
                 .or(Some("1.0.0"))
@@ -158,53 +202,96 @@ impl ModManager {
             support_link,
             icon,
             ..mod_data
-        })
+        }
     }
 
     fn contains_pak(folder: &PathBuf) -> bool {
         read_dir_recursive(folder).iter().any(|item| {
-            item.file_name().to_str().is_some_and(|name| {
-                Path::new(name)
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
-                    || name.ends_with(".pak.disabled")
-            })
+            let name = item.file_name().to_string_lossy().into_owned();
+            is_mod_file(&name) || is_disabled_mod_file(&name)
         })
     }
 
-    pub fn scan_mods() -> Option<Vec<Group>> {
-        let mods_path = get_mods_path()?;
+    pub fn scan_mods() -> Result<Vec<Group>> {
+        let mods_path =
+            get_mods_path().ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
 
         if !mods_path.exists() {
-            return Some(vec![]);
+            info!(
+                "[ModManager] mods folder '{}' does not exist yet",
+                mods_path.display()
+            );
+            return Ok(vec![]);
         }
+
+        info!("[ModManager] scanning '{}'", mods_path.display());
+
+        let entries = mods_path
+            .read_dir()
+            .with_context(|| format!("could not read '{}'", mods_path.display()))?;
 
         let mut groups: Vec<Group> = vec![];
 
         // Mods that don't have a group
         let mut root_group = Group::new(None, None);
 
-        for entry in mods_path.read_dir().ok()? {
-            let entry = entry.ok()?;
-            if !entry.file_type().ok()?.is_dir() {
-                continue;
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => {
+                    warn!("[ModManager] skipping unreadable entry: {e}");
+                    continue;
+                }
+            };
+
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => {}
+                Ok(_) => continue,
+                Err(e) => {
+                    warn!(
+                        "[ModManager] skipping '{}': could not read its type: {e}",
+                        entry.path().display()
+                    );
+                    continue;
+                }
             }
 
-            if entry.file_name().to_str()?.starts_with(GROUP_PREFIX) {
-                let group_name = entry.file_name().to_str()?.replace(GROUP_PREFIX, "");
-                let mut group = Group::new(Some(group_name), Some(entry.path()));
-                for sub in entry.path().read_dir().ok()? {
-                    let sub = sub.ok()?;
-                    if sub.file_type().ok()?.is_dir() && Self::contains_pak(&sub.path()) {
-                        group.add_mod(Self::get_mod_data(&sub.path())?);
+            let name = entry.file_name().to_string_lossy().into_owned();
+
+            if let Some(group_name) = name.strip_prefix(GROUP_PREFIX) {
+                let mut group = Group::new(Some(group_name.to_string()), Some(entry.path()));
+                match entry.path().read_dir() {
+                    Ok(subs) => {
+                        for sub in subs {
+                            let sub = match sub {
+                                Ok(sub) => sub,
+                                Err(e) => {
+                                    warn!(
+                                        "[ModManager] skipping unreadable entry in group '{group_name}': {e}"
+                                    );
+                                    continue;
+                                }
+                            };
+                            if sub.file_type().is_ok_and(|t| t.is_dir())
+                                && Self::contains_pak(&sub.path())
+                            {
+                                group.add_mod(Self::get_mod_data(&sub.path()));
+                            }
+                        }
                     }
+                    Err(e) => warn!(
+                        "[ModManager] could not read group '{}': {e}",
+                        entry.path().display()
+                    ),
                 }
                 if !group.mods.is_empty() {
                     group.mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name));
                 }
                 groups.push(group);
             } else if Self::contains_pak(&entry.path()) {
-                root_group.add_mod(Self::get_mod_data(&entry.path())?);
+                root_group.add_mod(Self::get_mod_data(&entry.path()));
+            } else {
+                debug!("[ModManager] skipping '{name}': no mod files inside");
             }
         }
 
@@ -216,7 +303,13 @@ impl ModManager {
             groups.insert(0, root_group);
         }
 
-        Some(groups)
+        let mod_count: usize = groups.iter().map(|g| g.mods.len()).sum();
+        info!(
+            "[ModManager] found {mod_count} mod(s) in {} group(s)",
+            groups.len()
+        );
+
+        Ok(groups)
     }
 
     pub fn toggle_mod(mod_: &Mod) -> Result<()> {
@@ -232,16 +325,12 @@ impl ModManager {
         if mod_.is_enabled {
             let targets = files
                 .iter()
-                .filter(|p| {
-                    Path::new(p.file_name().to_str().unwrap())
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
-                })
+                .filter(|p| is_mod_file(&p.file_name().to_string_lossy()))
                 .collect::<Vec<_>>();
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: no .pak files found for {}",
+                    "Cannot toggle mod: no mod files found for {}",
                     mod_.folder_name
                 ));
             }
@@ -249,10 +338,8 @@ impl ModManager {
             for pak in &targets {
                 let old = pak.path();
                 let new = old.with_file_name(format!(
-                    "{}.disabled",
-                    pak.file_name()
-                        .to_str()
-                        .ok_or_else(|| anyhow!("Could not get file name"))?
+                    "{}{DISABLED_SUFFIX}",
+                    pak.file_name().to_string_lossy()
                 ));
                 std::fs::rename(&old, &new)?;
             }
@@ -264,25 +351,20 @@ impl ModManager {
         } else {
             let targets = files
                 .iter()
-                .filter(|p| p.file_name().to_str().unwrap().ends_with(".pak.disabled"))
+                .filter(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()))
                 .collect::<Vec<_>>();
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: no .pak.disabled files found for {}",
+                    "Cannot toggle mod: no disabled mod files found for {}",
                     mod_.folder_name
                 ));
             }
 
             for pak in &targets {
                 let old = pak.path();
-                let new = old.with_file_name(
-                    old.file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .replace(".disabled", ""),
-                );
+                let name = old.file_name().unwrap_or_default().to_string_lossy();
+                let new = old.with_file_name(name.strip_suffix(DISABLED_SUFFIX).unwrap_or(&name));
                 std::fs::rename(&old, &new)?;
             }
             trace!(
@@ -519,10 +601,16 @@ impl ModManagerHandler {
         Ok(())
     }
 
-    fn reload(window: &slint::Weak<MainWindow>) {
+    pub(crate) fn reload(window: &slint::Weak<MainWindow>) {
         let ww = window.clone();
         std::thread::spawn(move || {
-            let groups = ModManager::scan_mods().unwrap_or_default();
+            let (groups, error) = match ModManager::scan_mods() {
+                Ok(groups) => (groups, None),
+                Err(e) => {
+                    error!("[ModManager] could not scan the mods folder: {e}");
+                    (vec![], Some(format!("{e}")))
+                }
+            };
 
             let scanned: Vec<ScannedGroup> = groups
                 .into_iter()
@@ -545,6 +633,10 @@ impl ModManagerHandler {
 
                 STATE.lock().unwrap().scanned = scanned;
                 Self::rebuild(&w);
+
+                if let Some(error) = error {
+                    Self::show_toast(&w, "error", format!("Could not read mods folder - {error}"));
+                }
             });
         });
     }
