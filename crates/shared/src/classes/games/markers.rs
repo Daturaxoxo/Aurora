@@ -7,22 +7,20 @@ const NTE: &[&str] = &[
     "NTELauncher.exe",
     "NTEGlobalLauncher.exe",
     "NTETWLauncher.exe",
-    "Client"
+    "Client",
 ];
 
-const SP: &[&str] = &[
-    "temp",
-];
+const SP: &[&str] = &["temp"];
 
 pub const MARKERS: &[GameMarkers] = &[
     GameMarkers {
         folder_name: "Neverness To Everness",
-        markers: NTE
+        markers: NTE,
     },
     GameMarkers {
         folder_name: "Silver Palace", // confirm the folder name later! -daturas
-        markers: SP
-    }
+        markers: SP,
+    },
 ];
 
 pub fn find_marker(folder_name: &str) -> Option<&'static [&'static str]> {

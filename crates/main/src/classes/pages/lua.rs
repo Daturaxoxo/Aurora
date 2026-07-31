@@ -13,10 +13,7 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
-const BLOCKLISTED_NAMES: &[&str] = &[
-    "shared", 
-    "keybinds"
-];
+const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
@@ -200,7 +197,6 @@ impl LuaScriptsHandler {
         {
             adapter.on_save_script_code(move |id, code| {
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
-
                     if let Err(e) = write_script(&mods_dir, &item.name, &code) {
                         error!("Failed to save script '{}' to disk: {e}", item.name);
                     }
@@ -317,10 +313,7 @@ fn sanitize_archive_path(path: &str) -> Option<PathBuf> {
     Some(safe)
 }
 
-fn find_by_id(
-    model: &Rc<VecModel<LuaScriptItem>>,
-    id: &str,
-) -> Option<(usize, LuaScriptItem)> {
+fn find_by_id(model: &Rc<VecModel<LuaScriptItem>>, id: &str) -> Option<(usize, LuaScriptItem)> {
     model.iter().enumerate().find(|(_, item)| item.id == id)
 }
 
@@ -402,7 +395,11 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
         return;
     };
 
-    let line_ending = if contents.contains("\r\n") { "\r\n" } else { "\n" };
+    let line_ending = if contents.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
     let value = if enabled { "1" } else { "0" };
 
     let mut updated = String::with_capacity(contents.len());
@@ -456,8 +453,7 @@ fn read_mods_json(mods_dir: &Path) -> Vec<ModJsonEntry> {
 }
 
 fn write_mods_json(mods_dir: &Path, entries: &[ModJsonEntry]) -> std::io::Result<()> {
-    let json = serde_json::to_string_pretty(entries)
-        .unwrap_or_else(|_| "[]".to_string());
+    let json = serde_json::to_string_pretty(entries).unwrap_or_else(|_| "[]".to_string());
     fs::write(mods_json_path(mods_dir), json)
 }
 

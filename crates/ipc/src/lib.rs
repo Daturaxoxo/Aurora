@@ -6,8 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 #[cfg(windows)]
-pub const MANIFEST_URL_PRIMARY: &str =
-    "https://host.getaurora.moe/files/app/windows/manifest.json";
+pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/windows/manifest.json";
 #[cfg(target_os = "linux")]
 pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/linux/manifest.json";
 #[cfg(not(any(windows, target_os = "linux")))]
