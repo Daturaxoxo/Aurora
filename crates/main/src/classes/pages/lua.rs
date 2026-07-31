@@ -278,6 +278,7 @@ impl LuaScriptsHandler {
         }
 
         unregister_mod_from_config(mods_dir, &item.name);
+        drop(mods_dir_guard);
 
         if let Some(vec_model) = model.as_any().downcast_ref::<VecModel<LuaScriptItem>>() {
             vec_model.remove(i);

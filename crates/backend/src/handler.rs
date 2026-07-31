@@ -4,10 +4,17 @@ use log::{error, info};
 use shared::pathfind::get_game_directory;
 use std::{
     path::PathBuf,
-    sync::{mpsc, Arc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex, OnceLock,
+    },
 };
 
 pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
+
+/// True while a launched game session is live, i.e. between the
+/// `LaunchSuccess` and `GameClosed` events.
+pub static GAME_RUNNING: AtomicBool = AtomicBool::new(false);
 
 pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
     let tx = ENGINE_CMD_TX
@@ -93,6 +100,7 @@ impl EngineHandler {
                                 }
                                 return;
                             }
+                            GAME_RUNNING.store(true, Ordering::Relaxed);
                             evt_tx.send(EngineEvent::LaunchSuccess).ok();
 
                             std::thread::spawn(move || {
@@ -101,6 +109,7 @@ impl EngineHandler {
                                         error!("Monitor failed: {e}");
                                     }
                                 }
+                                GAME_RUNNING.store(false, Ordering::Relaxed);
                                 evt_tx.send(EngineEvent::GameClosed).ok();
                             });
                         });

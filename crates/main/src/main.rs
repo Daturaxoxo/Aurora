@@ -163,10 +163,12 @@ fn main() -> Result<()> {
         if let Some(w) = window_weak.upgrade() {
             let _ = w.hide();
         }
+        let _ = slint::quit_event_loop();
     });
 
     window.window().on_close_requested(|| {
         classes::logwindow::hide();
+        let _ = slint::quit_event_loop();
         slint::CloseRequestResponse::HideWindow
     });
 
@@ -204,7 +206,10 @@ fn main() -> Result<()> {
     LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
-    Ok(window.run()?)
+
+    window.show()?;
+    slint::run_event_loop_until_quit()?;
+    Ok(())
 }
 
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
