@@ -70,13 +70,15 @@ fn main() -> Result<()> {
 
     translations::apply_saved_language(&window);
 
-    if monitor_size.width < 1366 {
-        info!("Setting window size to 960x540");
-        slint_window.set_size(slint::PhysicalSize::new(960, 540));
+    let (window_width, window_height) = if monitor_size.width < 1366 {
+        (960.0, 540.0)
     } else {
-        info!("Setting window size to 1280x720");
-        slint_window.set_size(slint::PhysicalSize::new(1280, 720));
-    }
+        (1280.0, 720.0)
+    };
+    info!("Setting window size to {window_width}x{window_height}");
+    window.set_initial_width(window_width);
+    window.set_initial_height(window_height);
+    slint_window.set_size(slint::LogicalSize::new(window_width, window_height));
 
     #[allow(clippy::cast_precision_loss)]
     slint_window.set_position(WindowPosition::Logical(LogicalPosition::new(
