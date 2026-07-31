@@ -153,10 +153,12 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        if record
-            .module_path()
-            .is_some_and(|s| s.contains("reqwest") || s.contains("rustls") || s.contains("calloop"))
-        {
+        if record.module_path().is_some_and(|s| {
+            s.contains("reqwest")
+                || s.contains("rustls")
+                || s.contains("calloop")
+                || s.contains("smithay")
+        }) {
             return;
         }
         let timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
