@@ -2,47 +2,55 @@
 // Edit production/Langs/translations.json instead!
 
 export global TrKey {
-    out property <int> settings-section-appearance: 0;
-    out property <int> settings-language-title: 1;
-    out property <int> settings-language-subtitle: 2;
-    out property <int> settings-interface-minimization-title: 3;
-    out property <int> settings-interface-minimization-subtitle: 4;
-    out property <int> settings-section-integration: 5;
-    out property <int> settings-discord-rpc-title: 6;
-    out property <int> settings-discord-rpc-subtitle: 7;
-    out property <int> settings-section-game-directory: 8;
-    out property <int> settings-game-directory-title: 9;
-    out property <int> settings-game-directory-browse: 10;
-    out property <int> settings-section-engine: 11;
-    out property <int> settings-engine-method-title: 12;
-    out property <int> settings-engine-method-subtitle: 13;
-    out property <int> settings-engine-method-default: 14;
-    out property <int> settings-engine-method-alternate: 15;
-    out property <int> settings-section-debug: 16;
-    out property <int> settings-developer-mode-title: 17;
-    out property <int> settings-developer-mode-subtitle: 18;
-    out property <int> settings-extensive-logging-title: 19;
-    out property <int> settings-extensive-logging-subtitle: 20;
-    out property <int> settings-export-telemetry-title: 21;
-    out property <int> settings-export-telemetry-subtitle: 22;
-    out property <int> settings-export-telemetry-button: 23;
-    out property <int> popup-discord-title: 24;
-    out property <int> popup-discord-message: 25;
-    out property <int> popup-discord-agree-checkbox: 26;
-    out property <int> popup-gamebanana-title: 27;
-    out property <int> popup-gamebanana-message: 28;
-    out property <int> test-toast-button: 29;
-    out property <int> test-popup-button: 30;
-    out property <int> test-apply-changes-title: 31;
-    out property <int> test-apply-changes-message: 32;
-    out property <int> test-apply-changes-checkbox: 33;
-    out property <int> test-second-popup-button: 34;
-    out property <int> test-second-popup-title: 35;
-    out property <int> test-second-popup-message: 36;
+    out property <int> settings-panel-title: 0;
+    out property <int> settings-tab-general: 1;
+    out property <int> settings-tab-launcher: 2;
+    out property <int> settings-tab-proton: 3;
+    out property <int> settings-tab-developer: 4;
+    out property <int> settings-section-appearance: 5;
+    out property <int> settings-language-title: 6;
+    out property <int> settings-language-subtitle: 7;
+    out property <int> settings-interface-minimization-title: 8;
+    out property <int> settings-interface-minimization-subtitle: 9;
+    out property <int> settings-section-integration: 10;
+    out property <int> settings-discord-rpc-title: 11;
+    out property <int> settings-discord-rpc-subtitle: 12;
+    out property <int> settings-section-game-directory: 13;
+    out property <int> settings-game-directory-title: 14;
+    out property <int> settings-game-directory-browse: 15;
+    out property <int> settings-section-engine: 16;
+    out property <int> settings-engine-method-title: 17;
+    out property <int> settings-engine-method-subtitle: 18;
+    out property <int> settings-engine-method-default: 19;
+    out property <int> settings-engine-method-alternate: 20;
+    out property <int> settings-section-debug: 21;
+    out property <int> settings-developer-mode-title: 22;
+    out property <int> settings-developer-mode-subtitle: 23;
+    out property <int> settings-export-telemetry-title: 24;
+    out property <int> settings-export-telemetry-subtitle: 25;
+    out property <int> settings-export-telemetry-button: 26;
+    out property <int> popup-discord-title: 27;
+    out property <int> popup-discord-message: 28;
+    out property <int> popup-discord-agree-checkbox: 29;
+    out property <int> popup-gamebanana-title: 30;
+    out property <int> popup-gamebanana-message: 31;
+    out property <int> main-launch-menu-option-repair: 32;
+    out property <int> main-launch-menu-option-updates: 33;
+    out property <int> main-launch-menu-option-shortcut: 34;
+    out property <int> main-launch-menu-option-folder: 35;
+    out property <int> main-launch-menu-option-kill: 36;
+    out property <int> main-button-row-mod-manager: 37;
+    out property <int> global-popup-confirm-button: 38;
+    out property <int> global-popup-cancel-button: 39;
 }
 
 export global Tr {
 in property <[string]> values: [
+        "SETTINGS",
+        "General",
+        "Launcher",
+        "Proton",
+        "Developer",
         "APPEARANCE",
         "Language",
         "Interface display language",
@@ -62,8 +70,6 @@ in property <[string]> values: [
         "DEBUG",
         "Developer Mode",
         "Shows the log console for debugging.",
-        "Extensive Logging",
-        "Allows for more logs to be shown in the console.",
         "Export Telemetry",
         "Export your Aurora logs & system information to a file",
         "Export",
@@ -72,13 +78,13 @@ in property <[string]> values: [
         "I agree that I am over 13 years old.",
         "Open GameBanana?",
         "GameBanana is our mod hosting site partner where you can get mods to use on the game.",
-        "Test Toast",
-        "Test Popup",
-        "Apply Changes?",
-        "Do you understand this will lead to SERIOUS consequences...!",
-        "I agree to the terms of service",
-        "Second Popup",
-        "Placeholder Title",
-        "Placeholder message for a second test popup.",
+        "Repair Aurora",
+        "Check for Updates",
+        "Add Desktop Shortcut",
+        "Open Mods Folder",
+        "Kill Game",
+        "Mod Manager",
+        "Confirm",
+        "Cancel",
 ];
 }

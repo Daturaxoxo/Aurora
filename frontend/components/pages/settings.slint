@@ -1,6 +1,7 @@
 import { Palette } from "../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Languages } from "../../languages.slint";
+import { Tr, TrKey } from "../../translations.slint";
 
 // TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
@@ -59,7 +60,6 @@ export component Dropdown inherits Rectangle {
             text: root.options[root.selected-index];
             color: Palette.text-primary;
             font-size: 13px;
-            font-family: "Segoe UI";
             vertical-alignment: center;
         }
 
@@ -107,7 +107,6 @@ export component Dropdown inherits Rectangle {
                         x: 8px;
                         color: Palette.text-primary;
                         font-size: 13px;
-                        font-family: "Segoe UI";
                         vertical-alignment: center;
                     }
 
@@ -146,7 +145,6 @@ component TabButton inherits Rectangle {
         color: root.active ? Palette.text-primary : (ta.has-hover ? Palette.text-primary : Palette.text-secondary);
         font-size: 14px;
         font-weight: root.active ? 600 : 400;
-        font-family: "Segoe UI";
         vertical-alignment: center;
 
         animate color { duration: 120ms; }
@@ -177,7 +175,6 @@ component SettingCard inherits Rectangle {
                 color: Palette.text-primary;
                 font-size: 14px;
                 font-weight: 600;
-                font-family: "Segoe UI";
             }
 
             Text {
@@ -185,7 +182,6 @@ component SettingCard inherits Rectangle {
                 color: #cbd5e1;
                 font-size: 12px;
                 wrap: word-wrap;
-                font-family: "Segoe UI";
             }
         }
 
@@ -244,21 +240,21 @@ export component SettingsPage inherits Rectangle {
     callback close-settings();
     in-out property <int> active-tab: 0;
 
-    // --- GENERAL ---
-    in-out property <int> language-index: 0;           // 0=English 1=Türkçe 2=简体中文 3=Español
+    // GENERAL
+    in-out property <int> language-index: 0;           // 0=English 1=Türkçe 2=简体中文 3=Español, ...
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
 
-    // --- LAUNCHER ---
+    // LAUNCHER
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
 
-    // --- PROTON (Linux only) ---
+    // PROTON
     in property <bool> is-linux: false;
     in-out property <string> proton-launch-args: "";
 
-    // --- DEVELOPER ---
+    // DEVELOPER
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     callback export-telemetry();
@@ -294,34 +290,33 @@ export component SettingsPage inherits Rectangle {
                 padding-left: 8px;
                 padding-bottom: 12px;
                 Text {
-                    text: "SETTINGS";
+                    text: Tr.values[TrKey.settings-panel-title];
                     color: Palette.text-secondary;
                     font-size: 11px;
                     font-weight: 700;
-                    font-family: "Segoe UI";
                 }
             }
 
             TabButton {
-                text: "General";
+                text: Tr.values[TrKey.settings-tab-general];
                 active: root.active-tab == 0;
                 clicked => { root.active-tab = 0; }
             }
 
             TabButton {
-                text: "Launcher";
+                text: Tr.values[TrKey.settings-tab-launcher];
                 active: root.active-tab == 1;
                 clicked => { root.active-tab = 1; }
             }
 
             if root.is-linux: TabButton {
-                text: "Proton";
+                text: Tr.values[TrKey.settings-tab-proton];
                 active: root.active-tab == 3;
                 clicked => { root.active-tab = 3; }
             }
 
             TabButton {
-                text: "Developer";
+                text: Tr.values[TrKey.settings-tab-developer];
                 active: root.active-tab == 2;
                 clicked => { root.active-tab = 2; }
             }
@@ -342,7 +337,6 @@ export component SettingsPage inherits Rectangle {
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
-                    font-family: "Segoe UI";
                 }
 
                 Rectangle {
@@ -386,16 +380,15 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "APPEARANCE";
+                                    text: Tr.values[TrKey.settings-section-appearance];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
                                 }
 
                                 SettingCard {
-                                    title: "Language";
-                                    subtitle: "Interface display language";
+                                    title: Tr.values[TrKey.settings-language-title];
+                                    subtitle: Tr.values[TrKey.settings-language-subtitle];
                                     Dropdown {
                                         options: Languages.names;
                                         selected-index <=> root.language-index;
@@ -404,8 +397,8 @@ export component SettingsPage inherits Rectangle {
                                 }
 
                                 SettingCard {
-                                    title: "Interface Minimization";
-                                    subtitle: "Closes the launcher window after the game process initializes.";
+                                    title: Tr.values[TrKey.settings-interface-minimization-title];
+                                    subtitle: Tr.values[TrKey.settings-interface-minimization-subtitle];
                                     ToggleSwitch {
                                         checked <=> root.interface-minimization;
                                         toggled => { root.interface-minimization-changed(self.checked); }
@@ -416,16 +409,15 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "INTEGRATION";
+                                    text: Tr.values[TrKey.settings-section-integration];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
                                 }
 
                                 SettingCard {
-                                    title: "Discord RPC";
-                                    subtitle: "Toggle the in-built Rich Presence configuration status.";
+                                    title: Tr.values[TrKey.settings-discord-rpc-title];
+                                    subtitle: Tr.values[TrKey.settings-discord-rpc-subtitle];
                                     ToggleSwitch {
                                         checked <=> root.discord-rpc;
                                         toggled => { root.discord-rpc-changed(self.checked); }
@@ -449,15 +441,14 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "GAME DIRECTORY";
+                                    text: Tr.values[TrKey.settings-section-game-directory];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
                                 }
 
                                 SettingCard {
-                                    title: "Game Directory";
+                                    title: Tr.values[TrKey.settings-game-directory-title];
                                     subtitle: root.game-directory == "" ? "No directory selected" : root.game-directory;
 
                                     Rectangle {
@@ -471,10 +462,10 @@ export component SettingsPage inherits Rectangle {
                                         animate background { duration: 100ms; }
 
                                         Text {
-                                            text: "Browse";
+                                            text: Tr.values[TrKey.settings-game-directory-browse];
                                             color: Palette.text-primary;
                                             font-size: 13px;
-                                            font-family: "Segoe UI";
+                                            
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
                                         }
@@ -489,18 +480,20 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "ENGINE";
+                                    text: Tr.values[TrKey.settings-section-engine];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
                                 }
 
                                 SettingCard {
-                                    title: "Engine Method";
-                                    subtitle: "Choose what method the engine uses for loading mods.";
+                                    title: Tr.values[TrKey.settings-engine-method-title];
+                                    subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
                                     Dropdown {
-                                        options: ["Default", "Alternate"];
+                                        options: [
+                                            Tr.values[TrKey.settings-engine-method-default],
+                                            Tr.values[TrKey.settings-engine-method-alternate]
+                                        ];
                                         selected-index <=> root.engine-method-index;
                                         selection-changed(idx) => { root.engine-method-index-changed(idx); }
                                     }
@@ -527,13 +520,11 @@ export component SettingsPage inherits Rectangle {
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
                                 }
 
                                 SettingCard {
                                     title: "Launch Arguments";
                                     subtitle: "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.";
-
                                     property <bool> show-saved: false;
 
                                     function commit-args() {
@@ -572,7 +563,6 @@ export component SettingsPage inherits Rectangle {
                                                 text: "Saved ✓";
                                                 color: #10b981;
                                                 font-size: 12px;
-                                                font-family: "Segoe UI";
                                                 opacity: show-saved ? 1.0 : 0.0;
                                                 animate opacity { duration: 200ms; }
                                             }
@@ -593,7 +583,6 @@ export component SettingsPage inherits Rectangle {
                                                 width: parent.width - 20px;
                                                 color: Palette.text-primary;
                                                 font-size: 13px;
-                                                font-family: "Segoe UI";
                                                 vertical-alignment: center;
                                                 single-line: true;
                                                 text: root.proton-launch-args;
@@ -610,10 +599,9 @@ export component SettingsPage inherits Rectangle {
                                             if args-input.text == "" && !args-input.has-focus: Text {
                                                 x: 10px;
                                                 height: 100%;
-                                                text: "e.g. PROTON_LOG=1 -windowed";
+                                                text: "ex: PROTON_LOG=1 -windowed";
                                                 color: Palette.text-secondary;
                                                 font-size: 13px;
-                                                font-family: "Segoe UI";
                                                 vertical-alignment: center;
                                             }
                                         }
@@ -637,16 +625,16 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "DEBUG";
+                                    text: Tr.values[TrKey.settings-section-debug];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    font-family: "Segoe UI";
+                                    
                                 }
 
                                 SettingCard {
-                                    title: "Developer Mode";
-                                    subtitle: "Shows the log console for debugging.";
+                                    title: Tr.values[TrKey.settings-developer-mode-title];
+                                    subtitle: Tr.values[TrKey.settings-developer-mode-subtitle];
                                     ToggleSwitch {
                                         checked <=> root.developer-mode;
                                         toggled => { root.developer-mode-changed(self.checked); }
@@ -654,8 +642,8 @@ export component SettingsPage inherits Rectangle {
                                 }
 
                                 SettingCard {
-                                    title: "Export Telemetry";
-                                    subtitle: "Export your Aurora logs & system information to a file";
+                                    title: Tr.values[TrKey.settings-export-telemetry-title];
+                                    subtitle: Tr.values[TrKey.settings-export-telemetry-subtitle];
 
                                     Rectangle {
                                         width: 76px;
@@ -668,10 +656,9 @@ export component SettingsPage inherits Rectangle {
                                         animate background { duration: 100ms; }
 
                                         Text {
-                                            text: "Export";
+                                            text: Tr.values[TrKey.settings-export-telemetry-button];
                                             color: Palette.text-primary;
                                             font-size: 13px;
-                                            font-family: "Segoe UI";
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
                                         }
