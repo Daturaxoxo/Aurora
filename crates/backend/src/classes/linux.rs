@@ -358,14 +358,13 @@ fn chown_to_real_user(_path: &Path) -> Result<()> {
 }
 
 /// Locates the newest DW-Proton build installed under Steam's
-/// `compatibilitytools.d`. Builds are named either `DW-Proton Latest` or
-/// `dwproton-<version>`; the former always wins, otherwise the highest
-/// version number does.
+/// `compatibilitytools.d`. The priority for choosing the version is:
+/// 10.* > 11.* > Any other
 fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
     let tools_dir = steam_root.join("compatibilitytools.d");
     let entries = std::fs::read_dir(&tools_dir).ok()?;
 
-    let mut candidates: Vec<(bool, Vec<u64>, String, PathBuf)> = Vec::new();
+    let mut candidates = Vec::new();
 
     for entry in entries.flatten() {
         let name = entry.file_name();
@@ -382,15 +381,22 @@ fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
         }
 
         let is_latest = lower.contains("latest");
-        candidates.push((is_latest, version_key(&name), name, script));
+        let vkey = version_key(&name);
+
+        let priority = match vkey.first() {
+            Some(&10) => 2,
+            Some(&11) => 1,
+            _ => 0,
+        };
+
+        candidates.push(((priority, is_latest, vkey), name, script));
     }
 
-    candidates.sort();
-    let (_, _, name, script) = candidates.first()?;
+    let (_, name, script) = candidates.into_iter().max_by_key(|c| c.0.clone())?;
 
-    debug!("Selected DW-Proton build {name} at {}", script.display());
+    info!("Selected DW-Proton build {name} at {}", script.display());
 
-    Some(script.to_path_buf())
+    Some(script)
 }
 
 /// Numeric components of a build name, in order, so `dwproton-10.2` sorts
