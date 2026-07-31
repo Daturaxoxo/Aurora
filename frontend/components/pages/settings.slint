@@ -254,6 +254,10 @@ export component SettingsPage inherits Rectangle {
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
 
+    // --- PROTON (Linux only) ---
+    in property <bool> is-linux: false;
+    in-out property <string> proton-launch-args: "";
+
     // --- DEVELOPER ---
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
@@ -266,6 +270,7 @@ export component SettingsPage inherits Rectangle {
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback language-index-changed(int);
+    callback proton-launch-args-changed(string);
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
@@ -309,6 +314,12 @@ export component SettingsPage inherits Rectangle {
                 clicked => { root.active-tab = 1; }
             }
 
+            if root.is-linux: TabButton {
+                text: "Proton";
+                active: root.active-tab == 3;
+                clicked => { root.active-tab = 3; }
+            }
+
             TabButton {
                 text: "Developer";
                 active: root.active-tab == 2;
@@ -326,7 +337,8 @@ export component SettingsPage inherits Rectangle {
 
                 Text {
                     text: root.active-tab == 0 ? "General" :
-                        root.active-tab == 1 ? "Launcher" : "Developer";
+                        root.active-tab == 1 ? "Launcher" :
+                        root.active-tab == 3 ? "Proton" : "Developer";
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -491,6 +503,120 @@ export component SettingsPage inherits Rectangle {
                                         options: ["Default", "Alternate"];
                                         selected-index <=> root.engine-method-index;
                                         selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TAB 3: PROTON SETTINGS CONTENT (LINUX ONLY)
+                if root.is-linux: TabPage {
+                    active: root.active-tab == 3;
+
+                    ScrollView {
+                        viewport-height: proton-layout.min-height;
+                        proton-layout := VerticalLayout {
+                            spacing: 24px;
+                            alignment: start;
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: "LAUNCH OPTIONS";
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    font-family: "Segoe UI";
+                                }
+
+                                SettingCard {
+                                    title: "Launch Arguments";
+                                    subtitle: "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.";
+
+                                    property <bool> show-saved: false;
+
+                                    function commit-args() {
+                                        debounce-timer.stop();
+                                        if (args-input.text != root.proton-launch-args) {
+                                            root.proton-launch-args = args-input.text;
+                                            root.proton-launch-args-changed(args-input.text);
+                                            self.show-saved = true;
+                                            saved-timer.stop();
+                                            saved-timer.start();
+                                        }
+                                    }
+
+                                    debounce-timer := Timer {
+                                        interval: 850ms;
+                                        running: false;
+                                        triggered => { commit-args(); }
+                                    }
+
+                                    saved-timer := Timer {
+                                        interval: 1500ms;
+                                        running: false;
+                                        triggered => {
+                                            self.stop();
+                                            show-saved = false;
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+                                        alignment: end;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Text {
+                                                text: "Saved ✓";
+                                                color: #10b981;
+                                                font-size: 12px;
+                                                font-family: "Segoe UI";
+                                                opacity: show-saved ? 1.0 : 0.0;
+                                                animate opacity { duration: 200ms; }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: 260px;
+                                            height: 32px;
+                                            border-radius: 6px;
+                                            background: #ffffff08;
+                                            border-width: 1px;
+                                            border-color: args-input.has-focus ? #6db3f2 : #ffffff18;
+
+                                            animate border-color { duration: 100ms; }
+
+                                            args-input := TextInput {
+                                                x: 10px;
+                                                width: parent.width - 20px;
+                                                color: Palette.text-primary;
+                                                font-size: 13px;
+                                                font-family: "Segoe UI";
+                                                vertical-alignment: center;
+                                                single-line: true;
+                                                text: root.proton-launch-args;
+                                                edited => {
+                                                    debounce-timer.stop();
+                                                    debounce-timer.start();
+                                                }
+                                                accepted => { commit-args(); }
+                                                changed has-focus => {
+                                                    if (!self.has-focus) { commit-args(); }
+                                                }
+                                            }
+
+                                            if args-input.text == "" && !args-input.has-focus: Text {
+                                                x: 10px;
+                                                height: 100%;
+                                                text: "e.g. PROTON_LOG=1 -windowed";
+                                                color: Palette.text-secondary;
+                                                font-size: 13px;
+                                                font-family: "Segoe UI";
+                                                vertical-alignment: center;
+                                            }
+                                        }
                                     }
                                 }
                             }
