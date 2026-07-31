@@ -94,11 +94,6 @@ impl SettingsHandler {
             logwindow::set_visible(true, window);
         }
 
-        let raw_logging = config::get(key::EXTENSIVE_LOGGING);
-        let extensive_logging = raw_logging.as_bool().unwrap_or(false);
-        debug!("[Settings] extensive_logging: raw={raw_logging:?} → {extensive_logging}");
-        w.set_extensive_logging(extensive_logging);
-
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
 
@@ -213,12 +208,6 @@ impl SettingsHandler {
             config::set(key::DEV_MODE, enabled);
             debug!("[Settings] developer_mode saved to config");
             logwindow::set_visible(enabled, &ww);
-        });
-
-        w.on_extensive_logging_changed(move |enabled| {
-            info!("[Settings] extensive_logging changed → {enabled}");
-            config::set(key::EXTENSIVE_LOGGING, enabled);
-            debug!("[Settings] extensive_logging saved to config");
         });
 
         w.on_export_telemetry({
