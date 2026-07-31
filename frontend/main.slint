@@ -4,6 +4,7 @@ export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem } from "components/popup.slint";
+import { UpdateOverlay } from "components/updateoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
@@ -109,6 +110,11 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
+
+    // Update Overlay Properties
+    in-out property <bool> update-overlay-active: false;
+    in-out property <float> update-progress: 0.0;
+    in-out property <string> update-progress-text: "";
 
     // Popup Dialog Properties
     in-out property <bool> popup-active: false;
@@ -1103,6 +1109,12 @@ export component MainWindow inherits Window {
             checkbox-items: root.popup-checkboxes;
             confirm => { root.popup-confirm-callback(root.popup-id); reset-popup() }
             cancel => { root.popup-cancel-callback(root.popup-id); reset-popup() }
+        }
+
+        update-overlay-widget := UpdateOverlay {
+            active: root.update-overlay-active;
+            progress: root.update-progress;
+            status-text: root.update-progress-text;
         }
     }
 }

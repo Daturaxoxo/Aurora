@@ -22,6 +22,13 @@ pub enum Message {
     CloseNow,
     /// Updater -> Aurora: periodic liveness ping while locked.
     Heartbeat,
+    /// Updater -> Aurora: download progress while locked.
+    Progress {
+        file_index: u32,
+        file_count: u32,
+        bytes_done: u64,
+        bytes_total: u64,
+    },
     /// Aurora -> Updater: new Aurora launched successfully after an exe swap.
     InitConfirmed,
     /// Updater -> Aurora: update failed.
@@ -78,6 +85,12 @@ mod tests {
             Message::Unlock,
             Message::CloseNow,
             Message::Heartbeat,
+            Message::Progress {
+                file_index: 2,
+                file_count: 7,
+                bytes_done: 1024,
+                bytes_total: 4096,
+            },
             Message::InitConfirmed,
             Message::Error {
                 message: "boom".into(),

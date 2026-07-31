@@ -39,6 +39,9 @@ pub const POST_UPDATE_ARG: &str = "--post-update";
 /// Passed by the updater when relaunching the old Aurora after a failed exe
 /// swap, so that one run skips the startup update check and does not loop
 pub const SKIP_UPDATE_CHECK_ARG: &str = "--skip-update-check";
+/// Passed by Aurora when respawning itself after a silent update, so the new
+/// instance retries the singleton lock while the old instance shuts down
+pub const RELAUNCH_ARG: &str = "--relaunch";
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);

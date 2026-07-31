@@ -9,7 +9,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ipc::lock::SingletonLock;
 use ipc::manifest::{hash_file, FileEntry, LocalManifest, Manifest};
@@ -18,6 +18,8 @@ use ipc::protocol::{self, Message};
 use logfile::log;
 
 type Conn = Arc<Mutex<protocol::IpcStream>>;
+
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 fn main() {
     let root = ipc::install_root();
@@ -116,19 +118,44 @@ fn apply_update(
 ) -> Result<(), String> {
     let original_local = local.clone();
 
+    let file_count = u32::try_from(changed.len()).unwrap_or(u32::MAX);
     let mut tmps: Vec<PathBuf> = Vec::new();
-    for entry in changed {
+    for (i, entry) in changed.iter().enumerate() {
+        let file_index = u32::try_from(i).unwrap_or(u32::MAX);
         let tmp = tmp_path(root, &entry.path);
         if let Some(parent) = tmp.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
         }
         log(&format!("downloading {}", entry.path));
-        if let Err(e) = net::download(&entry.url, &tmp) {
+        let mut last_progress = Instant::now();
+        if let Err(e) = net::download(&entry.url, &tmp, |done, total| {
+            if last_progress.elapsed() >= PROGRESS_INTERVAL {
+                last_progress = Instant::now();
+                send(
+                    conn,
+                    &Message::Progress {
+                        file_index,
+                        file_count,
+                        bytes_done: done,
+                        bytes_total: total,
+                    },
+                );
+            }
+        }) {
             cleanup(&tmps);
             let _ = fs::remove_file(&tmp);
             return Err(e);
         }
+        send(
+            conn,
+            &Message::Progress {
+                file_index: file_index.saturating_add(1),
+                file_count,
+                bytes_done: 0,
+                bytes_total: 0,
+            },
+        );
         tmps.push(tmp.clone());
 
         let actual = hash_file(&tmp).map_err(|e| {

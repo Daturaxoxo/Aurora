@@ -163,9 +163,43 @@ impl UpdateHandler {
             return Ok(());
         }
 
+        let local_version = shared::utils::get_local_version();
+        if Self::is_minor_update(&local_version, &manifest.version) {
+            info!(
+                "minor update {} -> {} available; updating silently",
+                local_version.trim(),
+                manifest.version
+            );
+            Self::begin_locked_update(window);
+            if let Err(e) = Self::run_updater(window, true) {
+                warn!("silent update failed: {e}");
+                Self::set_update_overlay(window, false);
+                Self::set_locked(window, false);
+                Bridge::show_toast(window, "Update failed. Try again later.", "error");
+            }
+            return Ok(());
+        }
+
         info!("update {} available; asking the user", manifest.version);
         Self::show_update_popup(window, &manifest.version);
         Ok(())
+    }
+
+    fn parse_staple_major(version: &str) -> Option<(u64, u64)> {
+        let mut parts = version.trim().split('.');
+        let staple = parts.next()?.parse().ok()?;
+        let major = parts.next()?.parse().ok()?;
+        Some((staple, major))
+    }
+
+    fn is_minor_update(local: &str, remote: &str) -> bool {
+        match (
+            Self::parse_staple_major(local),
+            Self::parse_staple_major(remote),
+        ) {
+            (Some(l), Some(r)) => l == r,
+            _ => false,
+        }
     }
 
     pub fn start_update(window: &slint::Weak<MainWindow>) {
@@ -175,15 +209,17 @@ impl UpdateHandler {
 
         let w = window.clone();
         std::thread::spawn(move || {
-            if let Err(e) = Self::run_updater(&w) {
+            if let Err(e) = Self::run_updater(&w, false) {
                 warn!("update failed: {e}");
+                Self::set_update_overlay(&w, false);
+                Self::set_locked(&w, false);
                 Bridge::show_toast(&w, "Update failed. Try again later.", "error");
             }
             UPDATE_RUNNING.store(false, Ordering::SeqCst);
         });
     }
 
-    fn run_updater(window: &slint::Weak<MainWindow>) -> Result<()> {
+    fn run_updater(window: &slint::Weak<MainWindow>, silent: bool) -> Result<()> {
         let root = ipc::install_root();
 
         let listener =
@@ -216,10 +252,32 @@ impl UpdateHandler {
                     locked = true;
                     last_heartbeat = Instant::now();
                     Self::set_locked(window, true);
+                    Self::set_update_overlay(window, true);
                 }
                 Ok(Message::Heartbeat) => last_heartbeat = Instant::now(),
+                Ok(Message::Progress {
+                    file_index,
+                    file_count,
+                    bytes_done,
+                    bytes_total,
+                }) => {
+                    last_heartbeat = Instant::now();
+                    Self::set_update_progress(
+                        window,
+                        file_index,
+                        file_count,
+                        bytes_done,
+                        bytes_total,
+                    );
+                }
                 Ok(Message::Unlock) => {
                     info!("updater: update finished");
+                    if silent {
+                        info!("silent update applied; restarting Aurora");
+                        Self::restart_app(window);
+                        return Ok(());
+                    }
+                    Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     Bridge::show_toast(window, "Aurora has been updated.", "success");
                     return Ok(());
@@ -228,6 +286,8 @@ impl UpdateHandler {
                     // The check already found changes, so this only happens if a
                     // new manifest landed while the popup was open.
                     info!("updater: no update available");
+                    Self::set_update_overlay(window, false);
+                    Self::set_locked(window, false);
                     return Ok(());
                 }
                 Ok(Message::CloseNow) => {
@@ -240,6 +300,7 @@ impl UpdateHandler {
                 }
                 Ok(Message::Error { message }) => {
                     error!("updater reported an error: {message}");
+                    Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     Bridge::show_toast(window, "Update failed. Try again later.", "error");
                     return Ok(());
@@ -248,6 +309,7 @@ impl UpdateHandler {
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     if locked && last_heartbeat.elapsed() > ipc::HEARTBEAT_TIMEOUT {
                         error!("updater heartbeat lost; auto-unlocking UI");
+                        Self::set_update_overlay(window, false);
                         Self::set_locked(window, false);
                         Bridge::show_toast(
                             window,
@@ -260,6 +322,7 @@ impl UpdateHandler {
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     if locked {
                         error!("updater connection lost while locked; auto-unlocking UI");
+                        Self::set_update_overlay(window, false);
                         Self::set_locked(window, false);
                         Bridge::show_toast(
                             window,
@@ -345,6 +408,105 @@ impl UpdateHandler {
             }
         })
         .ok();
+    }
+
+    fn begin_locked_update(window: &slint::Weak<MainWindow>) {
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            crate::classes::logwindow::hide();
+            if let Some(w) = w.upgrade() {
+                w.set_launch_disabled(true);
+                w.set_launch_button_text("Updating...".into());
+            }
+        })
+        .ok();
+        Self::set_update_overlay(window, true);
+    }
+
+    fn set_update_overlay(window: &slint::Weak<MainWindow>, active: bool) {
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                if active {
+                    w.set_update_progress(0.0);
+                    w.set_update_progress_text("Preparing update...".into());
+                }
+                w.set_update_overlay_active(active);
+            }
+        })
+        .ok();
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn set_update_progress(
+        window: &slint::Weak<MainWindow>,
+        file_index: u32,
+        file_count: u32,
+        bytes_done: u64,
+        bytes_total: u64,
+    ) {
+        let count = file_count.max(1);
+        #[allow(clippy::cast_precision_loss)]
+        let file_frac = if bytes_total > 0 {
+            (bytes_done as f64 / bytes_total as f64).min(1.0)
+        } else {
+            0.0
+        };
+        let overall = ((f64::from(file_index) + file_frac) / f64::from(count)).clamp(0.0, 1.0);
+        let text = if file_index >= file_count {
+            "Finishing update...".to_string()
+        } else {
+            format!(
+                "Downloading file {} of {}",
+                file_index.saturating_add(1),
+                file_count
+            )
+        };
+
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                w.set_update_progress(overall as f32);
+                w.set_update_progress_text(text.into());
+            }
+        })
+        .ok();
+    }
+
+    fn restart_app(window: &slint::Weak<MainWindow>) {
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(e) => {
+                error!("could not resolve current exe for restart: {e}");
+                Self::restart_failed(window);
+                return;
+            }
+        };
+
+        if let Err(e) = Command::new(exe)
+            .arg(ipc::RELAUNCH_ARG)
+            .current_dir(ipc::install_root())
+            .spawn()
+        {
+            error!("failed to respawn Aurora after update: {e}");
+            Self::restart_failed(window);
+            return;
+        }
+
+        slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
+        })
+        .ok();
+    }
+
+    fn restart_failed(window: &slint::Weak<MainWindow>) {
+        Self::set_update_overlay(window, false);
+        Self::set_locked(window, false);
+        Bridge::show_toast(
+            window,
+            "Aurora has been updated. Please restart it manually.",
+            "info",
+        );
     }
 
     fn set_locked(window: &slint::Weak<MainWindow>, locked: bool) {

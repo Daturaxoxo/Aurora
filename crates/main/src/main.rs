@@ -25,10 +25,10 @@ use bridge::Bridge;
 use slint::{LogicalPosition, WindowPosition};
 
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
+use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::modules::ModulesHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
-use crate::classes::pages::lua::LuaScriptsHandler;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
@@ -39,18 +39,17 @@ fn main() -> Result<()> {
         error!("PANIC: {info}");
     }));
 
-    let _instance_lock =
-        match ipc::lock::SingletonLock::acquire(&ipc::install_root().join(ipc::AURORA_LOCK_FILE)) {
-            Ok(Some(lock)) => Some(lock),
-            Ok(None) => {
-                error!("Another instance of Aurora is already running; exiting.");
-                return Ok(());
-            }
-            Err(e) => {
-                warn!("Could not acquire the instance lock: {e}");
-                None
-            }
-        };
+    let _instance_lock = match acquire_instance_lock() {
+        Ok(Some(lock)) => Some(lock),
+        Ok(None) => {
+            error!("Another instance of Aurora is already running; exiting.");
+            return Ok(());
+        }
+        Err(e) => {
+            warn!("Could not acquire the instance lock: {e}");
+            None
+        }
+    };
 
     config::set(
         key::APP_LOCATION,
@@ -87,7 +86,9 @@ fn main() -> Result<()> {
     // DRAGGING
     let window_weak = window.as_weak();
     window.on_window_dragged(move |delta_x, delta_y| {
-        let Some(w) = window_weak.upgrade() else { return };
+        let Some(w) = window_weak.upgrade() else {
+            return;
+        };
         let win = w.window();
         let scale = win.scale_factor();
         let phys = win.position();
@@ -189,6 +190,23 @@ fn main() -> Result<()> {
 
     Bridge::setup(&window.as_weak());
     Ok(window.run()?)
+}
+
+fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
+    let path = ipc::install_root().join(ipc::AURORA_LOCK_FILE);
+    let relaunched = std::env::args().any(|arg| arg == ipc::RELAUNCH_ARG);
+
+    let attempts = if relaunched { 40 } else { 1 };
+    for attempt in 0..attempts {
+        match ipc::lock::SingletonLock::acquire(&path)? {
+            Some(lock) => return Ok(Some(lock)),
+            None if attempt + 1 < attempts => {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            None => {}
+        }
+    }
+    Ok(None)
 }
 
 fn get_monitor_size() -> Result<DisplayInfo> {
