@@ -1,6 +1,6 @@
 use std::{ffi::OsStr, path::PathBuf, time::Instant};
 
-use crate::classes::games::markers::find_marker;
+use crate::classes::games::markers::{find_marker, folder_name_matches};
 use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
 use log::*;
@@ -55,14 +55,23 @@ pub fn validate_game_path(path: &PathBuf, game_folder_name: &str) -> Result<bool
     Ok(false)
 }
 
-fn default_install_paths() -> Vec<PathBuf> {
+fn default_install_paths(game_folder_name: &str) -> Vec<PathBuf> {
     if !cfg!(windows) {
         return vec![];
     }
-    let mut paths = vec![PathBuf::from(r"C:\Program Files").join(GAME_FOLDER_NAME)];
+
+    let names = crate::classes::games::markers::known_folder_names(game_folder_name);
+
+    let mut paths: Vec<PathBuf> = names
+        .iter()
+        .map(|name| PathBuf::from(r"C:\Program Files").join(name))
+        .collect();
+
     for root in get_root_paths() {
         if root.as_os_str() != OsStr::new(r"C:\") {
-            paths.push(root.join("Program Files").join(GAME_FOLDER_NAME));
+            for name in &names {
+                paths.push(root.join("Program Files").join(name));
+            }
         }
     }
     paths
@@ -125,7 +134,7 @@ fn compatdata_candidate(game_folder_name: &str) -> Option<PathBuf> {
             .into_iter()
             .find_map(|dir_entry_result| {
                 let entry = dir_entry_result.ok()?;
-                if entry.file_name().to_string_lossy() != game_folder_name {
+                if !folder_name_matches(&entry.file_name().to_string_lossy(), game_folder_name) {
                     return None;
                 }
 
@@ -154,7 +163,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
         return Ok(Some(candidate));
     }
 
-    for candidate in default_install_paths() {
+    for candidate in default_install_paths(&game_folder_name) {
         trace!("Probing default install path {}", candidate.display());
         if candidate.is_dir() && validate_game_path(&candidate, &game_folder_name).unwrap_or(false)
         {
@@ -190,7 +199,7 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
             .find_map(|dir_entry_result| {
                 let entry = dir_entry_result.ok()?;
                 if entry.file_type().is_dir()
-                    && entry.file_name().to_string_lossy() == game_folder_name
+                    && folder_name_matches(&entry.file_name().to_string_lossy(), &game_folder_name)
                 {
                     Some(entry.path())
                 } else {
