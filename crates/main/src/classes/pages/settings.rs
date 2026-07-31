@@ -1,5 +1,6 @@
 use crate::classes::logwindow;
 use crate::MainWindow;
+use crate::classes::toast::ToastHandler;
 use backend::classes::rpc::RPC;
 use backend::handler::{get_tx, EngineCommand};
 use log::{debug, error, info, warn};
@@ -220,16 +221,36 @@ impl SettingsHandler {
             debug!("[Settings] extensive_logging saved to config");
         });
 
-        w.on_export_telemetry(move || {
+        w.on_export_telemetry({
+        let ww = window.clone();
+        move || {
             info!("[Settings] export_telemetry triggered");
-            std::thread::spawn(|| {
+            let ww = ww.clone(); 
+            std::thread::spawn(move || {
                 debug!("[Settings] telemetry export thread spawned");
                 match shared::telemetry::export_telemetry() {
-                    Ok(()) => info!("[Settings] telemetry export complete"),
+                    Ok(()) => {
+                        info!("[Settings] telemetry export complete");
+                        ToastHandler::show(&ww, "Exported debugging logs to the logs folder.", "success");
+                        let logs_dir = std::env::current_exe()
+                            .ok()
+                            .and_then(|p| p.parent().map(|p| p.join("Logs")));
+
+                        if let Some(path) = logs_dir {
+                            #[cfg(target_os = "windows")]
+                            std::process::Command::new("explorer").arg(&path).spawn().ok();
+
+                            #[cfg(target_os = "linux")]
+                            std::process::Command::new("xdg-open").arg(&path).spawn().ok();
+                        } else {
+                            error!("[Settings] failed to resolve Logs directory path");
+                        }
+                    }
                     Err(e) => error!("[Settings] telemetry export failed: {e}"),
                 }
             });
-        });
+        }
+    });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");
     }
