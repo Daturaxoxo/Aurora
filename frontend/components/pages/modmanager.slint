@@ -59,9 +59,9 @@ component GroupHeader inherits Rectangle {
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
-                    ? #E8A020
+                    ? #6db3f2
                     : (select-ta.has-hover ? #ffffff66 : #ffffff33);
-                background: root.item.selected ? #E8A020 : transparent;
+                background: root.item.selected ? #6db3f2 : transparent;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -762,7 +762,6 @@ export component ModManagerPage inherits Rectangle {
                 padding-right: 20px;
                 spacing: 12px;
 
-                // Select all / deselect all
                 VerticalLayout {
                     alignment: center;
                     Rectangle {
@@ -771,9 +770,9 @@ export component ModManagerPage inherits Rectangle {
                         border-radius: 4px;
                         border-width: 1px;
                         border-color: root.all-selected
-                            ? #E8A020
+                            ? #6db3f2
                             : (select-all-ta.has-hover ? #ffffff77 : #ffffff44);
-                        background: root.all-selected ? #E8A020 : transparent;
+                        background: root.all-selected ? #6db3f2 : transparent;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
@@ -890,7 +889,6 @@ export component ModManagerPage inherits Rectangle {
                     }
                 }
 
-                // Bulk actions for the current selection
                 if root.selected-count > 0: VerticalLayout {
                     alignment: center;
                     toggle-sel-btn := Rectangle {
@@ -951,8 +949,6 @@ export component ModManagerPage inherits Rectangle {
             vertical-stretch: 1;
             background: transparent;
 
-            // True while a drag from inside a group would drop to root:
-            // hovering the ungrouped area, empty space, or the mod's own group
             property <bool> pending-root-drop: root.drag-id != ""
                 && root.drag-source-zone != ""
                 && root.drag-pos-x >= self.absolute-position.x
@@ -980,7 +976,6 @@ export component ModManagerPage inherits Rectangle {
                     return wy - self.absolute-position.y - self.viewport-y;
                 }
 
-                // Auto-scroll while dragging near the top/bottom edge
                 property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
                 property <bool> drag-inside-x: root.drag-pos-x >= self.absolute-position.x
                     && root.drag-pos-x <= self.absolute-position.x + self.width;
@@ -1016,8 +1011,6 @@ export component ModManagerPage inherits Rectangle {
                     alignment: start;
 
                     for mod in root.mods: mod-row := Rectangle {
-                        // Header rows carry 12px extra top margin to separate groups
-                        // keep in sync with HEADER_ROW_H in modmanager.rs
                         height: mod.is-group-header ? 52px : 64px;
 
                         property <bool> nested: !mod.is-group-header && mod.group-id != "";
@@ -1097,7 +1090,6 @@ export component ModManagerPage inherits Rectangle {
                 height: 100%;
                 viewport-height: grid-content.preferred-height;
 
-                // Auto-scroll while dragging near the top/bottom edge
                 property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
                 property <bool> drag-inside-x: root.drag-pos-x >= self.absolute-position.x
                     && root.drag-pos-x <= self.absolute-position.x + self.width;
@@ -1108,7 +1100,6 @@ export component ModManagerPage inherits Rectangle {
                     && self.drag-inside-x
                     && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
                 property <length> scroll-min: min(0px, self.height - self.viewport-height);
-                // Anywhere inside the grid that is not a group section drops to root
                 property <bool> drag-inside: root.drag-id != ""
                     && self.drag-inside-x
                     && self.drag-local-y >= 0px && self.drag-local-y <= self.height;
@@ -1178,7 +1169,6 @@ export component ModManagerPage inherits Rectangle {
                             height: Math.ceil(section-root.tile-count / self.cols)
                                 * (self.tile-h + self.tile-spacing) - self.tile-spacing;
 
-                            // The group header (index 0) renders above, not as a tile
                             for mod[i] in section: Rectangle {
                                 property <int> tile-index: i - (section-root.has-header ? 1 : 0);
                                 visible: !mod.is-group-header;

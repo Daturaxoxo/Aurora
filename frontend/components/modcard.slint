@@ -92,12 +92,12 @@ export component ModCard inherits Rectangle {
     border-color: root.drop-target
         ? #6db3f2
         : root.item.selected
-        ? #E8A02066
+        ? #6db3f266
         : (hover-ta.has-hover ? #ffffff22 : #ffffff10);
     background: root.drop-target
         ? #6db3f214
         : root.item.selected
-        ? #E8A02014
+        ? #6db3f214
         : (hover-ta.has-hover ? #ffffff0a : #ffffff06);
     opacity: root.dragging ? 0.4 : 1.0;
     clip: true;
@@ -143,9 +143,9 @@ export component ModCard inherits Rectangle {
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
-                    ? #E8A020
+                    ? #6db3f2
                     : (select-ta.has-hover ? #ffffff66 : #ffffff33);
-                background: root.item.selected ? #E8A020 : transparent;
+                background: root.item.selected ? #6db3f2 : transparent;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -442,9 +442,9 @@ export component ModCard inherits Rectangle {
                 border-width: 1px;
                 opacity: (grid-root.tile-hovered || root.item.selected) ? 1 : 0;
                 border-color: root.item.selected
-                    ? #E8A020
+                    ? #6db3f2
                     : (grid-select-ta.has-hover ? #ffffff88 : #ffffff55);
-                background: root.item.selected ? #E8A020 : #00000066;
+                background: root.item.selected ? #6db3f2 : #00000066;
                 animate opacity { duration: 120ms; }
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
