@@ -7,7 +7,10 @@ use log::*;
 use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
 
 use crate::{
-    classes::info::{paths::GAME_FOLDER_NAME, version::LAUNCHER_MAP},
+    classes::info::{
+        paths::{CLIENT_WIN64, GAME_FOLDER_NAME},
+        version::LAUNCHER_MAP,
+    },
     config::{get, key, set},
 };
 
@@ -17,6 +20,23 @@ fn selected_game_folder_name() -> String {
         Some(s) if !s.is_empty() => s.to_string(),
         _ => GAME_FOLDER_NAME.to_string(),
     }
+}
+
+fn normalize_game_root(path: PathBuf) -> PathBuf {
+    let suffix = PathBuf::from(CLIENT_WIN64);
+    if path.ends_with(&suffix) {
+        let mut root = path.clone();
+        for _ in suffix.components() {
+            root.pop();
+        }
+        warn!(
+            "Stored game path {} pointed inside the client tree; normalized to {}",
+            path.display(),
+            root.display()
+        );
+        return root;
+    }
+    path
 }
 
 #[allow(clippy::ptr_arg)]
@@ -227,11 +247,13 @@ fn get_root_paths() -> Vec<PathBuf> {
 pub fn get_game_directory() -> Result<PathBuf> {
     let game_folder_name = selected_game_folder_name();
 
-    let path = get(key::GAME_PATH)
+    let path: PathBuf = get(key::GAME_PATH)
         .as_str()
         .ok_or_else(|| anyhow!("Game directory not found"))?
         .into();
+    let path = normalize_game_root(path);
     if validate_game_path(&path, &game_folder_name)? {
+        set(key::GAME_PATH, path.display().to_string());
         return Ok(path);
     }
 
