@@ -56,6 +56,25 @@ fn main() -> Result<()> {
         std::env::current_exe()?.display().to_string(),
     );
 
+    #[cfg(target_os = "windows")]
+    if !config::get(key::QUICK_START_CREATED)
+        .as_bool()
+        .unwrap_or(false)
+    {
+        info!("Quick start not created; running first-time setup");
+        create_quick_start_shortcut()
+            .unwrap_or_else(|e| warn!("Could not create desktop shortcut: {e}"));
+    }
+
+    if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {
+        info!("Quick start requested; running headless launch");
+        if let Err(e) = Bridge::quick_start() {
+            error!("Quick start failed: {e}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     #[cfg(target_os = "linux")]
     {
         if let Err(e) = slint::BackendSelector::new().select() {
@@ -207,6 +226,40 @@ fn main() -> Result<()> {
 
     window.show()?;
     slint::run_event_loop_until_quit()?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn create_quick_start_shortcut() -> Result<()> {
+    use mslnk::ShellLink;
+    use std::path::PathBuf;
+
+    const QUICK_START_ICON: &[u8] = include_bytes!("../../../production/icons/startup.ico");
+
+    let assets_path = config::get_userdata_path()
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| anyhow!("could not resolve the userdata parent directory"))?;
+    std::fs::create_dir_all(&assets_path)?;
+    let icon_location = assets_path.join("startup.ico");
+    std::fs::write(&icon_location, QUICK_START_ICON)?;
+
+    let exe = std::env::current_exe()?;
+    let desktop_dir = dirs::desktop_dir().unwrap_or_else(|| PathBuf::from("."));
+
+    let mut link = ShellLink::new(&exe)?;
+    link.set_name(Some("Aurora Quick Start".to_string()));
+    link.set_arguments(Some(ipc::QUICK_START_ARG.to_string()));
+    link.set_working_dir(
+        exe.parent()
+            .and_then(|p| p.to_str())
+            .map(std::string::ToString::to_string),
+    );
+    link.set_icon_location(icon_location.to_str().map(std::string::ToString::to_string));
+    link.create_lnk(desktop_dir.join("Aurora Quick Start.lnk"))?;
+
+    config::set(key::QUICK_START_CREATED, true);
+    info!("Quick start desktop shortcut created");
     Ok(())
 }
 

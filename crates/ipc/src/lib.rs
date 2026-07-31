@@ -41,6 +41,9 @@ pub const SKIP_UPDATE_CHECK_ARG: &str = "--skip-update-check";
 /// Passed by Aurora when respawning itself after a silent update, so the new
 /// instance retries the singleton lock while the old instance shuts down
 pub const RELAUNCH_ARG: &str = "--relaunch";
+/// Launches the game headlessly: no window, inject, wait for NTE to exit,
+/// sanitize, then quit
+pub const QUICK_START_ARG: &str = "--quick-start";
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
