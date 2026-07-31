@@ -506,7 +506,7 @@ fn read_mods_txt(mods_dir: &Path) -> Vec<(String, bool)> {
         return Vec::new();
     };
 
-    contents
+    let parsed: Vec<(String, bool)> = contents
         .lines()
         .filter_map(|line| {
             let line = line.trim();
@@ -516,13 +516,39 @@ fn read_mods_txt(mods_dir: &Path) -> Vec<(String, bool)> {
             let (name, flag) = line.split_once(':')?;
             Some((name.trim().to_string(), flag.trim() == "1"))
         })
+        .collect();
+
+    let final_values: HashMap<String, bool> = parsed
+        .iter()
+        .map(|(name, enabled)| (name.clone(), *enabled))
+        .collect();
+
+    let mut seen = std::collections::HashSet::new();
+    parsed
+        .into_iter()
+        .filter(|(name, _)| seen.insert(name.clone()))
+        .map(|(name, _)| {
+            let enabled = final_values[&name];
+            (name, enabled)
+        })
         .collect()
 }
 
 fn write_mods_txt(mods_dir: &Path, entries: &[(String, bool)]) -> std::io::Result<()> {
-    let (builtin, user): (Vec<_>, Vec<_>) = entries
+    let final_values: HashMap<&str, bool> = entries
         .iter()
-        .cloned()
+        .map(|(name, enabled)| (name.as_str(), *enabled))
+        .collect();
+
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<(String, bool)> = entries
+        .iter()
+        .filter(|(name, _)| seen.insert(name.clone()))
+        .map(|(name, _)| (name.clone(), final_values[name.as_str()]))
+        .collect();
+
+    let (builtin, user): (Vec<_>, Vec<_>) = deduped
+        .into_iter()
         .partition(|(name, _)| is_blocklisted_name(name));
 
     let lines: Vec<String> = user
