@@ -9,7 +9,7 @@ pub fn activate(_window: &slint::Weak<MainWindow>, _hide_window: bool) {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn deactivate(_window: &slint::Weak<MainWindow>) {}
+pub const fn deactivate(_window: &slint::Weak<MainWindow>) {}
 
 #[cfg(target_os = "windows")]
 mod windows_impl {
