@@ -66,9 +66,7 @@ fn screenshot_folder() -> Option<PathBuf> {
 }
 
 fn get_screenshots() -> Option<Vec<PathBuf>> {
-    let Some(selfie_folder) = screenshot_folder() else {
-        return None;
-    };
+    let selfie_folder = screenshot_folder()?;
 
     let mut entries = vec![];
     for entry in selfie_folder.read_dir().ok()? {
@@ -86,7 +84,10 @@ fn get_screenshots() -> Option<Vec<PathBuf>> {
                     }
                 }
             } else {
-                warn!("Screenshots folder not found: {:?}", screenshots_folder);
+                warn!(
+                    "Screenshots folder not found: {}",
+                    screenshots_folder.display()
+                );
             }
         }
     }

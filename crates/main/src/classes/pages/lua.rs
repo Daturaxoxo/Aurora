@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -13,13 +14,13 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
-const BLOCKLISTED_NAMES: &[&str] = &[
-    "shared", 
-    "keybinds"
-];
+const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
+
+static PENDING_DELETE: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
+static MODS_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
 pub struct LuaScriptsHandler;
 
@@ -53,6 +54,7 @@ impl LuaScriptsHandler {
 
         // Load scripts from disk
         let mods_dir = Self::mods_dir(bin_dir);
+        *MODS_DIR.lock().unwrap() = Some(mods_dir.clone());
         let model: Rc<VecModel<LuaScriptItem>> =
             Rc::new(VecModel::from(scan_existing_scripts(&mods_dir)));
         adapter.set_scripts(ModelRc::from(model.clone()));
@@ -176,22 +178,24 @@ impl LuaScriptsHandler {
 
         // Delete Script
         {
+            let window = window.clone();
             let model = model.clone();
-            let mods_dir = mods_dir.clone();
             adapter.on_delete_script(move |id| {
-                if let Some((idx, item)) = find_by_id(&model, &id) {
-                    let script_dir = mods_dir.join(item.name.as_str());
-                    if let Err(e) = fs::remove_dir_all(&script_dir) {
-                        if e.kind() != std::io::ErrorKind::NotFound {
-                            error!(
-                                "Failed to delete script folder '{}': {e}",
-                                script_dir.display()
-                            );
-                        }
-                    }
-                    unregister_mod_from_config(&mods_dir, &item.name);
+                let Some(win) = window.upgrade() else { return };
 
-                    model.remove(idx);
+                if let Some((idx, item)) = find_by_id(&model, &id) {
+                    *PENDING_DELETE.lock().unwrap() = Some(idx);
+
+                    win.set_popup_id("lua-delete".into());
+                    win.set_popup_title("Delete Script?".into());
+                    win.set_popup_message(
+                        format!(
+                            "\"{}\" will be permanently deleted. You cannot undo this action.",
+                            item.name
+                        )
+                        .into(),
+                    );
+                    win.set_popup_active(true);
                 }
             });
         }
@@ -200,7 +204,6 @@ impl LuaScriptsHandler {
         {
             adapter.on_save_script_code(move |id, code| {
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
-
                     if let Err(e) = write_script(&mods_dir, &item.name, &code) {
                         error!("Failed to save script '{}' to disk: {e}", item.name);
                     }
@@ -243,6 +246,42 @@ impl LuaScriptsHandler {
                 }
             });
         });
+    }
+
+    pub fn confirm_delete(window: &Weak<MainWindow>) {
+        let Some(i) = PENDING_DELETE.lock().unwrap().take() else {
+            return;
+        };
+
+        let mods_dir_guard = MODS_DIR.lock().unwrap();
+        let Some(mods_dir) = mods_dir_guard.as_ref() else {
+            return;
+        };
+
+        let Some(win) = window.upgrade() else { return };
+        let adapter = win.global::<LuaScriptsAdapter>();
+        let model = adapter.get_scripts();
+
+        let Some(item) = model.row_data(i) else {
+            return;
+        };
+
+        let script_dir = mods_dir.join(item.name.as_str());
+
+        if let Err(e) = fs::remove_dir_all(&script_dir) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                error!(
+                    "Failed to delete script folder '{}': {e}",
+                    script_dir.display()
+                );
+            }
+        }
+
+        unregister_mod_from_config(mods_dir, &item.name);
+
+        if let Some(vec_model) = model.as_any().downcast_ref::<VecModel<LuaScriptItem>>() {
+            vec_model.remove(i);
+        }
     }
 
     async fn download_and_extract(
@@ -317,10 +356,7 @@ fn sanitize_archive_path(path: &str) -> Option<PathBuf> {
     Some(safe)
 }
 
-fn find_by_id(
-    model: &Rc<VecModel<LuaScriptItem>>,
-    id: &str,
-) -> Option<(usize, LuaScriptItem)> {
+fn find_by_id(model: &Rc<VecModel<LuaScriptItem>>, id: &str) -> Option<(usize, LuaScriptItem)> {
     model.iter().enumerate().find(|(_, item)| item.id == id)
 }
 
@@ -402,7 +438,11 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
         return;
     };
 
-    let line_ending = if contents.contains("\r\n") { "\r\n" } else { "\n" };
+    let line_ending = if contents.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
     let value = if enabled { "1" } else { "0" };
 
     let mut updated = String::with_capacity(contents.len());
@@ -424,7 +464,7 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
                 if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
                     || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
                 {
-                    updated.push_str(&format!("{key_name} = {value}"));
+                    let _ = write!(updated, "{key_name} = {value}");
                     updated.push_str(line_ending);
                     continue;
                 }
@@ -456,8 +496,7 @@ fn read_mods_json(mods_dir: &Path) -> Vec<ModJsonEntry> {
 }
 
 fn write_mods_json(mods_dir: &Path, entries: &[ModJsonEntry]) -> std::io::Result<()> {
-    let json = serde_json::to_string_pretty(entries)
-        .unwrap_or_else(|_| "[]".to_string());
+    let json = serde_json::to_string_pretty(entries).unwrap_or_else(|_| "[]".to_string());
     fs::write(mods_json_path(mods_dir), json)
 }
 
@@ -492,7 +531,7 @@ fn write_mods_txt(mods_dir: &Path, entries: &[(String, bool)]) -> std::io::Resul
         .map(|(name, enabled)| format!("{name} : {}", i32::from(enabled)))
         .collect();
 
-    fs::write(mods_txt_path(mods_dir), lines.join("\r\n"))
+    fs::write(mods_txt_path(mods_dir), lines.join("\n"))
 }
 
 fn register_mod_in_config(mods_dir: &Path, name: &str, enabled: bool) {

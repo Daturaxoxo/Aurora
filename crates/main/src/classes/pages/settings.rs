@@ -1,10 +1,11 @@
 use crate::classes::logwindow;
 use crate::MainWindow;
+use crate::classes::toast::ToastHandler;
 use backend::classes::rpc::RPC;
+use backend::handler::{get_tx, EngineCommand};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
-use backend::handler::{get_tx, EngineCommand};
 
 #[derive(serde::Deserialize)]
 #[allow(dead_code)]
@@ -74,6 +75,15 @@ impl SettingsHandler {
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
+        // Proton (Linux only)
+        w.set_is_linux(cfg!(target_os = "linux"));
+        if cfg!(target_os = "linux") {
+            let raw_proton = config::get(key::PROTON_ARGS);
+            let proton_args = raw_proton.as_str().unwrap_or("").to_string();
+            debug!("[Settings] proton_args: raw={raw_proton:?} → {proton_args:?}");
+            w.set_proton_launch_args(proton_args.into());
+        }
+
         // Developer
         let raw_dev = config::get(key::DEV_MODE);
         let dev_mode = raw_dev.as_bool().unwrap_or(false);
@@ -83,11 +93,6 @@ impl SettingsHandler {
             debug!("[Settings] developer_mode was left on, reopening the log window");
             logwindow::set_visible(true, window);
         }
-
-        let raw_logging = config::get(key::EXTENSIVE_LOGGING);
-        let extensive_logging = raw_logging.as_bool().unwrap_or(false);
-        debug!("[Settings] extensive_logging: raw={raw_logging:?} → {extensive_logging}");
-        w.set_extensive_logging(extensive_logging);
 
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
@@ -187,6 +192,14 @@ impl SettingsHandler {
             }
         });
 
+        // [PROTON]
+
+        w.on_proton_launch_args_changed(move |args| {
+            info!("[Settings] proton_launch_args changed → {args:?}");
+            config::set(key::PROTON_ARGS, args.as_str());
+            debug!("[Settings] proton_args saved to config");
+        });
+
         // [DEVELOPER]
 
         let ww = window.clone();
@@ -197,21 +210,39 @@ impl SettingsHandler {
             logwindow::set_visible(enabled, &ww);
         });
 
-        w.on_extensive_logging_changed(move |enabled| {
-            info!("[Settings] extensive_logging changed → {enabled}");
-            config::set(key::EXTENSIVE_LOGGING, enabled);
-            debug!("[Settings] extensive_logging saved to config");
-        });
+        w.on_export_telemetry({
+            let ww = window.clone();
+            move || {
+                info!("[Settings] export_telemetry triggered");
+                let ww = ww.clone();
+                std::thread::spawn(move || {
+                    debug!("[Settings] telemetry export thread spawned");
+                    match shared::telemetry::export_telemetry() {
+                        Ok(()) => {
+                            info!("[Settings] telemetry export complete");
+                            ToastHandler::show(&ww, "Exported debugging logs to the logs folder.", "success");
 
-        w.on_export_telemetry(move || {
-            info!("[Settings] export_telemetry triggered");
-            std::thread::spawn(|| {
-                debug!("[Settings] telemetry export thread spawned");
-                match shared::telemetry::export_telemetry() {
-                    Ok(()) => info!("[Settings] telemetry export complete"),
-                    Err(e) => error!("[Settings] telemetry export failed: {e}"),
-                }
-            });
+                            let logs_dir = std::env::current_exe()
+                                .ok()
+                                .and_then(|p| p.parent().map(|p| p.join("Logs")));
+
+                            if let Some(path) = logs_dir {
+                                if let Err(e) = open::that(&path) {
+                                    error!("[Settings] failed to open Logs directory: {e}");
+                                    ToastHandler::show(&ww, "Failed to open logs folder.", "error");
+                                }
+                            } else {
+                                error!("[Settings] failed to resolve Logs directory path");
+                                ToastHandler::show(&ww, "Failed to resolve logs directory path.", "error");
+                            }
+                        }
+                        Err(e) => {
+                            error!("[Settings] telemetry export failed: {e}");
+                            ToastHandler::show(&ww, format!("Telemetry export failed: {e}"), "error");
+                        }
+                    }
+                });
+            }
         });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");

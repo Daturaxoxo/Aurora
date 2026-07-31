@@ -529,7 +529,7 @@ export component LuaScriptsPage inherits Rectangle {
                         if LuaScriptsAdapter.scripts.length == 0: VerticalLayout {
                             alignment: center;
                             Text {
-                                text: "No Lua scripts yet — click \"New Script\" to create one.";
+                                text: "You have no Lua scripts at the moment, press \"New Script\" to create one.";
                                 color: Palette.text-secondary;
                                 font-size: 13px;
                                 horizontal-alignment: center;
@@ -614,8 +614,6 @@ export component LuaScriptsPage inherits Rectangle {
                                             }
                                         }
 
-                                        Rectangle { horizontal-stretch: 1; }
-
                                         // Rename button
                                         VerticalLayout {
                                             alignment: center;
@@ -647,6 +645,8 @@ export component LuaScriptsPage inherits Rectangle {
                                                 }
                                             }
                                         }
+
+                                        Rectangle { horizontal-stretch: 1; }
 
                                         // Edit button
                                         VerticalLayout {

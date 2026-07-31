@@ -310,13 +310,19 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
     let spawned = std::thread::Builder::new()
         .name("error-telemetry".into())
         .spawn(move || {
+            let clean = get_local_version().trim().to_string();
             let client = reqwest::blocking::Client::builder()
-                .user_agent(format!("AuroraLauncher/{}", get_local_version()))
+                .user_agent(format!("AuroraLauncher/{clean}"))
                 .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap_or_default();
 
             let version = get_local_version().trim().to_string();
+
+            let os_main = System::name().unwrap_or_else(|| "Unknown".to_string());
+            let os_version = System::os_version()
+                .or_else(System::kernel_version)
+                .unwrap_or_else(|| "Unknown".to_string());
 
             while let Ok(event) = rx.recv() {
                 let payload = serde_json::json!({
@@ -324,9 +330,14 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                     "module": event.module,
                     "version": version,
                     "timestamp": event.timestamp,
+                    "os_main": os_main,
+                    "os_version": os_version,
                 });
 
                 match client.post(TELEMETRY_ENDPOINT).json(&payload).send() {
+                    Ok(res) if !res.status().is_success() => {
+                        eprintln!("error telemetry: server returned HTTP {}", res.status());
+                    }
                     Ok(_) => {}
                     Err(e) => eprintln!("error telemetry: failed to send error: {e}"),
                 }

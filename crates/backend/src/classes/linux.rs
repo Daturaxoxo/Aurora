@@ -3,51 +3,34 @@ use std::process::Command;
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, info, warn};
+use shared::classes::steam::real_user;
+use shared::classes::steam::{find_steam_root, real_home, steam_libraries};
 
 const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
-#[cfg(target_os = "linux")]
 pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
-    debug!("launch_via_proton: exe={:?}", exe);
+    debug!("launch_via_proton: exe={}", exe.display());
 
     let steam_root = find_steam_root()
         .ok_or_else(|| anyhow!("could not determine Steam client install directory"))?;
 
     debug!("Using Steam root at {}", steam_root.display());
 
-    let (proton_bin, compat_data) = if is_in_steam_library(exe) {
+    let proton_bin = find_dwproton_script(&steam_root).ok_or_else(|| {
+        anyhow!(
+            "DW-Proton is not installed (looked for a DW-Proton build in {})",
+            steam_root.join("compatibilitytools.d").display()
+        )
+    })?;
+
+    let compat_data = aurora_compat_data()?;
+
+    if is_in_steam_library(exe) {
         debug!("launch_via_proton: exe lives inside a Steam library");
-
-        let prefix = find_proton_prefix(STEAM_APP_ID)
-            .ok_or_else(|| anyhow!("could not locate NTE's Proton prefix in any Steam library"))?;
-
-        debug!("Found NTE Proton prefix at {}", prefix.display());
-
-        // compatdata/<appid> is the parent of .../pfx
-        let compat_data = prefix
-            .parent()
-            .ok_or_else(|| anyhow!("prefix {} has no parent directory", prefix.display()))?
-            .to_path_buf();
-
-        let proton_bin = find_proton_script(&prefix)
-            .ok_or_else(|| anyhow!("could not locate a `proton` script for this prefix"))?;
-
-        (proton_bin, compat_data)
     } else {
-        debug!("launch_via_proton: exe is outside any Steam library, using DW-Proton");
-
-        let proton_bin = find_dwproton_script(&steam_root).ok_or_else(|| {
-            anyhow!(
-                "DW-Proton is not installed (looked for a DW-Proton build in {})",
-                steam_root.join("compatibilitytools.d").display()
-            )
-        })?;
-
-        let compat_data = aurora_compat_data()?;
-
-        (proton_bin, compat_data)
-    };
+        debug!("launch_via_proton: exe is outside any Steam library");
+    }
 
     // Steam runs a game from its own install directory, and protonfixes reads
     // `PWD` to work out which library the game belongs to.
@@ -77,9 +60,15 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
         compat_data.display()
     );
 
-    let child = command_as_real_user(&proton_bin)
-        .arg("waitforexitandrun")
-        .arg(exe)
+    let (extra_env, extra_args) = proton_launch_options();
+
+    let mut cmd = command_as_real_user(&proton_bin);
+    cmd.arg("waitforexitandrun").arg(exe).args(&extra_args);
+    for (k, v) in &extra_env {
+        cmd.env(k, v);
+    }
+
+    let child = cmd
         .current_dir(work_dir)
         .env("PWD", work_dir)
         .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root)
@@ -92,9 +81,67 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
     Ok(child)
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn launch_via_proton(_exe: &Path) -> Result<std::process::Child> {
-    Err(anyhow!("launch_via_proton is only supported on Linux"))
+fn proton_launch_options() -> (Vec<(String, String)>, Vec<String>) {
+    let raw = shared::config::get(shared::config::key::PROTON_ARGS);
+    let raw = raw.as_str().unwrap_or("").trim();
+
+    if raw.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    let tokens = split_launch_options(raw);
+
+    let mut env = Vec::new();
+    let mut args = Vec::new();
+
+    for token in tokens {
+        if args.is_empty() {
+            if let Some((k, v)) = token.split_once('=') {
+                if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                    env.push((k.to_string(), v.to_string()));
+                    continue;
+                }
+            }
+        }
+        args.push(token);
+    }
+
+    info!("Proton launch options: env={env:?} args={args:?}");
+
+    (env, args)
+}
+
+fn split_launch_options(input: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_token = false;
+    let mut quote: Option<char> = None;
+
+    for ch in input.chars() {
+        match quote {
+            Some(q) if ch == q => quote = None,
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                quote = Some(ch);
+                in_token = true;
+            }
+            None if ch.is_whitespace() => {
+                if in_token {
+                    tokens.push(std::mem::take(&mut current));
+                    in_token = false;
+                }
+            }
+            None => {
+                current.push(ch);
+                in_token = true;
+            }
+        }
+    }
+    if in_token {
+        tokens.push(current);
+    }
+
+    tokens
 }
 
 /// Runs Proton once with no real work to do, purely so it creates and
@@ -183,20 +230,6 @@ fn set_override(wine: &Path, prefix: &Path, dll_name: &str) -> Result<()> {
     Ok(())
 }
 
-fn find_proton_prefix(app_id: &str) -> Option<PathBuf> {
-    for library in steam_libraries() {
-        let candidate = library
-            .join("steamapps")
-            .join("compatdata")
-            .join(app_id)
-            .join("pfx");
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
 /// Whether `exe` lives inside one of the Steam library folders we know about.
 /// Both sides are canonicalized first so symlinked library roots (very common
 /// on Arch, where `~/.steam/steam` points into `~/.local/share/Steam`) still
@@ -216,8 +249,8 @@ fn is_in_steam_library(exe: &Path) -> bool {
         .any(|library| exe.starts_with(&library))
 }
 
-/// The compat data directory Aurora owns for exes that don't belong to a Steam
-/// library. Proton creates and populates `pfx/` inside it on first launch.
+/// The compat data directory Aurora owns.
+/// Proton creates and populates `pfx/` inside it on first launch.
 ///
 /// The app id leaf mirrors Steam's own `compatdata/<appid>` layout. It isn't
 /// cosmetic: protonfixes recovers the game id by pulling the last run of digits
@@ -249,81 +282,10 @@ fn aurora_compat_data() -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Identity of the user who actually invoked Aurora. Aurora is always run with
-/// `sudo`, so the process environment describes root (`HOME=/root`) — but
-/// Steam, its libraries and its Proton prefixes all live in the invoking
-/// user's home, and Proton must run as them rather than as root.
-struct RealUser {
-    uid: u32,
-    gid: u32,
-    name: String,
-    home: PathBuf,
-}
-
-/// Resolves the invoking user from `$SUDO_USER` via the password database, so
-/// non-standard home directories are picked up correctly. Falls back to the
-/// process environment when we aren't running under sudo.
-#[cfg(target_os = "linux")]
-fn real_user() -> Option<RealUser> {
-    use std::ffi::{CStr, CString};
-    use std::os::unix::ffi::OsStrExt;
-
-    let Some(name) = std::env::var_os("SUDO_USER") else {
-        debug!("SUDO_USER not set; using the process environment as-is");
-        return Some(RealUser {
-            uid: unsafe { libc::getuid() },
-            gid: unsafe { libc::getgid() },
-            name: std::env::var("USER").unwrap_or_default(),
-            home: std::env::var_os("HOME").map(PathBuf::from)?,
-        });
-    };
-
-    let c_name = CString::new(name.as_bytes()).ok()?;
-
-    // getpwnam returns a pointer into static storage, so everything we need
-    // gets copied out before the next libc call can clobber it.
-    let pw = unsafe { libc::getpwnam(c_name.as_ptr()) };
-    if pw.is_null() {
-        warn!(
-            "SUDO_USER={:?} is not in the password database",
-            name.to_string_lossy()
-        );
-        return None;
-    }
-
-    let pw = unsafe { &*pw };
-    let home = unsafe { CStr::from_ptr(pw.pw_dir) };
-    let home = PathBuf::from(std::ffi::OsStr::from_bytes(home.to_bytes()));
-
-    debug!(
-        "Running under sudo; resolved invoking user {:?} (uid {}) with home {}",
-        name.to_string_lossy(),
-        pw.pw_uid,
-        home.display()
-    );
-
-    Some(RealUser {
-        uid: pw.pw_uid,
-        gid: pw.pw_gid,
-        name: name.to_string_lossy().into_owned(),
-        home,
-    })
-}
-
-#[cfg(not(target_os = "linux"))]
-fn real_user() -> Option<RealUser> {
-    None
-}
-
-fn real_home() -> Option<PathBuf> {
-    real_user().map(|user| user.home)
-}
-
 /// Builds a `Command` that runs as the invoking user rather than as root.
 /// Proton writes a great deal into the prefix and into Steam's own
 /// directories; doing that as root would leave files the user can no longer
 /// touch, and would break launching the game through Steam normally.
-#[cfg(target_os = "linux")]
 fn command_as_real_user(program: &Path) -> Command {
     use std::os::unix::process::CommandExt;
 
@@ -359,12 +321,6 @@ fn command_as_real_user(program: &Path) -> Command {
     cmd
 }
 
-#[cfg(not(target_os = "linux"))]
-fn command_as_real_user(program: &Path) -> Command {
-    Command::new(program)
-}
-
-#[cfg(target_os = "linux")]
 fn chown_to_real_user(path: &Path) -> Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
@@ -384,20 +340,14 @@ fn chown_to_real_user(path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
-fn chown_to_real_user(_path: &Path) -> Result<()> {
-    Ok(())
-}
-
 /// Locates the newest DW-Proton build installed under Steam's
-/// `compatibilitytools.d`. Builds are named either `DW-Proton Latest` or
-/// `dwproton-<version>`; the former always wins, otherwise the highest
-/// version number does.
+/// `compatibilitytools.d`. The priority for choosing the version is:
+/// 10.* > 11.* > Any other
 fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
     let tools_dir = steam_root.join("compatibilitytools.d");
     let entries = std::fs::read_dir(&tools_dir).ok()?;
 
-    let mut candidates: Vec<(bool, Vec<u64>, String, PathBuf)> = Vec::new();
+    let mut candidates = Vec::new();
 
     for entry in entries.flatten() {
         let name = entry.file_name();
@@ -414,15 +364,22 @@ fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
         }
 
         let is_latest = lower.contains("latest");
-        candidates.push((is_latest, version_key(&name), name, script));
+        let vkey = version_key(&name);
+
+        let priority = match vkey.first() {
+            Some(&10) => 2,
+            Some(&11) => 1,
+            _ => 0,
+        };
+
+        candidates.push(((priority, is_latest, vkey), name, script));
     }
 
-    candidates.sort();
-    let (_, _, name, script) = candidates.first()?;
+    let (_, name, script) = candidates.into_iter().max_by_key(|c| c.0.clone())?;
 
-    debug!("Selected DW-Proton build {name} at {}", script.display());
+    info!("Selected DW-Proton build {name} at {}", script.display());
 
-    Some(script.to_path_buf())
+    Some(script)
 }
 
 /// Numeric components of a build name, in order, so `dwproton-10.2` sorts
@@ -446,84 +403,6 @@ fn version_key(name: &str) -> Vec<u64> {
     parts
 }
 
-fn steam_libraries() -> Vec<PathBuf> {
-    let mut libraries = Vec::new();
-
-    let Some(home) = real_home() else {
-        warn!("could not determine the user's home directory; cannot locate Steam libraries");
-        return libraries;
-    };
-
-    let default_roots = [
-        home.join(".steam/root"),
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-        home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"),
-        home.join("snap/steam/common/.local/share/Steam"),
-    ];
-
-    for root in &default_roots {
-        if root.is_dir() {
-            libraries.push(root.clone());
-        }
-    }
-
-    for root in &default_roots {
-        let vdf_path = root.join("steamapps").join("libraryfolders.vdf");
-        if let Ok(extra) = parse_library_folders(&vdf_path) {
-            libraries.extend(extra);
-        }
-    }
-
-    libraries.sort();
-    libraries.dedup();
-    libraries
-}
-
-/// Locates the root Steam client install directory (i.e. what Steam sets
-/// `STEAM_COMPAT_CLIENT_INSTALL_PATH` to when it launches a game). This is
-/// distinct from `steam_libraries()`, which also returns *additional*
-/// library folders that may live on other drives/mounts — the client
-/// install path must be the actual Steam installation, not a library.
-fn find_steam_root() -> Option<PathBuf> {
-    let home = real_home()?;
-
-    for candidate in [
-        home.join(".steam/steam"),
-        home.join(".steam/root"),
-        home.join(".local/share/Steam"),
-    ] {
-        // Resolve symlinks (common on Arch, where ~/.steam/steam is a
-        // symlink into ~/.local/share/Steam) and confirm it actually
-        // points somewhere that looks like a Steam install.
-        if let Ok(resolved) = candidate.canonicalize() {
-            if resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir() {
-                return Some(resolved);
-            }
-        }
-    }
-
-    None
-}
-
-fn parse_library_folders(vdf_path: &Path) -> Result<Vec<PathBuf>> {
-    let text = std::fs::read_to_string(vdf_path)
-        .with_context(|| format!("could not read {}", vdf_path.display()))?;
-
-    let mut paths = Vec::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("\"path\"") {
-            let rest = rest.trim();
-            if let Some(value) = rest.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
-                let unescaped = value.replace("\\\\", "\\");
-                paths.push(PathBuf::from(unescaped));
-            }
-        }
-    }
-    Ok(paths)
-}
-
 /// The `wine` binary shipped inside the Proton build whose launcher script is
 /// `proton_bin`. Using that build's own wine (rather than whatever is on PATH)
 /// keeps the registry writes consistent with the prefix it created.
@@ -540,36 +419,6 @@ fn find_wine_binary(proton_bin: &Path) -> Option<PathBuf> {
     }
 
     which_wine()
-}
-
-/// Locates the top-level `proton` launcher script (not the `wine` binary
-/// buried inside it) for whichever Proton build owns `prefix`. This is
-/// what needs to be invoked with `waitforexitandrun` so Steam-style env
-/// vars and prefix setup are honored the same way Steam itself would do it.
-fn find_proton_script(prefix: &Path) -> Option<PathBuf> {
-    let library_root = prefix
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)?;
-
-    let common = library_root.join("common");
-    let entries = std::fs::read_dir(&common).ok()?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if !name.starts_with("Proton") {
-            continue;
-        }
-
-        let script = path.join("proton");
-        if script.is_file() {
-            return Some(script);
-        }
-    }
-
-    None
 }
 
 fn which_wine() -> Option<PathBuf> {

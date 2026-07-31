@@ -854,7 +854,7 @@ export component ScreenshotsPage inherits Rectangle {
 
         Rectangle {
             width: 360px;
-            height: rename-layout.preferred-height + 40px;
+            height: rename-layout.preferred-height;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             background: #1e1e24;
@@ -867,10 +867,8 @@ export component ScreenshotsPage inherits Rectangle {
             TouchArea { }
 
             rename-layout := VerticalLayout {
-                x: 20px;
-                y: 20px;
-                width: parent.width - 40px;
-                // spacing: 14px;
+                padding: 20px;
+                spacing: 14px;
 
                 Text {
                     text: "Rename Screenshot";

@@ -42,7 +42,6 @@ pub mod key {
     pub const COOLDOWN_TIMER: &str = "col_tim";
     pub const COLLECTIBLES: &str = "collectibles";
     pub const DISCORD_RPC: &str = "discord_rpc";
-    pub const EXTENSIVE_LOGGING: &str = "extensive_logging";
     pub const EXPORT_CONSOLE: &str = "export_console";
     pub const UI_SCALING: &str = "ui_scaling";
     pub const UI_MINIMIZATION: &str = "ui_min";
@@ -58,6 +57,7 @@ pub mod key {
     pub const MOD_DISPLAY_NAMES: &str = "module_display_names";
     pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
     pub const SELECTED_GAME: &str = "selected_game";
+    pub const PROTON_ARGS: &str = "proton_args";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -69,7 +69,6 @@ pub fn default_value(k: &str) -> Value {
         key::DEV_MODE
         | key::NO_DRIVE_LINE
         | key::HIDE_NOTIF_DOTS
-        | key::EXTENSIVE_LOGGING
         | key::SHOW_NSFW_MODS
         | key::CUSTOM_ADDONS_TOGGLED
         | key::CENSORSHIP_REMOVE
@@ -79,7 +78,7 @@ pub fn default_value(k: &str) -> Value {
             json!(false)
         }
 
-        key::GAME_PATH | key::APP_LOCATION | key::SELECTED_GAME => json!(""),
+        key::GAME_PATH | key::APP_LOCATION | key::SELECTED_GAME | key::PROTON_ARGS => json!(""),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

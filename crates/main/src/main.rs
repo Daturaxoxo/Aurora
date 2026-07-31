@@ -56,6 +56,17 @@ fn main() -> Result<()> {
         std::env::current_exe()?.display().to_string(),
     );
 
+    #[cfg(target_os = "linux")]
+    {
+        if let Err(e) = slint::BackendSelector::new().select() {
+            warn!("Could not select the Slint backend: {e}");
+        }
+        if let Err(e) = slint::set_xdg_app_id(classes::desktop_entry::APP_ID) {
+            warn!("Could not set the XDG app id: {e}");
+        }
+        classes::desktop_entry::install();
+    }
+
     let window = MainWindow::new()?;
     window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
     let slint_window = window.window();
@@ -69,13 +80,15 @@ fn main() -> Result<()> {
 
     translations::apply_saved_language(&window);
 
-    if monitor_size.width < 1366 {
-        info!("Setting window size to 960x540");
-        slint_window.set_size(slint::PhysicalSize::new(960, 540));
+    let (window_width, window_height) = if monitor_size.width < 1366 {
+        (960.0, 540.0)
     } else {
-        info!("Setting window size to 1280x720");
-        slint_window.set_size(slint::PhysicalSize::new(1280, 720));
-    }
+        (1280.0, 720.0)
+    };
+    info!("Setting window size to {window_width}x{window_height}");
+    window.set_initial_width(window_width);
+    window.set_initial_height(window_height);
+    slint_window.set_size(slint::LogicalSize::new(window_width, window_height));
 
     #[allow(clippy::cast_precision_loss)]
     slint_window.set_position(WindowPosition::Logical(LogicalPosition::new(
@@ -104,12 +117,12 @@ fn main() -> Result<()> {
                 let min_y = displays.iter().map(|d| d.y).min().unwrap_or(0) as f32;
                 let max_x = displays
                     .iter()
-                    .map(|d| d.x + d.width as i32)
+                    .map(|d| d.x + d.width.cast_signed())
                     .max()
                     .unwrap_or(i32::MAX) as f32;
                 let max_y = displays
                     .iter()
-                    .map(|d| d.y + d.height as i32)
+                    .map(|d| d.y + d.height.cast_signed())
                     .max()
                     .unwrap_or(i32::MAX) as f32;
                 let margin = 40.0;
@@ -215,6 +228,11 @@ fn get_monitor_size() -> Result<DisplayInfo> {
     for attempt in 1..=10 {
         match DisplayInfo::all() {
             Ok(displays) => {
+                // Last resort fallback: return the first display found if no primary is found
+                if attempt == 10 {
+                    return Ok(displays.first().cloned().unwrap());
+                }
+
                 if let Some(display) = displays.into_iter().find(|d| d.is_primary) {
                     if attempt > 1 {
                         info!("get_monitor_size: primary monitor found on attempt {attempt}");

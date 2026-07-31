@@ -53,13 +53,18 @@ export component MainWindow inherits Window {
     min-width: 960px;
     min-height: 540px;
 
+    in-out property <length> initial-width: 1280px;
+    in-out property <length> initial-height: 720px;
+    preferred-width: root.initial-width;
+    preferred-height: root.initial-height;
+
     // General Callbacks
     callback maximize-clicked();
     callback minimize-clicked();
     callback close-clicked();
     callback window-dragged(length, length);
     callback bottom-icon-clicked(int); // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
-    
+
     // [PROPERTIES]
 
     // Page Properties
@@ -102,6 +107,8 @@ export component MainWindow inherits Window {
     in-out property <int> engine-method-index: 0;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
+    in-out property <bool> is-linux: false;
+    in-out property <string> proton-launch-args: "";
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
@@ -110,6 +117,7 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
+    callback proton-launch-args-changed(string);
 
     // Update Overlay Properties
     in-out property <bool> update-overlay-active: false;
@@ -1078,6 +1086,8 @@ export component MainWindow inherits Window {
             engine-method-index <=> root.engine-method-index;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
+            is-linux: root.is-linux;
+            proton-launch-args <=> root.proton-launch-args;
 
             browse-game-directory => { root.browse-game-directory(); }
             export-telemetry => { root.export-telemetry(); }
@@ -1087,6 +1097,7 @@ export component MainWindow inherits Window {
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
+            proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
         }
 
         toast-widget := WindowToast {

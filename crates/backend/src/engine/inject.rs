@@ -161,7 +161,7 @@ impl AuroraEngine {
         #[cfg(target_os = "linux")]
         {
             crate::classes::linux::launch_via_proton(&launcher_exe)?;
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(target_os = "linux"))]

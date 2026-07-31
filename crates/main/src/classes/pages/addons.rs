@@ -657,7 +657,7 @@ impl AddonsHandler {
                 .get(url)
                 .send()
                 .and_then(reqwest::blocking::Response::error_for_status)
-                .and_then(|r| r.bytes())
+                .and_then(reqwest::blocking::Response::bytes)
             {
                 Ok(bytes) => {
                     let dest = dest_folder.join(file_name);

@@ -12,11 +12,11 @@
 
 use log::*;
 use serde_json::Value;
-use slint::{ModelRc, SharedString, VecModel};
 use slint::ComponentHandle;
+use slint::{ModelRc, SharedString, VecModel};
 
-use shared::config;
 use crate::MainWindow;
+use shared::config;
 
 /// Embedded at compile time so the shipped binary doesn't depend on a loose
 /// file sitting next to the exe. Must stay in the exact array order build.rs
@@ -33,11 +33,7 @@ const LANG_CODES_JSON: &str = include_str!("../../../production/Langs/lang-codes
 /// hands you) to a language code, e.g. `1 -> "tr"`.
 pub fn lang_code_for_index(index: usize) -> Option<String> {
     let entries: Vec<Value> = serde_json::from_str(LANG_CODES_JSON).ok()?;
-    entries
-        .get(index)?
-        .get("code")?
-        .as_str()
-        .map(String::from)
+    entries.get(index)?.get("code")?.as_str().map(String::from)
 }
 
 /// Rebuilds the full `Tr.values` array for `lang_code` and swaps it into the
