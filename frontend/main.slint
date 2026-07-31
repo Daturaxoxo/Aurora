@@ -52,13 +52,18 @@ export component MainWindow inherits Window {
     min-width: 960px;
     min-height: 540px;
 
+    in-out property <length> initial-width: 1280px;
+    in-out property <length> initial-height: 720px;
+    preferred-width: root.initial-width;
+    preferred-height: root.initial-height;
+
     // General Callbacks
     callback maximize-clicked();
     callback minimize-clicked();
     callback close-clicked();
     callback window-dragged(length, length);
     callback bottom-icon-clicked(int); // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
-    
+
     // [PROPERTIES]
 
     // Page Properties
