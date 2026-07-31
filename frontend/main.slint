@@ -52,6 +52,7 @@ export component MainWindow inherits Window {
     resize-border-width: 6px;
     min-width: 960px;
     min-height: 540px;
+    default-font-family: root.ui-font-family; // NEVER DECLARE A FONT-FAMILY IN A TEXT ELEMENT. IT WILL CAUSE COMPATIBILITY ISSUES WITH LANGUAGES THAT HAVE UNSUPPORTED CJK GLPYH'S. I REPEAT DO NOOOOOTTT DECLARE FONT-FAMILY IN A TEXT ELEMENT. LET THIS HANDLE IT!
 
     in-out property <length> initial-width: 1280px;
     in-out property <length> initial-height: 720px;
@@ -66,6 +67,7 @@ export component MainWindow inherits Window {
     callback bottom-icon-clicked(int); // indexes: 0 = Menu, 1 = Mods Folder, 2 = Discord, 3 = GameBanana
 
     // [PROPERTIES]
+    in property <string> ui-font-family: "Segoe UI";
 
     // Page Properties
     in-out property <bool> show-settings: false;
@@ -80,7 +82,7 @@ export component MainWindow inherits Window {
     in-out property <string> app-version: "";
 
     // Launch Button Properties
-    in-out property <string> launch-button-text: "Launch";
+    in-out property <string> launch-button-text: "Launch"; // warning: this is also changed by the backend (e.g: the string gets set to "Running..." after pressing the button) so you also need to add translation functionality to that part, leaving unchanged for now because of that reason
     in-out property <bool> launch-disabled: false;
     callback launch-clicked();
 
@@ -414,10 +416,10 @@ export component MainWindow inherits Window {
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "discord-popup";
-                                root.popup-title = "Join Discord?";
-                                root.popup-message = "Join our Discord server to keep in touch with future updates, sneakpeeks and ask questions!";
+                                root.popup-title = Tr.values[TrKey.popup-discord-title];
+                                root.popup-message = Tr.values[TrKey.popup-discord-message];
                                 root.popup-required-count = 1;
-                                root.popup-checkboxes = [{ label: "I agree that I am over 13 years old.", required: true, checked: false }];
+                                root.popup-checkboxes = [{ label: Tr.values[TrKey.popup-discord-agree-checkbox], required: true, checked: false }];
                                 root.popup-active = true;
                             }
                         }
@@ -430,8 +432,8 @@ export component MainWindow inherits Window {
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "gamebanana-popup";
-                                root.popup-title = "Open GameBanana?";
-                                root.popup-message = "GameBanana is our mod hosting site partner where you can get mods to use on the game.";
+                                root.popup-title = Tr.values[TrKey.popup-gamebanana-title];
+                                root.popup-message = Tr.values[TrKey.popup-gamebanana-message];
                                 root.popup-active = true;
                             }
                         }
@@ -480,9 +482,8 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Text {
-                            text: "Mod Manager";
+                            text: Tr.values[TrKey.main-button-row-mod-manager];
                             color: #ffffff;
-                            font-family: "Segoe UI";
                             font-size: 14px;
                             font-weight: 600;
                         }
@@ -491,13 +492,11 @@ export component MainWindow inherits Window {
             }
         }
 
-        // App version — bottom-left corner
         Text {
             x: 4px;
             y: parent.height - self.height - 2px;
             text: root.app-version;
             color: #ffffff55;
-            font-family: "Segoe UI";
             font-size: 10px;
         }
 
@@ -564,7 +563,6 @@ export component MainWindow inherits Window {
                             Text {
                                 text: root.launch-button-text;
                                 color: root.launch-disabled ? #ffffff66 : #ffffff;
-                                font-family: "Segoe UI";
                                 font-size: 15px;
                                 font-weight: 700;
                             }
@@ -701,7 +699,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: "Repair Aurora";
+                                    text: Tr.values[TrKey.main-launch-menu-option-repair];
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;
@@ -740,7 +738,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: "Check For Updates";
+                                    text: Tr.values[TrKey.main-launch-menu-option-updates];
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;
@@ -779,7 +777,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: "Add Desktop Shortcut";
+                                    text: Tr.values[TrKey.main-launch-menu-option-shortcut];
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;
@@ -818,7 +816,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: "Open Mods Folder";
+                                    text: Tr.values[TrKey.main-launch-menu-option-folder];
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;
@@ -857,7 +855,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Text {
-                                    text: "Kill Game";
+                                    text: Tr.values[TrKey.main-launch-menu-option-kill];
                                     color: #ffffffdd;
                                     font-size: 13px;
                                     font-weight: 500;
@@ -1027,8 +1025,8 @@ export component MainWindow inherits Window {
             open-mods-folder => { root.open-mods-folder(); }
             open-gamebanana => {
                 root.popup-id = "gamebanana-popup";
-                root.popup-title = "Open GameBanana?";
-                root.popup-message = "GameBanana is our mod hosting site partner where you can get mods to use on the game.";
+                root.popup-title = Tr.values[TrKey.popup-gamebanana-title];
+                root.popup-message = Tr.values[TrKey.popup-gamebanana-message];
                 root.popup-active = true;
             }
         }

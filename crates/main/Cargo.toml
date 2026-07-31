@@ -8,7 +8,7 @@ default = ["beta"]
 beta = []
 
 [dependencies]
-slint = { version = "1.17", default-features = false, features = ["renderer-femtovg","backend-winit","compat-1-2",] }
+slint = { version = "1.17", default-features = false, features = ["renderer-femtovg","backend-winit","compat-1-2","unstable-fontique-010",] }
 i-slint-backend-winit = { version = "1.17", default-features = false }
 # TODO: Needs testing on linux to see what features it needs.
 rfd = { version = "0.17", default-features = false, features = ["gtk3"] }

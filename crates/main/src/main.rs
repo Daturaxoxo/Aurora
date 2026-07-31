@@ -97,6 +97,8 @@ fn main() -> Result<()> {
         }
     };
 
+    window.set_ui_font_family("Segoe UI".into());
+    register_cjk_fallback();
     translations::apply_saved_language(&window);
 
     let (window_width, window_height) = if monitor_size.width < 1366 {
@@ -310,4 +312,46 @@ fn get_monitor_size() -> Result<DisplayInfo> {
     }
 
     Err(last_err.unwrap_or_else(|| anyhow!("No primary display found")))
+}
+
+fn register_cjk_fallback() {
+    use slint::fontique_010::fontique;
+    let font_data = {
+        #[cfg(target_os = "windows")]
+        { std::fs::read("C:/Windows/Fonts/msyh.ttc").ok() }
+
+        #[cfg(target_os = "macos")]
+        {return}
+
+        #[cfg(target_os = "linux")]
+        {
+            [
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            ]
+            .iter()
+            .find_map(|p| std::fs::read(p).ok())
+        }
+    };
+
+    let Some(data) = font_data else {
+        warn!("No system CJK font found; CJK glyphs may not render correctly");
+        return;
+    };
+
+    let blob = fontique::Blob::new(std::sync::Arc::new(data));
+    let mut collection = slint::fontique_010::shared_collection();
+    let fonts = collection.register_fonts(blob, None);
+    for script in ["Hani", "Hans", "Hant"] {
+        collection.append_fallbacks(
+            fontique::FallbackKey::new(
+                fontique::Script::from_str_unchecked(script),
+                None,
+            ),
+            fonts.iter().map(|x| x.0),
+        );
+    }
+
+    info!("Registered system CJK font as fallback for Han script");
 }
