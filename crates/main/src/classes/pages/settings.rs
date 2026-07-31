@@ -1,11 +1,12 @@
 use crate::classes::logwindow;
-use crate::MainWindow;
 use crate::classes::toast::ToastHandler;
+use crate::MainWindow;
 use backend::classes::rpc::RPC;
-use backend::handler::{get_tx, EngineCommand};
+use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
+use std::sync::atomic::Ordering;
 
 #[derive(serde::Deserialize)]
 #[allow(dead_code)]
@@ -117,10 +118,18 @@ impl SettingsHandler {
             }
         });
 
+        let ww = window.clone();
         w.on_interface_minimization_changed(move |enabled| {
             info!("[Settings] interface_minimization changed → {enabled}");
             config::set(key::UI_MINIMIZATION, enabled);
             debug!("[Settings] interface_minimization saved to config");
+            if enabled {
+                if GAME_RUNNING.load(Ordering::Relaxed) {
+                    crate::classes::tray::activate(&ww, false);
+                }
+            } else {
+                crate::classes::tray::deactivate(&ww);
+            }
         });
 
         w.on_discord_rpc_changed(move |enabled| {
@@ -220,7 +229,11 @@ impl SettingsHandler {
                     match shared::telemetry::export_telemetry() {
                         Ok(()) => {
                             info!("[Settings] telemetry export complete");
-                            ToastHandler::show(&ww, "Exported debugging logs to the logs folder.", "success");
+                            ToastHandler::show(
+                                &ww,
+                                "Exported debugging logs to the logs folder.",
+                                "success",
+                            );
 
                             let logs_dir = std::env::current_exe()
                                 .ok()
@@ -233,12 +246,20 @@ impl SettingsHandler {
                                 }
                             } else {
                                 error!("[Settings] failed to resolve Logs directory path");
-                                ToastHandler::show(&ww, "Failed to resolve logs directory path.", "error");
+                                ToastHandler::show(
+                                    &ww,
+                                    "Failed to resolve logs directory path.",
+                                    "error",
+                                );
                             }
                         }
                         Err(e) => {
                             error!("[Settings] telemetry export failed: {e}");
-                            ToastHandler::show(&ww, format!("Telemetry export failed: {e}"), "error");
+                            ToastHandler::show(
+                                &ww,
+                                format!("Telemetry export failed: {e}"),
+                                "error",
+                            );
                         }
                     }
                 });

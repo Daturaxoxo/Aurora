@@ -46,6 +46,7 @@ winresource = "0.1"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
 mslnk = "0.1"
+tray-icon = { version = "0.24.2", default-features = false }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = { workspace = true }

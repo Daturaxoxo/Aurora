@@ -73,6 +73,10 @@ impl Bridge {
                             }
                         })
                         .ok();
+
+                        if config::get(key::UI_MINIMIZATION).as_bool().unwrap_or(true) {
+                            crate::classes::tray::activate(&w, true);
+                        }
                     }
                     EngineEvent::LaunchFailed(msg) => {
                         Self::show_toast(&w, &msg, "error");
@@ -86,6 +90,7 @@ impl Bridge {
                         .ok();
                     }
                     EngineEvent::GameClosed => {
+                        crate::classes::tray::deactivate(&w);
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if let Some(w) = w_ui.upgrade() {

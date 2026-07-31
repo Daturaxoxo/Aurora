@@ -9,4 +9,5 @@ pub mod pages;
 pub mod popup;
 pub mod repair;
 pub mod toast;
+pub mod tray;
 pub mod updater;
