@@ -12,4 +12,6 @@ pub mod classes {
     pub mod gamebanana;
     pub mod games;
     pub mod info;
+    #[cfg(target_os = "linux")]
+    pub mod steam;
 }

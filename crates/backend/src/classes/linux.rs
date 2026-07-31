@@ -3,11 +3,12 @@ use std::process::Command;
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, info, warn};
+use shared::classes::steam::real_user;
+use shared::classes::steam::{find_steam_root, real_home, steam_libraries};
 
 const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
-#[cfg(target_os = "linux")]
 pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
     debug!("launch_via_proton: exe={:?}", exe);
 
@@ -72,11 +73,6 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
         .with_context(|| format!("failed to spawn proton for {}", exe.display()))?;
 
     Ok(child)
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn launch_via_proton(_exe: &Path) -> Result<std::process::Child> {
-    Err(anyhow!("launch_via_proton is only supported on Linux"))
 }
 
 /// Runs Proton once with no real work to do, purely so it creates and
@@ -217,81 +213,10 @@ fn aurora_compat_data() -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Identity of the user who actually invoked Aurora. Aurora is always run with
-/// `sudo`, so the process environment describes root (`HOME=/root`) — but
-/// Steam, its libraries and its Proton prefixes all live in the invoking
-/// user's home, and Proton must run as them rather than as root.
-struct RealUser {
-    uid: u32,
-    gid: u32,
-    name: String,
-    home: PathBuf,
-}
-
-/// Resolves the invoking user from `$SUDO_USER` via the password database, so
-/// non-standard home directories are picked up correctly. Falls back to the
-/// process environment when we aren't running under sudo.
-#[cfg(target_os = "linux")]
-fn real_user() -> Option<RealUser> {
-    use std::ffi::{CStr, CString};
-    use std::os::unix::ffi::OsStrExt;
-
-    let Some(name) = std::env::var_os("SUDO_USER") else {
-        debug!("SUDO_USER not set; using the process environment as-is");
-        return Some(RealUser {
-            uid: unsafe { libc::getuid() },
-            gid: unsafe { libc::getgid() },
-            name: std::env::var("USER").unwrap_or_default(),
-            home: std::env::var_os("HOME").map(PathBuf::from)?,
-        });
-    };
-
-    let c_name = CString::new(name.as_bytes()).ok()?;
-
-    // getpwnam returns a pointer into static storage, so everything we need
-    // gets copied out before the next libc call can clobber it.
-    let pw = unsafe { libc::getpwnam(c_name.as_ptr()) };
-    if pw.is_null() {
-        warn!(
-            "SUDO_USER={:?} is not in the password database",
-            name.to_string_lossy()
-        );
-        return None;
-    }
-
-    let pw = unsafe { &*pw };
-    let home = unsafe { CStr::from_ptr(pw.pw_dir) };
-    let home = PathBuf::from(std::ffi::OsStr::from_bytes(home.to_bytes()));
-
-    debug!(
-        "Running under sudo; resolved invoking user {:?} (uid {}) with home {}",
-        name.to_string_lossy(),
-        pw.pw_uid,
-        home.display()
-    );
-
-    Some(RealUser {
-        uid: pw.pw_uid,
-        gid: pw.pw_gid,
-        name: name.to_string_lossy().into_owned(),
-        home,
-    })
-}
-
-#[cfg(not(target_os = "linux"))]
-fn real_user() -> Option<RealUser> {
-    None
-}
-
-fn real_home() -> Option<PathBuf> {
-    real_user().map(|user| user.home)
-}
-
 /// Builds a `Command` that runs as the invoking user rather than as root.
 /// Proton writes a great deal into the prefix and into Steam's own
 /// directories; doing that as root would leave files the user can no longer
 /// touch, and would break launching the game through Steam normally.
-#[cfg(target_os = "linux")]
 fn command_as_real_user(program: &Path) -> Command {
     use std::os::unix::process::CommandExt;
 
@@ -327,12 +252,6 @@ fn command_as_real_user(program: &Path) -> Command {
     cmd
 }
 
-#[cfg(not(target_os = "linux"))]
-fn command_as_real_user(program: &Path) -> Command {
-    Command::new(program)
-}
-
-#[cfg(target_os = "linux")]
 fn chown_to_real_user(path: &Path) -> Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
@@ -349,11 +268,6 @@ fn chown_to_real_user(path: &Path) -> Result<()> {
             .with_context(|| format!("chown {}", path.display()));
     }
 
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn chown_to_real_user(_path: &Path) -> Result<()> {
     Ok(())
 }
 
@@ -418,84 +332,6 @@ fn version_key(name: &str) -> Vec<u64> {
     }
 
     parts
-}
-
-fn steam_libraries() -> Vec<PathBuf> {
-    let mut libraries = Vec::new();
-
-    let Some(home) = real_home() else {
-        warn!("could not determine the user's home directory; cannot locate Steam libraries");
-        return libraries;
-    };
-
-    let default_roots = [
-        home.join(".steam/root"),
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-        home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"),
-        home.join("snap/steam/common/.local/share/Steam"),
-    ];
-
-    for root in &default_roots {
-        if root.is_dir() {
-            libraries.push(root.clone());
-        }
-    }
-
-    for root in &default_roots {
-        let vdf_path = root.join("steamapps").join("libraryfolders.vdf");
-        if let Ok(extra) = parse_library_folders(&vdf_path) {
-            libraries.extend(extra);
-        }
-    }
-
-    libraries.sort();
-    libraries.dedup();
-    libraries
-}
-
-/// Locates the root Steam client install directory (i.e. what Steam sets
-/// `STEAM_COMPAT_CLIENT_INSTALL_PATH` to when it launches a game). This is
-/// distinct from `steam_libraries()`, which also returns *additional*
-/// library folders that may live on other drives/mounts — the client
-/// install path must be the actual Steam installation, not a library.
-fn find_steam_root() -> Option<PathBuf> {
-    let home = real_home()?;
-
-    for candidate in [
-        home.join(".steam/steam"),
-        home.join(".steam/root"),
-        home.join(".local/share/Steam"),
-    ] {
-        // Resolve symlinks (common on Arch, where ~/.steam/steam is a
-        // symlink into ~/.local/share/Steam) and confirm it actually
-        // points somewhere that looks like a Steam install.
-        if let Ok(resolved) = candidate.canonicalize() {
-            if resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir() {
-                return Some(resolved);
-            }
-        }
-    }
-
-    None
-}
-
-fn parse_library_folders(vdf_path: &Path) -> Result<Vec<PathBuf>> {
-    let text = std::fs::read_to_string(vdf_path)
-        .with_context(|| format!("could not read {}", vdf_path.display()))?;
-
-    let mut paths = Vec::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("\"path\"") {
-            let rest = rest.trim();
-            if let Some(value) = rest.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
-                let unescaped = value.replace("\\\\", "\\");
-                paths.push(PathBuf::from(unescaped));
-            }
-        }
-    }
-    Ok(paths)
 }
 
 /// The `wine` binary shipped inside the Proton build whose launcher script is
