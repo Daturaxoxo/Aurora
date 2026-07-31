@@ -428,10 +428,12 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 if active {
-                    w.set_update_progress(0.0);
-                    w.set_update_progress_text("Preparing update...".into());
+                    w.set_progress_overlay_title("Updating Aurora".into());
+                    w.set_progress_overlay_progress(0.0);
+                    w.set_progress_overlay_text("Preparing update...".into());
+                    w.set_progress_overlay_cancellable(false);
                 }
-                w.set_update_overlay_active(active);
+                w.set_progress_overlay_active(active);
             }
         })
         .ok();
@@ -466,8 +468,8 @@ impl UpdateHandler {
         let w = window.clone();
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
-                w.set_update_progress(overall as f32);
-                w.set_update_progress_text(text.into());
+                w.set_progress_overlay_progress(overall as f32);
+                w.set_progress_overlay_text(text.into());
             }
         })
         .ok();

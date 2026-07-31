@@ -11,6 +11,7 @@ use slint::{Model, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 const PAGE_SIZE: usize = 15;
@@ -94,6 +95,10 @@ impl Default for GbState {
 }
 
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
+
+/// Set by the overlay's cancel button; polled by the download loop.
+/// Only one install can run at a time since the overlay blocks the window.
+static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 fn show_nsfw() -> bool {
     config::get(key::GB_NSFW).as_bool().unwrap_or(false)
@@ -339,39 +344,114 @@ impl GbBrowserHandler {
         });
     }
 
+    fn set_progress(window: &slint::Weak<MainWindow>, progress: f32, text: String) {
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(w) = ww.upgrade() {
+                w.set_progress_overlay_progress(progress);
+                w.set_progress_overlay_text(text.into());
+            }
+        });
+    }
+
     fn download_and_install(window: &slint::Weak<MainWindow>, file: NteModFile) {
+        INSTALL_CANCELLED.store(false, Ordering::SeqCst);
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
             let name = file.name.clone();
             move || {
                 if let Some(w) = ww.upgrade() {
-                    show_toast(&w, "success", format!("Downloading {name}..."));
+                    w.set_progress_overlay_title("Installing Mod".into());
+                    w.set_progress_overlay_progress(0.0);
+                    w.set_progress_overlay_text(format!("Downloading {name}...").into());
+                    w.set_progress_overlay_cancellable(true);
+                    w.set_progress_overlay_active(true);
                 }
             }
         });
 
         RUNTIME.spawn(async move {
-            let result: anyhow::Result<std::path::PathBuf> = async {
-                let resp = reqwest::get(&file.url).await?.error_for_status()?;
-                let bytes = resp.bytes().await?;
+            // Ok(None) means the download was cancelled by the user
+            let result: anyhow::Result<Option<std::path::PathBuf>> = async {
+                use tokio::io::AsyncWriteExt;
+
+                let mut resp = reqwest::get(&file.url).await?.error_for_status()?;
+                let total = resp.content_length().unwrap_or(file.size);
                 let dir = std::env::temp_dir().join("Aurora/GameBanana");
                 tokio::fs::create_dir_all(&dir).await?;
                 let path = dir.join(&file.name);
-                tokio::fs::write(&path, &bytes).await?;
-                Ok(path)
+                let mut out = tokio::fs::File::create(&path).await?;
+
+                let mut done: u64 = 0;
+                let mut last_percent: u64 = 0;
+                while let Some(chunk) = resp.chunk().await? {
+                    if INSTALL_CANCELLED.load(Ordering::SeqCst) {
+                        drop(out);
+                        if let Err(e) = tokio::fs::remove_file(&path).await {
+                            warn!(
+                                "[GbBrowser] could not remove partial download '{}': {e}",
+                                path.display()
+                            );
+                        }
+                        return Ok(None);
+                    }
+                    out.write_all(&chunk).await?;
+                    done += chunk.len() as u64;
+                    if let Some(percent) = (done * 100).checked_div(total) {
+                        if percent > last_percent {
+                            last_percent = percent;
+                            #[allow(
+                                clippy::cast_precision_loss,
+                                clippy::cast_possible_truncation
+                            )]
+                            let frac = (done as f64 / total as f64).min(1.0) as f32;
+                            Self::set_progress(
+                                &ww,
+                                frac,
+                                format!("Downloading {}...", file.name),
+                            );
+                        }
+                    }
+                }
+                out.flush().await?;
+                Ok(Some(path))
             }
             .await;
 
             match result {
-                Ok(path) => {
+                Ok(Some(path)) => {
+                    // Cancelled right as the download finished
+                    if INSTALL_CANCELLED.load(Ordering::SeqCst) {
+                        info!("[GbBrowser] download of '{}' cancelled", file.name);
+                        let _ = tokio::fs::remove_file(&path).await;
+                        return;
+                    }
                     info!("[GbBrowser] downloaded '{}'", path.display());
-                    ModManagerHandler::install_paths(&ww, vec![path]);
+                    let ww2 = ww.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(w) = ww2.upgrade() {
+                            // Extraction can't be aborted, so cancelling stops here
+                            w.set_progress_overlay_cancellable(false);
+                            w.set_progress_overlay_progress(1.0);
+                            w.set_progress_overlay_text("Installing...".into());
+                        }
+                    });
+                    ModManagerHandler::install_paths_with_done(
+                        &ww,
+                        vec![path],
+                        Some(Box::new(|w| w.set_progress_overlay_active(false))),
+                    );
+                }
+                Ok(None) => {
+                    // The cancel callback already hid the overlay and toasted
+                    info!("[GbBrowser] download of '{}' cancelled", file.name);
                 }
                 Err(e) => {
                     error!("[GbBrowser] could not download '{}': {e}", file.name);
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww.upgrade() {
+                            w.set_progress_overlay_active(false);
                             show_toast(&w, "error", format!("Download failed - {e}"));
                         }
                     });
@@ -571,6 +651,15 @@ impl GbBrowserHandler {
             } else {
                 // Keep showing the current image while the next one loads
                 Self::fetch_preview(&ww, mod_id, new_index);
+            }
+        });
+
+        let ww = window.clone();
+        w.on_progress_overlay_cancel(move || {
+            INSTALL_CANCELLED.store(true, Ordering::SeqCst);
+            if let Some(win) = ww.upgrade() {
+                win.set_progress_overlay_active(false);
+                show_toast(&win, "info", "Install cancelled".into());
             }
         });
 

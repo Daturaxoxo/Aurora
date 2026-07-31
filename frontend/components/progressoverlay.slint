@@ -1,9 +1,13 @@
 import { Palette } from "../global.slint";
 
-export component UpdateOverlay inherits Rectangle {
+export component ProgressOverlay inherits Rectangle {
     in property <bool> active;
+    in property <string> title;
     in property <float> progress;
     in property <string> status-text;
+    in property <bool> cancellable: false;
+
+    callback cancel();
 
     width: 100%;
     height: 100%;
@@ -42,7 +46,7 @@ export component UpdateOverlay inherits Rectangle {
                     spacing: 14px;
 
                     Text {
-                        text: "Updating Aurora";
+                        text: root.title;
                         font-size: 18px;
                         font-weight: 700;
                         color: Palette.text-primary;
@@ -77,6 +81,34 @@ export component UpdateOverlay inherits Rectangle {
                         font-size: 12px;
                         color: Palette.text-secondary;
                         horizontal-alignment: right;
+                    }
+
+                    if root.cancellable: HorizontalLayout {
+                        alignment: end;
+
+                        Rectangle {
+                            width: 100px;
+                            height: 34px;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Palette.glass-border;
+                            background: cancel-ta.has-hover ? #ffffff10 : transparent;
+                            animate background { duration: 100ms; }
+
+                            Text {
+                                text: "Cancel";
+                                color: Palette.text-secondary;
+                                font-size: 13px;
+                                font-family: "Segoe UI";
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            cancel-ta := TouchArea {
+                                clicked => { root.cancel(); }
+                            }
+                        }
                     }
                 }
             }

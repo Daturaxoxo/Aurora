@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path};
 
 use anyhow::{anyhow, Context, Result};
 use archive::{ArchiveExtractor, ArchiveFormat};
@@ -41,11 +41,23 @@ pub fn extract_archive<P: AsRef<Path>>(src: P, dest: P) -> Result<()> {
                 _ => unreachable!(),
             };
 
+            let dest = dest.as_ref();
             for file in files {
+                let rel = Path::new(&file.path);
+                if rel
+                    .components()
+                    .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir))
+                {
+                    return Err(anyhow!("unsafe path '{}' in archive", file.path));
+                }
+                let target = dest.join(rel);
                 if file.is_directory {
-                    std::fs::create_dir_all(&file.path)?;
+                    std::fs::create_dir_all(&target)?;
                 } else {
-                    std::fs::write(&file.path, file.data)?;
+                    if let Some(parent) = target.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&target, file.data)?;
                 }
             }
         }

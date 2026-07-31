@@ -16,6 +16,8 @@ use std::sync::Mutex;
 
 const GROUP_PREFIX: &str = "AU GRP - ";
 
+pub type InstallDoneCallback = Box<dyn FnOnce(&MainWindow) + Send>;
+
 #[derive(Debug, Clone)]
 pub struct Group {
     pub name: Option<String>,
@@ -400,6 +402,14 @@ impl ModManagerHandler {
     }
 
     pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
+        Self::install_paths_with_done(window, paths, None);
+    }
+
+    pub(crate) fn install_paths_with_done(
+        window: &slint::Weak<MainWindow>,
+        paths: Vec<PathBuf>,
+        on_done: Option<InstallDoneCallback>,
+    ) {
         let ww = window.clone();
         std::thread::spawn(move || {
             let mut installed: Vec<String> = Vec::new();
@@ -436,6 +446,9 @@ impl ModManagerHandler {
                         "success",
                         format!("Installed {} mods", installed.len()),
                     );
+                }
+                if let Some(on_done) = on_done {
+                    on_done(&win);
                 }
             });
 
