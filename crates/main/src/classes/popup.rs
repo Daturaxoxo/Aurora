@@ -1,5 +1,6 @@
 use crate::bridge::Bridge;
 use crate::classes::pages::addons::AddonsHandler;
+use crate::classes::pages::lua::{LuaScriptsHandler};
 use crate::classes::pages::screenshots::ScreenshotHandler;
 use crate::classes::repair::RepairHandler;
 use crate::classes::updater::UpdateHandler;
@@ -10,7 +11,9 @@ use slint::Model as _;
 pub struct PopupHandler;
 
 impl PopupHandler {
-    pub fn setup(window: &slint::Weak<MainWindow>) {
+    pub fn setup(
+        window: &slint::Weak<MainWindow>
+    ) {
         let w = window.clone();
         window.unwrap().on_popup_confirm_callback(move |id| {
             if let Some(ww) = w.upgrade() {
@@ -29,6 +32,9 @@ impl PopupHandler {
                     }
                     "update-popup" => {
                         UpdateHandler::start_update(&w);
+                    }
+                    "lua-delete" => {
+                        LuaScriptsHandler::confirm_delete(&w);
                     }
                     "beta-phase-inactive" => {
                         std::process::exit(0);
