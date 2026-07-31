@@ -87,9 +87,6 @@ pub fn set_kill_snapshot(snapshot: KillSnapshot) {
     }
 }
 
-/// Same body as `AuroraEngine::kill_nte_processes`, but reads from the
-/// lock-free snapshot instead of `&self`, so it never has to compete with
-/// `monitor()` for the engine mutex.
 pub fn kill_nte_processes_standalone() -> Result<()> {
     let snapshot = {
         let guard = kill_snapshot_lock()
@@ -106,6 +103,8 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     names.extend(snapshot.helper_processes.iter().copied());
     trace!("Processes to kill: {}", names.join(", "));
 
+    let mut kill_failures: Vec<String> = Vec::new();
+
     for name in names {
         for (pid, process) in snapshot_data.matching(name) {
             let exe = process
@@ -113,12 +112,55 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
                 .map(|e| e.display().to_string())
                 .unwrap_or_default();
             trace!("Killing process {exe} (pid {pid})");
+
             if process.kill() {
                 info!("Process {exe} killed");
-            } else {
-                error!("Process {exe} could not be killed");
+                continue;
             }
+
+            #[cfg(target_os = "windows")]
+            {
+                let pid_u32 = pid.as_u32();
+                trace!("sysinfo kill failed for {exe}, retrying via taskkill /F /PID {pid_u32}");
+                match std::process::Command::new("taskkill")
+                    .args(["/F", "/PID", &pid_u32.to_string()])
+                    .output()
+                {
+                    Ok(output) if output.status.success() => {
+                        info!("{exe} killed via taskkill");
+                        continue;
+                    }
+                    Ok(output) => {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        error!(
+                            "{exe} could not be killed (taskkill exit {}: {stderr}). \
+                             Ensure Aurora Engine is running as Administrator.",
+                            output.status
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            "{exe} could not be killed (taskkill unavailable: {e}). \
+                             Ensure Aurora Engine is running as Administrator."
+                        );
+                    }
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            error!("{exe} could not be killed");
+
+            kill_failures.push(exe);
         }
+    }
+
+    if !kill_failures.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Failed to kill {} process(es): {}. \
+             On Windows, ensure Aurora Engine is running as Administrator.",
+            kill_failures.len(),
+            kill_failures.join(", ")
+        ));
     }
 
     for (label, destination) in &snapshot.loader_dlls {
