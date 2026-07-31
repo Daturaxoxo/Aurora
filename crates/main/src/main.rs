@@ -25,10 +25,10 @@ use bridge::Bridge;
 use slint::{LogicalPosition, WindowPosition};
 
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
+use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::modules::ModulesHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
-use crate::classes::pages::lua::LuaScriptsHandler;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
@@ -87,7 +87,9 @@ fn main() -> Result<()> {
     // DRAGGING
     let window_weak = window.as_weak();
     window.on_window_dragged(move |delta_x, delta_y| {
-        let Some(w) = window_weak.upgrade() else { return };
+        let Some(w) = window_weak.upgrade() else {
+            return;
+        };
         let win = w.window();
         let scale = win.scale_factor();
         let phys = win.position();
@@ -197,6 +199,11 @@ fn get_monitor_size() -> Result<DisplayInfo> {
     for attempt in 1..=10 {
         match DisplayInfo::all() {
             Ok(displays) => {
+                // Last resort fallback: return the first display found if no primary is found
+                if attempt == 10 {
+                    return Ok(displays.first().cloned().unwrap());
+                }
+
                 if let Some(display) = displays.into_iter().find(|d| d.is_primary) {
                     if attempt > 1 {
                         info!("get_monitor_size: primary monitor found on attempt {attempt}");
