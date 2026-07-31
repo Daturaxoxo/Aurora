@@ -40,12 +40,12 @@ pub fn validate_game_path(path: &PathBuf, game_folder_name: &str) -> Result<bool
     if let Some(markers) = find_marker(game_folder_name) {
         for marker in markers {
             if path.join(marker).exists() {
-                trace!("Validated {} via game marker {}", path.display(), marker);
+                trace!("Validated {} via game marker {marker}", path.display());
                 return Ok(true);
             }
         }
     } else {
-        error!("No marker set registered for game '{}'", game_folder_name);
+        error!("No marker set registered for game '{game_folder_name}'");
     }
 
     warn!(

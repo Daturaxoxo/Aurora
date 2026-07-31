@@ -105,12 +105,12 @@ fn main() -> Result<()> {
                 let min_y = displays.iter().map(|d| d.y).min().unwrap_or(0) as f32;
                 let max_x = displays
                     .iter()
-                    .map(|d| d.x + d.width as i32)
+                    .map(|d| d.x + d.width.cast_signed())
                     .max()
                     .unwrap_or(i32::MAX) as f32;
                 let max_y = displays
                     .iter()
-                    .map(|d| d.y + d.height as i32)
+                    .map(|d| d.y + d.height.cast_signed())
                     .max()
                     .unwrap_or(i32::MAX) as f32;
                 let margin = 40.0;

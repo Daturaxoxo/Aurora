@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -421,7 +422,7 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
                 if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
                     || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
                 {
-                    updated.push_str(&format!("{key_name} = {value}"));
+                    let _ = write!(updated, "{key_name} = {value}");
                     updated.push_str(line_ending);
                     continue;
                 }

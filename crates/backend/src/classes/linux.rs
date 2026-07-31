@@ -10,7 +10,7 @@ const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
 pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
-    debug!("launch_via_proton: exe={:?}", exe);
+    debug!("launch_via_proton: exe={}", exe.display());
 
     let steam_root = find_steam_root()
         .ok_or_else(|| anyhow!("could not determine Steam client install directory"))?;

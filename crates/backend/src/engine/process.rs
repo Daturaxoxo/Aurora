@@ -67,10 +67,6 @@ impl ProcessSnapshot {
     }
 }
 
-/// Snapshot of everything `kill_nte_processes` needs, decoupled from
-/// `Mutex<AuroraEngine>` so it can run while `monitor()` holds that lock
-/// for the duration of a play session. Published by
-/// `AuroraEngine::new`/`reinit`, read by `kill_nte_processes_standalone`.
 #[derive(Clone)]
 pub struct KillSnapshot {
     pub launcher_process: &'static str,
