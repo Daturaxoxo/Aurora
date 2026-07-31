@@ -331,9 +331,9 @@ export component SettingsPage inherits Rectangle {
                 padding-bottom: 4px;
 
                 Text {
-                    text: root.active-tab == 0 ? "General" :
-                        root.active-tab == 1 ? "Launcher" :
-                        root.active-tab == 3 ? "Proton" : "Developer";
+                    text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
+                        root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
+                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-proton] : Tr.values[TrKey.settings-tab-developer];
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -449,7 +449,7 @@ export component SettingsPage inherits Rectangle {
 
                                 SettingCard {
                                     title: Tr.values[TrKey.settings-game-directory-title];
-                                    subtitle: root.game-directory == "" ? "No directory selected" : root.game-directory;
+                                    subtitle: root.game-directory == "" ? Tr.values[TrKey.settings-game-directory-none] : root.game-directory;
 
                                     Rectangle {
                                         width: 76px;
@@ -516,15 +516,15 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
-                                    text: "LAUNCH OPTIONS";
+                                    text: Tr.values[TrKey.settings-section-launch-options];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
                                 }
 
                                 SettingCard {
-                                    title: "Launch Arguments";
-                                    subtitle: "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.";
+                                    title: Tr.values[TrKey.settings-proton-args-title];
+                                    subtitle: Tr.values[TrKey.settings-proton-args-subtitle];
                                     property <bool> show-saved: false;
 
                                     function commit-args() {
@@ -560,7 +560,7 @@ export component SettingsPage inherits Rectangle {
                                         VerticalLayout {
                                             alignment: center;
                                             Text {
-                                                text: "Saved ✓";
+                                                text: Tr.values[TrKey.settings-proton-args-saved];
                                                 color: #10b981;
                                                 font-size: 12px;
                                                 opacity: show-saved ? 1.0 : 0.0;
@@ -599,7 +599,7 @@ export component SettingsPage inherits Rectangle {
                                             if args-input.text == "" && !args-input.has-focus: Text {
                                                 x: 10px;
                                                 height: 100%;
-                                                text: "ex: PROTON_LOG=1 -windowed";
+                                                text: Tr.values[TrKey.settings-proton-args-placeholder];
                                                 color: Palette.text-secondary;
                                                 font-size: 13px;
                                                 vertical-alignment: center;

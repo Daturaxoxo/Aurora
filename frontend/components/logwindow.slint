@@ -1,6 +1,7 @@
 import { Palette } from "../global.slint";
 import { ListView } from "std-widgets.slint";
 import { Dropdown } from "pages/settings.slint";
+import { Tr, TrKey } from "../translations.slint";
 
 export struct LogLine {
     timestamp: string,
@@ -55,7 +56,6 @@ component ToolButton inherits Rectangle {
         text: root.text;
         color: Palette.text-primary;
         font-size: 13px;
-        font-family: "Segoe UI";
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -76,6 +76,9 @@ export component LogWindow inherits Window {
     min-height: 240px;
     preferred-width: 1000px;
     preferred-height: 680px;
+    default-font-family: root.ui-font-family; // Same rule as MainWindow: never set font-family on a Text element, CJK fallback depends on this.
+
+    in property <string> ui-font-family: "Segoe UI";
 
     in property <[LogLine]> lines: [];
 
@@ -145,11 +148,10 @@ export component LogWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Text {
-                            text: "LOGS";
+                            text: Tr.values[TrKey.logwindow-title];
                             color: Palette.text-secondary;
                             font-size: 11px;
                             font-weight: 700;
-                            font-family: "Segoe UI";
                         }
                     }
 
@@ -160,7 +162,14 @@ export component LogWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Dropdown {
-                            options: ["All", "Error", "Warn", "Info", "Debug", "Trace"];
+                            options: [
+                                Tr.values[TrKey.global-filter-all],
+                                Tr.values[TrKey.logwindow-filter-error],
+                                Tr.values[TrKey.logwindow-filter-warn],
+                                Tr.values[TrKey.logwindow-filter-info],
+                                Tr.values[TrKey.logwindow-filter-debug],
+                                Tr.values[TrKey.logwindow-filter-trace]
+                            ];
                             selected-index <=> root.level-filter;
                             selection-changed(idx) => {
                                 root.level-filter-changed(idx);
@@ -171,7 +180,7 @@ export component LogWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         ToolButton {
-                            text: "Copy";
+                            text: Tr.values[TrKey.logwindow-copy];
                             clicked => {
                                 root.copy-logs();
                             }
@@ -247,7 +256,6 @@ export component LogWindow inherits Window {
                                 width: 128px;
                                 color: #838d8c;
                                 font-size: 12px;
-                                font-family: "Consolas";
                                 vertical-alignment: center;
                             }
 
@@ -256,7 +264,6 @@ export component LogWindow inherits Window {
                                 width: 46px;
                                 color: line.color;
                                 font-size: 12px;
-                                font-family: "Consolas";
                                 vertical-alignment: center;
                             }
 
@@ -265,7 +272,6 @@ export component LogWindow inherits Window {
                                 width: root.module-column-width;
                                 color: Palette.text-secondary;
                                 font-size: 12px;
-                                font-family: "Consolas";
                                 vertical-alignment: center;
                             }
 
@@ -273,7 +279,6 @@ export component LogWindow inherits Window {
                                 text: line.message;
                                 color: Palette.text-primary;
                                 font-size: 12px;
-                                font-family: "Consolas";
                                 vertical-alignment: center;
                             }
                         }

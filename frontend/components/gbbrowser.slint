@@ -1,6 +1,7 @@
 import { Palette } from "../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ToggleSwitch } from "modcard.slint";
+import { Tr, TrKey } from "../translations.slint";
 
 export struct GbModItem {
     id: int,
@@ -51,7 +52,6 @@ component StatIcon inherits HorizontalLayout {
     Text {
         text: root.label;
         color: #ffffff77;
-        font-family: "Segoe UI";
         font-size: 10.5px;
         font-weight: 600;
         vertical-alignment: center;
@@ -122,7 +122,6 @@ component GbModCard inherits Rectangle {
                 Text {
                     text: root.item.name;
                     color: Palette.text-primary;
-                    font-family: "Segoe UI";
                     font-size: 12.5px;
                     font-weight: 700;
                     overflow: elide;
@@ -133,9 +132,8 @@ component GbModCard inherits Rectangle {
                     alignment: start;
 
                     Text {
-                        text: "by " + root.item.author;
+                        text: Tr.values[TrKey.global-label-by] + " " + root.item.author;
                         color: Palette.text-secondary;
-                        font-family: "Segoe UI";
                         font-size: 10.5px;
                         overflow: elide;
                     }
@@ -176,9 +174,8 @@ component GbModCard inherits Rectangle {
                         animate background { duration: 100ms; }
 
                         Text {
-                            text: "Install";
+                            text: Tr.values[TrKey.global-button-install];
                             color: #ffffff;
-                            font-family: "Segoe UI";
                             font-size: 11.5px;
                             font-weight: 700;
                             horizontal-alignment: center;
@@ -271,9 +268,8 @@ component CharacterDropdown inherits Rectangle {
             horizontal-stretch: 1;
             text: root.selected >= 0
                 ? root.characters[root.selected].name
-                : "All Characters";
+                : Tr.values[TrKey.gb-all-characters];
             color: root.selected >= 0 ? #ffd280 : #ffffffcc;
-            font-family: "Segoe UI";
             font-size: 11.5px;
             font-weight: 600;
             vertical-alignment: center;
@@ -342,9 +338,8 @@ component CharacterDropdown inherits Rectangle {
 
                         Text {
                             x: 8px;
-                            text: "All Characters";
+                            text: Tr.values[TrKey.gb-all-characters];
                             color: Palette.text-primary;
-                            font-family: "Segoe UI";
                             font-size: 12px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -394,7 +389,6 @@ component CharacterDropdown inherits Rectangle {
                                 horizontal-stretch: 1;
                                 text: char.name;
                                 color: root.selected == i ? #ffd280 : Palette.text-primary;
-                                font-family: "Segoe UI";
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -512,9 +506,8 @@ export component GameBananaBrowser inherits Rectangle {
                     alignment: center;
                     width: self.preferred-width;
                     Text {
-                        text: "Install from GameBanana";
+                        text: Tr.values[TrKey.gb-title];
                         color: Palette.text-primary;
-                        font-family: "Segoe UI";
                         font-size: 17px;
                         font-weight: 700;
                     }
@@ -528,9 +521,8 @@ export component GameBananaBrowser inherits Rectangle {
                     alignment: center;
                     width: self.preferred-width;
                     Text {
-                        text: "NSFW";
+                        text: Tr.values[TrKey.gb-nsfw];
                         color: #ffffff88;
-                        font-family: "Segoe UI";
                         font-size: 12px;
                         font-weight: 600;
                         vertical-alignment: center;
@@ -627,7 +619,6 @@ export component GameBananaBrowser inherits Rectangle {
                             x: 32px;
                             width: char-dd.x - 40px;
                             text <=> root.search-text;
-                            font-family: "Segoe UI";
                             font-size: 13px;
                             color: Palette.text-primary;
                             vertical-alignment: center;
@@ -641,9 +632,8 @@ export component GameBananaBrowser inherits Rectangle {
 
                         if (root.search-text == ""): Text {
                             x: 32px;
-                            text: "Search mods...";
+                            text: Tr.values[TrKey.global-search-mods-placeholder];
                             color: #ffffff44;
-                            font-family: "Segoe UI";
                             font-size: 13px;
                             vertical-alignment: center;
                         }
@@ -712,9 +702,8 @@ export component GameBananaBrowser inherits Rectangle {
             }
 
             if root.mods.length == 0 && !root.loading: Text {
-                text: "No mods found";
+                text: Tr.values[TrKey.gb-no-mods];
                 color: #ffffff44;
-                font-family: "Segoe UI";
                 font-size: 13px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -727,9 +716,8 @@ export component GameBananaBrowser inherits Rectangle {
                 background: transparent;
 
                 Text {
-                    text: "Loading...";
+                    text: Tr.values[TrKey.gb-loading];
                     color: #ffffff77;
-                    font-family: "Segoe UI";
                     font-size: 12px;
                     font-weight: 600;
                     horizontal-alignment: center;
@@ -767,17 +755,15 @@ export component GameBananaBrowser inherits Rectangle {
                         spacing: 14px;
 
                         Text {
-                            text: "Choose a file to download";
+                            text: Tr.values[TrKey.gb-files-title];
                             font-size: 16px;
                             font-weight: 700;
-                            font-family: "Segoe UI";
                             color: Palette.text-primary;
                         }
 
                         Text {
                             text: root.files-mod-name;
                             font-size: 12.5px;
-                            font-family: "Segoe UI";
                             color: Palette.text-secondary;
                             overflow: elide;
                         }
@@ -811,16 +797,14 @@ export component GameBananaBrowser inherits Rectangle {
                                         Text {
                                             text: file.name;
                                             color: Palette.text-primary;
-                                            font-family: "Segoe UI";
                                             font-size: 12.5px;
                                             font-weight: 600;
                                             overflow: elide;
                                         }
 
                                         Text {
-                                            text: file.size + "  •  " + file.downloads + " downloads";
+                                            text: file.size + "  •  " + file.downloads + " " + Tr.values[TrKey.gb-files-downloads-suffix];
                                             color: Palette.text-secondary;
-                                            font-family: "Segoe UI";
                                             font-size: 10.5px;
                                         }
                                     }
@@ -858,10 +842,9 @@ export component GameBananaBrowser inherits Rectangle {
                                 animate background { duration: 100ms; }
 
                                 Text {
-                                    text: "Cancel";
+                                    text: Tr.values[TrKey.global-popup-cancel-button];
                                     color: Palette.text-secondary;
                                     font-size: 13px;
-                                    font-family: "Segoe UI";
                                     font-weight: 600;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
@@ -1031,7 +1014,6 @@ export component GameBananaBrowser inherits Rectangle {
             Text {
                 text: root.preview-name;
                 color: Palette.text-primary;
-                font-family: "Segoe UI";
                 font-size: 13px;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -1040,12 +1022,11 @@ export component GameBananaBrowser inherits Rectangle {
 
             Text {
                 text: root.preview-loading
-                    ? "Loading full resolution..."
+                    ? Tr.values[TrKey.gb-preview-loading]
                     : (root.preview-count > 1
                     ? (root.preview-index + 1) + " / " + root.preview-count
                     : "");
                 color: #ffffff77;
-                font-family: "Segoe UI";
                 font-size: 11px;
                 font-weight: 600;
                 horizontal-alignment: center;

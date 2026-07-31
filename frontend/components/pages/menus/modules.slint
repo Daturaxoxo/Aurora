@@ -2,6 +2,7 @@ import { Palette } from "../../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ToggleSwitch, ModItem, ModCard } from "../../modcard.slint";
 import { PopupDialog } from "../../popup.slint";
+import { Tr, TrKey } from "../../../translations.slint";
 
 export component ModulesPage inherits Rectangle {
     callback close-modules();
@@ -78,9 +79,8 @@ export component ModulesPage inherits Rectangle {
                         alignment: center;
                         width: self.preferred-width;
                         Text {
-                            text: "Third Party Modules";
+                            text: Tr.values[TrKey.menu-item-modules];
                             color: Palette.text-primary;
-                            font-family: "Segoe UI";
                             font-size: 17px;
                             font-weight: 700;
                         }
@@ -132,9 +132,8 @@ export component ModulesPage inherits Rectangle {
                                 }
 
                                 Text {
-                                    text: "Add Modules";
+                                    text: Tr.values[TrKey.modules-add-modules];
                                     color: #ffffffcc;
-                                    font-family: "Segoe UI";
                                     font-size: 12px;
                                     font-weight: 600;
                                     vertical-alignment: center;
@@ -257,7 +256,6 @@ export component ModulesPage inherits Rectangle {
                                 x: 32px;
                                 width: parent.width - 44px;
                                 text <=> root.search-text;
-                                font-family: "Segoe UI";
                                 font-size: 13px;
                                 color: Palette.text-primary;
                                 vertical-alignment: center;
@@ -265,9 +263,8 @@ export component ModulesPage inherits Rectangle {
 
                             if (root.search-text == ""): Text {
                                 x: 32px;
-                                text: "Search modules...";
+                                text: Tr.values[TrKey.modules-search-placeholder];
                                 color: #ffffff44;
-                                font-family: "Segoe UI";
                                 font-size: 13px;
                                 vertical-alignment: center;
                             }
@@ -287,9 +284,8 @@ export component ModulesPage inherits Rectangle {
                             animate background { duration: 100ms; }
 
                             toggle-sel-text := Text {
-                                text: "Toggle (" + root.selected-count + ")";
+                                text: Tr.values[TrKey.global-button-toggle] + " (" + root.selected-count + ")";
                                 color: #ffffffcc;
-                                font-family: "Segoe UI";
                                 font-size: 12px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -314,9 +310,8 @@ export component ModulesPage inherits Rectangle {
                             animate background { duration: 100ms; }
 
                             delete-sel-text := Text {
-                                text: "Delete (" + root.selected-count + ")";
+                                text: Tr.values[TrKey.global-button-delete] + " (" + root.selected-count + ")";
                                 color: Palette.text-primary;
-                                font-family: "Segoe UI";
                                 font-size: 12px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -341,9 +336,8 @@ export component ModulesPage inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         Text {
-                            text: "Enable Modules";
+                            text: Tr.values[TrKey.modules-enable-feature];
                             color: #ffffffcc;
-                            font-family: "Segoe UI";
                             font-size: 12px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -400,9 +394,10 @@ export component ModulesPage inherits Rectangle {
                         }
 
                         if root.installed-modules.length == 0: Text {
-                            text: root.search-text == "" ? "No modules installed" : "No modules match your search";
+                            text: root.search-text == ""
+                                ? Tr.values[TrKey.modules-empty]
+                                : Tr.values[TrKey.modules-empty-search];
                             color: #ffffff44;
-                            font-family: "Segoe UI";
                             font-size: 13px;
                             horizontal-alignment: center;
                         }
@@ -414,10 +409,16 @@ export component ModulesPage inherits Rectangle {
 
     delete-dialog := PopupDialog {
         active: root.pending-delete-id != "" || root.pending-delete-selected;
-        title: root.pending-delete-selected ? "Delete Selected Modules?" : "Delete Module?";
+        title: root.pending-delete-selected
+            ? Tr.values[TrKey.modules-delete-selected-title]
+            : Tr.values[TrKey.modules-delete-title];
         message: root.pending-delete-selected
-            ? "Are you sure you want to delete the " + root.selected-count + " selected module(s)?"
-            : "Are you sure you want to delete \"" + root.pending-delete-name + "\"?";
+            ? Tr.values[TrKey.modules-delete-selected-message-prefix]
+                + root.selected-count
+                + Tr.values[TrKey.modules-delete-selected-message-suffix]
+            : Tr.values[TrKey.modules-delete-message-prefix]
+                + root.pending-delete-name
+                + Tr.values[TrKey.modules-delete-message-suffix];
         confirm => {
             if (root.pending-delete-selected) {
                 root.delete-selected();

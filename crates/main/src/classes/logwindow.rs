@@ -46,6 +46,14 @@ pub fn set_visible(visible: bool, main: &slint::Weak<MainWindow>) {
     }
 }
 
+pub fn apply_language(lang_code: &str) {
+    STATE.with_borrow(|state| {
+        if let Some(state) = state {
+            crate::translations::apply_language_to_log_window(&state.window, lang_code);
+        }
+    });
+}
+
 pub fn hide() {
     let window = STATE.with_borrow(|state| {
         let state = state.as_ref()?;
@@ -138,6 +146,8 @@ fn start_polling(state: &State) {
 
 fn build(main: &slint::Weak<MainWindow>) -> Result<State, slint::PlatformError> {
     let window = LogWindow::new()?;
+    window.set_ui_font_family("Segoe UI".into());
+    crate::translations::apply_saved_language_to_log_window(&window);
     let view = Rc::new(RefCell::new(View {
         model: Rc::new(VecModel::default()),
         cursor: 0,

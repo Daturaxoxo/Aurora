@@ -1,4 +1,5 @@
 import { Palette } from "../global.slint";
+import { Tr, TrKey } from "../translations.slint";
 
 export struct CheckboxItem {
     label: string,
@@ -192,7 +193,7 @@ export component PopupDialog inherits Rectangle {
                             animate background { duration: 100ms; }
 
                             Text {
-                                text: "Cancel";
+                                text: Tr.values[TrKey.global-popup-cancel-button];
                                 color: Palette.text-secondary;
                                 font-size: 13px;
                                 font-weight: 600;
@@ -220,8 +221,8 @@ export component PopupDialog inherits Rectangle {
 
                             Text {
                                 text: root.timer-ready
-                                    ? "Confirm"
-                                    : "(" + root.countdown + ") Confirm";
+                                    ? Tr.values[TrKey.global-popup-confirm-button]
+                                    : "(" + root.countdown + ") " + Tr.values[TrKey.global-popup-confirm-button];
                                 color: root.confirm-ready ? Palette.text-primary : #ffffff33;
                                 font-size: 13px;
                                 font-weight: 600;

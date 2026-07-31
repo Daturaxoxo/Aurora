@@ -1,4 +1,5 @@
 import { Palette } from "../../../global.slint";
+import { Tr, TrKey } from "../../../translations.slint";
 
 export struct AddonItem {
     name: string,
@@ -41,12 +42,12 @@ component AddonCard inherits Rectangle {
         #36e780;
 
     property <string> action-label:
-        root.item.unavailable ? "UNAVAILABLE" : // TEMP:
-        root.busy ? "INSTALLING..." :
-        root.item.update_available ? "UPDATE" :
-        !root.item.installed ? "INSTALL" :
-        root.item.enabled ? "DISABLE" :
-        "ENABLE";
+        root.item.unavailable ? Tr.values[TrKey.addons-action-unavailable] : // TEMP:
+        root.busy ? Tr.values[TrKey.addons-action-installing] :
+        root.item.update_available ? Tr.values[TrKey.addons-action-update] :
+        !root.item.installed ? Tr.values[TrKey.addons-action-install] :
+        root.item.enabled ? Tr.values[TrKey.addons-action-disable] :
+        Tr.values[TrKey.addons-action-enable];
 
     property <bool> show-delete: root.item.installed && !root.item.unavailable && !root.busy;
 
@@ -124,7 +125,7 @@ component AddonCard inherits Rectangle {
             }
 
             Text {
-                text: "by " + root.item.author;
+                text: Tr.values[TrKey.global-label-by] + " " + root.item.author;
                 color: Palette.text-secondary;
                 font-size: 11px;
                 font-weight: 500;
@@ -330,7 +331,7 @@ export component AddonsPage inherits Rectangle {
                         }
 
                         Text {
-                            text: "Addon Manager";
+                            text: Tr.values[TrKey.addons-title];
                             color: Palette.text-primary;
                             font-size: 17px;
                             font-weight: 700;
@@ -348,7 +349,7 @@ export component AddonsPage inherits Rectangle {
                             count-text := Text {
                                 x: 7px;
                                 y: (parent.height - self.preferred-height) / 2;
-                                text: root.addons.length + " addons";
+                                text: root.addons.length + " " + Tr.values[TrKey.addons-count-suffix];
                                 color: Palette.text-primary;
                                 font-size: 11px;
                                 font-weight: 600;
@@ -397,7 +398,7 @@ export component AddonsPage inherits Rectangle {
                     height: 100%;
 
                     Text {
-                        text: "No Addons Found";
+                        text: Tr.values[TrKey.addons-empty-title];
                         color: Palette.text-primary;
                         font-size: 15px;
                         font-weight: 600;
@@ -405,7 +406,7 @@ export component AddonsPage inherits Rectangle {
                     }
 
                     Text {
-                        text: "This is either caused because of a corrupted installation, or because Addon Manager did not work.";
+                        text: Tr.values[TrKey.addons-empty-subtitle];
                         color: Palette.text-secondary;
                         font-size: 12px;
                         font-weight: 400;

@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { ModCard, ModItem, ToggleSwitch } from "../modcard.slint";
 import { PopupDialog } from "../popup.slint";
 import { Dropdown } from "settings.slint";
+import { Tr, TrKey } from "../../translations.slint";
 
 export {
     ModItem,
@@ -123,7 +124,6 @@ component GroupHeader inherits Rectangle {
         if !root.editing-name: Text {
             text: root.item.name;
             color: Palette.text-primary;
-            font-family: "Segoe UI";
             font-size: 13px;
             font-weight: 700;
             vertical-alignment: center;
@@ -140,7 +140,6 @@ component GroupHeader inherits Rectangle {
                 x: 6px;
                 width: parent.width - 12px;
                 color: Palette.text-primary;
-                font-family: "Segoe UI";
                 font-size: 12.5px;
                 vertical-alignment: center;
                 single-line: true;
@@ -320,9 +319,8 @@ export component ModManagerPage inherits Rectangle {
                     alignment: center;
                     width: self.preferred-width;
                     Text {
-                        text: "Mod Manager";
+                        text: Tr.values[TrKey.main-button-row-mod-manager];
                         color: Palette.text-primary;
-                        font-family: "Segoe UI";
                         font-size: 17px;
                         font-weight: 700;
                     }
@@ -392,9 +390,8 @@ export component ModManagerPage inherits Rectangle {
                                             }
 
                                             Text {
-                                                text: "Install from Archive";
+                                                text: Tr.values[TrKey.modmanager-install-archive];
                                                 color: #ffffffdd;
-                                                font-family: "Segoe UI";
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -430,9 +427,8 @@ export component ModManagerPage inherits Rectangle {
                                             }
 
                                             Text {
-                                                text: "Install from Folder";
+                                                text: Tr.values[TrKey.modmanager-install-folder];
                                                 color: #ffffffdd;
-                                                font-family: "Segoe UI";
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -468,9 +464,8 @@ export component ModManagerPage inherits Rectangle {
                                             }
 
                                             Text {
-                                                text: "Install from GameBanana";
+                                                text: Tr.values[TrKey.gb-title];
                                                 color: #ffffffdd;
-                                                font-family: "Segoe UI";
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -506,9 +501,8 @@ export component ModManagerPage inherits Rectangle {
                             }
 
                             Text {
-                                text: "Add Mods";
+                                text: Tr.values[TrKey.modmanager-add-mods];
                                 color: #ffffffcc;
-                                font-family: "Segoe UI";
                                 font-size: 12px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -559,9 +553,8 @@ export component ModManagerPage inherits Rectangle {
                             }
 
                             Text {
-                                text: "Create Group";
+                                text: Tr.values[TrKey.modmanager-create-group];
                                 color: #ffffffcc;
-                                font-family: "Segoe UI";
                                 font-size: 12px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -822,7 +815,6 @@ export component ModManagerPage inherits Rectangle {
                             x: 32px;
                             width: parent.width - 44px;
                             text <=> root.search-text;
-                            font-family: "Segoe UI";
                             font-size: 13px;
                             color: Palette.text-primary;
                             vertical-alignment: center;
@@ -830,9 +822,8 @@ export component ModManagerPage inherits Rectangle {
 
                         if (root.search-text == ""): Text {
                             x: 32px;
-                            text: "Search mods...";
+                            text: Tr.values[TrKey.global-search-mods-placeholder];
                             color: #ffffff44;
-                            font-family: "Segoe UI";
                             font-size: 13px;
                             vertical-alignment: center;
                         }
@@ -853,7 +844,11 @@ export component ModManagerPage inherits Rectangle {
                     Dropdown {
                         width: 110px;
                         height: 28px;
-                        options: ["All", "Enabled", "Disabled"];
+                        options: [
+                            Tr.values[TrKey.global-filter-all],
+                            Tr.values[TrKey.modmanager-filter-enabled],
+                            Tr.values[TrKey.modmanager-filter-disabled]
+                        ];
                         selection-changed(idx) => {
                             root.filter-index = idx;
                             root.filter-changed(idx);
@@ -874,9 +869,8 @@ export component ModManagerPage inherits Rectangle {
                         animate border-color { duration: 100ms; }
 
                         Text {
-                            text: "Toggle All";
+                            text: Tr.values[TrKey.modmanager-toggle-all];
                             color: #ffffffcc;
-                            font-family: "Segoe UI";
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -901,9 +895,8 @@ export component ModManagerPage inherits Rectangle {
                         animate background { duration: 100ms; }
 
                         toggle-sel-text := Text {
-                            text: "Toggle (" + root.selected-count + ")";
+                            text: Tr.values[TrKey.global-button-toggle] + " (" + root.selected-count + ")";
                             color: #ffffffcc;
-                            font-family: "Segoe UI";
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -928,9 +921,8 @@ export component ModManagerPage inherits Rectangle {
                         animate background { duration: 100ms; }
 
                         delete-sel-text := Text {
-                            text: "Delete (" + root.selected-count + ")";
+                            text: Tr.values[TrKey.global-button-delete] + " (" + root.selected-count + ")";
                             color: Palette.text-primary;
-                            font-family: "Segoe UI";
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -1057,7 +1049,7 @@ export component ModManagerPage inherits Rectangle {
                                 root.drag-id = id;
                                 root.drag-source-zone = mod.group-id;
                                 root.drag-name = (mod.selected && root.selected-count > 1)
-                                    ? root.selected-count + " mods"
+                                    ? root.selected-count + " " + Tr.values[TrKey.modmanager-drag-mods-suffix]
                                     : name;
                             }
                             drag-moved(wx, wy) => {
@@ -1074,11 +1066,10 @@ export component ModManagerPage inherits Rectangle {
                     }
 
                     if root.mods.length == 0: Text {
-                        text: root.search-text != "" ? "No mods match your search"
-                            : root.filter-index != 0 ? "No mods match your filter"
-                            : "No mods installed";
+                        text: root.search-text != "" ? Tr.values[TrKey.modmanager-empty-search]
+                            : root.filter-index != 0 ? Tr.values[TrKey.modmanager-empty-filter]
+                            : Tr.values[TrKey.modmanager-empty];
                         color: #ffffff44;
-                        font-family: "Segoe UI";
                         font-size: 13px;
                         horizontal-alignment: center;
                     }
@@ -1195,7 +1186,7 @@ export component ModManagerPage inherits Rectangle {
                                         root.drag-id = id;
                                         root.drag-source-zone = mod.group-id;
                                         root.drag-name = (mod.selected && root.selected-count > 1)
-                                            ? root.selected-count + " mods"
+                                            ? root.selected-count + " " + Tr.values[TrKey.modmanager-drag-mods-suffix]
                                             : name;
                                     }
                                     drag-moved(wx, wy) => {
@@ -1218,11 +1209,10 @@ export component ModManagerPage inherits Rectangle {
                     }
 
                     if root.mods-grid.length == 0: Text {
-                        text: root.search-text != "" ? "No mods match your search"
-                            : root.filter-index != 0 ? "No mods match your filter"
-                            : "No mods installed";
+                        text: root.search-text != "" ? Tr.values[TrKey.modmanager-empty-search]
+                            : root.filter-index != 0 ? Tr.values[TrKey.modmanager-empty-filter]
+                            : Tr.values[TrKey.modmanager-empty];
                         color: #ffffff44;
-                        font-family: "Segoe UI";
                         font-size: 13px;
                         horizontal-alignment: center;
                     }
@@ -1252,9 +1242,8 @@ export component ModManagerPage inherits Rectangle {
                     drop-shadow-blur: 14px;
 
                     root-drop-label := Text {
-                        text: "Release to move out of group";
+                        text: Tr.values[TrKey.modmanager-drop-out-of-group];
                         color: Palette.text-primary;
-                        font-family: "Segoe UI";
                         font-size: 12px;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -1278,18 +1267,16 @@ export component ModManagerPage inherits Rectangle {
             spacing: 8px;
 
             Text {
-                text: "Drop to install";
+                text: Tr.values[TrKey.modmanager-drop-install-title];
                 color: Palette.text-primary;
-                font-family: "Segoe UI";
                 font-size: 17px;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
 
             Text {
-                text: "Archives (.zip, .rar, .7z, ...), mod folders or .pak files";
+                text: Tr.values[TrKey.modmanager-drop-install-subtitle];
                 color: Palette.text-secondary;
-                font-family: "Segoe UI";
                 font-size: 12px;
                 horizontal-alignment: center;
             }
@@ -1311,7 +1298,6 @@ export component ModManagerPage inherits Rectangle {
         ghost-text := Text {
             text: root.drag-name;
             color: Palette.text-primary;
-            font-family: "Segoe UI";
             font-size: 12px;
             font-weight: 600;
             horizontal-alignment: center;
@@ -1323,14 +1309,16 @@ export component ModManagerPage inherits Rectangle {
         active: root.pending-delete-id != ""
             || root.pending-delete-group-id != ""
             || root.pending-delete-selected;
-        title: root.pending-delete-group-id != "" ? "Delete Group?"
-            : root.pending-delete-selected ? "Delete Selected Mods?"
-            : "Delete Mod?";
+        title: root.pending-delete-group-id != "" ? Tr.values[TrKey.modmanager-delete-group-title]
+            : root.pending-delete-selected ? Tr.values[TrKey.modmanager-delete-selected-title]
+            : Tr.values[TrKey.modmanager-delete-mod-title];
         message: root.pending-delete-group-id != ""
-            ? "Are you sure you want to delete this group? The mods inside will be moved out of the group, not deleted."
+            ? Tr.values[TrKey.modmanager-delete-group-message]
             : root.pending-delete-selected
-            ? "Are you sure you want to delete the " + root.selected-count + " selected mod(s)?"
-            : "Are you sure you want to delete this mod?";
+            ? Tr.values[TrKey.modmanager-delete-selected-message-prefix]
+                + root.selected-count
+                + Tr.values[TrKey.modmanager-delete-selected-message-suffix]
+            : Tr.values[TrKey.modmanager-delete-mod-message];
         confirm => {
             if (root.pending-delete-selected) {
                 root.delete-selected();

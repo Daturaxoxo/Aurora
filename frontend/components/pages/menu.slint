@@ -1,4 +1,5 @@
 import { Palette } from "../../global.slint";
+import { Tr, TrKey } from "../../translations.slint";
 
 struct MenuItem {
     name: string,
@@ -11,24 +12,24 @@ export component MenuPage inherits Rectangle {
 
     in property <[MenuItem]> items: [
         {
-            name: "Screenshot Manager",
+            name: Tr.values[TrKey.menu-item-screenshots],
             icon: @image-url("../../../production/icons/menu/camera.png")
         },
         {
-            name: "Movie Manager",
+            name: Tr.values[TrKey.menu-item-movies],
             icon: @image-url("../../../production/icons/menu/movie.png")
         },
         {
-            name: "Lua Scripts",
+            name: Tr.values[TrKey.menu-item-lua],
             icon: @image-url("../../../production/icons/menu/lua.png")
         },
         {
-            name: "Third Party Modules",
+            name: Tr.values[TrKey.menu-item-modules],
             icon: @image-url("../../../production/icons/menu/modules.png")
         },
-        { 
-            name: "Addons", 
-            icon: @image-url("../../../production/icons/menu/addons.png") 
+        {
+            name: Tr.values[TrKey.menu-item-addons],
+            icon: @image-url("../../../production/icons/menu/addons.png")
         },
     ];
     background: #00000066;
@@ -71,7 +72,7 @@ export component MenuPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     Text {
-                        text: "Aurora Menu";
+                        text: Tr.values[TrKey.menu-title];
                         color: #ffffff;
                         font-size: 17px;
                         font-weight: 700;

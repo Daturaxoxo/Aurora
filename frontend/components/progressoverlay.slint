@@ -1,4 +1,5 @@
 import { Palette } from "../global.slint";
+import { Tr, TrKey } from "../translations.slint";
 
 export component ProgressOverlay inherits Rectangle {
     in property <bool> active;
@@ -96,10 +97,9 @@ export component ProgressOverlay inherits Rectangle {
                             animate background { duration: 100ms; }
 
                             Text {
-                                text: "Cancel";
+                                text: Tr.values[TrKey.global-popup-cancel-button];
                                 color: Palette.text-secondary;
                                 font-size: 13px;
-                                font-family: "Segoe UI";
                                 font-weight: 600;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;

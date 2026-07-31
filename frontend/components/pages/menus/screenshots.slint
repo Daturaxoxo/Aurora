@@ -1,6 +1,7 @@
 import { Palette } from "../../../global.slint";
 import { LineEdit } from "std-widgets.slint";
 import { Dropdown } from "../settings.slint";
+import { Tr, TrKey } from "../../../translations.slint";
 
 export struct ScreenshotItem {
     file_name: string,
@@ -410,7 +411,7 @@ export component ScreenshotsPage inherits Rectangle {
                     }
 
                     Text {
-                        text: "Screenshot Manager";
+                        text: Tr.values[TrKey.menu-item-screenshots];
                         color: Palette.text-primary;
                         font-size: 17px;
                         font-weight: 700;
@@ -428,7 +429,7 @@ export component ScreenshotsPage inherits Rectangle {
                         count-text := Text {
                             x: 7px;
                             y: (parent.height - self.preferred-height) / 2;
-                            text: root.screenshots.length + " screenshots";
+                            text: root.screenshots.length + " " + Tr.values[TrKey.screenshots-count-suffix];
                             color: Palette.text-primary;
                             font-size: 11px;
                             font-weight: 600;
@@ -499,7 +500,7 @@ export component ScreenshotsPage inherits Rectangle {
                         VerticalLayout {
                             alignment: center;
                             Text {
-                                text: "Open Folder";
+                                text: Tr.values[TrKey.screenshots-open-folder];
                                 color: Palette.text-primary;
                                 font-size: 12px;
                                 font-weight: 600;
@@ -553,7 +554,11 @@ export component ScreenshotsPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     Dropdown {
-                        options: ["Newest First", "Oldest First", "By Name"];
+                        options: [
+                            Tr.values[TrKey.screenshots-sort-newest],
+                            Tr.values[TrKey.screenshots-sort-oldest],
+                            Tr.values[TrKey.screenshots-sort-name]
+                        ];
                         selected-index <=> root.sort-index;
                         selection-changed(idx) => { root.screenshot-sort-changed(idx); }
                     }
@@ -562,7 +567,7 @@ export component ScreenshotsPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     ChipButton {
-                        text: "★ Favorites";
+                        text: "★ " + Tr.values[TrKey.screenshots-favorites];
                         active: root.favorites-only;
                         clicked => {
                             root.favorites-only = !root.favorites-only;
@@ -579,7 +584,7 @@ export component ScreenshotsPage inherits Rectangle {
                 if !root.select-mode: VerticalLayout {
                     alignment: center;
                     ChipButton {
-                        text: "Select";
+                        text: Tr.values[TrKey.screenshots-select];
                         clicked => { root.select-mode = true; }
                     }
                 }
@@ -589,14 +594,14 @@ export component ScreenshotsPage inherits Rectangle {
                     HorizontalLayout {
                         spacing: 8px;
                         ChipButton {
-                            text: "Delete (" + root.selected-count + ")";
+                            text: Tr.values[TrKey.global-button-delete] + " (" + root.selected-count + ")";
                             danger: true;
                             enabled: root.selected-count > 0;
                             clicked => { root.screenshot-delete-selected(); }
                         }
 
                         ChipButton {
-                            text: "Cancel";
+                            text: Tr.values[TrKey.global-popup-cancel-button];
                             clicked => { root.exit-select-mode(); }
                         }
                     }
@@ -619,7 +624,9 @@ export component ScreenshotsPage inherits Rectangle {
                 height: 100%;
 
                 Text {
-                    text: root.favorites-only ? "No Favorite Screenshots" : "No Screenshots Found";
+                    text: root.favorites-only
+                        ? Tr.values[TrKey.screenshots-empty-favorites-title]
+                        : Tr.values[TrKey.screenshots-empty-title];
                     color: Palette.text-primary;
                     font-size: 15px;
                     font-weight: 600;
@@ -628,8 +635,8 @@ export component ScreenshotsPage inherits Rectangle {
 
                 Text {
                     text: root.favorites-only
-                        ? "Star a screenshot to see it here."
-                        : "Screenshots you take in-game will show up here.";
+                        ? Tr.values[TrKey.screenshots-empty-favorites-subtitle]
+                        : Tr.values[TrKey.screenshots-empty-subtitle];
                     color: Palette.text-secondary;
                     font-size: 12px;
                     font-weight: 400;
@@ -871,7 +878,7 @@ export component ScreenshotsPage inherits Rectangle {
                 spacing: 14px;
 
                 Text {
-                    text: "Rename Screenshot";
+                    text: Tr.values[TrKey.screenshots-rename-title];
                     color: Palette.text-primary;
                     font-size: 15px;
                     font-weight: 700;
@@ -895,12 +902,12 @@ export component ScreenshotsPage inherits Rectangle {
                     alignment: end;
 
                     ChipButton {
-                        text: "Cancel";
+                        text: Tr.values[TrKey.global-popup-cancel-button];
                         clicked => { root.renaming-index = -1; }
                     }
 
                     ChipButton {
-                        text: "Rename";
+                        text: Tr.values[TrKey.global-button-rename];
                         active: true;
                         clicked => {
                             root.screenshot-rename(root.renaming-index, rename-input.text);

@@ -116,6 +116,7 @@ impl SettingsHandler {
             } else {
                 error!("[Settings] window handle dead when applying language change");
             }
+            crate::classes::logwindow::apply_language(code);
         });
 
         let ww = window.clone();

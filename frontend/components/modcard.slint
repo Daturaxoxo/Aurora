@@ -1,4 +1,5 @@
 import { Palette } from "../global.slint";
+import { Tr, TrKey } from "../translations.slint";
 
 export struct ModItem {
     id: string,
@@ -203,7 +204,6 @@ export component ModCard inherits Rectangle {
                 if !root.editing-title: Text {
                     text: root.item.name;
                     color: Palette.text-primary;
-                    font-family: "Segoe UI";
                     font-size: 14px;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -220,7 +220,6 @@ export component ModCard inherits Rectangle {
                         x: 6px;
                         width: parent.width - 12px;
                         color: Palette.text-primary;
-                        font-family: "Segoe UI";
                         font-size: 13px;
                         vertical-alignment: center;
                         single-line: true;
@@ -273,11 +272,10 @@ export component ModCard inherits Rectangle {
                     property <bool> is-link: root.item.support-link != "";
 
                     author-text := Text {
-                        text: "by " + root.item.author;
+                        text: Tr.values[TrKey.global-label-by] + " " + root.item.author;
                         color: author-wrap.is-link
                             ? (link-ta.has-hover ? #9ecfff : #6db3f2)
                             : Palette.text-secondary;
-                        font-family: "Segoe UI";
                         font-size: 11px;
                         font-weight: 500;
                         vertical-alignment: center;
@@ -311,7 +309,6 @@ export component ModCard inherits Rectangle {
                         y: (parent.height - self.preferred-height) / 2;
                         text: root.item.version;
                         color: Palette.text-secondary;
-                        font-family: "Segoe UI";
                         font-size: 9.5px;
                         font-weight: 600;
                     }
@@ -326,11 +323,10 @@ export component ModCard inherits Rectangle {
                     width: notes-text.preferred-width;
 
                     notes-text := Text {
-                        text: root.item.notes == "" ? "Add notes..." : root.item.notes;
+                        text: root.item.notes == "" ? Tr.values[TrKey.modcard-notes-placeholder] : root.item.notes;
                         color: notes-ta.has-hover
                             ? #ffffffaa
                             : (root.item.notes == "" ? #ffffff44 : #ffffff77);
-                        font-family: "Segoe UI";
                         font-size: 11.5px;
                         font-italic: root.item.notes == "";
                         vertical-alignment: center;
@@ -353,7 +349,6 @@ export component ModCard inherits Rectangle {
                         x: 6px;
                         width: parent.width - 12px;
                         color: Palette.text-primary;
-                        font-family: "Segoe UI";
                         font-size: 11.5px;
                         vertical-alignment: center;
                         single-line: true;
@@ -504,7 +499,6 @@ export component ModCard inherits Rectangle {
                 horizontal-stretch: 1;
                 text: root.item.name;
                 color: Palette.text-primary;
-                font-family: "Segoe UI";
                 font-size: 12.5px;
                 font-weight: 700;
                 overflow: elide;
@@ -522,7 +516,6 @@ export component ModCard inherits Rectangle {
                     x: 6px;
                     width: parent.width - 12px;
                     color: Palette.text-primary;
-                    font-family: "Segoe UI";
                     font-size: 12px;
                     vertical-alignment: center;
                     single-line: true;
@@ -583,11 +576,10 @@ export component ModCard inherits Rectangle {
                     x: 0px;
                     width: parent.width;
                     height: parent.height;
-                    text: root.item.author == "" ? "" : "by " + root.item.author;
+                    text: root.item.author == "" ? "" : Tr.values[TrKey.global-label-by] + " " + root.item.author;
                     color: grid-author-wrap.is-link
                         ? (grid-link-ta.has-hover ? #9ecfff : #6db3f2)
                         : Palette.text-secondary;
-                    font-family: "Segoe UI";
                     font-size: 10.5px;
                     font-weight: 500;
                     overflow: elide;
