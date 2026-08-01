@@ -43,11 +43,7 @@ fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
     serde_json::from_str(&body).map_err(|e| format!("invalid manifest JSON: {e}"))
 }
 
-pub fn download(
-    url: &str,
-    dest: &Path,
-    mut progress: impl FnMut(u64, u64),
-) -> Result<(), String> {
+pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {
     let response = agent()
         .get(url)
         .call()

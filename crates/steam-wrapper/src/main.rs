@@ -75,7 +75,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     ui.show()?;
     let window = ui.window();
-    match center_window(&window) {
+    match center_window(window) {
         Ok(_) => {}
         Err(e) => eprintln!("Failed to center window: {e}"),
     }
@@ -139,7 +139,7 @@ fn main() -> Result<(), slint::PlatformError> {
             return;
         }
 
-        let launcher = match find_nte_launcher(&game_path) {
+        let launcher = match find_nte_launcher(game_path) {
             Some(p) => p,
             None => {
                 eprintln!("NTE launcher not found in: {}", game_path);

@@ -148,10 +148,10 @@ pub fn export_telemetry() -> Result<()> {
         cfg_select! {
             windows => {
                 total_size += entry.metadata()?.file_size();
-            },
+            }
             unix => {
                 total_size += entry.metadata()?.size();
-            },
+            }
         };
     }
     writeln!(
@@ -172,21 +172,13 @@ pub fn export_telemetry() -> Result<()> {
         if path.is_file() {
             let metadata = path.metadata()?;
             let size = cfg_select! {
-                windows => {
-                    metadata.file_size()
-                },
-                unix => {
-                    metadata.size()
-                },
+                windows => metadata.file_size(),
+                unix => metadata.size(),
             };
 
             let mtime = cfg_select! {
-                windows => {
-                    metadata.last_write_time()
-                },
-                unix => {
-                    metadata.st_atime()
-                },
+                windows => metadata.last_write_time(),
+                unix => metadata.st_atime(),
             };
             writeln!(
                 file,

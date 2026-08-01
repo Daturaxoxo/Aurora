@@ -271,6 +271,6 @@ pub fn get_game_directory() -> Result<PathBuf> {
             return Ok(candidate);
         }
     }
-    
+
     Err(anyhow!("Game directory not found"))
 }

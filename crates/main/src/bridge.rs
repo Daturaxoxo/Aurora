@@ -22,7 +22,9 @@ impl Bridge {
                     info!("Quick start: engine ready");
                 }
                 EngineEvent::EngineInitFailed(msg) => {
-                    return Err(anyhow!("Quick start failed: engine could not initialise: {msg}"));
+                    return Err(anyhow!(
+                        "Quick start failed: engine could not initialise: {msg}"
+                    ));
                 }
                 EngineEvent::LaunchSuccess => {
                     info!("Quick start: launcher opened, waiting for NTE to exit");
@@ -112,7 +114,11 @@ impl Bridge {
                     }
                     EngineEvent::EngineInitFailed(msg) => {
                         error!("Engine failed to initialise: {msg}");
-                        Self::show_toast(&w, &format!("Engine error: {msg}\nCheck your game path in Settings."), "error");
+                        Self::show_toast(
+                            &w,
+                            &format!("Engine error: {msg}\nCheck your game path in Settings."),
+                            "error",
+                        );
                     }
                     EngineEvent::LaunchSuccess => {
                         Self::show_toast(

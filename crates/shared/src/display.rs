@@ -51,6 +51,7 @@ pub fn center_window(window: &slint::Window) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::cast_precision_loss)]
 pub fn on_drag(
     scale: f32,
     phys: PhysicalPosition,

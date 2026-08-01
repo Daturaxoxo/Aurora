@@ -401,16 +401,9 @@ impl GbBrowserHandler {
                     if let Some(percent) = (done * 100).checked_div(total) {
                         if percent > last_percent {
                             last_percent = percent;
-                            #[allow(
-                                clippy::cast_precision_loss,
-                                clippy::cast_possible_truncation
-                            )]
+                            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
                             let frac = (done as f64 / total as f64).min(1.0) as f32;
-                            Self::set_progress(
-                                &ww,
-                                frac,
-                                format!("Downloading {}...", file.name),
-                            );
+                            Self::set_progress(&ww, frac, format!("Downloading {}...", file.name));
                         }
                     }
                 }

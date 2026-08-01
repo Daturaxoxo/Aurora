@@ -23,7 +23,7 @@ fn get_unix_ini_path() -> PathBuf {
 pub fn get_ini_path() -> PathBuf {
     cfg_select! {
         windows => get_windows_ini_path(),
-        unix => get_unix_ini_path()
+        unix => get_unix_ini_path(),
     }
 }
 

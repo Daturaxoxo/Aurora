@@ -112,10 +112,10 @@ fn main() -> Result<()> {
     window.set_initial_height(window_height);
     slint_window.set_size(slint::LogicalSize::new(window_width, window_height));
 
-    match center_window(&slint_window) {
-        Ok(_) => {}
+    match center_window(slint_window) {
+        Ok(()) => {}
         Err(e) => error!("Could not center window: {e}"),
-    };
+    }
 
     // DRAGGING
     let window_weak = window.as_weak();
