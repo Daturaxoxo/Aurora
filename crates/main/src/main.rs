@@ -7,11 +7,11 @@ mod classes;
 mod translations;
 
 use anyhow::{anyhow, Result};
-use display_info::DisplayInfo;
 use log::*;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use shared::config::{self, key};
+use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
@@ -89,6 +89,11 @@ fn main() -> Result<()> {
     let window = MainWindow::new()?;
     window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
     let slint_window = window.window();
+
+    window.set_ui_font_family("Segoe UI".into());
+    register_cjk_fallback();
+    translations::apply_saved_language(&window);
+
     let monitor_size = match get_monitor_size() {
         Ok(size) => size,
         Err(e) => {
@@ -96,10 +101,6 @@ fn main() -> Result<()> {
             return Ok(());
         }
     };
-
-    window.set_ui_font_family("Segoe UI".into());
-    register_cjk_fallback();
-    translations::apply_saved_language(&window);
 
     let (window_width, window_height) = if monitor_size.width < 1366 {
         (960.0, 540.0)
@@ -111,11 +112,10 @@ fn main() -> Result<()> {
     window.set_initial_height(window_height);
     slint_window.set_size(slint::LogicalSize::new(window_width, window_height));
 
-    #[allow(clippy::cast_precision_loss)]
-    slint_window.set_position(WindowPosition::Logical(LogicalPosition::new(
-        (monitor_size.width / 2 - slint_window.size().width / 2) as f32,
-        (monitor_size.height / 2 - slint_window.size().height / 2) as f32,
-    )));
+    match center_window(&slint_window) {
+        Ok(_) => {}
+        Err(e) => error!("Could not center window: {e}"),
+    };
 
     // DRAGGING
     let window_weak = window.as_weak();
@@ -127,37 +127,8 @@ fn main() -> Result<()> {
         let scale = win.scale_factor();
         let phys = win.position();
         let win_size = win.size();
-        let mut new_x = phys.x as f32 / scale + delta_x;
-        let mut new_y = phys.y as f32 / scale + delta_y;
 
-        match DisplayInfo::all() {
-            Ok(displays) if !displays.is_empty() => {
-                let win_w = win_size.width as f32 / scale;
-
-                let min_x = displays.iter().map(|d| d.x).min().unwrap_or(0) as f32;
-                let min_y = displays.iter().map(|d| d.y).min().unwrap_or(0) as f32;
-                let max_x = displays
-                    .iter()
-                    .map(|d| d.x + d.width.cast_signed())
-                    .max()
-                    .unwrap_or(i32::MAX) as f32;
-                let max_y = displays
-                    .iter()
-                    .map(|d| d.y + d.height.cast_signed())
-                    .max()
-                    .unwrap_or(i32::MAX) as f32;
-                let margin = 40.0;
-                new_x = new_x.clamp(min_x - win_w + margin, max_x - margin);
-                new_y = new_y.clamp(min_y, max_y - margin);
-            }
-            Ok(_) => warn!("DisplayInfo::all() returned no displays during drag"),
-            Err(e) => warn!("Could not query displays during drag: {e}"),
-        }
-
-        if !new_x.is_finite() || !new_y.is_finite() {
-            error!("Computed non-finite window position during drag ({new_x}, {new_y}), ignoring");
-            return;
-        }
+        let (new_x, new_y) = shared::display::on_drag(scale, phys, win_size, delta_x, delta_y);
 
         win.set_position(WindowPosition::Logical(LogicalPosition::new(new_x, new_y)));
     });
@@ -282,46 +253,18 @@ fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> 
     Ok(None)
 }
 
-fn get_monitor_size() -> Result<DisplayInfo> {
-    let mut last_err = None;
-
-    for attempt in 1..=10 {
-        match DisplayInfo::all() {
-            Ok(displays) => {
-                // Last resort fallback: return the first display found if no primary is found
-                if attempt == 10 {
-                    return Ok(displays.first().cloned().unwrap());
-                }
-
-                if let Some(display) = displays.into_iter().find(|d| d.is_primary) {
-                    if attempt > 1 {
-                        info!("get_monitor_size: primary monitor found on attempt {attempt}");
-                    }
-                    return Ok(display);
-                }
-                info!("get_monitor_size: primary monitor not found after {attempt} attempts.");
-            }
-            Err(e) => {
-                last_err = Some(anyhow!("Failed to get monitor information: {e}"));
-            }
-        }
-
-        if attempt < 10 {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-    }
-
-    Err(last_err.unwrap_or_else(|| anyhow!("No primary display found")))
-}
-
 fn register_cjk_fallback() {
     use slint::fontique_010::fontique;
     let font_data = {
         #[cfg(target_os = "windows")]
-        { std::fs::read("C:/Windows/Fonts/msyh.ttc").ok() }
+        {
+            std::fs::read("C:/Windows/Fonts/msyh.ttc").ok()
+        }
 
         #[cfg(target_os = "macos")]
-        {return}
+        {
+            return;
+        }
 
         #[cfg(target_os = "linux")]
         {
@@ -345,10 +288,7 @@ fn register_cjk_fallback() {
     let fonts = collection.register_fonts(blob, None);
     for script in ["Hani", "Hans", "Hant"] {
         collection.append_fallbacks(
-            fontique::FallbackKey::new(
-                fontique::Script::from_str_unchecked(script),
-                None,
-            ),
+            fontique::FallbackKey::new(fontique::Script::from_str_unchecked(script), None),
             fonts.iter().map(|x| x.0),
         );
     }

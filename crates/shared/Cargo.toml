@@ -8,6 +8,7 @@ default = ["beta"]
 beta = []
 
 [dependencies]
+display-info = "0.5"
 env_logger = { version = "0.11", default-features = false }
 env_filter = { version = "2.0.0", default-features = false, features = ["std"] }
 termcolor = "1.4"
@@ -15,7 +16,6 @@ futures = { version = "0.3", default-features = false }
 iana-time-zone = "0.1.65"
 cpu_info = "=0.1.0"
 unrar = { package = "unrar-ng", version = "0.7" }
-archive = "0.3"
 zip = { version = "9.0.0-pre2", default-features = false, features = [
     "lzma",
     "deflate",
@@ -27,6 +27,8 @@ zip = { version = "9.0.0-pre2", default-features = false, features = [
     "zstd",
 ] }
 
+archive = { workspace = true }
+slint = { workspace = true }
 anyhow = { workspace = true }
 rayon = { workspace = true }
 jwalk = { workspace = true }

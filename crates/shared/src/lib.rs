@@ -3,6 +3,7 @@
 
 pub mod archive;
 pub mod config;
+pub mod display;
 pub mod logger;
 pub mod pathfind;
 pub mod telemetry;

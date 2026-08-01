@@ -5,10 +5,19 @@ members = [
     "crates/shared",
     "crates/ipc",
     "crates/updater",
+    "crates/steam-wrapper",
 ]
 resolver = "2"
 
 [workspace.dependencies]
+slint = { version = "1.17", default-features = false, features = [
+    "renderer-femtovg",
+    "backend-winit",
+    "compat-1-2",
+    "unstable-fontique-010",
+] }
+archive = "0.3"
+open = "5"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"] }
 log = "0.4"
 anyhow = "1.0"
