@@ -29,7 +29,9 @@ pub fn extract_archive<P: AsRef<Path>>(src: P, dest: P) -> Result<()> {
                 zip_extractor.extract(dest)?;
                 return Ok(());
             }
-            let extractor = ArchiveExtractor::new();
+            let extractor = ArchiveExtractor::new()
+                .with_max_file_size(20 * 1024 * 1024 * 1024)
+                .with_max_total_size(30 * 1024 * 1024 * 1024);
             let files = match ext {
                 "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
                 "tar" => extractor.extract(&data, ArchiveFormat::Tar)?,
