@@ -1,4 +1,5 @@
 use crate::classes::logwindow;
+use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::MainWindow;
 use backend::classes::rpc::RPC;
@@ -170,6 +171,8 @@ impl SettingsHandler {
                             }
                             Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
                         }
+
+                        ModManagerHandler::reload(&ww);
 
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(w) = ww.upgrade() {
