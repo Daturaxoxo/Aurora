@@ -8,6 +8,8 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc, Mutex, OnceLock,
     },
+    thread,
+    time::Duration,
 };
 
 pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
@@ -37,6 +39,8 @@ pub enum EngineEvent {
     GameClosed,
     Toast { text: String, kind: String },
     GamePathUpdated(PathBuf),
+    EngineReady,
+    EngineInitFailed(String),
 }
 
 pub struct EngineHandler {
@@ -63,15 +67,18 @@ impl EngineHandler {
                         Ok(e) => {
                             info!("Game Path: {}", game_path.display());
                             *engine.lock().unwrap() = Some(e);
+                            evt_tx.send(EngineEvent::EngineReady).ok();
                         }
                         Err(e) => {
-                            evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
+                            evt_tx
+                                .send(EngineEvent::EngineInitFailed(e.to_string()))
+                                .ok();
                         }
                     }
                 }
                 Err(e) => {
                     evt_tx
-                        .send(EngineEvent::LaunchFailed(format!(
+                        .send(EngineEvent::EngineInitFailed(format!(
                             "Game path not found: {e}"
                         )))
                         .ok();
@@ -84,14 +91,22 @@ impl EngineHandler {
                 match cmd {
                     EngineCommand::Launch(custom_files) => {
                         std::thread::spawn(move || {
-                            let result = engine.lock().unwrap().as_mut().map_or_else(
-                                || {
-                                    Err(anyhow!(
+                            let mut attempts = 0;
+                            let result = loop {
+                                {
+                                    let mut guard = engine.lock().unwrap();
+                                    if let Some(e) = guard.as_mut() {
+                                        break e.inject(custom_files);
+                                    }
+                                }
+                                if attempts >= 10 {
+                                    break Err(anyhow!(
                                         "Engine not initialized, set a valid game path in settings"
-                                    ))
-                                },
-                                |e| e.inject(custom_files),
-                            );
+                                    ));
+                                }
+                                attempts += 1;
+                                thread::sleep(Duration::from_millis(500));
+                            };
                             if let Err(e) = result {
                                 error!("Inject failed: {e}");
                                 evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
@@ -130,6 +145,11 @@ impl EngineHandler {
                                 Ok(p) => p,
                                 Err(e) => {
                                     error!("Update failed: could not resolve game path: {e}");
+                                    evt_tx
+                                        .send(EngineEvent::EngineInitFailed(format!(
+                                            "Game path not found: {e}"
+                                        )))
+                                        .ok();
                                     return;
                                 }
                             };
@@ -148,8 +168,16 @@ impl EngineHandler {
                                     })
                                 }
                             };
-                            if let Err(e) = result {
-                                error!("Update failed: {e}");
+                            match result {
+                                Ok(()) => {
+                                    evt_tx.send(EngineEvent::EngineReady).ok();
+                                }
+                                Err(e) => {
+                                    error!("Update failed: {e}");
+                                    evt_tx
+                                        .send(EngineEvent::EngineInitFailed(e.to_string()))
+                                        .ok();
+                                }
                             }
                         });
                     }

@@ -18,6 +18,12 @@ impl Bridge {
 
         for event in handler.evt_rx {
             match event {
+                EngineEvent::EngineReady => {
+                    info!("Quick start: engine ready");
+                }
+                EngineEvent::EngineInitFailed(msg) => {
+                    return Err(anyhow!("Quick start failed: engine could not initialise: {msg}"));
+                }
                 EngineEvent::LaunchSuccess => {
                     info!("Quick start: launcher opened, waiting for NTE to exit");
                 }
@@ -67,6 +73,10 @@ impl Bridge {
             }
         };
 
+        if let Some(w) = window.upgrade() {
+            w.set_launch_disabled(true);
+        }
+
         let cmd_tx = handler.cmd_tx.clone();
         let w_launch = window.clone();
         if let Some(w) = window.upgrade() {
@@ -91,6 +101,19 @@ impl Bridge {
             for event in handler.evt_rx {
                 let w = w.clone();
                 match event {
+                    EngineEvent::EngineReady => {
+                        let w_ui = w.clone();
+                        slint::invoke_from_event_loop(move || {
+                            if let Some(w) = w_ui.upgrade() {
+                                w.set_launch_disabled(false);
+                            }
+                        })
+                        .ok();
+                    }
+                    EngineEvent::EngineInitFailed(msg) => {
+                        error!("Engine failed to initialise: {msg}");
+                        Self::show_toast(&w, &format!("Engine error: {msg}\nCheck your game path in Settings."), "error");
+                    }
                     EngineEvent::LaunchSuccess => {
                         Self::show_toast(
                             &w,
