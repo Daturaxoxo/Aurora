@@ -6,13 +6,13 @@ edition = "2024"
 [dependencies]
 shared = { path = "../shared" }
 
-serde = { workspace = true }
-serde_json = { workspace = true }
 slint = { workspace = true }
 open = { workspace = true }
 dirs = { workspace = true }
 
 [build-dependencies]
-slint-build = "1.17"
-winresource = "0.1.31"
-image = "0.25.10"
+slint-build = { workspace = true }
+image = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }

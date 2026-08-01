@@ -1,0 +1,323 @@
+import { Palette } from "global.slint";
+import { IconButton, NavButton } from "components/widgets.slint";
+import { Sidebar } from "components/sidebar.slint";
+import { WelcomePage } from "components/pages/welcome.slint";
+import { LocationPage } from "components/pages/location.slint";
+import { PreviewPage, ComponentItem } from "components/pages/preview.slint";
+import { InstallPage } from "components/pages/install.slint";
+import { FinishPage } from "components/pages/finish.slint";
+export {
+    ComponentItem,
+}
+
+component StepPage inherits Rectangle {
+    in property <bool> active;
+
+    width: 100%;
+    height: 100%;
+    visible: root.opacity > 0.01;
+
+    states [
+        active-state when root.active: {
+            opacity: 1.0;
+            y: 0px;
+            in {
+                animate opacity {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
+                animate y {
+                    duration: 200ms;
+                    easing: ease-in-out;
+                    delay: 5ms;
+                }
+            }
+        }
+        inactive-state when !root.active: {
+            opacity: 0.0;
+            y: 6px;
+            in {
+                animate opacity {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
+                animate y {
+                    duration: 100ms;
+                    easing: ease-in-out;
+                }
+            }
+        }
+    ]
+
+    @children
+}
+
+export component InstallerWindow inherits Window {
+    title: "Aurora Installer";
+    no-frame: true;
+    background: transparent;
+    resize-border-width: 6px;
+    min-width: 850px;
+    min-height: 580px;
+    preferred-width: 850px;
+    preferred-height: 580px;
+    default-font-family: root.ui-font-family;
+
+    in property <string> ui-font-family: "Segoe UI";
+
+    callback maximize-clicked();
+    callback minimize-clicked();
+    callback close-clicked();
+    callback window-dragged(length, length);
+
+    // 0 = Welcome, 1 = Location, 2 = Preview, 3 = Installation, 4 = Finish
+    in-out property <int> current-step: 0;
+    callback next-clicked();
+    callback back-clicked();
+
+    // Welcome Properties
+    in property <bool> is-linux: false;
+    in-out property <bool> option-desktop-shortcut: true;
+    in-out property <bool> option-start-menu: true;
+
+    // Location Properties
+    in-out property <string> install-path: "";
+    in property <string> space-required: "";
+    in property <string> space-available: "";
+    callback browse-clicked();
+    callback reset-path-clicked();
+    callback path-edited(string);
+
+    // Preview Properties
+    in property <[ComponentItem]> components: [];
+    in property <string> total-size: "";
+
+    // Installation Properties
+    in property <float> install-progress: 0.0;
+    in property <[string]> install-log: [];
+    in property <int> install-log-count: 0;
+    in property <bool> install-done: false;
+    in property <bool> install-success: false;
+    in property <string> install-error: "";
+
+    // Finish Properties
+    in-out property <bool> launch-after: true;
+
+    property <bool> back-enabled: root.current-step == 1 || root.current-step == 2;
+    property <bool> next-enabled: root.current-step != 3 || root.install-done;
+    property <string> next-label: root.current-step == 2 ? "Install"
+        : root.current-step == 4 ? "Finish"
+        : "Next";
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #121216;
+
+        VerticalLayout {
+            padding: 0px;
+
+            // Top Bar
+            Rectangle {
+                height: Palette.topbar-height;
+                width: 100%;
+                background: #17171b;
+                drop-shadow-color: Palette.shadow-color;
+                drop-shadow-blur: 15px;
+                drop-shadow-offset-y: 4px;
+
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    moved => {
+                        if (self.pressed) {
+                            root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: "Aurora Installer";
+                            color: Palette.text-secondary;
+                            font-size: 16px;
+                            font-weight: 700;
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            spacing: 8px;
+
+                            IconButton {
+                                source: @image-url("../../../production/icons/minimize.png");
+                                icon-size: 22px;
+                                clicked => { root.minimize-clicked(); }
+                            }
+
+                            IconButton {
+                                source: root.maximized
+                                    ? @image-url("../../../production/icons/maximized.png")
+                                    : @image-url("../../../production/icons/maximize.png");
+                                icon-size: 22px;
+                                clicked => { root.maximize-clicked(); }
+                            }
+
+                            IconButton {
+                                source: @image-url("../../../production/icons/close.png");
+                                icon-size: 22px;
+                                clicked => { root.close-clicked(); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Body
+            HorizontalLayout {
+                vertical-stretch: 1;
+
+                Sidebar {
+                    current-step: root.current-step;
+                    install-done: root.install-done;
+                    install-success: root.install-success;
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+
+                    // Page Content
+                    Rectangle {
+                        vertical-stretch: 1;
+                        clip: true;
+
+                        StepPage {
+                            active: root.current-step == 0;
+                            WelcomePage {
+                                x: 28px;
+                                y: 28px;
+                                width: parent.width - 56px;
+                                is-linux: root.is-linux;
+                                option-desktop-shortcut <=> root.option-desktop-shortcut;
+                                option-start-menu <=> root.option-start-menu;
+                            }
+                        }
+
+                        StepPage {
+                            active: root.current-step == 1;
+                            LocationPage {
+                                x: 28px;
+                                y: 28px;
+                                width: parent.width - 56px;
+                                install-path <=> root.install-path;
+                                space-required: root.space-required;
+                                space-available: root.space-available;
+                                browse-clicked => { root.browse-clicked(); }
+                                reset-clicked => { root.reset-path-clicked(); }
+                                path-edited(path) => { root.path-edited(path); }
+                            }
+                        }
+
+                        StepPage {
+                            active: root.current-step == 2;
+                            PreviewPage {
+                                x: 28px;
+                                y: 28px;
+                                width: parent.width - 56px;
+                                is-linux: root.is-linux;
+                                option-desktop-shortcut: root.option-desktop-shortcut;
+                                option-start-menu: root.option-start-menu;
+                                install-path: root.install-path;
+                                components: root.components;
+                                total-size: root.total-size;
+                            }
+                        }
+
+                        StepPage {
+                            active: root.current-step == 3;
+                            InstallPage {
+                                x: 28px;
+                                y: 28px;
+                                width: parent.width - 56px;
+                                height: parent.height - 56px;
+                                progress: root.install-progress;
+                                log-lines: root.install-log;
+                                log-count: root.install-log-count;
+                            }
+                        }
+
+                        StepPage {
+                            active: root.current-step == 4;
+                            FinishPage {
+                                x: 28px;
+                                y: 28px;
+                                width: parent.width - 56px;
+                                install-success: root.install-success;
+                                install-error: root.install-error;
+                                launch-after <=> root.launch-after;
+                            }
+                        }
+                    }
+
+                    // Bottom Navigation Bar
+                    Rectangle {
+                        height: 64px;
+
+                        Rectangle {
+                            x: 0px;
+                            y: 0px;
+                            width: 100%;
+                            height: 1px;
+                            background: Palette.glass-border;
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                            alignment: end;
+                            spacing: 12px;
+
+                            VerticalLayout {
+                                alignment: center;
+                                NavButton {
+                                    text: "Back";
+                                    enabled: root.back-enabled;
+                                    clicked => { root.back-clicked(); }
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                NavButton {
+                                    text: root.next-label;
+                                    primary: true;
+                                    enabled: root.next-enabled;
+                                    clicked => { root.next-clicked(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Outer border
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+        }
+    }
+}

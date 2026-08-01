@@ -6,6 +6,7 @@ members = [
     "crates/ipc",
     "crates/updater",
     "crates/steam-wrapper",
+    "crates/installer",
 ]
 resolver = "2"
 
@@ -47,6 +48,9 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_System_Threading",
     "Win32_System_SecurityCenter",
 ] }
+slint-build = "1.17"
+winresource = "0.1.31"
+image = "0.25.10"
 
 [profile.release]
 opt-level = "s"

@@ -1,0 +1,55 @@
+import { Palette } from "../../global.slint";
+import { Card, CheckboxRow } from "../widgets.slint";
+
+export component FinishPage inherits VerticalLayout {
+    in property <bool> install-success;
+    in property <string> install-error;
+    in-out property <bool> launch-after;
+
+    spacing: 8px;
+    alignment: start;
+
+    Text {
+        text: "Finished";
+        font-size: 24px;
+        font-weight: 700;
+        color: Palette.text-primary;
+    }
+
+    Text {
+        text: root.install-success
+            ? "Aurora was installed successfully on your system."
+            : "Aurora could not be installed.";
+        font-size: 13px;
+        color: Palette.text-secondary;
+        wrap: word-wrap;
+    }
+
+    if !root.install-success && root.install-error != "": Text {
+        text: root.install-error;
+        font-size: 12px;
+        color: #ff6b6b;
+        wrap: word-wrap;
+    }
+
+    Rectangle { height: 8px; }
+
+    if root.install-success: Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 10px;
+
+            CheckboxRow {
+                label: "Launch Aurora";
+                checked <=> root.launch-after;
+            }
+
+            if root.launch-after: Text {
+                text: "Aurora will start with the required permissions.";
+                font-size: 12px;
+                color: #ffffff55;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

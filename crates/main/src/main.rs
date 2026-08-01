@@ -75,17 +75,6 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        if let Err(e) = slint::BackendSelector::new().select() {
-            warn!("Could not select the Slint backend: {e}");
-        }
-        if let Err(e) = slint::set_xdg_app_id(classes::desktop_entry::APP_ID) {
-            warn!("Could not set the XDG app id: {e}");
-        }
-        classes::desktop_entry::install();
-    }
-
     let window = MainWindow::new()?;
     window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
     let slint_window = window.window();

@@ -1,0 +1,45 @@
+import { Palette } from "../../global.slint";
+import { Card, CheckboxRow } from "../widgets.slint";
+
+export component WelcomePage inherits VerticalLayout {
+    in property <bool> is-linux;
+    in-out property <bool> option-desktop-shortcut;
+    in-out property <bool> option-start-menu;
+
+    spacing: 8px;
+    alignment: start;
+
+    Text {
+        text: "Welcome";
+        font-size: 24px;
+        font-weight: 700;
+        color: Palette.text-primary;
+    }
+
+    Text {
+        text: "Please select additional options to include while installing Aurora:";
+        font-size: 13px;
+        color: Palette.text-secondary;
+        wrap: word-wrap;
+    }
+
+    Rectangle { height: 8px; }
+
+    Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 16px;
+
+            CheckboxRow {
+                label: "Create a Desktop Shortcut";
+                enabled: !root.is-linux;
+                checked <=> root.option-desktop-shortcut;
+            }
+
+            CheckboxRow {
+                label: "Add Aurora to Start Menu";
+                checked <=> root.option-start-menu;
+            }
+        }
+    }
+}

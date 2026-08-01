@@ -1,0 +1,94 @@
+import { Palette } from "../../global.slint";
+import { Card } from "../widgets.slint";
+import { ListView } from "std-widgets.slint";
+
+export component InstallPage inherits VerticalLayout {
+    in property <float> progress;
+    in property <[string]> log-lines;
+    in property <int> log-count;
+
+    property <length> row-height: 18px;
+
+    spacing: 8px;
+
+    changed log-count => {
+        list.viewport-y = min(0px, list.visible-height - root.log-count * root.row-height);
+    }
+
+    Text {
+        text: "Installation";
+        font-size: 24px;
+        font-weight: 700;
+        color: Palette.text-primary;
+        vertical-stretch: 0;
+    }
+
+    Text {
+        text: "Aurora is now being installed. This might take a few minutes.";
+        font-size: 13px;
+        color: Palette.text-secondary;
+        wrap: word-wrap;
+        vertical-stretch: 0;
+    }
+
+    Rectangle {
+        height: 8px;
+        vertical-stretch: 0;
+    }
+
+    // Progress bar
+    Rectangle {
+        height: 8px;
+        border-radius: 4px;
+        background: #ffffff14;
+        clip: true;
+        vertical-stretch: 0;
+
+        Rectangle {
+            x: 0;
+            width: parent.width * Math.clamp(root.progress, 0.0, 1.0);
+            height: parent.height;
+            border-radius: 4px;
+            background: Palette.accent;
+            animate width { duration: 120ms; }
+        }
+    }
+
+    Text {
+        text: Math.round(Math.clamp(root.progress, 0.0, 1.0) * 100) + "%";
+        font-size: 12px;
+        color: Palette.text-secondary;
+        horizontal-alignment: right;
+        vertical-stretch: 0;
+    }
+
+    Card {
+        vertical-stretch: 1;
+        clip: true;
+
+        list := ListView {
+            x: 8px;
+            y: 8px;
+            width: parent.width - 16px;
+            height: parent.height - 16px;
+
+            for line in root.log-lines: Rectangle {
+                height: root.row-height;
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    alignment: start;
+
+                    Text {
+                        text: line;
+                        font-size: 12px;
+                        color: Palette.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+}

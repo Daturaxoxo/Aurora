@@ -1,0 +1,31 @@
+[package]
+name = "AuroraInstaller"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+shared = { path = "../shared" }
+ipc = { path = "../ipc" }
+
+slint = { workspace = true }
+open = { workspace = true }
+dirs = { workspace = true }
+anyhow = { workspace = true }
+sysinfo = { workspace = true }
+serde_json = { workspace = true }
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+ureq = { version = "3", default-features = false, features = [
+    "rustls",
+    "gzip",
+] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+mslnk = "0.1"
+
+[build-dependencies]
+slint-build = { workspace = true }
+image = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }

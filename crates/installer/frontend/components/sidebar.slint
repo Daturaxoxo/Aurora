@@ -1,0 +1,117 @@
+import { Palette } from "../global.slint";
+
+component StepRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> completed;
+
+    height: 40px;
+    border-radius: 8px;
+    background: root.completed ? #ffffff0c : (root.active ? #ffffff05 : transparent);
+    border-width: 1px;
+    border-color: root.active ? #ffffff22 : transparent;
+
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: root.label;
+                color: root.active ? Palette.text-primary : Palette.text-secondary;
+                font-size: 14px;
+                font-weight: root.active ? 600 : 400;
+
+                animate color { duration: 120ms; }
+            }
+        }
+
+        if root.completed: VerticalLayout {
+            alignment: center;
+            Path {
+                width: 14px;
+                height: 12px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 14;
+                viewbox-height: 12;
+                commands: "M1 6 L5 10 L13 1";
+                stroke: Palette.accent;
+                stroke-width: 2px;
+                fill: transparent;
+            }
+        }
+    }
+}
+
+export component Sidebar inherits Rectangle {
+    in property <int> current-step;
+    in property <bool> install-done;
+    in property <bool> install-success;
+
+    width: 220px;
+    background: #00000022;
+
+    VerticalLayout {
+        padding: 16px;
+        padding-top: 28px;
+        spacing: 4px;
+        alignment: start;
+
+        HorizontalLayout {
+            alignment: center;
+            Image {
+                source: @image-url("../../../../production/icons/logo.png");
+                width: 56px;
+                height: 56px;
+                image-rendering: smooth;
+                image-fit: contain;
+            }
+        }
+
+        Rectangle { height: 24px; }
+
+        StepRow {
+            label: "Welcome";
+            active: root.current-step == 0;
+            completed: root.current-step > 0;
+        }
+
+        StepRow {
+            label: "Location";
+            active: root.current-step == 1;
+            completed: root.current-step > 1;
+        }
+
+        StepRow {
+            label: "Preview";
+            active: root.current-step == 2;
+            completed: root.current-step > 2;
+        }
+
+        StepRow {
+            label: "Installation";
+            active: root.current-step == 3;
+            completed: root.install-done && root.install-success;
+        }
+
+        StepRow {
+            label: "Finish";
+            active: root.current-step == 4;
+            completed: root.current-step == 4 && root.install-done && root.install-success;
+        }
+    }
+
+    // Right separator line
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        height: 100%;
+        background: Palette.glass-border;
+    }
+}

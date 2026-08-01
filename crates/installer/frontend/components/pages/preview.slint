@@ -1,0 +1,123 @@
+import { Palette } from "../../global.slint";
+import { Card } from "../widgets.slint";
+
+export struct ComponentItem {
+    name: string,
+    size: string,
+}
+
+component SummaryRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+
+    alignment: space-between;
+    spacing: 16px;
+
+    Text {
+        text: root.label;
+        font-size: 13px;
+        color: Palette.text-secondary;
+    }
+
+    Text {
+        text: root.value;
+        font-size: 13px;
+        color: Palette.text-primary;
+        horizontal-alignment: right;
+        overflow: elide;
+    }
+}
+
+export component PreviewPage inherits VerticalLayout {
+    in property <bool> is-linux;
+    in property <bool> option-desktop-shortcut;
+    in property <bool> option-start-menu;
+    in property <string> install-path;
+    in property <[ComponentItem]> components;
+    in property <string> total-size;
+
+    spacing: 8px;
+    alignment: start;
+
+    Text {
+        text: "Preview";
+        font-size: 24px;
+        font-weight: 700;
+        color: Palette.text-primary;
+    }
+
+    Text {
+        text: "Aurora is now ready to install. Here are the options you selected:";
+        font-size: 13px;
+        color: Palette.text-secondary;
+        wrap: word-wrap;
+    }
+
+    Rectangle { height: 8px; }
+
+    Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 10px;
+
+            SummaryRow {
+                label: "Installation Folder";
+                value: root.install-path;
+            }
+
+            SummaryRow {
+                label: "Create a Desktop Shortcut";
+                value: root.is-linux ? "Not available" : (root.option-desktop-shortcut ? "Yes" : "No");
+            }
+
+            SummaryRow {
+                label: "Add Aurora to Start Menu";
+                value: root.option-start-menu ? "Yes" : "No";
+            }
+        }
+    }
+
+    Rectangle { height: 4px; }
+
+    Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 10px;
+
+            Text {
+                text: "Components to install";
+                font-size: 14px;
+                font-weight: 600;
+                color: Palette.text-primary;
+            }
+
+            for component in root.components: SummaryRow {
+                label: component.name;
+                value: component.size;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Palette.glass-border;
+            }
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                Text {
+                    text: "Total";
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.text-primary;
+                }
+
+                Text {
+                    text: root.total-size;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.text-primary;
+                }
+            }
+        }
+    }
+}
