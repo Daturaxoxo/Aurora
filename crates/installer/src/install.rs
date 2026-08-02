@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use ipc::manifest::{LocalManifest, Manifest, hash_file};
+use shared::desktop_entry::create_desktop_shortcut;
 use shared::utils::format_bytes;
 use slint::{Model, ModelRc, SharedString, VecModel, Weak};
 
@@ -240,7 +241,7 @@ fn run_inner(
     let aurora_exe = install_dir.join(ipc::AURORA_EXE);
     if desktop_shortcut {
         log_line(ui, "Creating desktop shortcut...".into());
-        if let Err(e) = backend::create_desktop_shortcut(&aurora_exe) {
+        if let Err(e) = create_desktop_shortcut(&aurora_exe) {
             log_line(
                 ui,
                 format!("WARNING: could not create desktop shortcut: {e}"),

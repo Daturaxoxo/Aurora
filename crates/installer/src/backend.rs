@@ -4,12 +4,6 @@ use anyhow::Result;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 use anyhow::anyhow;
 
-#[cfg(target_os = "windows")]
-pub fn create_desktop_shortcut(target: &Path) -> Result<()> {
-    let desktop = dirs::desktop_dir().ok_or_else(|| anyhow!("could not find desktop directory"))?;
-    create_lnk(target, &desktop.join("Aurora.lnk"))
-}
-
 #[cfg(target_os = "linux")]
 pub fn create_desktop_shortcut(_target: &Path) -> Result<()> {
     Ok(())
@@ -17,20 +11,6 @@ pub fn create_desktop_shortcut(_target: &Path) -> Result<()> {
 
 pub fn add_start_menu(target: &Path) -> Result<()> {
     shared::desktop_entry::install_for(target);
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn create_lnk(target: &Path, shortcut: &Path) -> Result<()> {
-    let mut link = mslnk::ShellLink::new(target)?;
-    link.set_name(Some("Aurora".to_string()));
-    link.set_working_dir(
-        target
-            .parent()
-            .and_then(|p| p.to_str())
-            .map(std::string::ToString::to_string),
-    );
-    link.create_lnk(shortcut)?;
     Ok(())
 }
 

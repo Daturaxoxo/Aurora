@@ -24,7 +24,6 @@ ureq = { version = "3", default-features = false, features = [
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-mslnk = "0.1"
 
 [build-dependencies]
 slint-build = { workspace = true }

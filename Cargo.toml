@@ -51,6 +51,7 @@ windows-sys = { version = "0.61.2", features = [
 slint-build = "1.17"
 winresource = "0.1.31"
 image = "0.25.10"
+mslnk = "0.1"
 
 [profile.release]
 opt-level = "s"

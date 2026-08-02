@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::*;
 use std::path::Path;
 
@@ -48,10 +48,28 @@ fn install_inner_windows(exe: &Path) -> Result<()> {
     create_lnk(exe, &programs.join("Aurora.lnk"))
 }
 
+#[cfg(target_os = "windows")]
+fn create_lnk(target: &Path, shortcut: &Path) -> Result<()> {
+    let mut link = mslnk::ShellLink::new(target)?;
+    link.set_name(Some("Aurora".to_string()));
+    link.set_working_dir(
+        target
+            .parent()
+            .and_then(|p| p.to_str())
+            .map(std::string::ToString::to_string),
+    );
+    link.create_lnk(shortcut)?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn create_desktop_shortcut(target: &Path) -> Result<()> {
+    let desktop = dirs::desktop_dir().ok_or_else(|| anyhow!("could not find desktop directory"))?;
+    create_lnk(target, &desktop.join("Aurora.lnk"))
+}
+
 #[cfg(target_os = "linux")]
 fn uninstall_inner_linux() -> Result<()> {
-    use anyhow::anyhow;
-
     let data_dir =
         dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
 
@@ -83,8 +101,6 @@ fn remove_if_present(path: &Path) -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn install_inner_linux(exe: &Path) -> Result<()> {
-    use anyhow::anyhow;
-
     let data_dir =
         dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
 
@@ -127,8 +143,6 @@ fn quote_exec(path: &str) -> String {
 
 #[cfg(target_os = "linux")]
 fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
-    use anyhow::anyhow;
-
     if std::fs::read(path).is_ok_and(|existing| existing == contents) {
         return Ok(());
     }
