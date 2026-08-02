@@ -33,6 +33,8 @@ fn install_inner_windows(_exe: &Path) -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn install_inner_linux(exe: &Path) -> Result<()> {
+    use anyhow::anyhow;
+
     let data_dir =
         dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
 
