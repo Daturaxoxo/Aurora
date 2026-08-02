@@ -39,6 +39,12 @@ fn main() -> Result<()> {
         error!("PANIC: {info}");
     }));
 
+    #[cfg(target_os = "linux")]
+    if is_running_root() {
+        error!("Aurora should not be run as root; exiting.");
+        return Ok(());
+    }
+
     let _instance_lock = match acquire_instance_lock() {
         Ok(Some(lock)) => Some(lock),
         Ok(None) => {
@@ -283,4 +289,9 @@ fn register_cjk_fallback() {
     }
 
     info!("Registered system CJK font as fallback for Han script");
+}
+
+#[cfg(target_os = "linux")]
+fn is_running_root() -> bool {
+    unsafe { libc::getuid() == 0 }
 }
