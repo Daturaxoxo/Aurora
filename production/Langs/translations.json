@@ -51,21 +51,21 @@
         "pt-BR": "Launcher"
     },
     {
-        "key": "settings.tab-proton",
-        "en": "Proton",
-        "tr": "Proton",
-        "zh": "Proton",
-        "es": "Proton",
-        "de": "Proton",
-        "nl": "Proton",
-        "fr": "Proton",
-        "it": "Proton",
-        "ru": "Proton",
-        "vi": "Proton",
-        "jp": "Proton",
-        "ko": "Proton",
-        "pt": "Proton",
-        "pt-BR": "Proton"
+        "key": "settings.tab-linux",
+        "en": "Linux",
+        "tr": "Linux",
+        "zh": "Linux",
+        "es": "Linux",
+        "de": "Linux",
+        "nl": "Linux",
+        "fr": "Linux",
+        "it": "Linux",
+        "ru": "Linux",
+        "vi": "Linux",
+        "jp": "Linux",
+        "ko": "Linux",
+        "pt": "Linux",
+        "pt-BR": "Linux"
     },
     {
         "key": "settings.tab-developer",
@@ -2295,7 +2295,7 @@
         "pt-BR": "OPÇÕES DE INICIALIZAÇÃO"
     },
     {
-        "key": "settings.proton-args.title",
+        "key": "settings.linux-args.title",
         "en": "Launch Arguments",
         "tr": "Başlatma Argümanları",
         "zh": "启动参数",
@@ -2312,7 +2312,7 @@
         "pt-BR": "Argumentos de inicialização"
     },
     {
-        "key": "settings.proton-args.subtitle",
+        "key": "settings.linux-args.subtitle",
         "en": "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.",
         "tr": "Steam başlatma seçenekleriyle aynı şekilde Proton'a aktarılır, örn. PROTON_LOG=1 -windowed. Otomatik kaydedilir.",
         "zh": "以与 Steam 启动选项相同的方式传递给 Proton，例如 PROTON_LOG=1 -windowed。自动保存。",
@@ -2329,7 +2329,7 @@
         "pt-BR": "São passados pelo Proton do mesmo jeito que as opções de inicialização da Steam, ex.: PROTON_LOG=1 -windowed. Salva automaticamente."
     },
     {
-        "key": "settings.proton-args.saved",
+        "key": "settings.linux-args.saved",
         "en": "Saved ✓",
         "tr": "Kaydedildi ✓",
         "zh": "已保存 ✓",
@@ -2346,7 +2346,7 @@
         "pt-BR": "Salvo ✓"
     },
     {
-        "key": "settings.proton-args.placeholder",
+        "key": "settings.linux-args.placeholder",
         "en": "ex: PROTON_LOG=1 -windowed",
         "tr": "örn: PROTON_LOG=1 -windowed",
         "zh": "例如：PROTON_LOG=1 -windowed",
@@ -2361,5 +2361,90 @@
         "ko": "예: PROTON_LOG=1 -windowed",
         "pt": "ex.: PROTON_LOG=1 -windowed",
         "pt-BR": "ex.: PROTON_LOG=1 -windowed"
+    },
+    {
+        "key": "settings.section.desktop-integration",
+        "en": "DESKTOP INTEGRATION",
+        "tr": "MASAÜSTÜ ENTEGRASYONU",
+        "zh": "桌面集成",
+        "es": "INTEGRACIÓN CON EL ESCRITORIO",
+        "de": "DESKTOP-INTEGRATION",
+        "nl": "BUREAUBLADINTEGRATIE",
+        "fr": "INTÉGRATION AU BUREAU",
+        "it": "INTEGRAZIONE CON IL DESKTOP",
+        "ru": "ИНТЕГРАЦИЯ С РАБОЧИМ СТОЛОМ",
+        "vi": "TÍCH HỢP VỚI DESKTOP",
+        "jp": "デスクトップ統合",
+        "ko": "데스크톱 통합",
+        "pt": "INTEGRAÇÃO COM O AMBIENTE DE TRABALHO",
+        "pt-BR": "INTEGRAÇÃO COM A ÁREA DE TRABALHO"
+    },
+    {
+        "key": "settings.desktop-entry.title",
+        "en": "Desktop Entry",
+        "tr": "Masaüstü Girdisi",
+        "zh": "桌面项",
+        "es": "Entrada de escritorio",
+        "de": "Desktop-Eintrag",
+        "nl": "Bureaubladvermelding",
+        "fr": "Entrée de bureau",
+        "it": "Voce del desktop",
+        "ru": "Ярлык приложения",
+        "vi": "Mục desktop",
+        "jp": "デスクトップエントリ",
+        "ko": "데스크톱 항목",
+        "pt": "Entrada de ambiente de trabalho",
+        "pt-BR": "Entrada na área de trabalho"
+    },
+    {
+        "key": "settings.desktop-entry.subtitle",
+        "en": "Adds Aurora to your application menu so it shows up alongside your other apps.",
+        "tr": "Aurora'yı uygulama menüne ekler, böylece diğer uygulamalarının yanında görünür.",
+        "zh": "将 Aurora 添加到应用程序菜单，使其与其他应用一起显示。",
+        "es": "Añade Aurora al menú de aplicaciones para que aparezca junto a tus otras apps.",
+        "de": "Fügt Aurora zum Anwendungsmenü hinzu, damit es neben deinen anderen Apps erscheint.",
+        "nl": "Voegt Aurora toe aan je toepassingenmenu, zodat het naast je andere apps verschijnt.",
+        "fr": "Ajoute Aurora au menu des applications pour qu'il apparaisse avec vos autres applis.",
+        "it": "Aggiunge Aurora al menu delle applicazioni, così compare insieme alle altre app.",
+        "ru": "Добавляет Aurora в меню приложений, чтобы она отображалась рядом с другими программами.",
+        "vi": "Thêm Aurora vào menu ứng dụng để hiển thị cùng các ứng dụng khác.",
+        "jp": "Aurora をアプリケーションメニューに追加し、他のアプリと並べて表示します。",
+        "ko": "Aurora를 애플리케이션 메뉴에 추가하여 다른 앱과 함께 표시되도록 합니다.",
+        "pt": "Adiciona o Aurora ao menu de aplicações para aparecer junto das outras apps.",
+        "pt-BR": "Adiciona o Aurora ao menu de aplicativos para aparecer junto dos seus outros apps."
+    },
+    {
+        "key": "popup.desktop-entry.title",
+        "en": "Add Aurora to your desktop?",
+        "tr": "Aurora masaüstüne eklensin mi?",
+        "zh": "将 Aurora 添加到桌面？",
+        "es": "¿Añadir Aurora a tu escritorio?",
+        "de": "Aurora zum Desktop hinzufügen?",
+        "nl": "Aurora aan je bureaublad toevoegen?",
+        "fr": "Ajouter Aurora à votre bureau ?",
+        "it": "Aggiungere Aurora al desktop?",
+        "ru": "Добавить Aurora на рабочий стол?",
+        "vi": "Thêm Aurora vào desktop?",
+        "jp": "Aurora をデスクトップに追加しますか？",
+        "ko": "Aurora를 데스크톱에 추가할까요?",
+        "pt": "Adicionar o Aurora ao ambiente de trabalho?",
+        "pt-BR": "Adicionar o Aurora à área de trabalho?"
+    },
+    {
+        "key": "popup.desktop-entry.message",
+        "en": "Aurora can install a desktop entry so it appears in your application menu alongside your other apps. You can change this later in Settings → Linux.",
+        "tr": "Aurora, uygulama menünde diğer uygulamaların yanında görünmek için bir masaüstü girdisi kurabilir. Bunu daha sonra Ayarlar → Linux bölümünden değiştirebilirsin.",
+        "zh": "Aurora 可以安装桌面项，使其与其他应用一起显示在应用程序菜单中。你可以稍后在“设置 → Linux”中更改。",
+        "es": "Aurora puede instalar una entrada de escritorio para aparecer en tu menú de aplicaciones junto a tus otras apps. Puedes cambiarlo más tarde en Ajustes → Linux.",
+        "de": "Aurora kann einen Desktop-Eintrag installieren, damit es im Anwendungsmenü neben deinen anderen Apps erscheint. Du kannst das später unter Einstellungen → Linux ändern.",
+        "nl": "Aurora kan een bureaubladvermelding installeren, zodat het in je toepassingenmenu naast je andere apps verschijnt. Je kunt dit later wijzigen bij Instellingen → Linux.",
+        "fr": "Aurora peut installer une entrée de bureau pour apparaître dans votre menu des applications avec vos autres applis. Vous pourrez le modifier plus tard dans Paramètres → Linux.",
+        "it": "Aurora può installare una voce del desktop per comparire nel menu delle applicazioni insieme alle altre app. Puoi cambiarlo in seguito in Impostazioni → Linux.",
+        "ru": "Aurora может установить ярлык приложения, чтобы отображаться в меню программ рядом с другими приложениями. Изменить это можно позже в «Настройки → Linux».",
+        "vi": "Aurora có thể cài một mục desktop để hiển thị trong menu ứng dụng cùng các ứng dụng khác. Bạn có thể thay đổi sau trong Cài đặt → Linux.",
+        "jp": "Aurora はデスクトップエントリをインストールして、他のアプリと並べてアプリケーションメニューに表示できます。この設定は後から「設定 → Linux」で変更できます。",
+        "ko": "Aurora가 데스크톱 항목을 설치하면 애플리케이션 메뉴에서 다른 앱과 함께 표시됩니다. 나중에 설정 → Linux에서 변경할 수 있습니다.",
+        "pt": "O Aurora pode instalar uma entrada de ambiente de trabalho para aparecer no menu de aplicações junto das outras apps. Pode alterar isto mais tarde em Definições → Linux.",
+        "pt-BR": "O Aurora pode instalar uma entrada na área de trabalho para aparecer no menu de aplicativos junto dos seus outros apps. Você pode mudar isso depois em Configurações → Linux."
     }
 ]

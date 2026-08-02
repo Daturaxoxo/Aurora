@@ -40,15 +40,15 @@ fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
 
 pub fn file_size(url: &str) -> Option<u64> {
     let response = agent().head(url).call().ok()?;
-    if let Some(len) = response.body().content_length() {
-        if len > 0 {
-            return Some(len);
-        }
+    if let Some(len) = response.body().content_length()
+        && len > 0
+    {
+        return Some(len);
     }
     let response = agent().get(url).call().ok()?;
     let headers = response.headers();
     let content_range = headers.get("content-length")?.to_str().ok()?;
-    content_range.split('/').last()?.parse::<u64>().ok()
+    content_range.split('/').next_back()?.parse::<u64>().ok()
 }
 
 pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {

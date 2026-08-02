@@ -8,6 +8,12 @@ pub const APP_ID: &str = "aurora";
 const ICON: &[u8] = include_bytes!("../../../production/icons/logo.png");
 
 pub fn install() {
+    #[cfg(target_os = "linux")]
+    if let Some(appimage) = ipc::appimage_path() {
+        install_for(&appimage);
+        return;
+    }
+
     match std::env::current_exe() {
         Ok(exe) => install_for(&exe),
         Err(e) => warn!("Could not resolve the current exe for the desktop entry: {e}"),
@@ -26,9 +32,53 @@ pub fn install_for(exe: &Path) {
     }
 }
 
+pub fn uninstall() {
+    #[cfg(target_os = "linux")]
+    if let Err(e) = uninstall_inner_linux() {
+        warn!("Could not remove the desktop entry: {e}");
+    }
+}
+
 #[cfg(target_os = "windows")]
-fn install_inner_windows(_exe: &Path) -> Result<()> {
-    todo!()
+fn install_inner_windows(exe: &Path) -> Result<()> {
+    let programs = dirs::config_dir()
+        .ok_or_else(|| anyhow!("could not find the AppData directory"))?
+        .join("Microsoft/Windows/Start Menu/Programs");
+    std::fs::create_dir_all(&programs)?;
+    create_lnk(exe, &programs.join("Aurora.lnk"))
+}
+
+#[cfg(target_os = "linux")]
+fn uninstall_inner_linux() -> Result<()> {
+    use anyhow::anyhow;
+
+    let data_dir =
+        dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
+
+    remove_if_present(
+        &data_dir
+            .join("applications")
+            .join(format!("{APP_ID}.desktop")),
+    )?;
+    remove_if_present(
+        &data_dir
+            .join("icons/hicolor/64x64/apps")
+            .join(format!("{APP_ID}.png")),
+    )?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn remove_if_present(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            info!("Removed {}", path.display());
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -46,27 +96,27 @@ fn install_inner_linux(exe: &Path) -> Result<()> {
     let entry_path = data_dir
         .join("applications")
         .join(format!("{APP_ID}.desktop"));
-    write_if_changed(&entry_path, entry_contents(exe)?.as_bytes())?;
+    write_if_changed(&entry_path, entry_contents(exe).as_bytes())?;
 
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-fn entry_contents(exe: &Path) -> Result<String> {
+fn entry_contents(exe: &Path) -> String {
     let exec = quote_exec(&exe.display().to_string());
 
-    Ok(format!(
+    format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=Aurora\n\
-         Comment=Mod manager and launcher for NTE\n\
+         Comment=Mod manager and launcher\n\
          Exec={exec}\n\
          Icon={APP_ID}\n\
          Terminal=false\n\
          Categories=Game;\n\
          StartupNotify=true\n\
          StartupWMClass={APP_ID}\n"
-    ))
+    )
 }
 
 #[cfg(target_os = "linux")]

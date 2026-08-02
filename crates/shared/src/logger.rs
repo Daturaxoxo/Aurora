@@ -14,7 +14,16 @@ use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor}
 use crate::telemetry::{spawn_error_worker, ErrorEvent};
 
 const FILTER_ENV: &str = "AURORA_LOG";
-const LOG_FILE: &str = "Logs/aurora";
+
+#[cfg(windows)]
+pub(crate) fn log_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from("Logs")
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn log_dir() -> std::path::PathBuf {
+    ipc::state_root().join("Logs")
+}
 
 /// Maximum amount of log entries allowed in the in-memory buffer
 pub const LOG_BUFFER_CAPACITY: usize = 10_000;
@@ -100,7 +109,10 @@ impl Logger {
         builder.filter_module("mslnk", log::LevelFilter::Off);
 
         let startup_timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
-        let log_file_path = format!("{LOG_FILE}-{startup_timestamp}.log");
+        let log_file_path = log_dir()
+            .join(format!("aurora-{startup_timestamp}.log"))
+            .display()
+            .to_string();
 
         let path = Path::new(&log_file_path);
         if let Some(p) = path.parent() {
@@ -224,15 +236,23 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
-pub fn get_latest_logs() -> Option<String> {
-    let log_dir_path = std::env::current_exe()
+#[cfg(windows)]
+pub fn logs_directory() -> std::path::PathBuf {
+    std::env::current_exe()
         .unwrap()
         .parent()
         .unwrap()
         .to_path_buf()
-        .join("Logs");
+        .join("Logs")
+}
 
-    let last_modified_file = std::fs::read_dir(log_dir_path)
+#[cfg(target_os = "linux")]
+pub fn logs_directory() -> std::path::PathBuf {
+    log_dir()
+}
+
+pub fn get_latest_logs() -> Option<String> {
+    let last_modified_file = std::fs::read_dir(logs_directory())
         .expect("Couldn't access local directory")
         .flatten()
         .filter(|f| f.metadata().unwrap().is_file())

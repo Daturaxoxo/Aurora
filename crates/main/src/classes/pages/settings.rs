@@ -77,13 +77,18 @@ impl SettingsHandler {
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
-        // Proton (Linux only)
+        // Linux only
         w.set_is_linux(cfg!(target_os = "linux"));
         if cfg!(target_os = "linux") {
             let raw_proton = config::get(key::PROTON_ARGS);
             let proton_args = raw_proton.as_str().unwrap_or("").to_string();
             debug!("[Settings] proton_args: raw={raw_proton:?} → {proton_args:?}");
             w.set_proton_launch_args(proton_args.into());
+
+            let raw_entry = config::get(key::DESKTOP_ENTRY);
+            let desktop_entry = raw_entry.as_bool().unwrap_or(false);
+            debug!("[Settings] desktop_entry: raw={raw_entry:?} → {desktop_entry}");
+            w.set_desktop_entry(desktop_entry);
         }
 
         // Developer
@@ -205,12 +210,27 @@ impl SettingsHandler {
             }
         });
 
-        // [PROTON]
+        // [LINUX]
 
         w.on_proton_launch_args_changed(move |args| {
             info!("[Settings] proton_launch_args changed → {args:?}");
             config::set(key::PROTON_ARGS, args.as_str());
             debug!("[Settings] proton_args saved to config");
+        });
+
+        w.on_desktop_entry_changed(move |enabled| {
+            info!("[Settings] desktop_entry changed → {enabled}");
+
+            #[cfg(target_os = "linux")]
+            {
+                crate::classes::desktop::apply(enabled);
+                crate::classes::desktop::mark_prompted();
+            }
+
+            #[cfg(not(target_os = "linux"))]
+            config::set(key::DESKTOP_ENTRY, enabled);
+
+            debug!("[Settings] desktop_entry saved to config");
         });
 
         // [DEVELOPER]
@@ -239,22 +259,10 @@ impl SettingsHandler {
                                 "success",
                             );
 
-                            let logs_dir = std::env::current_exe()
-                                .ok()
-                                .and_then(|p| p.parent().map(|p| p.join("Logs")));
-
-                            if let Some(path) = logs_dir {
-                                if let Err(e) = open::that(&path) {
-                                    error!("[Settings] failed to open Logs directory: {e}");
-                                    ToastHandler::show(&ww, "Failed to open logs folder.", "error");
-                                }
-                            } else {
-                                error!("[Settings] failed to resolve Logs directory path");
-                                ToastHandler::show(
-                                    &ww,
-                                    "Failed to resolve logs directory path.",
-                                    "error",
-                                );
+                            let logs_dir = shared::logger::logs_directory();
+                            if let Err(e) = open::that(&logs_dir) {
+                                error!("[Settings] failed to open Logs directory: {e}");
+                                ToastHandler::show(&ww, "Failed to open logs folder.", "error");
                             }
                         }
                         Err(e) => {

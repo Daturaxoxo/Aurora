@@ -59,6 +59,8 @@ pub mod key {
     pub const SELECTED_GAME: &str = "selected_game";
     pub const PROTON_ARGS: &str = "proton_args";
     pub const QUICK_START_CREATED: &str = "quick_start_created";
+    pub const DESKTOP_ENTRY: &str = "desktop_entry";
+    pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -76,7 +78,9 @@ pub fn default_value(k: &str) -> Value {
         | key::COLLECTIBLES
         | key::COOLDOWN_TIMER
         | key::GB_NSFW
-        | key::QUICK_START_CREATED => {
+        | key::QUICK_START_CREATED
+        | key::DESKTOP_ENTRY
+        | key::DESKTOP_ENTRY_PROMPTED => {
             json!(false)
         }
 

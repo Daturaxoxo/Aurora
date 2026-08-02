@@ -15,16 +15,6 @@ pub fn create_desktop_shortcut(_target: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-pub fn add_start_menu(target: &Path) -> Result<()> {
-    let programs = dirs::config_dir()
-        .ok_or_else(|| anyhow!("could not find the AppData directory"))?
-        .join("Microsoft/Windows/Start Menu/Programs");
-    std::fs::create_dir_all(&programs)?;
-    create_lnk(target, &programs.join("Aurora.lnk"))
-}
-
-#[cfg(target_os = "linux")]
 pub fn add_start_menu(target: &Path) -> Result<()> {
     shared::desktop_entry::install_for(target);
     Ok(())

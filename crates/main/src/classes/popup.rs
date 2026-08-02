@@ -37,6 +37,12 @@ impl PopupHandler {
                     "beta-phase-inactive" => {
                         std::process::exit(0);
                     }
+                    #[cfg(target_os = "linux")]
+                    crate::classes::desktop::POPUP_ID => {
+                        crate::classes::desktop::apply(true);
+                        crate::classes::desktop::mark_prompted();
+                        ww.set_desktop_entry(true);
+                    }
                     "repair" => {
                         let checkboxes = ww
                             .get_popup_checkboxes()
@@ -63,6 +69,11 @@ impl PopupHandler {
             if let Some(_w) = w.upgrade() {
                 if id.as_str() == "beta-phase-inactive" {
                     std::process::exit(0);
+                }
+
+                #[cfg(target_os = "linux")]
+                if id.as_str() == crate::classes::desktop::POPUP_ID {
+                    crate::classes::desktop::mark_prompted();
                 }
             }
         });

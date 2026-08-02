@@ -1,6 +1,8 @@
 #![feature(integer_casts)]
 #![feature(file_buffered)]
 
+#[cfg(target_os = "linux")]
+pub mod appimage;
 pub mod archive;
 pub mod config;
 pub mod desktop_entry;

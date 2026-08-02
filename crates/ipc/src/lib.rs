@@ -30,6 +30,9 @@ pub const UPDATER_EXE: &str = "updater";
 
 pub const LOCAL_MANIFEST_FILE: &str = ".aurora_manifest.json";
 
+#[cfg(target_os = "linux")]
+pub const APPIMAGE_NAME: &str = "Aurora-x86_64.AppImage";
+
 pub const AURORA_LOCK_FILE: &str = "aurora.lock";
 pub const UPDATER_LOCK_FILE: &str = "updater.lock";
 
@@ -55,4 +58,26 @@ pub fn install_root() -> PathBuf {
         .parent()
         .map(PathBuf::from)
         .expect("exe has no parent directory")
+}
+
+#[cfg(windows)]
+pub fn state_root() -> PathBuf {
+    install_root()
+}
+
+#[cfg(target_os = "linux")]
+pub fn state_root() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("Aurora")
+}
+
+#[cfg(target_os = "linux")]
+pub fn appimage_path() -> Option<PathBuf> {
+    std::env::var_os("APPIMAGE").map(PathBuf::from)
+}
+
+#[cfg(target_os = "linux")]
+pub fn appimage_mount() -> Option<PathBuf> {
+    std::env::var_os("APPDIR").map(PathBuf::from)
 }

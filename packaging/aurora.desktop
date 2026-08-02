@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Aurora
+Comment=Mod manager and launcher
+Exec=Aurora
+Icon=aurora
+Terminal=false
+Categories=Game;
+StartupNotify=true
+StartupWMClass=aurora

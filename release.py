@@ -2,9 +2,12 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import platform
 from urllib.parse import quote
+
+APPIMAGE_NAME = "Aurora-x86_64.AppImage"
 
 BASE_URL = "https://host.getaurora.moe/files/app/"
 # BASE_URL = "https://github.com/Alawapr/aurora-test/releases/latest/download/"
@@ -185,58 +188,106 @@ def build_manifest(
     return output_data
 
 
-def main():
-    if sys.argv[1] is None:
-        print(f"Usage: python {sys.argv[0]} <version>")
+def build_linux_manifest(version, appimage_path, output_path, base_url=BASE_URL):
+    """
+    Writes the Linux manifest.
+
+    Linux ships one artifact rather than a file list: the AppImage is a single
+    immutable file, so there is nothing to update piecewise. Aurora compares the
+    hash below against the .AppImage it is running from.
+    """
+    file_hash = calculate_sha256(appimage_path)
+    if file_hash is None:
+        print(f"[LINUX MANIFEST]: could not hash {appimage_path}")
         sys.exit(1)
-    version = sys.argv[1]
-    os_name = get_os()
+
+    output_data = {
+        "version": version,
+        "appimage": {
+            "sha256": file_hash,
+            "url": base_url + quote(APPIMAGE_NAME),
+        },
+    }
+
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as json_file:
+        json.dump(output_data, json_file, indent=2)
+
+    print(f"Wrote {output_path}")
+    return output_data
+
+
+def release_windows(version):
     if folder_exists("./release"):
         shutil.rmtree("./release")
     os.mkdir("./release")
-    if os_name == "windows":
-        copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
-        copy_file("./target/release/updater.exe", "./release/updater.exe")
-    elif os_name == "linux":
-        copy_file("./target/release/Aurora", "./release/Aurora")
-        copy_file("./target/release/updater", "./release/updater")
+
+    copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
+    copy_file("./target/release/updater.exe", "./release/updater.exe")
 
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
     copy_file("./steam_appid.txt", "./release/steam_appid.txt")
-    if os_name == "windows":
-        shutil.make_archive(
-            base_name=f"aurora-{version}-WINDOWS", format="zip", base_dir="./release"
-        )
-    elif os_name == "linux":
-        shutil.make_archive(
-            base_name=f"aurora-{version}-LINUX", format="zip", base_dir="./release"
-        )
+    shutil.make_archive(
+        base_name=f"aurora-{version}-WINDOWS", format="zip", base_dir="./release"
+    )
 
     if folder_exists("./release-host"):
         shutil.rmtree("./release-host")
     os.mkdir("./release-host")
-    if os_name == "windows":
-        copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
-        copy_file("./target/release/updater.exe", "./release-host/updater.exe")
-    elif os_name == "linux":
-        copy_file("./target/release/Aurora", "./release-host/Aurora")
-        copy_file("./target/release/updater", "./release-host/updater")
+    copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
+    copy_file("./target/release/updater.exe", "./release-host/updater.exe")
 
-    copy_file("./release/manifest.json", f"./release-host/{os_name}/manifest.json")
+    copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
         file_name = path_to_filename(file)
         copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
 
+    shutil.make_archive(
+        base_name=f"aurora-host-{version}-WINDOWS",
+        format="zip",
+        base_dir="./release-host",
+    )
+
+
+def release_linux(version):
+    print("Building the AppImage...")
+    subprocess.run(["./packaging/build-appimage.sh"], check=True)
+
+    if not os.path.exists(APPIMAGE_NAME):
+        print(f"[LINUX RELEASE]: {APPIMAGE_NAME} was not produced")
+        sys.exit(1)
+
+    if folder_exists("./release"):
+        shutil.rmtree("./release")
+    os.mkdir("./release")
+    copy_file(APPIMAGE_NAME, f"./release/{APPIMAGE_NAME}")
+    build_linux_manifest(version, APPIMAGE_NAME, "./release/manifest.json")
+
+    if folder_exists("./release-host"):
+        shutil.rmtree("./release-host")
+    os.mkdir("./release-host")
+    copy_file(APPIMAGE_NAME, f"./release-host/{APPIMAGE_NAME}")
+    build_linux_manifest(version, APPIMAGE_NAME, "./release-host/linux/manifest.json")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(f"Usage: python {sys.argv[0]} <version>")
+        sys.exit(1)
+    version = sys.argv[1]
+    os_name = get_os()
+
     if os_name == "windows":
-        shutil.make_archive(
-            base_name=f"aurora-host-{version}-WINDOWS", format="zip", base_dir="./release-host"
-        )
+        release_windows(version)
     elif os_name == "linux":
-        shutil.make_archive(
-            base_name=f"aurora-host-{version}-LINUX", format="zip", base_dir="./release-host"
-        )
+        release_linux(version)
+    else:
+        print(f"[RELEASE]: unsupported platform: {os_name}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

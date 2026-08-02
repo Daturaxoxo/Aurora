@@ -45,6 +45,16 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    if let Err(e) = std::fs::create_dir_all(ipc::state_root()) {
+        error!("Could not create the state directory: {e}");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    if let Err(e) = shared::appimage::sync_bin() {
+        error!("Could not sync the bundled Bin payload: {e}");
+    }
+
     let _instance_lock = match acquire_instance_lock() {
         Ok(Some(lock)) => Some(lock),
         Ok(None) => {
@@ -82,6 +92,12 @@ fn main() -> Result<()> {
     }
 
     let window = MainWindow::new()?;
+
+    #[cfg(target_os = "linux")]
+    if let Err(e) = slint::set_xdg_app_id(shared::desktop_entry::APP_ID) {
+        warn!("Could not set the XDG app id: {e}");
+    }
+
     window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
     let slint_window = window.window();
 
@@ -165,13 +181,9 @@ fn main() -> Result<()> {
         ),
     );
 
-    match rayon::ThreadPoolBuilder::new()
+    let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(s.cpus().iter().count() / 2)
-        .build_global()
-    {
-        Ok(()) => (),
-        Err(e) => error!("Could not create rayon pool: {e}"),
-    }
+        .build_global();
 
     ToastHandler::setup(window.as_weak());
     ButtonHandler::setup(&window.as_weak());
@@ -184,13 +196,14 @@ fn main() -> Result<()> {
     ModulesHandler::setup(&window.as_weak());
     GbBrowserHandler::setup(&window.as_weak());
 
-    let bin_dir = std::env::current_exe()?
-        .parent()
-        .map(|p| p.join("Bin"))
-        .ok_or_else(|| anyhow!("could not determine the executable's directory"))?;
+    let bin_dir = shared::utils::get_bin_path()
+        .ok_or_else(|| anyhow!("could not determine the Bin directory"))?;
     LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
+
+    #[cfg(target_os = "linux")]
+    classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
     slint::run_event_loop_until_quit()?;
@@ -232,7 +245,7 @@ fn create_quick_start_shortcut() -> Result<()> {
 }
 
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
-    let path = ipc::install_root().join(ipc::AURORA_LOCK_FILE);
+    let path = ipc::state_root().join(ipc::AURORA_LOCK_FILE);
     let relaunched = std::env::args().any(|arg| arg == ipc::RELAUNCH_ARG);
 
     let attempts = if relaunched { 40 } else { 1 };

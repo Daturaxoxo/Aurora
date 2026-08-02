@@ -27,6 +27,8 @@ zip = { version = "9.0.0-pre2", default-features = false, features = [
     "zstd",
 ] }
 
+ipc = { path = "../ipc" }
+
 archive = { workspace = true }
 slint = { workspace = true }
 anyhow = { workspace = true }
