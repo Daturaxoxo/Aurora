@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use log::*;
 use std::path::Path;
 
@@ -14,8 +14,6 @@ pub fn install() {
     }
 }
 
-/// Installs the desktop entry pointing at `exe` instead of the current
-/// executable (e.g. the installer registering the installed Aurora binary).
 pub fn install_for(exe: &Path) {
     #[cfg(target_os = "linux")]
     if let Err(e) = install_inner_linux(exe) {
@@ -69,12 +67,16 @@ fn entry_contents(exe: &Path) -> Result<String> {
     ))
 }
 
+#[cfg(target_os = "linux")]
 fn quote_exec(path: &str) -> String {
     let escaped = path.replace('\\', r"\\").replace('"', r#"\""#);
     format!("\"{escaped}\"")
 }
 
+#[cfg(target_os = "linux")]
 fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
+    use anyhow::anyhow;
+
     if std::fs::read(path).is_ok_and(|existing| existing == contents) {
         return Ok(());
     }

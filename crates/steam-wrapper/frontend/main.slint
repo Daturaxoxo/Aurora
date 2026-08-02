@@ -22,8 +22,16 @@ export component AppWindow inherits Window {
     property <length> drag-start-x;
     property <length> drag-start-y;
 
-    property <length> title-size: root.width < 860px ? 14px : root.width < 960px ? 15px : root.width < 1280px ? 16px : root.width < 1680px ? 17px : root.width < 1920px ? 18px : root.width < 2560px ? 20px : root.width < 3600px ? 22px : 24px;
-    property <length> subtitle-size: root.width < 860px ? 12px : root.width < 960px ? 13px : root.width < 1280px ? 14px : root.width < 1680px ? 15px : root.width < 1920px ? 16px : root.width < 2560px ? 18px : root.width < 3600px ? 20px : 22px;
+    // These are assigned imperatively rather than bound to root.width: a
+    // binding would make the text sizes part of the window's layout info,
+    // which depends on the window width in turn (a binding loop).
+    property <length> title-size: 14px;
+    property <length> subtitle-size: 12px;
+
+    changed width => {
+        root.title-size = root.width < 860px ? 14px : root.width < 960px ? 15px : root.width < 1280px ? 16px : root.width < 1680px ? 17px : root.width < 1920px ? 18px : root.width < 2560px ? 20px : root.width < 3600px ? 22px : 24px;
+        root.subtitle-size = root.width < 860px ? 12px : root.width < 960px ? 13px : root.width < 1280px ? 14px : root.width < 1680px ? 15px : root.width < 1920px ? 16px : root.width < 2560px ? 18px : root.width < 3600px ? 20px : 22px;
+    }
 
     TouchArea {
         width: 100%;
