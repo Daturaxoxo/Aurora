@@ -50,9 +50,13 @@ component StepRow inherits Rectangle {
 }
 
 export component Sidebar inherits Rectangle {
+    in property <[string]> steps;
     in property <int> current-step;
-    in property <bool> install-done;
-    in property <bool> install-success;
+    // Index of the step that runs the long job (installing / uninstalling).
+    // That step and the final one only tick once the job actually succeeded.
+    in property <int> job-step;
+    in property <bool> job-done;
+    in property <bool> job-success;
 
     width: 220px;
     background: #00000022;
@@ -76,34 +80,12 @@ export component Sidebar inherits Rectangle {
 
         Rectangle { height: 24px; }
 
-        StepRow {
-            label: "Welcome";
-            active: root.current-step == 0;
-            completed: root.current-step > 0;
-        }
-
-        StepRow {
-            label: "Location";
-            active: root.current-step == 1;
-            completed: root.current-step > 1;
-        }
-
-        StepRow {
-            label: "Preview";
-            active: root.current-step == 2;
-            completed: root.current-step > 2;
-        }
-
-        StepRow {
-            label: "Installation";
-            active: root.current-step == 3;
-            completed: root.install-done && root.install-success;
-        }
-
-        StepRow {
-            label: "Finish";
-            active: root.current-step == 4;
-            completed: root.current-step == 4 && root.install-done && root.install-success;
+        for step-label[i] in root.steps: StepRow {
+            label: step-label;
+            active: root.current-step == i;
+            completed: (i == root.job-step || i == root.steps.length - 1)
+                ? root.current-step >= i && root.job-done && root.job-success
+                : root.current-step > i;
         }
     }
 

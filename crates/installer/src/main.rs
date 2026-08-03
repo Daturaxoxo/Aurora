@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-slint::include_modules!();
+include!(concat!(env!("OUT_DIR"), "/main.rs"));
 
 mod backend;
 mod install;

@@ -13,7 +13,11 @@ fn main() {
         }
     }
 
+    // Each entry point lands in $OUT_DIR/<file stem>.rs. The binaries include
+    // their own file by name instead of `slint::include_modules!()`, which can
+    // only ever point at whichever file was compiled last.
     slint_build::compile("./frontend/main.slint").unwrap();
+    slint_build::compile("./frontend/uninstall.slint").unwrap();
 }
 
 fn process_directory(root_source: &Path, current_source: &Path, target_base: &Path) {

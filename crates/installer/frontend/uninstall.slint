@@ -1,14 +1,9 @@
 import { Palette } from "global.slint";
-import { IconButton, NavButton } from "components/widgets.slint";
+import { IconButton, NavButton, Card } from "components/widgets.slint";
 import { Sidebar } from "components/sidebar.slint";
-import { WelcomePage } from "components/pages/welcome.slint";
-import { LocationPage } from "components/pages/location.slint";
-import { PreviewPage, ComponentItem } from "components/pages/preview.slint";
+import { UninstallWelcomePage } from "components/pages/uninstall-welcome.slint";
 import { ProgressPage } from "components/pages/progress.slint";
-import { FinishPage } from "components/pages/finish.slint";
-export {
-    ComponentItem,
-}
+import { UninstallFinishPage } from "components/pages/uninstall-finish.slint";
 
 component StepPage inherits Rectangle {
     in property <bool> active;
@@ -53,8 +48,8 @@ component StepPage inherits Rectangle {
     @children
 }
 
-export component InstallerWindow inherits Window {
-    title: "Aurora Installer";
+export component UninstallerWindow inherits Window {
+    title: "Aurora Uninstaller";
     no-frame: true;
     background: transparent;
     resize-border-width: 6px;
@@ -71,43 +66,35 @@ export component InstallerWindow inherits Window {
     callback close-clicked();
     callback window-dragged(length, length);
 
-    // 0 = Welcome, 1 = Location, 2 = Preview, 3 = Installation, 4 = Finish
+    // 0 = Welcome, 1 = Uninstallation, 2 = Finish
     in-out property <int> current-step: 0;
     callback next-clicked();
-    callback back-clicked();
+    callback cancel-clicked();
 
     // Welcome Properties
-    in property <bool> is-linux: false;
-    in-out property <bool> option-desktop-shortcut: true;
-    in-out property <bool> option-start-menu: true;
+    in property <string> app-path: "";
+    in property <string> mods-path: "";
+    in property <bool> mods-available: false;
+    in property <bool> dev-build: false;
+    in-out property <bool> option-delete-config: true;
+    in-out property <bool> option-delete-mods: false;
+    in-out property <bool> option-preserve-mods: true;
 
-    // Location Properties
-    in-out property <string> install-path: "";
-    in property <string> space-required: "";
-    in property <string> space-available: "";
-    callback browse-clicked();
-    callback reset-path-clicked();
-    callback path-edited(string);
-
-    // Preview Properties
-    in property <[ComponentItem]> components: [];
-    in property <string> total-size: "";
-
-    // Installation Properties
-    in property <float> install-progress: 0.0;
-    in property <[string]> install-log: [];
-    in property <int> install-log-count: 0;
-    in property <bool> install-done: false;
-    in property <bool> install-success: false;
-    in property <string> install-error: "";
+    // Uninstallation Properties
+    in property <float> uninstall-progress: 0.0;
+    in property <[string]> uninstall-log: [];
+    in property <int> uninstall-log-count: 0;
+    in property <bool> uninstall-done: false;
+    in property <bool> uninstall-success: false;
+    in property <string> uninstall-error: "";
 
     // Finish Properties
-    in-out property <bool> launch-after: true;
+    in property <string> backup-path: "";
 
-    property <bool> back-enabled: root.current-step == 1 || root.current-step == 2;
-    property <bool> next-enabled: root.current-step != 3 || root.install-done;
-    property <string> next-label: root.current-step == 2 ? "Install"
-        : root.current-step == 4 ? "Finish"
+    property <bool> confirm-visible: false;
+    property <bool> next-enabled: root.current-step != 1 || root.uninstall-done;
+    property <string> next-label: root.current-step == 0 ? "Uninstall"
+        : root.current-step == 2 ? "Finish"
         : "Next";
 
     Rectangle {
@@ -144,7 +131,7 @@ export component InstallerWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Text {
-                            text: "Aurora Installer";
+                            text: "Aurora Uninstaller";
                             color: Palette.text-secondary;
                             font-size: 16px;
                             font-weight: 700;
@@ -189,11 +176,11 @@ export component InstallerWindow inherits Window {
                 vertical-stretch: 1;
 
                 Sidebar {
-                    steps: ["Welcome", "Location", "Preview", "Installation", "Finish"];
+                    steps: ["Welcome", "Uninstallation", "Finish"];
                     current-step: root.current-step;
-                    job-step: 3;
-                    job-done: root.install-done;
-                    job-success: root.install-success;
+                    job-step: 1;
+                    job-done: root.uninstall-done;
+                    job-success: root.uninstall-success;
                 }
 
                 VerticalLayout {
@@ -206,70 +193,44 @@ export component InstallerWindow inherits Window {
 
                         StepPage {
                             active: root.current-step == 0;
-                            WelcomePage {
+                            UninstallWelcomePage {
                                 x: 28px;
                                 y: 28px;
                                 width: parent.width - 56px;
-                                is-linux: root.is-linux;
-                                option-desktop-shortcut <=> root.option-desktop-shortcut;
-                                option-start-menu <=> root.option-start-menu;
+                                app-path: root.app-path;
+                                mods-path: root.mods-path;
+                                mods-available: root.mods-available;
+                                dev-build: root.dev-build;
+                                option-delete-config <=> root.option-delete-config;
+                                option-delete-mods <=> root.option-delete-mods;
+                                option-preserve-mods <=> root.option-preserve-mods;
                             }
                         }
 
                         StepPage {
                             active: root.current-step == 1;
-                            LocationPage {
-                                x: 28px;
-                                y: 28px;
-                                width: parent.width - 56px;
-                                install-path <=> root.install-path;
-                                space-required: root.space-required;
-                                space-available: root.space-available;
-                                browse-clicked => { root.browse-clicked(); }
-                                reset-clicked => { root.reset-path-clicked(); }
-                                path-edited(path) => { root.path-edited(path); }
-                            }
-                        }
-
-                        StepPage {
-                            active: root.current-step == 2;
-                            PreviewPage {
-                                x: 28px;
-                                y: 28px;
-                                width: parent.width - 56px;
-                                is-linux: root.is-linux;
-                                option-desktop-shortcut: root.option-desktop-shortcut;
-                                option-start-menu: root.option-start-menu;
-                                install-path: root.install-path;
-                                components: root.components;
-                                total-size: root.total-size;
-                            }
-                        }
-
-                        StepPage {
-                            active: root.current-step == 3;
                             ProgressPage {
                                 x: 28px;
                                 y: 28px;
                                 width: parent.width - 56px;
                                 height: parent.height - 56px;
-                                title: "Installation";
-                                subtitle: "Aurora is now being installed. This might take a few minutes.";
-                                progress: root.install-progress;
-                                log-lines: root.install-log;
-                                log-count: root.install-log-count;
+                                title: "Uninstallation";
+                                subtitle: "Aurora is now being removed. This might take a few moments.";
+                                progress: root.uninstall-progress;
+                                log-lines: root.uninstall-log;
+                                log-count: root.uninstall-log-count;
                             }
                         }
 
                         StepPage {
-                            active: root.current-step == 4;
-                            FinishPage {
+                            active: root.current-step == 2;
+                            UninstallFinishPage {
                                 x: 28px;
                                 y: 28px;
                                 width: parent.width - 56px;
-                                install-success: root.install-success;
-                                install-error: root.install-error;
-                                launch-after <=> root.launch-after;
+                                uninstall-success: root.uninstall-success;
+                                uninstall-error: root.uninstall-error;
+                                backup-path: root.backup-path;
                             }
                         }
                     }
@@ -295,9 +256,9 @@ export component InstallerWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 NavButton {
-                                    text: "Back";
-                                    enabled: root.back-enabled;
-                                    clicked => { root.back-clicked(); }
+                                    text: "Cancel";
+                                    enabled: root.current-step == 0;
+                                    clicked => { root.cancel-clicked(); }
                                 }
                             }
 
@@ -307,7 +268,80 @@ export component InstallerWindow inherits Window {
                                     text: root.next-label;
                                     primary: true;
                                     enabled: root.next-enabled;
-                                    clicked => { root.next-clicked(); }
+                                    clicked => {
+                                        if (root.current-step == 0) {
+                                            root.confirm-visible = true;
+                                        } else {
+                                            root.next-clicked();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Confirmation Dialog
+        if root.confirm-visible: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #00000099;
+
+            TouchArea {
+                width: 100%;
+                height: 100%;
+            }
+
+            VerticalLayout {
+                alignment: center;
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    Card {
+                        width: 420px;
+
+                        VerticalLayout {
+                            padding: 24px;
+                            spacing: 10px;
+
+                            Text {
+                                text: "Are you sure you want to delete Aurora?";
+                                font-size: 16px;
+                                font-weight: 700;
+                                color: Palette.text-primary;
+                                wrap: word-wrap;
+                            }
+
+                            Text {
+                                text: root.dev-build
+                                    ? "The selected data will be removed. This cannot be undone."
+                                    : "Aurora and the selected data will be removed. This cannot be undone.";
+                                font-size: 13px;
+                                color: Palette.text-secondary;
+                                wrap: word-wrap;
+                            }
+
+                            Rectangle { height: 8px; }
+
+                            HorizontalLayout {
+                                alignment: end;
+                                spacing: 12px;
+
+                                NavButton {
+                                    text: "Cancel";
+                                    clicked => { root.confirm-visible = false; }
+                                }
+
+                                NavButton {
+                                    text: "Uninstall";
+                                    primary: true;
+                                    clicked => {
+                                        root.confirm-visible = false;
+                                        root.next-clicked();
+                                    }
                                 }
                             }
                         }

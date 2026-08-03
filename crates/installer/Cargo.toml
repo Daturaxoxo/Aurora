@@ -3,6 +3,14 @@ name = "AuroraInstaller"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "AuroraInstaller"
+path = "src/main.rs"
+
+[[bin]]
+name = "AuroraUninstaller"
+path = "src/uninstall/main.rs"
+
 [dependencies]
 shared = { path = "../shared" }
 ipc = { path = "../ipc" }
@@ -13,6 +21,7 @@ dirs = { workspace = true }
 anyhow = { workspace = true }
 sysinfo = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
 rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 ureq = { version = "3", default-features = false, features = [
     "rustls",

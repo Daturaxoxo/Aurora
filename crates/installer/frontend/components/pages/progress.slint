@@ -2,7 +2,9 @@ import { Palette } from "../../global.slint";
 import { Card } from "../widgets.slint";
 import { ListView } from "std-widgets.slint";
 
-export component InstallPage inherits VerticalLayout {
+export component ProgressPage inherits VerticalLayout {
+    in property <string> title;
+    in property <string> subtitle;
     in property <float> progress;
     in property <[string]> log-lines;
     in property <int> log-count;
@@ -16,7 +18,7 @@ export component InstallPage inherits VerticalLayout {
     }
 
     Text {
-        text: "Installation";
+        text: root.title;
         font-size: 24px;
         font-weight: 700;
         color: Palette.text-primary;
@@ -24,7 +26,7 @@ export component InstallPage inherits VerticalLayout {
     }
 
     Text {
-        text: "Aurora is now being installed. This might take a few minutes.";
+        text: root.subtitle;
         font-size: 13px;
         color: Palette.text-secondary;
         wrap: word-wrap;

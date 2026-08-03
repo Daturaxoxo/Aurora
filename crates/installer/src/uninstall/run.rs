@@ -1,0 +1,308 @@
+// i gave up writing good code man -datura
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use shared::utils::format_bytes;
+use slint::{Model, SharedString, VecModel, Weak};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use crate::UninstallerWindow;
+use crate::plan::Plan;
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+static PENDING_CLEANUP: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+#[derive(Clone, Copy)]
+pub struct Options {
+    pub delete_config: bool,
+    pub delete_mods: bool,
+    pub preserve_mods: bool,
+}
+
+pub fn run(ui: Weak<UninstallerWindow>, plan: Plan, options: Options) {
+    std::thread::spawn(move || {
+        let result = run_inner(&ui, &plan, options);
+        let (backup, error) = match result {
+            Ok(backup) => (backup.unwrap_or_default(), String::new()),
+            Err(e) => {
+                log_line(&ui, format!("ERROR: {e}"));
+                (String::new(), e)
+            }
+        };
+
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(w) = ui.upgrade() {
+                w.set_uninstall_success(error.is_empty());
+                w.set_uninstall_error(error.into());
+                w.set_backup_path(backup.into());
+                w.set_uninstall_done(true);
+            }
+        });
+    });
+}
+
+pub fn fail(ui: &Weak<UninstallerWindow>, error: String) {
+    log_line(ui, format!("ERROR: {error}"));
+
+    let ui = ui.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(w) = ui.upgrade() {
+            w.set_uninstall_success(false);
+            w.set_uninstall_error(error.into());
+            w.set_uninstall_done(true);
+        }
+    });
+}
+
+fn run_inner(
+    ui: &Weak<UninstallerWindow>,
+    plan: &Plan,
+    options: Options,
+) -> Result<Option<String>, String> {
+    log_line(ui, "Preparing uninstallation...".into());
+
+    if aurora_is_running() {
+        return Err("Aurora is still running. Please close it and try again.".into());
+    }
+
+    let mods_dir = options
+        .delete_mods
+        .then_some(plan.mods_dir.as_deref())
+        .flatten();
+    let backup_wanted = options.preserve_mods && mods_dir.is_some();
+    let removes_app = plan.app_dir.is_some() && !plan.dev_build;
+
+    let steps = usize::from(backup_wanted)
+        + usize::from(mods_dir.is_some())
+        + usize::from(options.delete_config)
+        + usize::from(removes_app);
+    let mut step = 0usize;
+
+    let mut backup: Option<String> = None;
+    if let Some(mods) = mods_dir {
+        if backup_wanted {
+            let archive = backup_path();
+            log_line(ui, format!("Archiving mods to {}...", archive.display()));
+            archive_mods(ui, mods, &archive, ratio(step, steps), ratio(1, steps))?;
+            backup = Some(archive.to_string_lossy().into_owned());
+            advance(ui, &mut step, steps);
+        }
+
+        log_line(ui, format!("Deleting {}...", mods.display()));
+        remove_dir(mods)?;
+        advance(ui, &mut step, steps);
+    }
+
+    if options.delete_config {
+        log_line(ui, format!("Deleting {}...", plan.data_dir.display()));
+        remove_dir(&plan.data_dir)?;
+        advance(ui, &mut step, steps);
+    }
+
+    match plan.app_dir.as_deref() {
+        Some(app_dir) if plan.dev_build => {
+            log_line(
+                ui,
+                format!(
+                    "Skipping {}: this is a development build.",
+                    app_dir.display()
+                ),
+            );
+        }
+        Some(app_dir) => {
+            log_line(ui, format!("Deleting {}...", app_dir.display()));
+            if remove_app_dir(app_dir)? {
+                *PENDING_CLEANUP.lock().unwrap() = Some(app_dir.to_path_buf());
+                log_line(
+                    ui,
+                    "The uninstaller itself is removed once this window closes.".into(),
+                );
+            }
+            advance(ui, &mut step, steps);
+        }
+        None => log_line(
+            ui,
+            "WARNING: could not locate the Aurora application folder.".into(),
+        ),
+    }
+
+    set_progress(ui, 1.0);
+    log_line(ui, "Uninstallation complete.".into());
+    Ok(backup)
+}
+
+fn archive_mods(
+    ui: &Weak<UninstallerWindow>,
+    mods: &Path,
+    archive: &Path,
+    base: f32,
+    span: f32,
+) -> Result<(), String> {
+    let mut last_progress = Instant::now();
+    let mut current = PathBuf::new();
+
+    shared::archive::zip_directory(mods, archive, |rel, done, total| {
+        if rel != current {
+            current = rel.to_path_buf();
+            log_line(
+                ui,
+                format!(
+                    "  {} of {}: {}",
+                    format_bytes(done),
+                    format_bytes(total),
+                    rel.display()
+                ),
+            );
+        }
+
+        if last_progress.elapsed() >= PROGRESS_INTERVAL {
+            last_progress = Instant::now();
+            #[allow(clippy::cast_precision_loss)]
+            let fraction = if total > 0 {
+                done as f32 / total as f32
+            } else {
+                0.0
+            };
+            set_progress(ui, base + span * fraction.clamp(0.0, 1.0));
+        }
+    })
+    .map_err(|e| format!("failed to archive {}: {e}", mods.display()))
+}
+
+fn advance(ui: &Weak<UninstallerWindow>, step: &mut usize, steps: usize) {
+    *step += 1;
+    set_progress(ui, ratio(*step, steps));
+}
+
+fn remove_app_dir(dir: &Path) -> Result<bool, String> {
+    if !dir.exists() {
+        return Ok(false);
+    }
+    let self_exe = &std::env::current_exe().unwrap_or_default().canonicalize().ok();
+    let mut skipped = false;
+    let entries =
+        fs::read_dir(dir).map_err(|e| format!("failed to read {}: {e}", dir.display()))?;
+    for entry in entries {
+        let path = entry
+            .map_err(|e| format!("failed to read {}: {e}", dir.display()))?
+            .path();
+
+        if let Err(e) = remove_path(&path) {
+            if self_exe.is_some() && self_exe == &path.canonicalize().ok() {
+                skipped = true;
+                continue;
+            }
+            return Err(e);
+        }
+    }
+
+    if skipped {
+        return Ok(true);
+    }
+
+    fs::remove_dir(dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))?;
+    Ok(false)
+}
+
+fn remove_path(path: &Path) -> Result<(), String> {
+    let result = if path.is_dir() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    };
+    result.map_err(|e| format!("failed to delete {}: {e}", path.display()))
+}
+
+fn remove_dir(dir: &Path) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    fs::remove_dir_all(dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))
+}
+
+fn backup_path() -> PathBuf {
+    let base = dirs::document_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    base.join("Aurora Mods Backup")
+        .join(format!("AuroraMods-{stamp}.zip"))
+}
+
+fn aurora_is_running() -> bool {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+    );
+
+    let target = ipc::AURORA_EXE.to_lowercase();
+    system.processes().values().any(|process| {
+        process
+            .exe()
+            .and_then(Path::file_name)
+            .is_some_and(|name| name.to_string_lossy().to_lowercase() == target)
+    })
+}
+
+pub fn take_pending_cleanup() -> Option<PathBuf> {
+    PENDING_CLEANUP.lock().unwrap().take()
+}
+
+#[cfg(windows)]
+pub fn cleanup_after_exit(dir: &Path) {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let mut command = Command::new("cmd.exe");
+    command.raw_arg(format!(
+        r#"/C ping 127.0.0.1 -n 4 >nul & rmdir /s /q "{}""#,
+        dir.display()
+    ));
+    command.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+
+    if let Err(e) = command.spawn() {
+        eprintln!("Failed to schedule cleanup of {}: {e}", dir.display());
+    }
+}
+
+#[cfg(not(windows))]
+pub fn cleanup_after_exit(dir: &Path) {
+    if let Err(e) = fs::remove_dir_all(dir) {
+        eprintln!("Failed to delete {}: {e}", dir.display());
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn ratio(done: usize, total: usize) -> f32 {
+    if total == 0 {
+        return 1.0;
+    }
+    (done as f32 / total as f32).clamp(0.0, 1.0)
+}
+
+fn log_line(ui: &Weak<UninstallerWindow>, message: String) {
+    let ui = ui.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(w) = ui.upgrade() {
+            let log = w.get_uninstall_log();
+            if let Some(model) = log.as_any().downcast_ref::<VecModel<SharedString>>() {
+                model.push(message.into());
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                w.set_uninstall_log_count(model.row_count() as i32);
+            }
+        }
+    });
+}
+
+fn set_progress(ui: &Weak<UninstallerWindow>, progress: f32) {
+    let ui = ui.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(w) = ui.upgrade() {
+            w.set_uninstall_progress(progress);
+        }
+    });
+}

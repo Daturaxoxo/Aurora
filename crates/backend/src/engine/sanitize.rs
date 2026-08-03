@@ -22,8 +22,8 @@ impl AuroraEngine {
             .map(|f| (f.label, f.destination))
             .chain([
                 ("Plugins".to_string(), self.win64.join("Plugins")),
-                ("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
-                ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
+                //("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
+                // ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])
             .map(|(label, path)| thread::spawn(move || Self::remove_target(&label, &path)))
             .collect();

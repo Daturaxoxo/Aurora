@@ -1,0 +1,119 @@
+import { Palette } from "../../global.slint";
+import { Card, CheckboxRow } from "../widgets.slint";
+
+component OptionRow inherits VerticalLayout {
+    in property <string> label;
+    in property <string> hint;
+    in property <bool> enabled: true;
+    in-out property <bool> checked;
+
+    spacing: 4px;
+
+    CheckboxRow {
+        label: root.label;
+        enabled: root.enabled;
+        checked <=> root.checked;
+    }
+
+    if root.hint != "": HorizontalLayout {
+        padding-left: 26px;
+
+        Text {
+            text: root.hint;
+            font-size: 12px;
+            color: #ffffff55;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component UninstallWelcomePage inherits VerticalLayout {
+    in property <string> app-path;
+    in property <string> mods-path;
+    in property <bool> mods-available;
+    in property <bool> dev-build;
+    in-out property <bool> option-delete-config;
+    in-out property <bool> option-delete-mods;
+    in-out property <bool> option-preserve-mods;
+
+    spacing: 8px;
+    alignment: start;
+
+    Text {
+        text: "Welcome";
+        font-size: 24px;
+        font-weight: 700;
+        color: Palette.text-primary;
+    }
+
+    Text {
+        text: "Aurora is about to be removed from your system. Please select what else should be deleted:";
+        font-size: 13px;
+        color: Palette.text-secondary;
+        wrap: word-wrap;
+    }
+
+    Rectangle { height: 8px; }
+
+    Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 16px;
+
+            OptionRow {
+                label: "Delete Cache & Config";
+                hint: "Removes Aurora's settings, cache and user data.";
+                checked <=> root.option-delete-config;
+            }
+
+            OptionRow {
+                label: "Delete Installed Mods";
+                hint: root.mods-available
+                    ? root.mods-path
+                    : "No mods folder was found for this installation.";
+                enabled: root.mods-available;
+                checked <=> root.option-delete-mods;
+            }
+
+            if root.option-delete-mods && root.mods-available: HorizontalLayout {
+                padding-left: 22px;
+
+                OptionRow {
+                    label: "Preserve Mods";
+                    hint: "Saves the mods to a zip archive in your Documents folder before deleting them.";
+                    checked <=> root.option-preserve-mods;
+                }
+            }
+        }
+    }
+
+    Rectangle { height: 4px; }
+
+    Card {
+        VerticalLayout {
+            padding: 20px;
+            spacing: 6px;
+
+            Text {
+                text: "The Aurora application folder is always removed:";
+                font-size: 13px;
+                color: Palette.text-secondary;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: root.app-path;
+                font-size: 13px;
+                color: Palette.text-primary;
+                wrap: word-wrap;
+            }
+
+            if root.dev-build: Text {
+                text: "This is a development build, so the application folder will be kept.";
+                font-size: 12px;
+                color: #ffcc66;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

@@ -52,6 +52,21 @@ slint-build = "1.17"
 winresource = "0.1.31"
 image = "0.25.10"
 
+# Compression is unusably slow when built unoptimized (zipping a 4.4 GB mod
+# folder took ~4 min in a dev build vs ~19 s in release). Optimizing just these
+# leaves our own crates fully debuggable.
+[profile.dev.package.flate2]
+opt-level = 3
+
+[profile.dev.package.zlib-rs]
+opt-level = 3
+
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+
+[profile.dev.package.crc32fast]
+opt-level = 3
+
 [profile.release]
 opt-level = "s"
 lto = true
