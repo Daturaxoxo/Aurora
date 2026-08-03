@@ -1,5 +1,7 @@
 // classes/mod.rs
 pub mod buttons;
+#[cfg(target_os = "linux")]
+pub mod desktop;
 #[cfg(target_os = "windows")]
 pub mod filedrop;
 pub mod logwindow;

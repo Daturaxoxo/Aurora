@@ -8,14 +8,18 @@ pub const APP_ID: &str = "aurora";
 const ICON: &[u8] = include_bytes!("../../../production/icons/logo.png");
 
 pub fn install() {
+    #[cfg(target_os = "linux")]
+    if let Some(appimage) = ipc::appimage_path() {
+        install_for(&appimage);
+        return;
+    }
+
     match std::env::current_exe() {
         Ok(exe) => install_for(&exe),
         Err(e) => warn!("Could not resolve the current exe for the desktop entry: {e}"),
     }
 }
 
-/// Installs the desktop entry pointing at `exe` instead of the current
-/// executable (e.g. the installer registering the installed Aurora binary).
 pub fn install_for(exe: &Path) {
     #[cfg(target_os = "linux")]
     if let Err(e) = install_inner_linux(exe) {
@@ -28,9 +32,71 @@ pub fn install_for(exe: &Path) {
     }
 }
 
+pub fn uninstall() {
+    #[cfg(target_os = "linux")]
+    if let Err(e) = uninstall_inner_linux() {
+        warn!("Could not remove the desktop entry: {e}");
+    }
+}
+
 #[cfg(target_os = "windows")]
-fn install_inner_windows(_exe: &Path) -> Result<()> {
-    todo!()
+fn install_inner_windows(exe: &Path) -> Result<()> {
+    let programs = dirs::config_dir()
+        .ok_or_else(|| anyhow!("could not find the AppData directory"))?
+        .join("Microsoft/Windows/Start Menu/Programs");
+    std::fs::create_dir_all(&programs)?;
+    create_lnk(exe, &programs.join("Aurora.lnk"))
+}
+
+#[cfg(target_os = "windows")]
+fn create_lnk(target: &Path, shortcut: &Path) -> Result<()> {
+    let mut link = mslnk::ShellLink::new(target)?;
+    link.set_name(Some("Aurora".to_string()));
+    link.set_working_dir(
+        target
+            .parent()
+            .and_then(|p| p.to_str())
+            .map(std::string::ToString::to_string),
+    );
+    link.create_lnk(shortcut)?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn create_desktop_shortcut(target: &Path) -> Result<()> {
+    let desktop = dirs::desktop_dir().ok_or_else(|| anyhow!("could not find desktop directory"))?;
+    create_lnk(target, &desktop.join("Aurora.lnk"))
+}
+
+#[cfg(target_os = "linux")]
+fn uninstall_inner_linux() -> Result<()> {
+    let data_dir =
+        dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
+
+    remove_if_present(
+        &data_dir
+            .join("applications")
+            .join(format!("{APP_ID}.desktop")),
+    )?;
+    remove_if_present(
+        &data_dir
+            .join("icons/hicolor/64x64/apps")
+            .join(format!("{APP_ID}.png")),
+    )?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn remove_if_present(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            info!("Removed {}", path.display());
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -46,34 +112,36 @@ fn install_inner_linux(exe: &Path) -> Result<()> {
     let entry_path = data_dir
         .join("applications")
         .join(format!("{APP_ID}.desktop"));
-    write_if_changed(&entry_path, entry_contents(exe)?.as_bytes())?;
+    write_if_changed(&entry_path, entry_contents(exe).as_bytes())?;
 
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-fn entry_contents(exe: &Path) -> Result<String> {
+fn entry_contents(exe: &Path) -> String {
     let exec = quote_exec(&exe.display().to_string());
 
-    Ok(format!(
+    format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=Aurora\n\
-         Comment=Mod manager and launcher for NTE\n\
+         Comment=Mod manager and launcher\n\
          Exec={exec}\n\
          Icon={APP_ID}\n\
          Terminal=false\n\
          Categories=Game;\n\
          StartupNotify=true\n\
          StartupWMClass={APP_ID}\n"
-    ))
+    )
 }
 
+#[cfg(target_os = "linux")]
 fn quote_exec(path: &str) -> String {
     let escaped = path.replace('\\', r"\\").replace('"', r#"\""#);
     format!("\"{escaped}\"")
 }
 
+#[cfg(target_os = "linux")]
 fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
     if std::fs::read(path).is_ok_and(|existing| existing == contents) {
         return Ok(());

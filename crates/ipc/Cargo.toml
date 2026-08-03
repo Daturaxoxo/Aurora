@@ -16,6 +16,9 @@ windows-sys = { workspace = true }
 [target.'cfg(not(windows))'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+dirs = { workspace = true }
+
 [lints.clippy]
 enum_glob_use = "warn"
 pedantic = { level = "warn", priority = -1 }

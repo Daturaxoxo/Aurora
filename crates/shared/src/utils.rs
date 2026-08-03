@@ -30,7 +30,9 @@ pub fn get_mods_path() -> Option<PathBuf> {
 
 /// Returns the path to the bin folder:
 /// - In debug mode, it returns the path to the Bin folder in the project directory.
-/// - In release mode, it returns the path to the Bin folder in the executable directory.
+/// - In release mode, it returns the path to the Bin folder inside the state
+///   root: the executable's directory on Windows, and the XDG data directory
+///   on Linux, where an `AppImage` cannot write next to itself.
 pub fn get_bin_path() -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     {
@@ -42,11 +44,7 @@ pub fn get_bin_path() -> Option<PathBuf> {
     }
     #[cfg(not(debug_assertions))]
     {
-        std::env::current_exe()
-            .expect("Addons Manager could not resolve exe path")
-            .parent()
-            .map(PathBuf::from)
-            .and_then(|p| Some(p.join("Bin")))
+        Some(ipc::state_root().join("Bin"))
     }
 }
 
@@ -77,11 +75,7 @@ pub fn format_bytes(bytes: u64) -> String {
 }
 
 pub fn get_cache_dir() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        .join("Cache")
+    ipc::state_root().join("Cache")
 }
 
 pub fn get_config_cache_dir() -> PathBuf {

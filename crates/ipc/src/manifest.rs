@@ -22,6 +22,20 @@ pub struct FileEntry {
     pub url: String,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LinuxManifest {
+    pub version: String,
+    pub appimage: AppImageEntry,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppImageEntry {
+    pub sha256: String,
+    pub url: String,
+}
+
 impl Manifest {
     pub fn changed_files(&self, install_root: &Path, local: &LocalManifest) -> Vec<&FileEntry> {
         self.files

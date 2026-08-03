@@ -5,7 +5,7 @@ export global TrKey {
     out property <int> settings-panel-title: 0;
     out property <int> settings-tab-general: 1;
     out property <int> settings-tab-launcher: 2;
-    out property <int> settings-tab-proton: 3;
+    out property <int> settings-tab-linux: 3;
     out property <int> settings-tab-developer: 4;
     out property <int> settings-section-appearance: 5;
     out property <int> settings-language-title: 6;
@@ -137,10 +137,15 @@ export global TrKey {
     out property <int> modmanager-delete-selected-message-suffix: 132;
     out property <int> settings-game-directory-none: 133;
     out property <int> settings-section-launch-options: 134;
-    out property <int> settings-proton-args-title: 135;
-    out property <int> settings-proton-args-subtitle: 136;
-    out property <int> settings-proton-args-saved: 137;
-    out property <int> settings-proton-args-placeholder: 138;
+    out property <int> settings-linux-args-title: 135;
+    out property <int> settings-linux-args-subtitle: 136;
+    out property <int> settings-linux-args-saved: 137;
+    out property <int> settings-linux-args-placeholder: 138;
+    out property <int> settings-section-desktop-integration: 139;
+    out property <int> settings-desktop-entry-title: 140;
+    out property <int> settings-desktop-entry-subtitle: 141;
+    out property <int> popup-desktop-entry-title: 142;
+    out property <int> popup-desktop-entry-message: 143;
 }
 
 export global Tr {
@@ -148,7 +153,7 @@ in property <[string]> values: [
         "SETTINGS",
         "General",
         "Launcher",
-        "Proton",
+        "Linux",
         "Developer",
         "APPEARANCE",
         "Language",
@@ -284,5 +289,10 @@ in property <[string]> values: [
         "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.",
         "Saved ✓",
         "ex: PROTON_LOG=1 -windowed",
+        "DESKTOP INTEGRATION",
+        "Desktop Entry",
+        "Adds Aurora to your application menu so it shows up alongside your other apps.",
+        "Add Aurora to your desktop?",
+        "Aurora can install a desktop entry so it appears in your application menu alongside your other apps. You can change this later in Settings → Linux.",
 ];
 }

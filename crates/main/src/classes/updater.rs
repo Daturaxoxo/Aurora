@@ -1,13 +1,19 @@
+#[cfg(windows)]
 use std::path::Path;
 use std::process::{self, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(windows)]
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use log::*;
 
-use ipc::manifest::{hash_file, LocalManifest, Manifest};
+use ipc::manifest::hash_file;
+#[cfg(windows)]
+use ipc::manifest::{LocalManifest, Manifest};
 use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
 use serde::Deserialize;
@@ -81,26 +87,23 @@ impl UpdateHandler {
             Ok(false) => {
                 warn!("beta phasing is not active");
                 #[cfg(not(debug_assertions))]
-                match Self::update_available() {
-                    Ok(true) => {
-                        info!("beta phase inactive but an update is available; updating");
-                    }
-                    Ok(false) | Err(_) => {
-                        let w = window.clone();
-                        slint::invoke_from_event_loop(move || {
-                            if let Some(w) = w.upgrade() {
-                                w.set_popup_id("beta-phase-inactive".into());
-                                w.set_popup_title("Beta phase inactive".into());
-                                w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
-                                w.set_popup_confirm_delay(0);
-                                w.set_popup_required_count(0);
-                                w.set_popup_checkboxes(slint::ModelRc::default());
-                                w.set_popup_active(true);
-                            }
-                        })
-                        .ok();
-                        return;
-                    }
+                if matches!(Self::update_available(), Ok(true)) {
+                    info!("beta phase inactive but an update is available; updating");
+                } else {
+                    let w = window.clone();
+                    slint::invoke_from_event_loop(move || {
+                        if let Some(w) = w.upgrade() {
+                            w.set_popup_id("beta-phase-inactive".into());
+                            w.set_popup_title("Beta phase inactive".into());
+                            w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
+                            w.set_popup_confirm_delay(0);
+                            w.set_popup_required_count(0);
+                            w.set_popup_checkboxes(slint::ModelRc::default());
+                            w.set_popup_active(true);
+                        }
+                    })
+                    .ok();
+                    return;
                 }
             }
             Err(e) => {
@@ -144,6 +147,7 @@ impl UpdateHandler {
         });
     }
 
+    #[cfg(windows)]
     fn run_update_flow(window: &slint::Weak<MainWindow>, interactive: bool) -> Result<()> {
         let root = ipc::install_root();
         let manifest = Self::fetch_manifest()?;
@@ -185,6 +189,62 @@ impl UpdateHandler {
         Ok(())
     }
 
+    #[cfg(target_os = "linux")]
+    fn run_update_flow(window: &slint::Weak<MainWindow>, interactive: bool) -> Result<()> {
+        let Some(appimage) = ipc::appimage_path() else {
+            info!("not running from an AppImage; self-update is unavailable");
+            if interactive {
+                Bridge::show_toast(
+                    window,
+                    "Self-update is only available in the AppImage build.",
+                    "info",
+                );
+            }
+            return Ok(());
+        };
+
+        let manifest = Self::fetch_linux_manifest()?;
+        let current = hash_file(&appimage)
+            .with_context(|| format!("failed to hash {}", appimage.display()))?;
+        if current == manifest.appimage.sha256 {
+            info!("no update available");
+            if interactive {
+                Bridge::show_toast(window, "Aurora is up to date.", "success");
+            }
+            return Ok(());
+        }
+
+        if !Self::appimage_is_replaceable(&appimage) {
+            warn!(
+                "an update is available but {} cannot be replaced",
+                appimage.display()
+            );
+            Self::show_manual_update_popup(window, &manifest.version);
+            return Ok(());
+        }
+
+        let local_version = shared::utils::get_local_version();
+        if Self::is_minor_update(&local_version, &manifest.version) {
+            info!(
+                "minor update {} -> {} available; updating silently",
+                local_version.trim(),
+                manifest.version
+            );
+            Self::begin_locked_update(window);
+            if let Err(e) = Self::run_appimage_update(window, true) {
+                warn!("silent update failed: {e}");
+                Self::set_update_overlay(window, false);
+                Self::set_locked(window, false);
+                Bridge::show_toast(window, "Update failed. Try again later.", "error");
+            }
+            return Ok(());
+        }
+
+        info!("update {} available; asking the user", manifest.version);
+        Self::show_update_popup(window, &manifest.version);
+        Ok(())
+    }
+
     fn parse_staple_major(version: &str) -> Option<(u64, u64)> {
         let mut parts = version.trim().split('.');
         let staple = parts.next()?.parse().ok()?;
@@ -209,7 +269,12 @@ impl UpdateHandler {
 
         let w = window.clone();
         std::thread::spawn(move || {
-            if let Err(e) = Self::run_updater(&w, false) {
+            #[cfg(windows)]
+            let result = Self::run_updater(&w, false);
+            #[cfg(target_os = "linux")]
+            let result = Self::run_appimage_update(&w, false);
+
+            if let Err(e) = result {
                 warn!("update failed: {e}");
                 Self::set_update_overlay(&w, false);
                 Self::set_locked(&w, false);
@@ -219,6 +284,7 @@ impl UpdateHandler {
         });
     }
 
+    #[cfg(windows)]
     fn run_updater(window: &slint::Weak<MainWindow>, silent: bool) -> Result<()> {
         let root = ipc::install_root();
 
@@ -336,6 +402,167 @@ impl UpdateHandler {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    fn run_appimage_update(window: &slint::Weak<MainWindow>, silent: bool) -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let appimage =
+            ipc::appimage_path().ok_or_else(|| anyhow!("not running from an AppImage"))?;
+        let manifest = Self::fetch_linux_manifest()?;
+
+        Self::set_locked(window, true);
+        Self::set_update_overlay(window, true);
+
+        let tmp = appimage.with_file_name(format!("{}.new", ipc::APPIMAGE_NAME));
+        let _ = std::fs::remove_file(&tmp);
+
+        info!("downloading {}", manifest.appimage.url);
+        if let Err(e) = Self::download_with_progress(window, &manifest.appimage.url, &tmp) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e);
+        }
+
+        let actual = hash_file(&tmp).context("failed to hash the downloaded AppImage")?;
+        if actual != manifest.appimage.sha256 {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(anyhow!(
+                "AppImage hash mismatch: expected {}, got {actual}",
+                manifest.appimage.sha256
+            ));
+        }
+
+        let mode = std::fs::metadata(&appimage).map_or(0o755, |m| m.permissions().mode());
+        if let Err(e) = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(mode)) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(anyhow!("failed to make the new AppImage executable: {e}"));
+        }
+
+        if let Err(e) = std::fs::rename(&tmp, &appimage) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(anyhow!("failed to replace {}: {e}", appimage.display()));
+        }
+        info!(
+            "replaced {} with version {}",
+            appimage.display(),
+            manifest.version
+        );
+
+        if silent {
+            info!("silent update applied; restarting Aurora");
+        }
+        Self::relaunch_appimage(window, &appimage);
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn download_with_progress(
+        window: &slint::Weak<MainWindow>,
+        url: &str,
+        dst: &std::path::Path,
+    ) -> Result<()> {
+        use std::io::{Read, Write};
+
+        let mut response = reqwest::blocking::get(url)
+            .and_then(Response::error_for_status)
+            .with_context(|| format!("failed to download {url}"))?;
+        let total = response.content_length().unwrap_or(0);
+
+        let mut file = std::fs::File::create(dst)
+            .with_context(|| format!("failed to create {}", dst.display()))?;
+        let mut buf = vec![0u8; 256 * 1024];
+        let mut done: u64 = 0;
+        let mut last_progress = std::time::Instant::now();
+
+        loop {
+            let n = response.read(&mut buf).context("download interrupted")?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n])
+                .with_context(|| format!("failed to write {}", dst.display()))?;
+            done += n as u64;
+
+            if last_progress.elapsed() >= Duration::from_millis(100) {
+                last_progress = std::time::Instant::now();
+                Self::set_update_progress(window, 0, 1, done, total);
+            }
+        }
+        file.sync_all().context("failed to flush the download")?;
+        Self::set_update_progress(window, 1, 1, 0, 0);
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn appimage_is_replaceable(appimage: &std::path::Path) -> bool {
+        let Some(parent) = appimage.parent() else {
+            return false;
+        };
+        let probe = parent.join(format!(".{}.probe", ipc::APPIMAGE_NAME));
+        match std::fs::File::create(&probe) {
+            Ok(_) => {
+                let _ = std::fs::remove_file(&probe);
+                true
+            }
+            Err(e) => {
+                warn!("{} is not writable: {e}", parent.display());
+                false
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn relaunch_appimage(window: &slint::Weak<MainWindow>, appimage: &std::path::Path) {
+        if let Err(e) = Command::new(appimage).arg(ipc::RELAUNCH_ARG).spawn() {
+            error!("failed to relaunch the updated AppImage: {e}");
+            Self::restart_failed(window);
+            return;
+        }
+        slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
+        })
+        .ok();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn fetch_linux_manifest() -> Result<ipc::manifest::LinuxManifest> {
+        let mut last_err = anyhow!("no manifest sources configured");
+        for url in [ipc::MANIFEST_URL_PRIMARY, ipc::MANIFEST_URL_FALLBACK] {
+            let result = reqwest::blocking::get(url)
+                .and_then(Response::error_for_status)
+                .and_then(Response::json::<ipc::manifest::LinuxManifest>);
+            match result {
+                Ok(manifest) => return Ok(manifest),
+                Err(e) => {
+                    warn!("manifest fetch failed from {url}: {e}");
+                    last_err = e.into();
+                }
+            }
+        }
+        Err(last_err.context("all manifest sources failed"))
+    }
+
+    #[cfg(target_os = "linux")]
+    fn show_manual_update_popup(window: &slint::Weak<MainWindow>, version: &str) {
+        let message = format!(
+            "Aurora {version} is available, but this AppImage is in a location it cannot write \
+             to. Download the new version manually to update."
+        );
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                w.set_popup_id("update-manual".into());
+                w.set_popup_title("Update available".into());
+                w.set_popup_message(message.into());
+                w.set_popup_confirm_delay(0);
+                w.set_popup_required_count(0);
+                w.set_popup_checkboxes(slint::ModelRc::default());
+                w.set_popup_active(true);
+            }
+        })
+        .ok();
+    }
+
+    #[cfg(windows)]
     fn self_update_updater(root: &Path, manifest: &Manifest) -> Result<()> {
         let updater_path = root.join(ipc::UPDATER_EXE);
         let local_hash = if updater_path.exists() {
@@ -375,6 +602,7 @@ impl UpdateHandler {
         Ok(())
     }
 
+    #[cfg(windows)]
     fn fetch_manifest() -> Result<Manifest> {
         let mut last_err = anyhow!("no manifest sources configured");
         for url in [ipc::MANIFEST_URL_PRIMARY, ipc::MANIFEST_URL_FALLBACK] {
@@ -475,6 +703,7 @@ impl UpdateHandler {
         .ok();
     }
 
+    #[cfg(windows)]
     fn restart_app(window: &slint::Weak<MainWindow>) {
         let exe = match std::env::current_exe() {
             Ok(exe) => exe,
@@ -537,6 +766,7 @@ impl UpdateHandler {
 
     #[cfg(feature = "beta")]
     #[cfg(not(debug_assertions))]
+    #[cfg(windows)]
     fn update_available() -> Result<bool> {
         let root = ipc::install_root();
         let manifest = Self::fetch_manifest()?;
@@ -545,6 +775,18 @@ impl UpdateHandler {
             _ => LocalManifest::build_manifest_from_disk(&root, &manifest),
         };
         Ok(!manifest.changed_files(&root, &local).is_empty())
+    }
+
+    #[cfg(feature = "beta")]
+    #[cfg(not(debug_assertions))]
+    #[cfg(target_os = "linux")]
+    fn update_available() -> Result<bool> {
+        let appimage =
+            ipc::appimage_path().ok_or_else(|| anyhow!("not running from an AppImage"))?;
+        let manifest = Self::fetch_linux_manifest()?;
+        let current = hash_file(&appimage)
+            .with_context(|| format!("failed to hash {}", appimage.display()))?;
+        Ok(current != manifest.appimage.sha256)
     }
 
     #[cfg(feature = "beta")]

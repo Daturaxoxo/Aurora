@@ -2,6 +2,7 @@
 name = "Aurora"
 version = "2.0.0"
 edition = "2021"
+default-run = "Aurora"
 
 [features]
 default = ["beta"]
@@ -9,7 +10,10 @@ beta = []
 
 [dependencies]
 i-slint-backend-winit = { version = "1.17", default-features = false }
-rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+rfd = { version = "0.17", default-features = false, features = [
+    "xdg-portal",
+    "wayland",
+] }
 image = { version = "0.25", default-features = false, features = [
     "png",
     "jpeg",
@@ -46,7 +50,7 @@ winresource = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-mslnk = "0.1"
+mslnk = { workspace = true }
 tray-icon = { version = "0.24.2", default-features = false }
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -22,7 +22,10 @@ anyhow = { workspace = true }
 sysinfo = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
-rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+rfd = { version = "0.17", default-features = false, features = [
+    "xdg-portal",
+    "wayland",
+] }
 ureq = { version = "3", default-features = false, features = [
     "rustls",
     "gzip",
@@ -30,7 +33,6 @@ ureq = { version = "3", default-features = false, features = [
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-mslnk = "0.1"
 
 [build-dependencies]
 slint-build = { workspace = true }

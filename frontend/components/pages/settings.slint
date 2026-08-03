@@ -250,9 +250,10 @@ export component SettingsPage inherits Rectangle {
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
 
-    // PROTON
+    // LINUX
     in property <bool> is-linux: false;
     in-out property <string> proton-launch-args: "";
+    in-out property <bool> desktop-entry: false;
 
     // DEVELOPER
     in-out property <bool> developer-mode: false;
@@ -267,6 +268,7 @@ export component SettingsPage inherits Rectangle {
     callback extensive-logging-changed(bool);
     callback language-index-changed(int);
     callback proton-launch-args-changed(string);
+    callback desktop-entry-changed(bool);
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
@@ -310,7 +312,7 @@ export component SettingsPage inherits Rectangle {
             }
 
             if root.is-linux: TabButton {
-                text: Tr.values[TrKey.settings-tab-proton];
+                text: Tr.values[TrKey.settings-tab-linux];
                 active: root.active-tab == 3;
                 clicked => { root.active-tab = 3; }
             }
@@ -333,7 +335,7 @@ export component SettingsPage inherits Rectangle {
                 Text {
                     text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
                         root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
-                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-proton] : Tr.values[TrKey.settings-tab-developer];
+                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] : Tr.values[TrKey.settings-tab-developer];
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -503,13 +505,13 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
 
-                // TAB 3: PROTON SETTINGS CONTENT (LINUX ONLY)
+                // TAB 3: LINUX SETTINGS CONTENT (LINUX ONLY)
                 if root.is-linux: TabPage {
                     active: root.active-tab == 3;
 
                     ScrollView {
-                        viewport-height: proton-layout.min-height;
-                        proton-layout := VerticalLayout {
+                        viewport-height: linux-layout.min-height;
+                        linux-layout := VerticalLayout {
                             spacing: 24px;
                             alignment: start;
 
@@ -523,8 +525,8 @@ export component SettingsPage inherits Rectangle {
                                 }
 
                                 SettingCard {
-                                    title: Tr.values[TrKey.settings-proton-args-title];
-                                    subtitle: Tr.values[TrKey.settings-proton-args-subtitle];
+                                    title: Tr.values[TrKey.settings-linux-args-title];
+                                    subtitle: Tr.values[TrKey.settings-linux-args-subtitle];
                                     property <bool> show-saved: false;
 
                                     function commit-args() {
@@ -560,7 +562,7 @@ export component SettingsPage inherits Rectangle {
                                         VerticalLayout {
                                             alignment: center;
                                             Text {
-                                                text: Tr.values[TrKey.settings-proton-args-saved];
+                                                text: Tr.values[TrKey.settings-linux-args-saved];
                                                 color: #10b981;
                                                 font-size: 12px;
                                                 opacity: show-saved ? 1.0 : 0.0;
@@ -599,12 +601,31 @@ export component SettingsPage inherits Rectangle {
                                             if args-input.text == "" && !args-input.has-focus: Text {
                                                 x: 10px;
                                                 height: 100%;
-                                                text: Tr.values[TrKey.settings-proton-args-placeholder];
+                                                text: Tr.values[TrKey.settings-linux-args-placeholder];
                                                 color: Palette.text-secondary;
                                                 font-size: 13px;
                                                 vertical-alignment: center;
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-desktop-integration];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-desktop-entry-title];
+                                    subtitle: Tr.values[TrKey.settings-desktop-entry-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.desktop-entry;
+                                        toggled => { root.desktop-entry-changed(self.checked); }
                                     }
                                 }
                             }

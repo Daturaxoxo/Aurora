@@ -37,10 +37,12 @@ pub fn export_telemetry() -> Result<()> {
 
     let utc_timestamp = chrono::Utc::now();
     let local_timestamp = chrono::Local::now();
-    let mut file = std::fs::File::create_buffered(format!(
-        "./Logs/aurora_telemetry_{}.aulog",
+    let log_dir = crate::logger::log_dir();
+    std::fs::create_dir_all(&log_dir).with_context(|| "Couldn't create the log directory")?;
+    let mut file = std::fs::File::create_buffered(log_dir.join(format!(
+        "aurora_telemetry_{}.aulog",
         utc_timestamp.format("%d-%m-%Y %H-%M-%S")
-    ))
+    )))
     .with_context(|| "Couldn't create telemetry file")?;
 
     // Write a UTF-8 BOM so text editors don't misinterpret the ASCII bytes as UTF-16LE
