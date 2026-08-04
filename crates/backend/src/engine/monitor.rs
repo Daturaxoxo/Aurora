@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -6,7 +8,9 @@ use log::*;
 use shared::classes::info::NTE_PROCESSES;
 
 use crate::classes::rpc::RPC;
+use crate::handler::EngineEvent;
 
+use super::everlight;
 use super::process::ProcessSnapshot;
 use super::AuroraEngine;
 
@@ -18,7 +22,7 @@ const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(5);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
 
 impl AuroraEngine {
-    pub fn monitor(&mut self) -> Result<()> {
+    pub fn monitor(&mut self, evt_tx: mpsc::Sender<EngineEvent>) -> Result<()> {
         info!(
             "Helper processes: {}",
             self.gpaths.helper_processes.join(", ")
@@ -29,7 +33,21 @@ impl AuroraEngine {
             return Ok(());
         }
 
-        self.wait_for_game_exit()?;
+        // The game is running: watch the Everlight engine log for the session.
+        let watcher_stop = Arc::new(AtomicBool::new(false));
+        let watcher = {
+            let win64 = self.win64.clone();
+            let game_process = self.gpaths.game_process;
+            let stop = watcher_stop.clone();
+            thread::spawn(move || everlight::watch(&win64, game_process, &evt_tx, &stop))
+        };
+
+        let exit_result = self.wait_for_game_exit();
+        watcher_stop.store(true, Ordering::Relaxed);
+        if watcher.join().is_err() {
+            error!("Everlight watcher thread panicked");
+        }
+        exit_result?;
 
         info!("NTE was closed, initializing clean-up process...");
         self.sanitize(true)?;

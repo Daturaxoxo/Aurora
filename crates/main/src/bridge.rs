@@ -36,6 +36,15 @@ impl Bridge {
                     info!("Quick start: game closed and clean-up finished, exiting");
                     return Ok(());
                 }
+                EngineEvent::EverlightFatal(msg) => {
+                    error!("Quick start: Everlight fatal error, game was closed: {msg}");
+                }
+                EngineEvent::EverlightTimeout => {
+                    error!(
+                        "Quick start: Everlight produced no log within the timeout, game was \
+                         closed. Try switching engine methods in settings."
+                    );
+                }
                 EngineEvent::Toast { .. } | EngineEvent::GamePathUpdated(_) => {}
             }
         }
@@ -174,9 +183,48 @@ impl Bridge {
                     EngineEvent::Toast { text, kind } => {
                         Self::show_toast(&w, &text, &kind);
                     }
+                    EngineEvent::EverlightFatal(msg) => {
+                        Self::show_popup(
+                            &w,
+                            "everlight-fatal",
+                            "Everlight fatal error",
+                            &format!(
+                                "Everlight ran into a fatal error and cannot continue this \
+                                 session:\n\n{msg}\n\nThe game has been closed."
+                            ),
+                        );
+                    }
+                    EngineEvent::EverlightTimeout => {
+                        Self::show_popup(
+                            &w,
+                            "everlight-timeout",
+                            "Everlight did not start",
+                            "Everlight did not produce a log file within 45 seconds, so the game \
+                             has been closed.\n\nTry switching engine methods in Settings.",
+                        );
+                    }
                 }
             }
         });
+    }
+
+    pub fn show_popup(window: &slint::Weak<MainWindow>, id: &str, title: &str, message: &str) {
+        let id = id.to_string();
+        let title = title.to_string();
+        let message = message.to_string();
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if let Some(w) = w.upgrade() {
+                w.set_popup_id(id.into());
+                w.set_popup_title(title.into());
+                w.set_popup_message(message.into());
+                w.set_popup_confirm_delay(0);
+                w.set_popup_required_count(0);
+                w.set_popup_checkboxes(slint::ModelRc::default());
+                w.set_popup_active(true);
+            }
+        })
+        .ok();
     }
 
     // TODO: Refactor kind to an enum plz

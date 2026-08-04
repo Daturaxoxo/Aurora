@@ -1,3 +1,4 @@
+mod everlight;
 mod files;
 mod inject;
 mod lua;
