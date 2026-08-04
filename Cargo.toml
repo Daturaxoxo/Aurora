@@ -25,6 +25,10 @@ anyhow = "1.0"
 jwalk = "0.8"
 dirs = "6"
 rayon = "1.12"
+twox-hash = { version = "2", default-features = false, features = [
+    "xxhash3_64",
+    "std",
+] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.13", default-features = false, features = [

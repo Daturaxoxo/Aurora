@@ -6,15 +6,18 @@ use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::gamebanana::types::{NteMod, NteModFile};
 use shared::config::{self, key};
-use shared::utils::format_bytes;
+use shared::utils::{format_bytes, get_local_version};
 use slint::{Model, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::time::Instant;
 
 const PAGE_SIZE: usize = 15;
+
+const DOWNLOAD_BUFFER: usize = 1 << 20;
 
 /// Must stay in the same order as the character list in gbbrowser.slint.
 const CHARACTERS: &[(&str, u32)] = &[
@@ -44,6 +47,13 @@ const CHARACTERS: &[(&str, u32)] = &[
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
 static API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
+
+static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", get_local_version()))
+        .build()
+        .unwrap_or_default()
+});
 
 #[derive(Debug, Clone)]
 struct Thumbnail {
@@ -303,7 +313,7 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         RUNTIME.spawn(async move {
-            let thumb = match reqwest::get(&url).await {
+            let thumb = match HTTP.get(&url).send().await {
                 Ok(resp) => match resp.bytes().await {
                     Ok(bytes) => decode_thumb(&bytes),
                     Err(e) => {
@@ -376,13 +386,17 @@ impl GbBrowserHandler {
             let result: anyhow::Result<Option<std::path::PathBuf>> = async {
                 use tokio::io::AsyncWriteExt;
 
-                let mut resp = reqwest::get(&file.url).await?.error_for_status()?;
+                let mut resp = HTTP.get(&file.url).send().await?.error_for_status()?;
                 let total = resp.content_length().unwrap_or(file.size);
                 let dir = std::env::temp_dir().join("Aurora/GameBanana");
                 tokio::fs::create_dir_all(&dir).await?;
                 let path = dir.join(&file.name);
-                let mut out = tokio::fs::File::create(&path).await?;
+                let mut out = tokio::io::BufWriter::with_capacity(
+                    DOWNLOAD_BUFFER,
+                    tokio::fs::File::create(&path).await?,
+                );
 
+                let started = Instant::now();
                 let mut done: u64 = 0;
                 let mut last_percent: u64 = 0;
                 while let Some(chunk) = resp.chunk().await? {
@@ -408,6 +422,25 @@ impl GbBrowserHandler {
                     }
                 }
                 out.flush().await?;
+
+                let secs = started.elapsed().as_secs_f64();
+                #[allow(
+                    clippy::cast_precision_loss,
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss
+                )]
+                let rate = if secs > 0.0 {
+                    (done as f64 / secs) as u64
+                } else {
+                    0
+                };
+                info!(
+                    "[GbBrowser] fetched '{}' ({}) in {secs:.1}s - {}/s",
+                    file.name,
+                    format_bytes(done),
+                    format_bytes(rate)
+                );
+
                 Ok(Some(path))
             }
             .await;

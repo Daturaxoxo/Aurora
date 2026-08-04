@@ -3,6 +3,7 @@ use crate::{MainWindow, ScreenshotItem};
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
+use shared::classes::info::paths::PICTURE_FOLDER;
 use shared::config::{self, key};
 use slint::{Model, VecModel};
 
@@ -12,13 +13,20 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
 
+/// Read size used when hashing a file's contents.
+const HASH_CHUNK: usize = 128 * 1024;
+
+const IGNORED_PLAYER_ID: &str = "66666";
+
 #[derive(Debug, Clone)]
 struct Screenshot {
     path: PathBuf,
+    duplicates: Vec<PathBuf>,
     file_name: String,
     timestamp: i64,
     date: String,
@@ -36,6 +44,7 @@ enum SortMode {
 #[derive(Default)]
 struct State {
     displayed: Vec<PathBuf>,
+    duplicates: HashMap<PathBuf, Vec<PathBuf>>,
     sort_mode: SortMode,
     favorites_only: bool,
     selected: HashSet<PathBuf>,
@@ -52,50 +61,260 @@ thread_local! {
 }
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-fn screenshot_folder() -> Option<PathBuf> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Source {
+    Selfie,
+    Pictures,
+}
+
+fn selfie_folder() -> Option<PathBuf> {
     let game_path = PathBuf::from(config::get(key::GAME_PATH).as_str()?);
     let selfie_folder = game_path
         .join("Client")
         .join("WindowsNoEditor")
         .join("Selfie");
-    if selfie_folder.exists() {
-        Some(selfie_folder)
-    } else {
-        None
-    }
+
+    selfie_folder.is_dir().then_some(selfie_folder)
 }
 
-fn get_screenshots() -> Option<Vec<PathBuf>> {
-    let selfie_folder = screenshot_folder()?;
+fn pictures_folder() -> Option<PathBuf> {
+    #[cfg(target_os = "linux")]
+    let base = shared::classes::steam::aurora_prefix()?
+        .join("drive_c")
+        .join("users")
+        .join("steamuser")
+        .join("Pictures");
+    #[cfg(not(target_os = "linux"))]
+    let base = dirs::picture_dir()?;
 
+    let folder = base.join(PICTURE_FOLDER);
+    folder.is_dir().then_some(folder)
+}
+
+fn pngs_in(dir: &Path) -> Vec<PathBuf> {
     let mut entries = vec![];
-    for entry in selfie_folder.read_dir().ok()? {
-        let Some(entry) = entry.ok() else { continue };
 
-        if entry.file_type().is_ok_and(|t| t.is_dir())
-            && !entry.file_name().eq_ignore_ascii_case("66666")
+    let Ok(shots) = dir.read_dir() else {
+        warn!("Could not read {}", dir.display());
+        return entries;
+    };
+
+    for shot in shots.flatten() {
+        let path = shot.path();
+        if shot.file_type().is_ok_and(|t| t.is_file())
+            && path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("png"))
         {
-            let screenshots_folder = entry.path().join("ScreenShots");
-            if screenshots_folder.exists() {
-                for entry in screenshots_folder.read_dir().ok()? {
-                    let Some(entry) = entry.ok() else { continue };
-                    if entry.file_type().is_ok_and(|t| t.is_file()) {
-                        entries.push(entry.path());
-                    }
-                }
-            } else {
-                warn!(
-                    "Screenshots folder not found: {}",
-                    screenshots_folder.display()
-                );
-            }
+            entries.push(path);
         }
     }
 
-    if entries.is_empty() {
-        None
-    } else {
-        Some(entries)
+    entries
+}
+
+fn selfie_screenshot_dirs() -> Vec<PathBuf> {
+    let mut dirs = vec![];
+
+    let Some(selfie_folder) = selfie_folder() else {
+        return dirs;
+    };
+    let Ok(players) = selfie_folder.read_dir() else {
+        warn!("Could not read {}", selfie_folder.display());
+        return dirs;
+    };
+
+    for player in players.flatten() {
+        if !player.file_type().is_ok_and(|t| t.is_dir())
+            || player.file_name().eq_ignore_ascii_case(IGNORED_PLAYER_ID)
+        {
+            continue;
+        }
+
+        let screenshots_folder = player.path().join("ScreenShots");
+        if screenshots_folder.is_dir() {
+            dirs.push(screenshots_folder);
+        } else {
+            warn!(
+                "Screenshots folder not found: {}",
+                screenshots_folder.display()
+            );
+        }
+    }
+
+    dirs
+}
+
+fn selfie_screenshots() -> Vec<PathBuf> {
+    selfie_screenshot_dirs()
+        .iter()
+        .flat_map(|dir| pngs_in(dir))
+        .collect()
+}
+
+fn picture_screenshots() -> Vec<PathBuf> {
+    pictures_folder()
+        .as_deref()
+        .map(pngs_in)
+        .unwrap_or_default()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileId {
+    size: u64,
+    modified: Option<SystemTime>,
+}
+
+impl FileId {
+    fn of(path: &Path) -> Option<Self> {
+        let meta = std::fs::metadata(path).ok()?;
+        Some(Self {
+            size: meta.len(),
+            modified: meta.modified().ok(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Candidate {
+    path: PathBuf,
+    source: Source,
+    id: FileId,
+}
+
+static HASH_CACHE: Lazy<Mutex<HashMap<PathBuf, (FileId, u64)>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn hash_file(path: &Path) -> std::io::Result<u64> {
+    use std::hash::Hasher as _;
+    use std::io::Read as _;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = twox_hash::XxHash3_64::new();
+    let mut buffer = vec![0u8; HASH_CHUNK];
+
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.write(&buffer[..read]);
+    }
+
+    Ok(hasher.finish())
+}
+
+fn content_hash(path: &Path, id: FileId) -> Option<u64> {
+    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path) {
+        if *cached_id == id {
+            return Some(*hash);
+        }
+    }
+
+    let hash = hash_file(path)
+        .map_err(|e| warn!("Could not hash '{}': {e}", path.display()))
+        .ok()?;
+
+    HASH_CACHE
+        .lock()
+        .unwrap()
+        .insert(path.to_path_buf(), (id, hash));
+
+    Some(hash)
+}
+
+fn unique(candidates: Vec<Candidate>) -> Vec<(PathBuf, Vec<PathBuf>)> {
+    use rayon::prelude::*;
+
+    let mut by_size: HashMap<u64, Vec<Candidate>> = HashMap::new();
+    for candidate in candidates {
+        by_size
+            .entry(candidate.id.size)
+            .or_default()
+            .push(candidate);
+    }
+
+    let mut groups: Vec<Vec<Candidate>> = Vec::new();
+    let mut contested: Vec<Candidate> = Vec::new();
+    for (_, mut same_size) in by_size {
+        if same_size.len() == 1 {
+            groups.push(std::mem::take(&mut same_size));
+        } else {
+            contested.append(&mut same_size);
+        }
+    }
+
+    let hashed: Vec<(Option<u64>, Candidate)> = contested
+        .into_par_iter()
+        .map(|candidate| (content_hash(&candidate.path, candidate.id), candidate))
+        .collect();
+
+    let mut by_hash: HashMap<(u64, u64), Vec<Candidate>> = HashMap::new();
+    for (hash, candidate) in hashed {
+        let Some(hash) = hash else {
+            groups.push(vec![candidate]);
+            continue;
+        };
+        by_hash
+            .entry((candidate.id.size, hash))
+            .or_default()
+            .push(candidate);
+    }
+    groups.extend(by_hash.into_values());
+
+    groups
+        .into_iter()
+        .filter_map(|mut group| {
+            group.sort_by(|a, b| a.source.cmp(&b.source).then_with(|| a.path.cmp(&b.path)));
+            let mut paths = group.into_iter().map(|c| c.path);
+            let primary = paths.next()?;
+            Some((primary, paths.collect()))
+        })
+        .collect()
+}
+
+fn collect() -> Vec<(PathBuf, Vec<PathBuf>)> {
+    let candidates: Vec<Candidate> = selfie_screenshots()
+        .into_iter()
+        .map(|path| (path, Source::Selfie))
+        .chain(
+            picture_screenshots()
+                .into_iter()
+                .map(|path| (path, Source::Pictures)),
+        )
+        .filter_map(|(path, source)| {
+            let id = FileId::of(&path)?;
+            Some(Candidate { path, source, id })
+        })
+        .collect();
+
+    let seen: HashSet<PathBuf> = candidates.iter().map(|c| c.path.clone()).collect();
+    HASH_CACHE
+        .lock()
+        .unwrap()
+        .retain(|path, _| seen.contains(path));
+
+    unique(candidates)
+}
+
+fn browsable_folder() -> Option<PathBuf> {
+    let mut dirs: Vec<(usize, PathBuf)> = selfie_screenshot_dirs()
+        .into_iter()
+        .map(|dir| (pngs_in(&dir).len(), dir))
+        .filter(|(count, _)| *count > 0)
+        .collect();
+
+    dirs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    if dirs.len() > 1 {
+        info!(
+            "{} player folders hold screenshots; opening the fullest",
+            dirs.len()
+        );
+    }
+
+    match dirs.into_iter().next() {
+        Some((_, dir)) => Some(dir),
+        None => pictures_folder(),
     }
 }
 
@@ -135,22 +354,16 @@ fn created_timestamp(path: &Path) -> Option<NaiveDateTime> {
 }
 
 fn scan() -> Vec<Screenshot> {
-    let Some(screenshots) = get_screenshots() else {
+    let screenshots = collect();
+    if screenshots.is_empty() {
         warn!("Couldn't get screenshots");
         return Vec::new();
-    };
+    }
 
     let favs = favorites();
     let mut shots = Vec::new();
 
-    for path in screenshots {
-        let is_png = path
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("png"));
-        if !is_png {
-            continue;
-        }
-
+    for (path, duplicates) in screenshots {
         let file_name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -171,6 +384,7 @@ fn scan() -> Vec<Screenshot> {
         shots.push(Screenshot {
             favorite: favs.contains(&file_name),
             path,
+            duplicates,
             file_name,
             timestamp,
             date,
@@ -248,6 +462,11 @@ impl ScreenshotHandler {
                     let mut state = STATE.lock().unwrap();
 
                     state.displayed = shots.iter().map(|s| s.path.clone()).collect();
+                    state.duplicates = shots
+                        .iter()
+                        .filter(|s| !s.duplicates.is_empty())
+                        .map(|s| (s.path.clone(), s.duplicates.clone()))
+                        .collect();
                     let existing: HashSet<PathBuf> = state.displayed.iter().cloned().collect();
                     state.selected.retain(|p| existing.contains(p));
                     let selected = state.selected.clone();
@@ -334,6 +553,14 @@ impl ScreenshotHandler {
         STATE.lock().unwrap().displayed.get(i).cloned()
     }
 
+    fn copies(path: &Path) -> Vec<PathBuf> {
+        let mut paths = vec![path.to_path_buf()];
+        if let Some(duplicates) = STATE.lock().unwrap().duplicates.get(path) {
+            paths.extend(duplicates.iter().cloned());
+        }
+        paths
+    }
+
     pub fn confirm_delete(window: &slint::Weak<MainWindow>) {
         let pending = std::mem::take(&mut STATE.lock().unwrap().pending_delete);
         if pending.is_empty() {
@@ -343,10 +570,12 @@ impl ScreenshotHandler {
         let mut favs = favorites();
         let mut favs_changed = false;
         for path in &pending {
-            if let Err(e) = std::fs::remove_file(path) {
-                error!("Could not delete '{}': {e}", path.display());
-            } else {
-                info!("Deleted '{}'", path.display());
+            for copy in Self::copies(path) {
+                if let Err(e) = std::fs::remove_file(&copy) {
+                    error!("Could not delete '{}': {e}", copy.display());
+                } else {
+                    info!("Deleted '{}'", copy.display());
+                }
             }
 
             let name = path
@@ -453,7 +682,8 @@ impl ScreenshotHandler {
         });
 
         w.on_open_screenshots_folder(move || {
-            let Some(folder) = screenshot_folder() else {
+            let Some(folder) = browsable_folder() else {
+                warn!("No screenshot folder to open");
                 return;
             };
             if let Err(e) = open::that(&folder) {
@@ -500,29 +730,43 @@ impl ScreenshotHandler {
                 name.push_str(".png");
             }
 
-            let target = path.with_file_name(&name);
-            if target == path {
-                return;
-            }
-            if target.exists() {
-                warn!("Rename target '{name}' already exists, ignoring");
+            if path.with_file_name(&name) == path {
                 return;
             }
 
-            match std::fs::rename(&path, &target) {
-                Ok(()) => {
-                    info!("Renamed '{}' → '{name}'", path.display());
-                    let old_name = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    let mut favs = favorites();
-                    if favs.remove(&old_name) {
-                        favs.insert(name);
-                        save_favorites(&favs);
-                    }
+            let mut renamed = false;
+            for copy in Self::copies(&path) {
+                let target = copy.with_file_name(&name);
+                if target == copy {
+                    continue;
                 }
-                Err(e) => error!("Could not rename '{}': {e}", path.display()),
+                if target.exists() {
+                    warn!(
+                        "Rename target '{}' already exists, ignoring",
+                        target.display()
+                    );
+                    continue;
+                }
+
+                match std::fs::rename(&copy, &target) {
+                    Ok(()) => {
+                        info!("Renamed '{}' → '{name}'", copy.display());
+                        renamed = true;
+                    }
+                    Err(e) => error!("Could not rename '{}': {e}", copy.display()),
+                }
+            }
+
+            if renamed {
+                let old_name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let mut favs = favorites();
+                if favs.remove(&old_name) {
+                    favs.insert(name);
+                    save_favorites(&favs);
+                }
             }
             Self::reload(&ww);
         });
