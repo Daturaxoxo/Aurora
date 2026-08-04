@@ -5,6 +5,9 @@ use shared::utils::get_bin_path;
 pub mod pak;
 pub mod scale;
 
+/// Folder under `Bin/Addons` holding the censorship remover's payload.
+pub const CENSORSHIP_DIR: &str = "Censorship";
+
 pub fn get_all_addon_paths() -> Option<Vec<PathBuf>> {
     let bin_path = get_bin_path()?;
     let addons_path = bin_path.join("Addons");

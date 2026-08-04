@@ -67,6 +67,53 @@ impl ProcessSnapshot {
     }
 }
 
+pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
+    let exe = process
+        .exe()
+        .map(|e| e.display().to_string())
+        .unwrap_or_default();
+    trace!("Killing process {exe} (pid {pid})");
+
+    if process.kill() {
+        info!("Process {exe} killed");
+        return true;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let pid_u32 = pid.as_u32();
+        trace!("sysinfo kill failed for {exe}, retrying via taskkill /F /PID {pid_u32}");
+        match std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid_u32.to_string()])
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                info!("{exe} killed via taskkill");
+                return true;
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                error!(
+                    "{exe} could not be killed (taskkill exit {}: {stderr}). \
+                     Ensure Aurora Engine is running as Administrator.",
+                    output.status
+                );
+            }
+            Err(e) => {
+                error!(
+                    "{exe} could not be killed (taskkill unavailable: {e}). \
+                     Ensure Aurora Engine is running as Administrator."
+                );
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    error!("{exe} could not be killed");
+
+    false
+}
+
 #[derive(Clone)]
 pub struct KillSnapshot {
     pub launcher_process: &'static str,
@@ -107,50 +154,13 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
 
     for name in names {
         for (pid, process) in snapshot_data.matching(name) {
-            let exe = process
-                .exe()
-                .map(|e| e.display().to_string())
-                .unwrap_or_default();
-            trace!("Killing process {exe} (pid {pid})");
-
-            if process.kill() {
-                info!("Process {exe} killed");
-                continue;
+            if !kill_process(*pid, process) {
+                let exe = process
+                    .exe()
+                    .map(|e| e.display().to_string())
+                    .unwrap_or_default();
+                kill_failures.push(exe);
             }
-
-            #[cfg(target_os = "windows")]
-            {
-                let pid_u32 = pid.as_u32();
-                trace!("sysinfo kill failed for {exe}, retrying via taskkill /F /PID {pid_u32}");
-                match std::process::Command::new("taskkill")
-                    .args(["/F", "/PID", &pid_u32.to_string()])
-                    .output()
-                {
-                    Ok(output) if output.status.success() => {
-                        info!("{exe} killed via taskkill");
-                        continue;
-                    }
-                    Ok(output) => {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        error!(
-                            "{exe} could not be killed (taskkill exit {}: {stderr}). \
-                             Ensure Aurora Engine is running as Administrator.",
-                            output.status
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            "{exe} could not be killed (taskkill unavailable: {e}). \
-                             Ensure Aurora Engine is running as Administrator."
-                        );
-                    }
-                }
-            }
-
-            #[cfg(not(target_os = "windows"))]
-            error!("{exe} could not be killed");
-
-            kill_failures.push(exe);
         }
     }
 

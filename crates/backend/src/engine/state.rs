@@ -15,7 +15,6 @@ use super::process::{set_kill_snapshot, KillSnapshot};
 
 pub struct AuroraEngine {
     pub game_path: PathBuf,
-    pub crr: bool,
     pub engine_method: BypassMethod,
     pub bin_path: PathBuf,
     pub version: Version,
@@ -42,11 +41,6 @@ struct DerivedPaths {
 impl AuroraEngine {
     pub fn new(game_path: impl Into<PathBuf>) -> Result<Self> {
         let game_path = game_path.into();
-
-        let crr: bool = get(key::CENSORSHIP_REMOVE)
-            .as_bool()
-            .ok_or_else(|| anyhow!("Error when reading config: CENSORSHIP_REMOVE"))?;
-        trace!("CRR: {crr}");
 
         let version = detect_version(&game_path)?;
         trace!("Game version: {version}");
@@ -81,7 +75,6 @@ impl AuroraEngine {
 
         let engine = Self {
             game_path,
-            crr,
             engine_method,
             bin_path,
             version,
@@ -103,11 +96,6 @@ impl AuroraEngine {
         let game_path = game_path.into();
         info!("Reinitializing engine with path: {}", game_path.display());
 
-        let crr: bool = get(key::CENSORSHIP_REMOVE)
-            .as_bool()
-            .ok_or_else(|| anyhow!("Error when reading config: CENSORSHIP_REMOVE"))?;
-        trace!("CRR: {crr}");
-
         let engine_method_raw = match get(key::ENGINE_METHOD).as_i64() {
             Some(v) => v,
             None => get(key::ENGINE_METHOD)
@@ -124,7 +112,6 @@ impl AuroraEngine {
         let derived = Self::derive_paths(&gpaths)?;
 
         self.game_path = game_path;
-        self.crr = crr;
         self.engine_method = engine_method;
         self.version = version;
         self.gpaths = gpaths;
@@ -167,7 +154,7 @@ impl AuroraEngine {
         let main_dlls = gpaths.dll_slots.iter().map(|s| s.name.clone()).collect();
         let targets = vec![
             (Target::AsiPlugin, gpaths.asi_plugin.clone()),
-            (Target::Ntfrmain, win64.join(Target::Ntfrmain.as_file())),
+            (Target::AuroraTf, win64.join(Target::AuroraTf.as_file())),
             (Target::Cutils, win64.join(Target::Cutils.as_file())),
         ];
 

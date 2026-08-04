@@ -60,6 +60,20 @@ pub fn real_home() -> Option<PathBuf> {
     real_user().map(|user| user.home)
 }
 
+pub const STEAM_APP_ID: &str = "4508340";
+
+pub fn aurora_compat_data_dir() -> Option<PathBuf> {
+    real_home().map(|home| {
+        home.join(".local/share/Aurora")
+            .join("compatdata")
+            .join(STEAM_APP_ID)
+    })
+}
+
+pub fn aurora_prefix() -> Option<PathBuf> {
+    aurora_compat_data_dir().map(|dir| dir.join("pfx"))
+}
+
 pub fn steam_libraries() -> Vec<PathBuf> {
     let mut libraries = Vec::new();
 

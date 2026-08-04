@@ -31,6 +31,7 @@ slint = { workspace = true }
 once_cell = { workspace = true }
 log = { workspace = true }
 rayon = { workspace = true }
+twox-hash = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

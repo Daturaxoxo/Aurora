@@ -25,6 +25,11 @@ impl AuroraEngine {
                 //("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
                 // ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])
+            .chain(
+                super::everlight::find_logs(&self.win64)
+                    .into_iter()
+                    .map(|p| ("Everlight log".to_string(), p)),
+            )
             .map(|(label, path)| thread::spawn(move || Self::remove_target(&label, &path)))
             .collect();
 

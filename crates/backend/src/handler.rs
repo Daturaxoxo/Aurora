@@ -38,6 +38,8 @@ pub enum EngineEvent {
     LaunchFailed(String),
     GameClosed,
     Toast { text: String, kind: String },
+    EverlightFatal(String),
+    EverlightTimeout,
     GamePathUpdated(PathBuf),
     EngineReady,
     EngineInitFailed(String),
@@ -120,7 +122,7 @@ impl EngineHandler {
 
                             std::thread::spawn(move || {
                                 if let Some(e) = engine.lock().unwrap().as_mut() {
-                                    if let Err(e) = e.monitor() {
+                                    if let Err(e) = e.monitor(evt_tx.clone()) {
                                         error!("Monitor failed: {e}");
                                     }
                                 }

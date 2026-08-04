@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     fs,
+    hint::cold_path,
     io::Write,
     path::Path,
     sync::{mpsc::SyncSender, Mutex},
@@ -17,7 +18,11 @@ const FILTER_ENV: &str = "AURORA_LOG";
 
 #[cfg(windows)]
 pub(crate) fn log_dir() -> std::path::PathBuf {
-    std::path::PathBuf::from("Logs")
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+        .unwrap_or_default()
+        .join("Logs")
 }
 
 #[cfg(target_os = "linux")]
@@ -27,6 +32,53 @@ pub(crate) fn log_dir() -> std::path::PathBuf {
 
 /// Maximum amount of log entries allowed in the in-memory buffer
 pub const LOG_BUFFER_CAPACITY: usize = 10_000;
+
+/// Maximum amount of `aurora-*.log` files kept on disk
+const MAX_LOG_FILES: usize = 20;
+
+fn session_log_modified(entry: &fs::DirEntry) -> Option<std::time::SystemTime> {
+    let name = entry.file_name();
+    let name = name.to_str()?;
+    if !name.starts_with("aurora-")
+        || !Path::new(name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
+    {
+        cold_path();
+        return None;
+    }
+
+    let metadata = entry.metadata().ok()?;
+    if !metadata.is_file() {
+        cold_path();
+        return None;
+    }
+
+    metadata.modified().ok()
+}
+
+fn prune_old_logs(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    let mut logs: Vec<_> = entries
+        .flatten()
+        .filter_map(|entry| Some((session_log_modified(&entry)?, entry.path())))
+        .collect();
+
+    if logs.len() <= MAX_LOG_FILES {
+        return;
+    }
+
+    logs.sort_unstable_by(|(a, _), (b, _)| b.cmp(a));
+
+    for (_, path) in logs.drain(MAX_LOG_FILES..) {
+        if let Err(e) = fs::remove_file(&path) {
+            eprintln!("Failed to remove old log file {}: {e}", path.display());
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct LogEntry {
@@ -117,6 +169,7 @@ impl Logger {
         let path = Path::new(&log_file_path);
         if let Some(p) = path.parent() {
             let _ = fs::create_dir_all(p);
+            prune_old_logs(p);
         }
 
         let file = match fs::OpenOptions::new()
@@ -236,27 +289,17 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
-#[cfg(windows)]
-pub fn logs_directory() -> std::path::PathBuf {
-    std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
-        .join("Logs")
-}
-
-#[cfg(target_os = "linux")]
 pub fn logs_directory() -> std::path::PathBuf {
     log_dir()
 }
 
 pub fn get_latest_logs() -> Option<String> {
-    let last_modified_file = std::fs::read_dir(logs_directory())
-        .expect("Couldn't access local directory")
+    let last_modified_file = fs::read_dir(logs_directory())
+        .ok()?
         .flatten()
-        .filter(|f| f.metadata().unwrap().is_file())
-        .max_by_key(|x| x.metadata().unwrap().modified().unwrap());
+        .filter_map(|entry| Some((session_log_modified(&entry)?, entry)))
+        .max_by(|(a, _), (b, _)| a.cmp(b))
+        .map(|(_, entry)| entry);
 
-    last_modified_file.map(|file| std::fs::read_to_string(file.path()).unwrap_or_default())
+    last_modified_file.map(|file| fs::read_to_string(file.path()).unwrap_or_default())
 }

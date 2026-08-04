@@ -4,9 +4,10 @@ use std::process::Command;
 use anyhow::{anyhow, Context, Result};
 use log::{debug, info, warn};
 use shared::classes::steam::real_user;
-use shared::classes::steam::{find_steam_root, real_home, steam_libraries};
+use shared::classes::steam::{
+    aurora_compat_data_dir, find_steam_root, steam_libraries, STEAM_APP_ID,
+};
 
-const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
 pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process::Child> {
@@ -252,28 +253,27 @@ fn is_in_steam_library(exe: &Path) -> bool {
         .any(|library| exe.starts_with(&library))
 }
 
-/// The compat data directory Aurora owns.
-/// Proton creates and populates `pfx/` inside it on first launch.
-///
-/// The app id leaf mirrors Steam's own `compatdata/<appid>` layout. It isn't
-/// cosmetic: protonfixes recovers the game id by pulling the last run of digits
-/// out of `STEAM_COMPAT_DATA_PATH`, so a path with no digits in it makes it
-/// fail outright.
+/// Creates the compat data directory Aurora owns and hands it to the invoking
+/// user. The path itself is defined by [`aurora_compat_data_dir`].
 ///
 /// Aurora runs as root, but Proton is dropped back to the invoking user, so
 /// anything we create here has to be handed over to them or Proton won't be
 /// able to write into it.
 fn aurora_compat_data() -> Result<PathBuf> {
-    let home =
-        real_home().ok_or_else(|| anyhow!("could not determine the user's home directory"))?;
+    let dir = aurora_compat_data_dir()
+        .ok_or_else(|| anyhow!("could not determine the user's home directory"))?;
 
-    let aurora_dir = home.join(".local/share/Aurora");
-    let compatdata_dir = aurora_dir.join("compatdata");
-    let dir = compatdata_dir.join(STEAM_APP_ID);
     std::fs::create_dir_all(&dir)
         .with_context(|| format!("could not create compat data directory {}", dir.display()))?;
 
-    for created in [&aurora_dir, &compatdata_dir, &dir] {
+    let compatdata_dir = dir
+        .parent()
+        .ok_or_else(|| anyhow!("{} has no parent directory", dir.display()))?;
+    let aurora_dir = compatdata_dir
+        .parent()
+        .ok_or_else(|| anyhow!("{} has no parent directory", compatdata_dir.display()))?;
+
+    for created in [aurora_dir, compatdata_dir, dir.as_path()] {
         if let Err(e) = chown_to_real_user(created) {
             warn!(
                 "could not chown {} to the invoking user: {e:#}",
