@@ -19,6 +19,8 @@ const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(20);
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Message {
+    /// Updater -> Aurora: sent once on connect, before any other message.
+    Hello,
     /// Updater -> Aurora: update in progress, lock the UI.
     Lock,
     /// Updater -> Aurora: update finished (non-exe files), UI back to normal.
