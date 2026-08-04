@@ -1,12 +1,14 @@
 #[cfg(windows)]
+use std::io;
+#[cfg(windows)]
 use std::path::Path;
-use std::process::{self, Command};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(windows)]
 use std::sync::mpsc;
-use std::time::Duration;
 #[cfg(windows)]
-use std::time::Instant;
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use log::*;
@@ -107,8 +109,7 @@ impl UpdateHandler {
                 }
             }
             Err(e) => {
-                error!("failed to check beta phasing: {e}");
-                process::exit(0);
+                warn!("could not reach the beta phasing endpoint: {e}; continuing");
             }
         }
 
@@ -297,37 +298,38 @@ impl UpdateHandler {
             .spawn()
             .with_context(|| format!("failed to launch {}", updater_path.display()))?;
 
-        let (tx, rx) = mpsc::channel::<Message>();
-        std::thread::spawn(move || {
-            let Ok(mut stream) = protocol::accept(&listener) else {
-                return;
-            };
-            while let Ok(msg) = protocol::read_message(&mut stream) {
-                if tx.send(msg).is_err() {
-                    return;
-                }
+        let stream = match protocol::accept_timeout(&listener, ipc::UPDATER_CONNECT_TIMEOUT) {
+            Ok(stream) => Arc::new(stream),
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                Self::abort_update_session(window, "the updater never connected");
+                return Ok(());
             }
-        });
+            Err(e) => {
+                Self::abort_update_session(
+                    window,
+                    &format!("failed to accept the updater connection: {e}"),
+                );
+                return Ok(());
+            }
+        };
 
-        let mut locked = false;
-        let mut last_heartbeat = Instant::now();
+        let rx = protocol::spawn_reader(stream);
+
         loop {
-            match rx.recv_timeout(Duration::from_secs(1)) {
-                Ok(Message::Lock) => {
+            match rx.recv_timeout(ipc::HEARTBEAT_TIMEOUT) {
+                Ok(Ok(Message::Hello)) => info!("updater: connected"),
+                Ok(Ok(Message::Lock)) => {
                     info!("updater: update in progress, locking UI");
-                    locked = true;
-                    last_heartbeat = Instant::now();
                     Self::set_locked(window, true);
                     Self::set_update_overlay(window, true);
                 }
-                Ok(Message::Heartbeat) => last_heartbeat = Instant::now(),
-                Ok(Message::Progress {
+                Ok(Ok(Message::Heartbeat | Message::InitConfirmed)) => {}
+                Ok(Ok(Message::Progress {
                     file_index,
                     file_count,
                     bytes_done,
                     bytes_total,
-                }) => {
-                    last_heartbeat = Instant::now();
+                })) => {
                     Self::set_update_progress(
                         window,
                         file_index,
@@ -336,7 +338,7 @@ impl UpdateHandler {
                         bytes_total,
                     );
                 }
-                Ok(Message::Unlock) => {
+                Ok(Ok(Message::Unlock)) => {
                     info!("updater: update finished");
                     if silent {
                         info!("silent update applied; restarting Aurora");
@@ -348,15 +350,13 @@ impl UpdateHandler {
                     Bridge::show_toast(window, "Aurora has been updated.", "success");
                     return Ok(());
                 }
-                Ok(Message::NoUpdate) => {
-                    // The check already found changes, so this only happens if a
-                    // new manifest landed while the popup was open.
+                Ok(Ok(Message::NoUpdate)) => {
                     info!("updater: no update available");
                     Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     return Ok(());
                 }
-                Ok(Message::CloseNow) => {
+                Ok(Ok(Message::CloseNow)) => {
                     info!("updater: Aurora.exe is being replaced, exiting");
                     slint::invoke_from_event_loop(|| {
                         let _ = slint::quit_event_loop();
@@ -364,42 +364,43 @@ impl UpdateHandler {
                     .ok();
                     return Ok(());
                 }
-                Ok(Message::Error { message }) => {
+                Ok(Ok(Message::Error { message })) => {
                     error!("updater reported an error: {message}");
                     Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     Bridge::show_toast(window, "Update failed. Try again later.", "error");
                     return Ok(());
                 }
-                Ok(Message::InitConfirmed) => {} // not expected on this pipe
+                Ok(Err(e)) => {
+                    Self::abort_update_session(
+                        window,
+                        &format!("the updater connection failed: {e}"),
+                    );
+                    return Ok(());
+                }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
-                    if locked && last_heartbeat.elapsed() > ipc::HEARTBEAT_TIMEOUT {
-                        error!("updater heartbeat lost; auto-unlocking UI");
-                        Self::set_update_overlay(window, false);
-                        Self::set_locked(window, false);
-                        Bridge::show_toast(
-                            window,
-                            "Update interrupted. You can retry from the launch menu.",
-                            "error",
-                        );
-                        return Ok(());
-                    }
+                    Self::abort_update_session(window, "the updater stopped sending heartbeats");
+                    return Ok(());
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    if locked {
-                        error!("updater connection lost while locked; auto-unlocking UI");
-                        Self::set_update_overlay(window, false);
-                        Self::set_locked(window, false);
-                        Bridge::show_toast(
-                            window,
-                            "Update interrupted. You can retry from the launch menu.",
-                            "error",
-                        );
-                    }
+                    Self::abort_update_session(window, "the updater closed the connection");
                     return Ok(());
                 }
             }
         }
+    }
+
+    #[cfg(windows)]
+    fn abort_update_session(window: &slint::Weak<MainWindow>, reason: &str) {
+        error!("update session ended abnormally: {reason}; unlocking UI");
+        UPDATE_RUNNING.store(false, Ordering::SeqCst);
+        Self::set_update_overlay(window, false);
+        Self::set_locked(window, false);
+        Bridge::show_toast(
+            window,
+            "Update interrupted. You can retry from the launch menu.",
+            "error",
+        );
     }
 
     #[cfg(target_os = "linux")]

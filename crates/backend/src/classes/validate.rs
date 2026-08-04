@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use jwalk::WalkDir;
 use shared::archive::ARCHIVE_EXTENSIONS;
 
-const MOD_EXTENSIONS: [&str; 3] = [".pak", ".utoc", ".ucas"];
+const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
 const IGNORED_INI_FILES: [&str; 1] = ["desktop.ini"];
 
 #[derive(Debug, Clone)]
@@ -31,22 +31,22 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
     for entry in fs::read_dir(mod_folder)? {
         let entry = entry?;
         let path = entry.path();
-        let extension = &path
-            .extension()
-            .and_then(|os| os.to_str())
-            .ok_or_else(|| anyhow!("Could not get file extension"))?;
         if entry.file_type()?.is_file() {
+            let Some(extension) = path.extension().and_then(|os| os.to_str()) else {
+                continue;
+            };
+            let extension = extension.to_lowercase();
             let name = entry
                 .path()
                 .to_str()
                 .ok_or_else(|| anyhow!("Could not get file path"))?
                 .to_string();
-            if ARCHIVE_EXTENSIONS.contains(extension) {
+            if ARCHIVE_EXTENSIONS.contains(&extension.as_str()) {
                 issues.push(Issue::new(
                     name,
                     "Archive File: You must extract the mod first".to_string(),
                 ));
-            } else if !MOD_EXTENSIONS.contains(extension) {
+            } else if !MOD_EXTENSIONS.contains(&extension.as_str()) {
                 issues.push(Issue::new(
                     name,
                     format!("Unsupported file type ({extension})"),

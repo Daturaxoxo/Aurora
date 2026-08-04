@@ -13,6 +13,7 @@ use shared::utils;
 use super::files::FileGroup;
 use super::process::{set_kill_snapshot, KillSnapshot};
 
+#[derive(Clone)]
 pub struct AuroraEngine {
     pub game_path: PathBuf,
     pub engine_method: BypassMethod,

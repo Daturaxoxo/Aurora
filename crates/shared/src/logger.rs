@@ -16,6 +16,14 @@ use crate::telemetry::{spawn_error_worker, ErrorEvent};
 
 const FILTER_ENV: &str = "AURORA_LOG";
 
+const NOISY_MODULES: [&str; 5] = ["mslnk", "reqwest", "rustls", "calloop", "smithay"];
+
+#[cfg(any(debug_assertions, feature = "beta"))]
+const DEFAULT_LEVEL: LevelFilter = LevelFilter::Trace;
+
+#[cfg(not(any(debug_assertions, feature = "beta")))]
+const DEFAULT_LEVEL: LevelFilter = LevelFilter::Info;
+
 #[cfg(windows)]
 pub(crate) fn log_dir() -> std::path::PathBuf {
     std::env::current_exe()
@@ -157,8 +165,16 @@ pub struct Logger {
 
 impl Logger {
     fn new() -> Self {
-        let mut builder = Builder::from_env(FILTER_ENV);
-        builder.filter_module("mslnk", log::LevelFilter::Off);
+        let mut builder = Builder::new();
+        builder.filter_level(DEFAULT_LEVEL);
+
+        for module in NOISY_MODULES {
+            builder.filter_module(module, LevelFilter::Off);
+        }
+
+        if let Ok(spec) = std::env::var(FILTER_ENV) {
+            builder.parse(&spec);
+        }
 
         let startup_timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
         let log_file_path = log_dir()
@@ -198,15 +214,7 @@ impl Logger {
     pub fn init() -> Result<(), SetLoggerError> {
         let logger = Self::new();
 
-        #[cfg(debug_assertions)]
-        log::set_max_level(log::LevelFilter::Trace);
-
-        #[cfg(not(debug_assertions))]
-        log::set_max_level(log::LevelFilter::Info);
-
-        // if beta is enabled, enable trace anyways
-        #[cfg(feature = "beta")]
-        log::set_max_level(log::LevelFilter::Trace);
+        log::set_max_level(logger.inner.filter());
 
         log::set_boxed_logger(Box::new(logger))
     }
@@ -218,14 +226,10 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        if record.module_path().is_some_and(|s| {
-            s.contains("reqwest")
-                || s.contains("rustls")
-                || s.contains("calloop")
-                || s.contains("smithay")
-        }) {
+        if !self.inner.matches(record) {
             return;
         }
+
         let timestamp = chrono::Utc::now().format("%d-%m-%Y-%H-%M-%S").to_string();
         buffer_record(&timestamp, record);
 

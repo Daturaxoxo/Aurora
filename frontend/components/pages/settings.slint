@@ -40,7 +40,7 @@ component ToggleSwitch inherits Rectangle {
 export component Dropdown inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
-    in-out property <bool> opened: false;
+    out property <bool> opened: popup.is-open;
 
     callback selection-changed(int);
 
@@ -77,10 +77,7 @@ export component Dropdown inherits Rectangle {
     }
 
     TouchArea {
-        clicked => {
-            root.opened = !root.opened;
-            if (root.opened) { popup.show(); }
-        }
+        clicked => { popup.show(); }
     }
 
     popup := PopupWindow {
@@ -113,7 +110,6 @@ export component Dropdown inherits Rectangle {
                     item-ta := TouchArea {
                         clicked => {
                             root.selected-index = index;
-                            root.opened = false;
                             root.selection-changed(index);
                         }
                     }

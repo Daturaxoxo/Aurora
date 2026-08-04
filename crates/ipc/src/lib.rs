@@ -51,6 +51,7 @@ pub const QUICK_START_ARG: &str = "--quick-start";
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(15);
+pub const UPDATER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub fn install_root() -> PathBuf {
     std::env::current_exe()

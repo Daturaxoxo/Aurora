@@ -404,9 +404,9 @@ fn ordered(
     }
 
     match sort_mode {
-        SortMode::Newest => shots.sort_by_key(|s| s.timestamp),
+        SortMode::Newest => shots.sort_by_key(|s| std::cmp::Reverse(s.timestamp)),
         SortMode::Name => shots.sort_by_key(|a| a.file_name.to_lowercase()),
-        SortMode::Oldest => shots.sort_by_key(|s| std::cmp::Reverse(s.timestamp)),
+        SortMode::Oldest => shots.sort_by_key(|s| s.timestamp),
     }
 
     shots.sort_by_key(|s| !s.favorite);

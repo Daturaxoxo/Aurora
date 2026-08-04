@@ -20,6 +20,7 @@ const LAUNCHER_GRACE_SECS: u32 = 10;
 // TODO: Probably want to consider decreasing these at some point
 const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(5);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
+const LAUNCHER_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
 
 impl AuroraEngine {
     pub fn monitor(&mut self, evt_tx: mpsc::Sender<EngineEvent>) -> Result<()> {
@@ -68,6 +69,7 @@ impl AuroraEngine {
         let mut snapshot = ProcessSnapshot::refresh();
         let mut launcher_seen = false;
         let mut missing_ticks = 0u32;
+        let deadline = Instant::now() + LAUNCHER_WAIT_TIMEOUT;
 
         loop {
             thread::sleep(THREAD_SLEEP_DURATION);
@@ -77,6 +79,12 @@ impl AuroraEngine {
                 info!("NTE process ({game_process}) was detected, game is running.");
                 RPC.set_ingame()?;
                 return Ok(true);
+            }
+
+            if Instant::now() >= deadline {
+                warn!("NTE never started within {LAUNCHER_WAIT_TIMEOUT:?}. Aborting monitor.");
+                self.sanitize(true)?;
+                return Ok(false);
             }
 
             if snapshot.any_matching(&watch_names) {

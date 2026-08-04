@@ -1,3 +1,4 @@
+use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
@@ -701,6 +702,10 @@ impl AddonsHandler {
     const DOWNLOAD_MAX_ATTEMPTS: u32 = 4;
 
     fn download_file(file_name: &str, url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
+        let file_name = sanitize_download_filename(file_name).with_context(|| {
+            format!("refusing to download to unsafe file name '{file_name}'")
+        })?;
+
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
@@ -714,7 +719,7 @@ impl AddonsHandler {
                 .and_then(reqwest::blocking::Response::bytes)
             {
                 Ok(bytes) => {
-                    let dest = dest_folder.join(file_name);
+                    let dest = dest_folder.join(&file_name);
                     std::fs::write(&dest, &bytes)
                         .with_context(|| format!("writing '{}' to disk", dest.display()))?;
                     return Ok(dest);

@@ -1,6 +1,6 @@
 use crate::engine::AuroraEngine;
 use anyhow::{anyhow, Result};
-use log::{error, info};
+use log::*;
 use shared::pathfind::get_game_directory;
 use std::{
     path::PathBuf,
@@ -14,8 +14,6 @@ use std::{
 
 pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
 
-/// True while a launched game session is live, i.e. between the
-/// `LaunchSuccess` and `GameClosed` events.
 pub static GAME_RUNNING: AtomicBool = AtomicBool::new(false);
 
 pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
@@ -41,6 +39,7 @@ pub enum EngineEvent {
     EverlightFatal(String),
     EverlightTimeout,
     GamePathUpdated(PathBuf),
+    ValidationResult { missing: Vec<String> },
     EngineReady,
     EngineInitFailed(String),
 }
@@ -92,13 +91,28 @@ impl EngineHandler {
                 let evt_tx = evt_tx.clone();
                 match cmd {
                     EngineCommand::Launch(custom_files) => {
+                        if GAME_RUNNING
+                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                            .is_err()
+                        {
+                            warn!("Launch ignored: a game session is already running");
+                            evt_tx
+                                .send(EngineEvent::LaunchFailed(
+                                    "A game session is already running".to_string(),
+                                ))
+                                .ok();
+                            continue;
+                        }
                         std::thread::spawn(move || {
                             let mut attempts = 0;
                             let result = loop {
                                 {
                                     let mut guard = engine.lock().unwrap();
                                     if let Some(e) = guard.as_mut() {
-                                        break e.inject(custom_files);
+                                        break match e.inject(custom_files) {
+                                            Ok(()) => Ok(e.clone()),
+                                            Err(err) => Err(err),
+                                        };
                                     }
                                 }
                                 if attempts >= 10 {
@@ -109,26 +123,25 @@ impl EngineHandler {
                                 attempts += 1;
                                 thread::sleep(Duration::from_millis(500));
                             };
-                            if let Err(e) = result {
-                                error!("Inject failed: {e}");
-                                evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
-                                if let Some(e) = engine.lock().unwrap().as_mut() {
-                                    e.sanitize(false).ok();
+                            let mut session = match result {
+                                Ok(session) => session,
+                                Err(e) => {
+                                    error!("Inject failed: {e}");
+                                    evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
+                                    if let Some(e) = engine.lock().unwrap().as_mut() {
+                                        e.sanitize(false).ok();
+                                    }
+                                    GAME_RUNNING.store(false, Ordering::SeqCst);
+                                    return;
                                 }
-                                return;
-                            }
-                            GAME_RUNNING.store(true, Ordering::Relaxed);
+                            };
                             evt_tx.send(EngineEvent::LaunchSuccess).ok();
 
-                            std::thread::spawn(move || {
-                                if let Some(e) = engine.lock().unwrap().as_mut() {
-                                    if let Err(e) = e.monitor(evt_tx.clone()) {
-                                        error!("Monitor failed: {e}");
-                                    }
-                                }
-                                GAME_RUNNING.store(false, Ordering::Relaxed);
-                                evt_tx.send(EngineEvent::GameClosed).ok();
-                            });
+                            if let Err(e) = session.monitor(evt_tx.clone()) {
+                                error!("Monitor failed: {e}");
+                            }
+                            GAME_RUNNING.store(false, Ordering::SeqCst);
+                            evt_tx.send(EngineEvent::GameClosed).ok();
                         });
                     }
                     EngineCommand::Sanitize => {
@@ -189,13 +202,32 @@ impl EngineHandler {
                         }
                     }
                     EngineCommand::Validate => {
-                        std::thread::spawn(move || match engine.lock().unwrap().as_mut() {
-                            Some(e) => {
-                                if let Err(e) = e.validate() {
-                                    error!("Validate failed: {e}");
+                        std::thread::spawn(move || {
+                            if let Some(e) = engine.lock().unwrap().as_mut() {
+                                match e.validate() {
+                                    Ok(missing) => {
+                                        evt_tx.send(EngineEvent::ValidationResult { missing }).ok();
+                                    }
+                                    Err(e) => {
+                                        error!("Validate failed: {e}");
+                                        evt_tx
+                                            .send(EngineEvent::Toast {
+                                                text: format!("Validation failed: {e}"),
+                                                kind: "error".to_string(),
+                                            })
+                                            .ok();
+                                    }
                                 }
+                            } else {
+                                error!("Validate failed: engine not initialized");
+                                evt_tx
+                                    .send(EngineEvent::Toast {
+                                        text: "Validation failed: engine not initialized"
+                                            .to_string(),
+                                        kind: "error".to_string(),
+                                    })
+                                    .ok();
                             }
-                            None => error!("Validate failed: engine not initialized"),
                         });
                     }
                 }

@@ -1,15 +1,20 @@
 use std::io::{self, Read, Write};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use interprocess::local_socket::{
     traits::{Listener as _, Stream as _},
-    GenericNamespaced, Listener, ListenerOptions, Stream, ToNsName,
+    GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Stream, ToNsName,
 };
 use serde::{Deserialize, Serialize};
 
-// Re-exported so dependents don't need their own interprocess dependency.
 pub use interprocess::local_socket::{Listener as IpcListener, Stream as IpcStream};
 
 const MAX_FRAME_LEN: u32 = 64 * 1024;
+
+const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -74,6 +79,47 @@ pub fn accept(listener: &Listener) -> io::Result<Stream> {
     listener.accept()
 }
 
+pub fn accept_timeout(listener: &Listener, timeout: Duration) -> io::Result<Stream> {
+    listener.set_nonblocking(ListenerNonblockingMode::Accept)?;
+    let deadline = Instant::now() + timeout;
+    let result = loop {
+        match listener.accept() {
+            Ok(stream) => break Ok(stream),
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    break Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "timed out waiting for a peer to connect",
+                    ));
+                }
+                thread::sleep(ACCEPT_POLL_INTERVAL);
+            }
+            Err(e) => break Err(e),
+        }
+    };
+    let _ = listener.set_nonblocking(ListenerNonblockingMode::Neither);
+    result
+}
+
+pub fn set_read_timeout(stream: &Stream, timeout: Option<Duration>) -> io::Result<()> {
+    stream.set_recv_timeout(timeout)
+}
+
+pub fn spawn_reader(stream: Arc<Stream>) -> Receiver<io::Result<Message>> {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = &*stream;
+        loop {
+            let msg = read_message(&mut reader);
+            let failed = msg.is_err();
+            if tx.send(msg).is_err() || failed {
+                break;
+            }
+        }
+    });
+    rx
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +127,7 @@ mod tests {
     #[test]
     fn framing_round_trips_every_message() {
         let messages = [
+            Message::Hello,
             Message::Lock,
             Message::Unlock,
             Message::CloseNow,

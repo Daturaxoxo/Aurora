@@ -406,16 +406,24 @@ pub fn config_map(key: &str) -> serde_json::Map<String, Value> {
 }
 
 pub fn config_map_set(key: &str, entry: &str, value: Option<&str>) {
-    let mut map = config_map(key);
-    match value {
-        Some(v) => {
-            map.insert(entry.to_string(), Value::from(v));
+    config::modify(|data| {
+        let mut map = data
+            .get(key)
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+
+        match value {
+            Some(v) => {
+                map.insert(entry.to_string(), Value::from(v));
+            }
+            None => {
+                map.remove(entry);
+            }
         }
-        None => {
-            map.remove(entry);
-        }
-    }
-    config::set(key, Value::Object(map));
+
+        data.insert(key.to_string(), Value::Object(map));
+    });
 }
 
 fn mod_id(mod_: &Mod) -> String {

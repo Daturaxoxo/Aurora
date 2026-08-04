@@ -18,7 +18,7 @@ impl RepairHandler {
             engine_handler.send(EngineCommand::Validate)?;
 
             let res = pathfind::get_game_directory();
-            if res.is_err() && res.is_ok_and(|p| p.is_empty()) {
+            if res.is_err() || res.is_ok_and(|p| p.as_os_str().is_empty()) {
                 return Err(anyhow!("Game directory not found"));
             }
         }

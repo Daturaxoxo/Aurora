@@ -1,8 +1,8 @@
-// i gave up writing good code man -datura
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use ipc::manifest::LocalManifest;
 use shared::utils::format_bytes;
 use slint::{Model, SharedString, VecModel, Weak};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -121,7 +121,10 @@ fn run_inner(
         }
         None => log_line(
             ui,
-            "WARNING: could not locate the Aurora application folder.".into(),
+            plan.app_dir_error.as_ref().map_or_else(
+                || "WARNING: could not locate the Aurora application folder.".to_owned(),
+                |error| format!("WARNING: {error}"),
+            ),
         ),
     }
 
@@ -177,8 +180,24 @@ fn remove_app_dir(dir: &Path) -> Result<bool, String> {
     if !dir.exists() {
         return Ok(false);
     }
+    crate::plan::verify_app_dir(dir)?;
+
     let self_exe = &std::env::current_exe().unwrap_or_default().canonicalize().ok();
     let mut skipped = false;
+
+    for path in owned_paths(dir) {
+        if !path.exists() {
+            continue;
+        }
+        if let Err(e) = remove_path(&path) {
+            if self_exe.is_some() && self_exe == &path.canonicalize().ok() {
+                skipped = true;
+                continue;
+            }
+            return Err(e);
+        }
+    }
+
     let entries =
         fs::read_dir(dir).map_err(|e| format!("failed to read {}: {e}", dir.display()))?;
     for entry in entries {
@@ -201,6 +220,29 @@ fn remove_app_dir(dir: &Path) -> Result<bool, String> {
 
     fs::remove_dir(dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))?;
     Ok(false)
+}
+
+fn owned_paths(dir: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = match LocalManifest::load(dir) {
+        Ok(Some(local)) => local
+            .files
+            .keys()
+            .filter_map(|rel| ipc::manifest::safe_join(dir, rel))
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    for name in [
+        ipc::AURORA_EXE,
+        ipc::UPDATER_EXE,
+        ipc::LOCAL_MANIFEST_FILE,
+        ipc::AURORA_LOCK_FILE,
+        ipc::UPDATER_LOCK_FILE,
+    ] {
+        paths.push(dir.join(name));
+    }
+
+    paths
 }
 
 fn remove_path(path: &Path) -> Result<(), String> {
