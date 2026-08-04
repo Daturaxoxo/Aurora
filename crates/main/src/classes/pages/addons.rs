@@ -17,9 +17,6 @@ use std::sync::Mutex;
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 
-// TEMP:
-const UNAVAILABLE_ADDONS: [&str; 1] = ["Censorship Remover"];
-
 const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
     ("No 3D Driving Waypoint", "drv_lin"),
     ("Hide UID", "uid_rem"),
@@ -469,6 +466,8 @@ impl AddonsHandler {
                 folder: folder.clone(),
                 ..Default::default()
             };
+            // Direct download URLs (FILE), used instead of the GameBanana API
+            let mut file_urls: Vec<String> = Vec::new();
 
             for line in contents.lines() {
                 let Some((key, value)) = line.split_once('|') else {
@@ -480,51 +479,22 @@ impl AddonsHandler {
                     // TODO: get version from gamebanana api too
                     "VERSION" => addon.version = value.trim().to_string(),
                     "DESCRIPTION" => addon.description = value.trim().to_string(),
-                    "LINK" => {
-                        addon.link = value.trim().to_string();
-                        if !fetch_remote {
-                            continue;
-                        }
-                        let gb = GameBananaApi::new();
-                        let rt = match tokio::runtime::Runtime::new() {
-                            Ok(rt) => rt,
-                            Err(e) => {
-                                error!("Addons scan: could not create tokio runtime: {e}");
-                                continue;
-                            }
-                        };
-                        let mod_files = rt.block_on(async {
-                            gb.get_mod_files(
-                                addon
-                                    .link
-                                    .split('/')
-                                    .next_back()
-                                    .unwrap_or("0")
-                                    .parse()
-                                    .unwrap_or(0),
-                            )
-                            .await
-                        });
-
-                        addon.install_data = if let Some(files) = mod_files {
-                            files
-                                .into_iter()
-                                .map(|f| AddonData::new(f.name, f.url, f.md5))
-                                .collect()
-                        } else {
-                            warn!(
-                                "Addons scan: could not fetch mod files for '{}'",
-                                addon.name
-                            );
-                            Vec::new()
-                        };
-                    }
+                    "LINK" => addon.link = value.trim().to_string(),
+                    "FILE" => file_urls.push(value.trim().to_string()),
                     "IMAGE" => addon.image_url = value.trim().to_string(),
                     other => warn!(
                         "Addons scan: unknown field '{other}' in '{}'",
                         auadd_path.display()
                     ),
                 }
+            }
+
+            if fetch_remote {
+                addon.install_data = if file_urls.is_empty() {
+                    Self::fetch_gamebanana_files(&addon)
+                } else {
+                    file_urls.iter().map(|url| Self::direct_file(url)).collect()
+                };
             }
 
             let payload_files = payload_files(&folder);
@@ -559,6 +529,88 @@ impl AddonsHandler {
         addons
     }
 
+    fn fetch_gamebanana_files(addon: &Addon) -> Vec<AddonData> {
+        if addon.link.is_empty() {
+            warn!(
+                "Addons scan: '{}' has neither a FILE nor a LINK field",
+                addon.name
+            );
+            return Vec::new();
+        }
+
+        let gb = GameBananaApi::new();
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                error!("Addons scan: could not create tokio runtime: {e}");
+                return Vec::new();
+            }
+        };
+        let mod_files = rt.block_on(async {
+            gb.get_mod_files(
+                addon
+                    .link
+                    .split('/')
+                    .next_back()
+                    .unwrap_or("0")
+                    .parse()
+                    .unwrap_or(0),
+            )
+            .await
+        });
+
+        mod_files.map_or_else(
+            || {
+                warn!(
+                    "Addons scan: could not fetch mod files for '{}'",
+                    addon.name
+                );
+                Vec::new()
+            },
+            |files| {
+                files
+                    .into_iter()
+                    .map(|f| AddonData::new(f.name, f.url, f.md5))
+                    .collect()
+            },
+        )
+    }
+
+    fn direct_file(url: &str) -> AddonData {
+        let file_name = url
+            .split('/')
+            .next_back()
+            .and_then(|s| s.split(['?', '#']).next())
+            .unwrap_or_default()
+            .to_string();
+
+        AddonData::new(file_name, url.to_string(), Self::remote_etag(url))
+    }
+
+    fn remote_etag(url: &str) -> String {
+        let etag = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .and_then(|c| c.head(url).send())
+            .map(|r| {
+                r.headers()
+                    .get(reqwest::header::ETAG)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or_default()
+                    .trim_start_matches("W/")
+                    .trim_matches('"')
+                    .to_string()
+            });
+
+        match etag {
+            Ok(tag) => tag,
+            Err(e) => {
+                warn!("Addons scan: could not read ETag for '{url}': {e}");
+                String::new()
+            }
+        }
+    }
+
     fn install(addon: &Addon) -> Result<()> {
         let mut failures: Vec<String> = Vec::new();
         for data in &addon.install_data {
@@ -569,6 +621,10 @@ impl AddonsHandler {
             );
             match Self::download_file(&data.file_name, &data.url, &addon.folder) {
                 Ok(dest) => {
+                    if !data.md5.is_empty() {
+                        let _ = fs::write(addon.folder.join("addon.md5"), &data.md5);
+                    }
+
                     if dest
                         .extension()
                         .is_some_and(|e| ARCHIVE_EXTENSIONS.contains(&e.to_str().unwrap_or("")))
@@ -591,8 +647,6 @@ impl AddonsHandler {
                             if extension == "txt" {
                                 fs::remove_file(&path)?;
                             }
-
-                            let _ = fs::write(addon.folder.join("addon.md5"), data.md5.clone());
 
                             // HACK: Red dots has 2 folders, need to get files from the "Disable" folder
                             if name == "Muted" {
@@ -731,8 +785,6 @@ impl AddonsHandler {
             enabled: addon.enabled,
             update_available: addon.update_available,
             installing: false,
-            // TEMP:
-            unavailable: UNAVAILABLE_ADDONS.contains(&addon.name.as_str()),
         }
     }
 }

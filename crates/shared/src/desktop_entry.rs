@@ -32,11 +32,16 @@ pub fn install_for(exe: &Path) {
     }
 }
 
+#[cfg(target_os = "linux")]
 pub fn uninstall() {
-    #[cfg(target_os = "linux")]
     if let Err(e) = uninstall_inner_linux() {
         warn!("Could not remove the desktop entry: {e}");
     }
+}
+
+#[cfg(target_os = "windows")]
+pub fn uninstall() {
+    warn!("Uninstall is not yet supported on Windows");
 }
 
 #[cfg(target_os = "windows")]

@@ -23,7 +23,7 @@ pub const NTE_GAME_EXE: &str = "HTGame.exe";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Target {
     AsiPlugin,
-    Ntfrmain,
+    AuroraTf,
     Cutils,
 }
 
@@ -31,7 +31,7 @@ impl Target {
     pub const fn as_file(&self) -> &'static str {
         match self {
             Self::AsiPlugin => "Everlight.asi",
-            Self::Ntfrmain => "NET_TFMAIN.asi",
+            Self::AuroraTf => "AuroraTF.asi",
             Self::Cutils => "cutils.dll",
         }
     }

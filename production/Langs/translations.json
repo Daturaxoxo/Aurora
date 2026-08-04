@@ -1088,23 +1088,6 @@
         "pt-BR": "add-ons"
     },
     {
-        "key": "addons.action.unavailable",
-        "en": "UNAVAILABLE",
-        "tr": "KULLANILAMAZ",
-        "zh": "不可用",
-        "es": "NO DISPONIBLE",
-        "de": "NICHT VERFÜGBAR",
-        "nl": "NIET BESCHIKBAAR",
-        "fr": "INDISPONIBLE",
-        "it": "NON DISPONIBILE",
-        "ru": "НЕДОСТУПНО",
-        "vi": "KHÔNG KHẢ DỤNG",
-        "jp": "利用不可",
-        "ko": "사용 불가",
-        "pt": "INDISPONÍVEL",
-        "pt-BR": "INDISPONÍVEL"
-    },
-    {
         "key": "addons.action.installing",
         "en": "INSTALLING...",
         "tr": "YÜKLENİYOR...",

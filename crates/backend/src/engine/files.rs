@@ -3,9 +3,10 @@ use std::path::PathBuf;
 
 use log::*;
 use shared::classes::info::Target;
-use shared::config::get;
+use shared::config::{get, key};
 
 use crate::classes::addons::pak::PakAddon;
+use crate::classes::addons::CENSORSHIP_DIR;
 
 use super::AuroraEngine;
 
@@ -65,18 +66,23 @@ impl AuroraEngine {
             .collect()
     }
 
+    pub(super) fn asi_source(&self, target: Target) -> PathBuf {
+        match target {
+            Target::AuroraTf => self.addons_path.join(CENSORSHIP_DIR).join(target.as_file()),
+            Target::AsiPlugin | Target::Cutils => self.bin_path.join(target.as_file()),
+        }
+    }
+
     fn signature_bypass_files(&self) -> Vec<ManagedFile> {
+        let crr = get(key::CENSORSHIP_REMOVE).as_bool().unwrap_or(false);
+
         self.targets
             .iter()
             .map(|(target, destination)| {
                 let is_asi_plugin = *target == Target::AsiPlugin;
-                let source = self.bin_path.join(target.as_file());
-                // The AsiPlugin is always required. The rest
-                // (NET_TFMAIN.asi / cutils.dll) only matter for the censorship
-                // remover, and are optional: we only copy them when the remover
-                // is enabled AND the file is actually installed in Bin.
-                let censorship_active = self.crr && source.exists();
-                if self.crr && !is_asi_plugin && !source.exists() {
+                let source = self.asi_source(*target);
+                let censorship_active = crr && source.exists();
+                if crr && !is_asi_plugin && !source.exists() {
                     debug!(
                         "Censorship remover is enabled but '{}' is not installed; skipping.",
                         source.display()
