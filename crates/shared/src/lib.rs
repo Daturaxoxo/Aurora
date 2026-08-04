@@ -19,3 +19,4 @@ pub mod classes {
     #[cfg(target_os = "linux")]
     pub mod steam;
 }
+pub mod api;
