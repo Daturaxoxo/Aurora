@@ -41,6 +41,7 @@ fn group_name(path: &str) -> &'static str {
 
 fn build_plan() -> Result<Plan, String> {
     let manifest = net::fetch_manifest()?;
+    manifest.validate()?;
     let sizes = manifest
         .files
         .iter()
@@ -171,7 +172,10 @@ fn run_inner(
         for (i, entry) in plan.manifest.files.iter().enumerate() {
             log_line(ui, format!("Downloading {}...", entry.path));
 
-            let tmp = tmp_path(install_dir, &entry.path);
+            let dst = entry
+                .resolve(install_dir)
+                .ok_or_else(|| format!("rejected manifest entry `{}`", entry.path))?;
+            let tmp = tmp_path(&dst);
             if let Some(parent) = tmp.parent() {
                 fs::create_dir_all(parent)
                     .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
@@ -206,7 +210,6 @@ fn run_inner(
                 ));
             }
 
-            let dst = install_dir.join(&entry.path);
             if dst.exists() {
                 fs::remove_file(&dst)
                     .map_err(|e| format!("failed to replace {}: {e}", entry.path))?;
@@ -269,12 +272,11 @@ fn cleanup(tmps: &[PathBuf]) {
     }
 }
 
-fn tmp_path(root: &Path, rel: &str) -> PathBuf {
-    let path = root.join(rel);
-    let mut name = path
+fn tmp_path(dst: &Path) -> PathBuf {
+    let mut name = dst
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     name.push_str(".tmp");
-    path.with_file_name(name)
+    dst.with_file_name(name)
 }

@@ -45,6 +45,16 @@ impl Bridge {
                          closed. Try switching engine methods in settings."
                     );
                 }
+                EngineEvent::ValidationResult { missing } => {
+                    if missing.is_empty() {
+                        info!("Quick start: validation passed, all required files are present");
+                    } else {
+                        error!(
+                            "Quick start: validation found missing files: {}",
+                            missing.join(", ")
+                        );
+                    }
+                }
                 EngineEvent::Toast { .. } | EngineEvent::GamePathUpdated(_) => {}
             }
         }
@@ -179,6 +189,23 @@ impl Bridge {
                             }
                         })
                         .ok();
+                    }
+                    EngineEvent::ValidationResult { missing } => {
+                        if missing.is_empty() {
+                            info!("Validation passed, all required files are present");
+                            Self::show_toast(
+                                &w,
+                                "Validation passed! All required files are present.",
+                                "success",
+                            );
+                        } else {
+                            error!("Validation found missing files: {}", missing.join(", "));
+                            Self::show_toast(
+                                &w,
+                                &format!("Missing required files:\n{}", missing.join("\n")),
+                                "error",
+                            );
+                        }
                     }
                     EngineEvent::Toast { text, kind } => {
                         Self::show_toast(&w, &text, &kind);

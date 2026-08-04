@@ -1,5 +1,6 @@
 use crate::classes::characters;
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::sanitize_download_filename;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
 use log::*;
@@ -399,11 +400,15 @@ impl GbBrowserHandler {
             let result: anyhow::Result<Option<std::path::PathBuf>> = async {
                 use tokio::io::AsyncWriteExt;
 
+                let Some(safe_name) = sanitize_download_filename(&file.name) else {
+                    return Err(anyhow::anyhow!("unsafe file name '{}'", file.name));
+                };
+
                 let mut resp = HTTP.get(&file.url).send().await?.error_for_status()?;
                 let total = resp.content_length().unwrap_or(file.size);
                 let dir = std::env::temp_dir().join("Aurora/GameBanana");
                 tokio::fs::create_dir_all(&dir).await?;
-                let path = dir.join(&file.name);
+                let path = dir.join(&safe_name);
                 let mut out = tokio::io::BufWriter::with_capacity(
                     DOWNLOAD_BUFFER,
                     tokio::fs::File::create(&path).await?,

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -15,6 +16,11 @@ use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
 const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
+const INVALID_NAME_CHARS: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+const RESERVED_DEVICE_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
@@ -101,21 +107,28 @@ impl LuaScriptsHandler {
         {
             let model = model.clone();
             let mods_dir = mods_dir.clone();
+            let window = window.clone();
             adapter.on_create_script(move || {
-                let mut id_ref = next_id.borrow_mut();
-                let id = id_ref.to_string();
-                *id_ref += 1;
-
-                let mut name = format!("lua_script_{id}");
-                if is_blocklisted_name(&name) {
-                    name = format!("{name}_script");
-                }
+                let name = next_available_script_name(&mods_dir);
                 let code = "-- Aurora uses UE4SS' LUA API to load scripts, for more information see their documentation.\n".to_string();
 
-                if let Err(e) = write_script(&mods_dir, &name, &code) {
+                if let Err(e) = create_script(&mods_dir, &name, &code) {
                     error!("Failed to write new script '{name}' to disk: {e}");
+                    if let Some(win) = window.upgrade() {
+                        win.global::<LuaScriptsAdapter>().set_toast_message(
+                            format!("Couldn't create \"{name}\": {e}").into(),
+                        );
+                    }
+                    return;
                 }
                 register_mod_in_config(&mods_dir, &name, false);
+
+                let id = {
+                    let mut id_ref = next_id.borrow_mut();
+                    let id = id_ref.to_string();
+                    *id_ref += 1;
+                    id
+                };
 
                 model.push(LuaScriptItem {
                     id: id.into(),
@@ -146,12 +159,11 @@ impl LuaScriptsHandler {
             let mods_dir = mods_dir.clone();
             let window = window.clone();
             adapter.on_rename_script(move |id, new_name| {
-                if is_blocklisted_name(&new_name) {
-                    warn!("Rejected rename to blocklisted name '{new_name}'");
+                if let Err(message) = validate_script_name(&new_name) {
+                    warn!("Rejected rename to invalid name '{new_name}': {message}");
                     if let Some(win) = window.upgrade() {
-                        win.global::<LuaScriptsAdapter>().set_toast_message(
-                            format!("\"{new_name}\" is a reserved name and can't be used.").into(),
-                        );
+                        win.global::<LuaScriptsAdapter>()
+                            .set_toast_message(message.into());
                     }
                     return;
                 }
@@ -367,12 +379,91 @@ fn write_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()> 
     fs::write(scripts_dir.join("main.lua"), code)
 }
 
+fn create_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()> {
+    let script_dir = mods_dir.join(name);
+    if script_dir.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!("a script folder named '{name}' already exists"),
+        ));
+    }
+
+    let lua_dir = script_dir.join("Scripts");
+    fs::create_dir_all(&lua_dir)?;
+
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(lua_dir.join("main.lua"))?;
+    file.write_all(code.as_bytes())
+}
+
+fn next_available_script_name(mods_dir: &Path) -> String {
+    let mut index = 1u32;
+    loop {
+        let mut name = format!("lua_script_{index}");
+        if is_blocklisted_name(&name) {
+            name = format!("{name}_script");
+        }
+
+        if !mods_dir.join(&name).exists() {
+            return name;
+        }
+
+        index += 1;
+    }
+}
+
 fn rename_script_folder(mods_dir: &Path, old_name: &str, new_name: &str) -> std::io::Result<()> {
     let old_dir = mods_dir.join(old_name);
     if !old_dir.exists() {
         return Ok(());
     }
     fs::rename(old_dir, mods_dir.join(new_name))
+}
+
+fn validate_script_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("A script name can't be empty.".to_string());
+    }
+
+    if name != name.trim() {
+        return Err(format!("\"{name}\" can't start or end with spaces."));
+    }
+
+    if is_blocklisted_name(name) {
+        return Err(format!("\"{name}\" is a reserved name and can't be used."));
+    }
+
+    if name
+        .chars()
+        .any(|c| INVALID_NAME_CHARS.contains(&c) || c.is_control())
+    {
+        return Err(format!(
+            "\"{name}\" contains characters that can't be used in a script name."
+        ));
+    }
+
+    if name.ends_with('.') || name == "." || name == ".." {
+        return Err(format!("\"{name}\" isn't a valid script name."));
+    }
+
+    let stem = name.split('.').next().unwrap_or(name);
+    if RESERVED_DEVICE_NAMES
+        .iter()
+        .any(|reserved| reserved.eq_ignore_ascii_case(stem))
+    {
+        return Err(format!("\"{name}\" is a reserved name and can't be used."));
+    }
+
+    let mut components = Path::new(name).components();
+    let single_normal = matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none();
+    if !single_normal {
+        return Err(format!("\"{name}\" isn't a valid script name."));
+    }
+
+    Ok(())
 }
 
 fn is_blocklisted_name(name: &str) -> bool {

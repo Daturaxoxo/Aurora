@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use display_info::DisplayInfo;
 use log::*;
-use slint::{LogicalPosition, PhysicalPosition, PhysicalSize, WindowPosition};
+use slint::{PhysicalPosition, PhysicalSize, WindowPosition};
 
 pub fn get_monitor_size() -> Result<DisplayInfo> {
     let mut last_err = None;
@@ -9,18 +9,22 @@ pub fn get_monitor_size() -> Result<DisplayInfo> {
     for attempt in 1..=10 {
         match DisplayInfo::all() {
             Ok(displays) => {
-                // Last resort fallback: return the first display found if no primary is found
-                if attempt == 10 {
-                    return Ok(displays.first().cloned().unwrap());
-                }
-
-                if let Some(display) = displays.into_iter().find(|d| d.is_primary) {
+                if let Some(display) = displays.iter().find(|d| d.is_primary).cloned() {
                     if attempt > 1 {
                         info!("get_monitor_size: primary monitor found on attempt {attempt}");
                     }
                     return Ok(display);
                 }
-                info!("get_monitor_size: primary monitor not found after {attempt} attempts.");
+
+                if attempt == 10 {
+                    if let Some(display) = displays.first().cloned() {
+                        warn!("get_monitor_size: no primary monitor found, falling back to the first display");
+                        return Ok(display);
+                    }
+                    last_err = Some(anyhow!("No displays were reported by the system"));
+                } else {
+                    info!("get_monitor_size: primary monitor not found after {attempt} attempts.");
+                }
             }
             Err(e) => {
                 last_err = Some(anyhow!("Failed to get monitor information: {e}"));
@@ -42,10 +46,12 @@ pub fn center_window(window: &slint::Window) -> Result<()> {
     };
     let window_size = window.size();
 
-    #[allow(clippy::cast_precision_loss)]
-    window.set_position(WindowPosition::Logical(LogicalPosition::new(
-        (monitor_size.width / 2 - window_size.width / 2) as f32,
-        (monitor_size.height / 2 - window_size.height / 2) as f32,
+    let x = (monitor_size.width.cast_signed() - window_size.width.cast_signed()) / 2;
+    let y = (monitor_size.height.cast_signed() - window_size.height.cast_signed()) / 2;
+
+    window.set_position(WindowPosition::Physical(PhysicalPosition::new(
+        x.max(0),
+        y.max(0),
     )));
 
     Ok(())

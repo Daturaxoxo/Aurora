@@ -23,11 +23,16 @@ impl Default for GameBananaApi {
 
 impl GameBananaApi {
     pub fn new() -> Self {
+        let client = Client::builder()
+            .user_agent(format!("AuroraLauncher/{}", get_local_version()))
+            .build()
+            .unwrap_or_else(|e| {
+                error!("Failed to build GameBanana client, falling back to default: {e}");
+                Client::default()
+            });
+
         Self {
-            client: Client::builder()
-                .user_agent(format!("AuroraLauncher/{}", get_local_version()))
-                .build()
-                .unwrap_or_default(),
+            client,
             cache: CacheManager::new(),
         }
     }

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -36,7 +36,83 @@ pub struct AppImageEntry {
     pub url: String,
 }
 
+const WINDOWS_RESERVED_NAMES: [&str; 22] = [
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+fn is_reserved_name(component: &str) -> bool {
+    let stem = component.split('.').next().unwrap_or(component);
+    let stem = stem.trim_end_matches([' ', '.']);
+    WINDOWS_RESERVED_NAMES
+        .iter()
+        .any(|name| stem.eq_ignore_ascii_case(name))
+}
+
+fn check_component(component: &str) -> Result<(), String> {
+    if component.is_empty() {
+        return Err("empty path component".to_owned());
+    }
+    if component == "." || component == ".." {
+        return Err(format!("path component `{component}` is not allowed"));
+    }
+    if let Some(bad) = component
+        .chars()
+        .find(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*') || (*c as u32) < 0x20)
+    {
+        return Err(format!(
+            "path component `{component}` contains invalid character {bad:?}"
+        ));
+    }
+    if component.ends_with(' ') || component.ends_with('.') {
+        return Err(format!(
+            "path component `{component}` ends with a space or a dot"
+        ));
+    }
+    if is_reserved_name(component) {
+        return Err(format!(
+            "path component `{component}` is a reserved device name"
+        ));
+    }
+    Ok(())
+}
+
+fn check_relative_path(relative: &str) -> Result<PathBuf, String> {
+    if relative.is_empty() {
+        return Err("empty path".to_owned());
+    }
+    if relative.contains('\0') {
+        return Err("path contains a NUL byte".to_owned());
+    }
+    let mut out = PathBuf::new();
+    for component in relative.split(['/', '\\']) {
+        check_component(component)?;
+        out.push(component);
+    }
+    Ok(out)
+}
+
+pub fn safe_join(install_root: &Path, relative: &str) -> Option<PathBuf> {
+    check_relative_path(relative)
+        .ok()
+        .map(|rel| install_root.join(rel))
+}
+
+impl FileEntry {
+    pub fn resolve(&self, install_root: &Path) -> Option<PathBuf> {
+        safe_join(install_root, &self.path)
+    }
+}
+
 impl Manifest {
+    pub fn validate(&self) -> Result<(), String> {
+        for entry in &self.files {
+            check_relative_path(&entry.path)
+                .map_err(|e| format!("rejected manifest entry `{}`: {e}", entry.path))?;
+        }
+        Ok(())
+    }
+
     pub fn changed_files(&self, install_root: &Path, local: &LocalManifest) -> Vec<&FileEntry> {
         self.files
             .iter()
@@ -44,7 +120,10 @@ impl Manifest {
                 if entry.path == crate::UPDATER_EXE {
                     return false;
                 }
-                if !install_root.join(&entry.path).exists() {
+                let Some(target) = entry.resolve(install_root) else {
+                    return false;
+                };
+                if !target.exists() {
                     return true;
                 }
                 local.files.get(&entry.path) != Some(&entry.sha256)
@@ -81,7 +160,10 @@ impl LocalManifest {
     pub fn build_manifest_from_disk(install_root: &Path, manifest: &Manifest) -> Self {
         let mut files = BTreeMap::new();
         for entry in &manifest.files {
-            if let Ok(hash) = hash_file(&install_root.join(&entry.path)) {
+            let Some(target) = entry.resolve(install_root) else {
+                continue;
+            };
+            if let Ok(hash) = hash_file(&target) {
                 files.insert(entry.path.clone(), hash);
             }
         }

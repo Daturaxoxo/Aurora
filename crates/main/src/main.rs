@@ -67,10 +67,23 @@ fn main() -> Result<()> {
         }
     };
 
-    config::set(
-        key::APP_LOCATION,
-        std::env::current_exe()?.display().to_string(),
-    );
+    let exe = std::env::current_exe()?;
+    let installed = exe
+        .parent()
+        .is_some_and(|dir| dir.join(ipc::LOCAL_MANIFEST_FILE).is_file());
+
+    #[cfg(target_os = "linux")]
+    let app_location = ipc::appimage_path().or_else(|| installed.then(|| exe.clone()));
+    #[cfg(not(target_os = "linux"))]
+    let app_location = installed.then(|| exe.clone());
+
+    match app_location {
+        Some(path) => config::set(key::APP_LOCATION, path.display().to_string()),
+        None => info!(
+            "{} is not an installed copy of Aurora; keeping the stored app location",
+            exe.display()
+        ),
+    }
 
     #[cfg(target_os = "windows")]
     if !config::get(key::QUICK_START_CREATED)

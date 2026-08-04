@@ -1,9 +1,16 @@
-use std::fs;
-use std::path::PathBuf;
+use std::fs::{self, File, OpenOptions};
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
+use std::thread;
+use std::time::{Duration, Instant};
+use anyhow::{anyhow, Context, Result};
 use log::*;
 use serde_json::{json, Map, Value};
 static CONFIG_LOCK: Mutex<()> = Mutex::new(());
+
+const LOCK_TIMEOUT: Duration = Duration::from_secs(2);
+const LOCK_RETRY_DELAY: Duration = Duration::from_millis(15);
 
 pub const LANGS: &[(&str, &str)] = &[
     ("English", "en"),
@@ -124,68 +131,157 @@ pub fn config_file_path() -> PathBuf {
     config_path
 }
 
-fn load_raw() -> Map<String, Value> {
-    fs::read_to_string(config_file_path())
-        .ok()
-        .and_then(|contents| serde_json::from_str(&contents).ok())
-        .and_then(|val| match val {
-            Value::Object(map) => Some(map),
-            _ => None,
-        })
-        .unwrap_or_default()
+fn lock_file_path() -> PathBuf {
+    config_file_path().with_extension("json.lock")
 }
 
-fn save_raw(data: &Map<String, Value>) {
+#[cfg(target_os = "windows")]
+fn try_lock_file(path: &Path) -> std::io::Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .share_mode(0)
+        .open(path)
+}
+
+#[cfg(target_os = "linux")]
+fn try_lock_file(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::io::AsRawFd;
+
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(path)?;
+
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+        Ok(file)
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+fn acquire_cross_process_lock() -> Option<File> {
+    let path = lock_file_path();
+    let started = Instant::now();
+
+    loop {
+        match try_lock_file(&path) {
+            Ok(file) => return Some(file),
+            Err(e) => {
+                if started.elapsed() >= LOCK_TIMEOUT {
+                    warn!(
+                        "Gave up waiting for {} after {:?}: {e}",
+                        path.display(),
+                        LOCK_TIMEOUT
+                    );
+                    return None;
+                }
+
+                thread::sleep(LOCK_RETRY_DELAY);
+            }
+        }
+    }
+}
+
+fn load_raw() -> Result<Map<String, Value>> {
+    let path = config_file_path();
+
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Map::new()),
+        Err(e) => return Err(e).context(format!("Failed to read {}", path.display())),
+    };
+
+    if contents.trim().is_empty() {
+        return Ok(Map::new());
+    }
+
+    let value: Value = serde_json::from_str(&contents)
+        .with_context(|| format!("Failed to parse {}", path.display()))?;
+
+    match value {
+        Value::Object(map) => Ok(map),
+        _ => Err(anyhow!("{} does not hold a JSON object", path.display())),
+    }
+}
+
+fn save_raw(data: &Map<String, Value>) -> bool {
     let json_string = match serde_json::to_string_pretty(data) {
         Ok(json_string) => json_string,
         Err(e) => {
             error!("Failed to serialize the config: {e}");
-            return;
+            return false;
         }
     };
 
     let path = config_file_path();
 
-    // Write to a sibling first so a crash (or a full disk) can't leave a
-    // truncated config behind.
     let tmp = path.with_extension("json.tmp");
     if let Err(e) = fs::write(&tmp, &json_string) {
         error!("Failed to write {}: {e}", tmp.display());
-        return;
+        return false;
     }
 
     if let Err(e) = fs::rename(&tmp, &path) {
         warn!("Could not replace {} atomically: {e}", path.display());
+        let _ = fs::remove_file(&tmp);
+
         if let Err(e) = fs::write(&path, &json_string) {
             error!("Failed to write {}: {e}", path.display());
+            return false;
         }
-        let _ = fs::remove_file(&tmp);
     }
+
+    true
 }
 
 pub fn get(k: &str) -> Value {
     let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _cross_guard = acquire_cross_process_lock();
 
-    load_raw()
-        .get(k)
-        .cloned()
-        .unwrap_or_else(|| default_value(k))
+    match load_raw() {
+        Ok(data) => data.get(k).cloned().unwrap_or_else(|| default_value(k)),
+        Err(e) => {
+            error!("Falling back to the default value of {k}: {e:#}");
+            default_value(k)
+        }
+    }
+}
+
+pub fn modify(f: impl FnOnce(&mut Map<String, Value>)) -> bool {
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _cross_guard = acquire_cross_process_lock();
+
+    let mut data = match load_raw() {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Refusing to overwrite the config, it could not be read: {e:#}");
+            return false;
+        }
+    };
+
+    f(&mut data);
+    save_raw(&data)
 }
 
 pub fn set(k: &str, value: impl Into<Value>) {
-    // The whole read-modify-write has to be atomic: settings, the mod manager
-    // and the engine all write from their own threads, and an interleaved
-    // save used to roll another key (game_path, most painfully) back to
-    // whatever was on disk when the other thread read it.
-    let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let value = value.into();
 
-    let mut data = load_raw();
-    data.insert(k.to_string(), value.into());
-    save_raw(&data);
+    modify(|data| {
+        data.insert(k.to_string(), value);
+    });
 }
 
 pub fn get_all_configs() -> Map<String, Value> {
     let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _cross_guard = acquire_cross_process_lock();
 
-    load_raw()
+    load_raw().unwrap_or_else(|e| {
+        error!("Failed to load the config: {e:#}");
+        Map::new()
+    })
 }
