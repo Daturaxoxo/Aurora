@@ -43,13 +43,6 @@ fn build_values(lang_code: &str) -> ModelRc<SharedString> {
     ModelRc::new(VecModel::from(values))
 }
 
-/// Resolves a translation key against the user's current language.
-///
-/// Strings the backend pushes into the UI (toasts, popups, overlay titles)
-/// cannot bind to the `Tr` global the way `.slint` text does, so they are
-/// looked up here at the moment they are shown. An unknown key is a
-/// programming error, so it is logged and the key itself is returned rather
-/// than taking the window down.
 pub fn tr(key: &str) -> String {
     let Some(entry) = entries().iter().find(|e| e["key"].as_str() == Some(key)) else {
         error!("translations.json: no entry for key \"{key}\"");
@@ -57,18 +50,6 @@ pub fn tr(key: &str) -> String {
     };
 
     localized(entry, &saved_language()).to_string()
-}
-
-/// [`tr`], with `{0}`, `{1}`, ... in the translated string replaced by `args`.
-///
-/// Numbered rather than positional so a translation can reorder them, which
-/// languages with a different word order need.
-pub fn tr_args(key: &str, args: &[&str]) -> String {
-    let mut text = tr(key);
-    for (index, arg) in args.iter().enumerate() {
-        text = text.replace(&format!("{{{index}}}"), arg);
-    }
-    text
 }
 
 pub fn apply_language(ui: &MainWindow, lang_code: &str) {

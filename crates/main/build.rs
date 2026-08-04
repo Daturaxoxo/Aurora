@@ -70,22 +70,6 @@ fn generate_languages_slint() {
     fs::write(SLINT_OUT, slint).unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
 }
 
-/// Generates `translations.slint`, which exposes two globals:
-///
-/// - `TrKey`: one `int` constant per translation key (its index into `Tr.values`).
-/// - `Tr`: a single `[string]` property holding the *current* language's strings,
-///   in the same order as `TrKey`.
-///
-/// Compile-time defaults use English so the UI is never blank before the app
-/// applies the user's actual language preference at startup. Switching languages
-/// at runtime is then a single call that replaces the whole `Tr.values` array
-/// (see `translations.rs`), which is far cheaper to maintain than one Slint
-/// property per string.
-///
-/// `production/Langs/translations.json` must be an array of objects, each with
-/// a `"key"` field and one field per language code from `lang-codes.json`
-/// (e.g. `"en"`, `"tr"`, `"zh"`, `"es"`). `"en"` is required on every entry;
-/// other language codes fall back to `"en"` with a build warning if missing.
 fn generate_translations_slint() {
     const LANG_CODES_PATH: &str = "../../production/Langs/lang-codes.json";
     const JSON_PATH: &str = "../../production/Langs/translations.json";
@@ -159,11 +143,6 @@ fn generate_translations_slint() {
     fs::write(SLINT_OUT, slint).unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
 }
 
-/// Writes a `slug -> png bytes` table for `production/assets/characters` into
-/// `OUT_DIR`, so the icons ship inside the binary like every other asset
-/// (nothing from `production/` is installed next to the executable).
-///
-/// Dropping a new `<character>.png` in that folder is all it takes to add one.
 fn generate_character_icons() {
     const SOURCE: &str = "../../production/assets/characters";
     const PROCESSED: &str = "../../production/assets/processed/characters";
@@ -178,8 +157,6 @@ fn generate_character_icons() {
     let out_path = Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR is not set"))
         .join("character_icons.rs");
 
-    // `include_bytes!` resolves relative to the source file, so the table has
-    // to spell out absolute paths.
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
     let repo_root = Path::new(&manifest_dir)
         .ancestors()
@@ -187,8 +164,6 @@ fn generate_character_icons() {
         .expect("the crate should live two levels below the repo root")
         .to_path_buf();
 
-    // A checkout without the art still has to build; the cards just fall back
-    // to the app logo.
     let processed = match fs::read_dir(PROCESSED) {
         Ok(processed) => processed,
         Err(e) => {
@@ -271,13 +246,8 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                         continue;
                     }
 
-                    // Character icons fill a grid tile (~85px), the rest are
-                    // small toolbar/status icons.
-                    let size = if relative.starts_with("characters") {
-                        128
-                    } else {
-                        64
-                    };
+                    let size = if relative.starts_with("characters") {128}
+                    else {64};
 
                     if let Ok(img) = image::open(&path) {
                         let scaled = img.resize(size, size, FilterType::Lanczos3);
