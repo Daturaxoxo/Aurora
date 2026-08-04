@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use backend::handler::EngineCommand;
 use log::*;
 use shared::{
@@ -17,10 +17,9 @@ impl RepairHandler {
             trace!("[Repair] Validating files");
             engine_handler.send(EngineCommand::Validate)?;
 
-            let res = pathfind::get_game_directory();
-            if res.is_err() || res.is_ok_and(|p| p.as_os_str().is_empty()) {
-                return Err(anyhow!("Game directory not found"));
-            }
+            let game_path = pathfind::get_game_directory()
+                .context("Repair could not find the game directory")?;
+            trace!("[Repair] Game directory: {}", game_path.display());
         }
 
         if remove_files {

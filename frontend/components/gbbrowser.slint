@@ -20,7 +20,7 @@ export struct GbFileItem {
     downloads: int,
 }
 
-struct GbCharacter {
+export struct GbCharacter {
     name: string,
     icon: image,
 }
@@ -427,31 +427,8 @@ export component GameBananaBrowser inherits Rectangle {
     callback preview-requested(int /* id */);
     callback preview-nav(int /* new index */);
 
-    // Must stay in the same order as CHARACTERS in gbbrowser.rs.
-    // TODO: replace logo.png with the proper per-character icons
-    property <[GbCharacter]> characters: [
-        { name: "Adler", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Aurelia", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Baicang", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Chaos", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Chiz", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Daffodill", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Edgar", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Fadia", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Haniel", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Hathor", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Hotori", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Iroi", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Jiuyuan", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Lacrimosa", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Mint", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Nanally", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Sakiri", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Shinku", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Skia", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Zero (F)", icon: @image-url("../../production/icons/logo.png") },
-        { name: "Zero (M)", icon: @image-url("../../production/icons/logo.png") },
-    ];
+    // Built in gbbrowser.rs so the names and their icons stay in one place.
+    in property <[GbCharacter]> characters: [];
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;

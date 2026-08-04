@@ -11,9 +11,19 @@ import { ModulesPage } from "components/pages/menus/modules.slint";
 import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
 export { LuaScriptsAdapter }
 import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
-import {GameBananaBrowser, GbModItem, GbFileItem} from "components/gbbrowser.slint";
+import {GameBananaBrowser, GbModItem, GbFileItem, GbCharacter} from "components/gbbrowser.slint";
 import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
 export { LogWindow, LogLine } from "components/logwindow.slint";
+
+// The launch button label is driven by the backend, so it travels as a state
+// rather than a string: the UI picks the translated text itself and re-picks it
+// whenever the language changes.
+export enum LaunchState {
+    launch,
+    launching,
+    running,
+    updating,
+}
 
 component IconButton inherits Rectangle {
     in property <image> source;
@@ -82,7 +92,7 @@ export component MainWindow inherits Window {
     in-out property <string> app-version: "";
 
     // Launch Button Properties
-    in-out property <string> launch-button-text: "Launch"; // warning: this is also changed by the backend (e.g: the string gets set to "Running..." after pressing the button) so you also need to add translation functionality to that part, leaving unchanged for now because of that reason
+    in-out property <LaunchState> launch-state: LaunchState.launch;
     in-out property <bool> launch-disabled: false;
     callback launch-clicked();
 
@@ -188,6 +198,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-gb-browser: false;
     in-out property <[GbModItem]> gb-mods: [];
     in-out property <bool> gb-loading: false;
+    in-out property <[GbCharacter]> gb-characters: [];
     in-out property <bool> gb-show-nsfw: false;
     in-out property <int> gb-selected-character: -1;
     in-out property <string> gb-search-text: "";
@@ -563,7 +574,13 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Text {
-                                text: root.launch-button-text;
+                                text: root.launch-state == LaunchState.launching
+                                    ? Tr.values[TrKey.main-launch-button-launching]
+                                    : root.launch-state == LaunchState.running
+                                    ? Tr.values[TrKey.main-launch-button-running]
+                                    : root.launch-state == LaunchState.updating
+                                    ? Tr.values[TrKey.main-launch-button-updating]
+                                    : Tr.values[TrKey.main-launch-button-launch];
                                 color: root.launch-disabled ? #ffffff66 : #ffffff;
                                 font-size: 15px;
                                 font-weight: 700;
@@ -1040,6 +1057,7 @@ export component MainWindow inherits Window {
             height: parent.height - (Palette.topbar-height + 35px);
             mods: root.gb-mods;
             loading: root.gb-loading;
+            characters: root.gb-characters;
             show-nsfw <=> root.gb-show-nsfw;
             selected-character <=> root.gb-selected-character;
             search-text <=> root.gb-search-text;

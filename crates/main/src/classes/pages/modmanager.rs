@@ -1,3 +1,4 @@
+use crate::classes::{characters, modicons};
 use crate::{MainWindow, ModItem};
 
 use anyhow::{anyhow, Context, Result};
@@ -7,7 +8,7 @@ use serde_json::Value;
 use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::config::{self, key};
 use shared::utils::{get_mods_path, read_dir_recursive};
-use slint::{Model, ModelRc, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -15,9 +16,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 const GROUP_PREFIX: &str = "AU GRP - ";
-
 const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
-
 const DISABLED_SUFFIX: &str = ".disabled";
 
 fn is_mod_file(name: &str) -> bool {
@@ -63,9 +62,11 @@ pub struct Mod {
     pub version: Option<String>,
     pub author: Option<String>,
     pub support_link: Option<String>,
-    // TODO: used once mod icons are loaded into the cards
-    #[allow(dead_code)]
+    /// `mod.json`'s `"Icon"`: a character name, sometimes written as a file
+    /// name (`"shinku.png"`).
     pub icon: Option<String>,
+    /// `mod.json`'s `"Custom Image URL"` optional. Outranks `icon`.
+    pub image_url: Option<String>,
     pub is_enabled: bool,
     pub has_json: bool,
 }
@@ -81,6 +82,7 @@ impl Default for Mod {
             author: Some("Unknown".to_string()),
             support_link: None,
             icon: None,
+            image_url: None,
             is_enabled: false,
             has_json: false,
         }
@@ -162,28 +164,35 @@ impl ModManager {
         let binding = serde_json::Map::new();
         let optionals = json["Optionals"].as_object().unwrap_or(&binding);
 
-        let mut support_link = optionals
-            .iter()
-            .find(|(k, _)| *k.to_lowercase() == *"support link")
-            .and_then(|(_, v)| v.as_str().map(ToString::to_string));
-        if let Some(link) = &mut support_link {
-            if !link.starts_with("http://") && !link.starts_with("https://") {
-                support_link = format!("https://{link}").into();
-            }
-        }
+        let optional = |name: &str| {
+            optionals
+                .iter()
+                .find(|(k, _)| k.to_lowercase() == name)
+                .and_then(|(_, v)| v.as_str())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(ToString::to_string)
+        };
 
-        let mut icon = json["Icon"].as_str().map(ToString::to_string);
-        let mut custom_image_url = optionals
-            .iter()
-            .find(|(k, _)| *k.to_lowercase() == *"custom image url")
-            .and_then(|(_, v)| v.as_str().map(ToString::to_string));
-        if custom_image_url.is_some() {
-            let url = custom_image_url.as_mut().unwrap();
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                custom_image_url = format!("https://{url}").into();
+        let with_scheme = |value: String| {
+            if value.starts_with("http://") || value.starts_with("https://") {
+                value
+            } else {
+                format!("https://{value}")
             }
-            icon = custom_image_url;
-        }
+        };
+
+        let support_link = optional("support link").map(&with_scheme);
+        // Kept separate from the character icon: a mod can declare both, and
+        // the card falls back to the character when the download fails.
+        let image_url = optional("custom image url").map(with_scheme);
+
+        let icon = json["Icon"]
+            .as_str()
+            .map(str::trim)
+            .filter(|icon| !icon.is_empty())
+            .map(ToString::to_string);
+
         let display_name = json["Name"]
             .as_str()
             .unwrap_or(&mod_data.display_name)
@@ -201,6 +210,7 @@ impl ModManager {
                 .map(ToString::to_string),
             support_link,
             icon,
+            image_url,
             ..mod_data
         }
     }
@@ -430,6 +440,26 @@ fn mod_id(mod_: &Mod) -> String {
     mod_.path.to_string_lossy().into_owned()
 }
 
+/// The icon shown on a mod's card, in priority order:
+///
+/// 1. `mod.json`'s `"Custom Image URL"`, once it has been downloaded
+/// 2. the character named by `mod.json`'s `"Icon"`
+/// 3. a character name found in the mod's own name (most mods have no
+///    `mod.json` at all)
+/// 4. nothing, which the card draws as the Aurora logo
+///
+/// A custom image that hasn't arrived yet shows the lower-priority icon in the
+/// meantime and swaps itself in when the download finishes.
+fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
+    mod_.image_url
+        .as_deref()
+        .and_then(modicons::cached)
+        .or_else(|| mod_.icon.as_deref().and_then(characters::icon_for))
+        .or_else(|| characters::icon_for(shown_name))
+        .or_else(|| characters::icon_for(&mod_.folder_name))
+        .unwrap_or_default()
+}
+
 pub struct ModManagerHandler;
 
 impl ModManagerHandler {
@@ -441,10 +471,6 @@ impl ModManagerHandler {
         info!("[ModManager] setup() complete");
     }
 
-    // On Windows the app runs elevated and UIPI blocks OLE drag & drop
-    // from the non-elevated Explorer, so winit's HoveredFile/DroppedFile
-    // events never fire. This works around that with the legacy WM_DROPFILES
-    // protocol instead.
     #[cfg(target_os = "windows")]
     fn setup_file_drop(window: &slint::Weak<MainWindow>) {
         crate::classes::filedrop::setup(window);
@@ -661,17 +687,17 @@ impl ModManagerHandler {
                 .to_string()
         };
 
-        let (items, grid_sections, selected_count, all_selected) = {
+        let (items, grid_sections, selected_count, all_selected, wanted_images) = {
             let mut state = STATE.lock().unwrap();
             let mut items: Vec<ModItem> = Vec::new();
             let mut grid_sections: Vec<Vec<ModItem>> = Vec::new();
             let mut displayed: Vec<Mod> = Vec::new();
             let mut rows: Vec<(bool, String)> = Vec::new();
+            let mut wanted_images: Vec<(String, String)> = Vec::new();
             let searching = !state.search.is_empty();
 
             for group in state.scanned.clone() {
                 let is_root = group.id.is_empty();
-                // A search hit on the group name shows the whole group
                 let group_matches =
                     !is_root && searching && group.name.to_lowercase().contains(&state.search);
 
@@ -707,7 +733,6 @@ impl ModManagerHandler {
                         icon: slint::Image::default(),
                         notes: "".into(),
                         enabled: !group.mods.is_empty() && group.mods.iter().all(|m| m.is_enabled),
-                        // Checked when every visible mod in the group is selected
                         selected: !visible.is_empty()
                             && visible.iter().all(|m| state.selected.contains(&mod_id(m))),
                         has_json: false,
@@ -725,19 +750,21 @@ impl ModManagerHandler {
                 for m in visible {
                     displayed.push(m.clone());
                     if !collapsed {
-                        // Hide the "Unknown" placeholder so mods without a
-                        // mod.json don't show a meaningless version chip
                         let version = m
                             .version
                             .clone()
                             .filter(|v| v != "Unknown")
                             .unwrap_or_default();
+                        let name = shown_name(m);
+                        if let Some(url) = m.image_url.clone() {
+                            wanted_images.push((mod_id(m), url));
+                        }
                         let item = ModItem {
                             id: mod_id(m).into(),
-                            name: shown_name(m).into(),
+                            icon: mod_icon(m, &name),
+                            name: name.into(),
                             author: m.author.clone().unwrap_or_default().into(),
                             version: version.into(),
-                            icon: slint::Image::default(),
                             notes: notes
                                 .get(&m.folder_name)
                                 .and_then(|v| v.as_str())
@@ -772,7 +799,7 @@ impl ModManagerHandler {
             let all = !state.displayed.is_empty() && count == state.displayed.len();
             drop(state);
 
-            (items, grid_sections, count, all)
+            (items, grid_sections, count, all, wanted_images)
         };
 
         w.set_mods(Rc::new(VecModel::from(items)).into());
@@ -783,6 +810,13 @@ impl ModManagerHandler {
         w.set_mods_grid(Rc::new(VecModel::from(sections)).into());
         w.set_mods_selected_count(i32::try_from(selected_count).unwrap_or(0));
         w.set_mods_all_selected(all_selected);
+
+        modicons::load(w.as_weak(), wanted_images, Self::apply_icon);
+    }
+
+    /// Drops a finished custom image onto its card.
+    fn apply_icon(w: &MainWindow, id: &str, image: &slint::Image) {
+        Self::update_row(w, id, |row| row.icon = image.clone());
     }
 
     fn update_selection_props(w: &MainWindow) {
@@ -794,15 +828,13 @@ impl ModManagerHandler {
         w.set_mods_all_selected(all);
     }
 
-    /// Creates a unique group folder path for `name` inside the mods dir
     fn group_path(name: &str) -> Option<PathBuf> {
         get_mods_path().map(|p| p.join(format!("{GROUP_PREFIX}{name}")))
     }
 
-    // Must match the list layout in modmanager.slint
+    // Items below must match the list layout + margins of modmanager.slint
     const LIST_PADDING_TOP: f32 = 12.0;
     const LIST_SPACING: f32 = 8.0;
-    // 40px header + 12px top margin separating groups (see modmanager.slint)
     const HEADER_ROW_H: f32 = 52.0;
     const CARD_ROW_H: f32 = 64.0;
 
@@ -969,7 +1001,6 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("[ModManager] deleted '{}'", m.path.display());
-                            // Drop leftover per-mod config entries
                             config_map_set(key::MODMNG_NOTES, &m.folder_name, None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &m.folder_name, None);
                         }
@@ -1213,7 +1244,6 @@ impl ModManagerHandler {
             let ww = ww.clone();
             let group_path = PathBuf::from(id.to_string());
             std::thread::spawn(move || {
-                // Move the mods out to the root mods folder before deleting
                 let Some(mods_path) = get_mods_path() else {
                     return;
                 };
@@ -1236,7 +1266,6 @@ impl ModManagerHandler {
                     }
                 }
 
-                // Only removes the folder if everything was moved out
                 if let Err(e) = std::fs::remove_dir(&group_path) {
                     error!(
                         "[ModManager] could not delete group '{}': {e}",

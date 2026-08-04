@@ -219,7 +219,9 @@ fn main() -> Result<()> {
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
+    shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
+    shared::api::ccu::stop();
     Ok(())
 }
 

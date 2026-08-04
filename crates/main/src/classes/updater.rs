@@ -21,7 +21,7 @@ use reqwest::blocking::Response;
 use serde::Deserialize;
 
 use crate::bridge::Bridge;
-use crate::MainWindow;
+use crate::{LaunchState, MainWindow};
 
 #[cfg(feature = "beta")]
 const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
@@ -645,7 +645,7 @@ impl UpdateHandler {
             crate::classes::logwindow::hide();
             if let Some(w) = w.upgrade() {
                 w.set_launch_disabled(true);
-                w.set_launch_button_text("Updating...".into());
+                w.set_launch_state(LaunchState::Updating);
             }
         })
         .ok();
@@ -657,9 +657,13 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 if active {
-                    w.set_progress_overlay_title("Updating Aurora".into());
+                    w.set_progress_overlay_title(
+                        crate::translations::tr("progress.updating-aurora-title").into(),
+                    );
                     w.set_progress_overlay_progress(0.0);
-                    w.set_progress_overlay_text("Preparing update...".into());
+                    w.set_progress_overlay_text(
+                        crate::translations::tr("progress.updating-aurora-preparing").into(),
+                    );
                     w.set_progress_overlay_cancellable(false);
                 }
                 w.set_progress_overlay_active(active);
@@ -746,7 +750,11 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 w.set_launch_disabled(locked);
-                w.set_launch_button_text(if locked { "Updating..." } else { "Launch" }.into());
+                w.set_launch_state(if locked {
+                    LaunchState::Updating
+                } else {
+                    LaunchState::Launch
+                });
             }
         })
         .ok();

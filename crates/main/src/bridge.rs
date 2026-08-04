@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::MainWindow;
+use crate::{LaunchState, MainWindow};
 use anyhow::{anyhow, Result};
 use backend::handler::{EngineCommand, EngineEvent, EngineHandler};
 use log::*;
@@ -109,7 +109,7 @@ impl Bridge {
                 let w_inner = w_launch.clone();
                 slint::invoke_from_event_loop(move || {
                     if let Some(w) = w_inner.upgrade() {
-                        w.set_launch_button_text("Launching...".into());
+                        w.set_launch_state(LaunchState::Launching);
                         w.set_launch_disabled(true);
                     }
                 })
@@ -142,13 +142,13 @@ impl Bridge {
                     EngineEvent::LaunchSuccess => {
                         Self::show_toast(
                             &w,
-                            "Launcher opened! Please press \"Play\" on the NTE Launcher",
+                            &crate::translations::tr("toast.launcher-opened"),
                             "success",
                         );
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if let Some(w) = w_ui.upgrade() {
-                                w.set_launch_button_text("Running...".into());
+                                w.set_launch_state(LaunchState::Running);
                             }
                         })
                         .ok();
@@ -162,7 +162,7 @@ impl Bridge {
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if let Some(w) = w_ui.upgrade() {
-                                w.set_launch_button_text("Launch".into());
+                                w.set_launch_state(LaunchState::Launch);
                                 w.set_launch_disabled(false);
                             }
                         })
@@ -173,7 +173,7 @@ impl Bridge {
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if let Some(w) = w_ui.upgrade() {
-                                w.set_launch_button_text("Launch".into());
+                                w.set_launch_state(LaunchState::Launch);
                                 w.set_launch_disabled(false);
                             }
                         })

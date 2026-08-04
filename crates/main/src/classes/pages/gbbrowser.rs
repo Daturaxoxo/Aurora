@@ -1,6 +1,7 @@
+use crate::classes::characters;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::sanitize_download_filename;
-use crate::{GbFileItem, GbModItem, MainWindow};
+use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
 use log::*;
 use once_cell::sync::Lazy;
@@ -8,7 +9,7 @@ use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::gamebanana::types::{NteMod, NteModFile};
 use shared::config::{self, key};
 use shared::utils::{format_bytes, get_local_version};
-use slint::{Model, VecModel};
+use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -17,11 +18,10 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 const PAGE_SIZE: usize = 15;
-
 const DOWNLOAD_BUFFER: usize = 1 << 20;
 
 /// Must stay in the same order as the character list in gbbrowser.slint.
-const CHARACTERS: &[(&str, u32)] = &[
+pub const CHARACTERS: &[(&str, u32)] = &[
     ("Adler", 43034),
     ("Aurelia", 46387),
     ("Baicang", 43035),
@@ -106,9 +106,6 @@ impl Default for GbState {
 }
 
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
-
-/// Set by the overlay's cancel button; polled by the download loop.
-/// Only one install can run at a time since the overlay blocks the window.
 static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 fn show_nsfw() -> bool {
@@ -165,8 +162,27 @@ impl GbBrowserHandler {
         let w = window.unwrap();
         w.set_gb_show_nsfw(show_nsfw());
         w.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
+        w.set_gb_characters(Self::character_model());
         Self::bind(window);
         info!("[GbBrowser] setup() complete");
+    }
+
+    fn character_model() -> ModelRc<GbCharacter> {
+        let characters: Vec<GbCharacter> = CHARACTERS
+            .iter()
+            .map(|(name, _)| {
+                let icon = characters::icon_for(name).unwrap_or_else(|| {
+                    warn!("[GbBrowser] no character icon matches '{name}'");
+                    slint::Image::default()
+                });
+                GbCharacter {
+                    name: (*name).into(),
+                    icon,
+                }
+            })
+            .collect();
+
+        Rc::new(VecModel::from(characters)).into()
     }
 
     fn push_row(w: &MainWindow, item: GbModItem) {
@@ -182,7 +198,6 @@ impl GbBrowserHandler {
     fn rebuild_model(w: &MainWindow) {
         let state = STATE.lock().unwrap();
         let nsfw = show_nsfw();
-        // When filtering by a category the API doesn't return download count
         let hide_downloads = matches!(state.mode, Mode::Category(_));
         let items: Vec<GbModItem> = state
             .mods
@@ -201,7 +216,6 @@ impl GbBrowserHandler {
                 if !reset {
                     return;
                 }
-                // A reset supersedes whatever was loading
             } else if !reset && state.end_reached {
                 return;
             }
@@ -344,7 +358,6 @@ impl GbBrowserHandler {
                 }
                 drop(state);
 
-                // On failure the enlarged thumbnail simply stays visible
                 if let Some(t) = apply {
                     Self::set_preview_image(&w, Some(&t));
                 }

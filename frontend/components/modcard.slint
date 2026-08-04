@@ -68,6 +68,7 @@ export component ModCard inherits Rectangle {
 
     out property <bool> dragging: false;
 
+    property <bool> has-icon: root.item.icon.width > 0;
     property <bool> editing-title: false;
     property <bool> editing-notes: false;
     property <string> title-draft;
@@ -183,8 +184,9 @@ export component ModCard inherits Rectangle {
                 Image {
                     width: 100%;
                     height: 100%;
-                    // TODO: use the character icon
-                    source: @image-url("../../production/icons/logo.png");
+                    source: root.has-icon
+                        ? root.item.icon
+                        : @image-url("../../production/assets/characters/default.png");
                     image-fit: contain;
                     image-rendering: smooth;
                 }
@@ -422,8 +424,9 @@ export component ModCard inherits Rectangle {
             Image {
                 width: 100%;
                 height: 100%;
-                // TODO: use the character icon
-                source: @image-url("../../production/icons/logo.png");
+                source: root.has-icon
+                    ? root.item.icon
+                    : @image-url("../../production/assets/characters/default.png");
                 image-fit: contain;
                 image-rendering: smooth;
             }
