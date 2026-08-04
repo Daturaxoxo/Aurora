@@ -39,7 +39,11 @@ const MAX_LOG_FILES: usize = 20;
 fn session_log_modified(entry: &fs::DirEntry) -> Option<std::time::SystemTime> {
     let name = entry.file_name();
     let name = name.to_str()?;
-    if !name.starts_with("aurora-") || !name.ends_with(".log") {
+    if !name.starts_with("aurora-")
+        || !Path::new(name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
+    {
         cold_path();
         return None;
     }
