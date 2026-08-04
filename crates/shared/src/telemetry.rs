@@ -19,7 +19,7 @@ use sysinfo::{Disks, RefreshKind, System};
 use crate::{
     classes::info::{
         paths::{get_version_paths, CLIENT_PAK_DIR},
-        version::{detect_version, BypassMethod},
+        version::{detect_distribution, detect_version, BypassMethod},
     },
     config::{self, get_all_configs, key},
     pathfind::get_game_directory,
@@ -124,6 +124,9 @@ pub fn export_telemetry() -> Result<()> {
     let version = detect_version(game_path.as_path()).unwrap_or_default();
     writeln!(file, "Version:         {version}")?;
 
+    let distro = detect_distribution(game_path.as_path());
+    writeln!(file, "Distribution:    {distro:?}")?;
+
     let write_access = std::fs::metadata(&game_path).is_ok();
     writeln!(file, "Write Access:    {write_access}")?;
 
@@ -213,7 +216,7 @@ pub fn export_telemetry() -> Result<()> {
             .parse::<i64>()?,
     };
     let engine_method = BypassMethod::from_num(engine_method_raw)?;
-    let vpaths = get_version_paths(game_path.as_path(), version, engine_method);
+    let vpaths = get_version_paths(game_path.as_path(), version, distro, engine_method);
     for (name, path) in vpaths.all_dll_targets() {
         print_entry(&name, path.as_path())?;
     }

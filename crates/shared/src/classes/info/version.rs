@@ -24,6 +24,44 @@ impl fmt::Display for Version {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Distribution {
+    #[default]
+    Standalone,
+    Epic,
+}
+
+impl std::fmt::Display for Distribution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Standalone => "standalone",
+            Self::Epic => "epic",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl Distribution {
+    pub const fn launch_args(&self) -> &'static [&'static str] {
+        match self {
+            Self::Standalone => &[],
+            Self::Epic => &["-AUTH_PASSWORD=1234", "-AUTH_TYPE=exchangecode"],
+        }
+    }
+}
+
+pub fn detect_distribution(game_path: &Path) -> Distribution {
+    if game_path
+        .join("NTEGlobal")
+        .join("EOSSDK-Win64-Shipping.dll")
+        .is_file()
+    {
+        Distribution::Epic
+    } else {
+        Distribution::Standalone
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VersionSpec {
     pub launcher_process: &'static str,

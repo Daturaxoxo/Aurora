@@ -9,7 +9,7 @@ use shared::classes::steam::{find_steam_root, real_home, steam_libraries};
 const STEAM_APP_ID: &str = "4508340";
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
 
-pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
+pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process::Child> {
     debug!("launch_via_proton: exe={}", exe.display());
 
     let steam_root = find_steam_root()
@@ -63,7 +63,10 @@ pub fn launch_via_proton(exe: &Path) -> Result<std::process::Child> {
     let (extra_env, extra_args) = proton_launch_options();
 
     let mut cmd = command_as_real_user(&proton_bin);
-    cmd.arg("waitforexitandrun").arg(exe).args(&extra_args);
+    cmd.arg("waitforexitandrun")
+        .arg(exe)
+        .args(game_args)
+        .args(&extra_args);
     for (k, v) in &extra_env {
         cmd.env(k, v);
     }

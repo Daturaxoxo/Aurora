@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use log::*;
 use shared::classes::info::{
     paths::{get_version_paths, VersionPaths},
-    version::{detect_version, BypassMethod, Version},
+    version::{detect_distribution, detect_version, BypassMethod, Distribution, Version},
     Target,
 };
 use shared::config::{get, key};
@@ -26,6 +26,7 @@ pub struct AuroraEngine {
     pub main_dlls: Vec<String>,
     pub addons_path: PathBuf,
     pub targets: Vec<(Target, PathBuf)>,
+    pub distribution: Distribution,
     pub(crate) last_addon_warnings: Vec<String>,
 }
 
@@ -50,6 +51,9 @@ impl AuroraEngine {
         let version = detect_version(&game_path)?;
         trace!("Game version: {version}");
 
+        let distribution = detect_distribution(&game_path);
+        trace!("Distribution: {distribution:?}");
+
         let engine_method_raw = match get(key::ENGINE_METHOD).as_i64() {
             Some(v) => v,
             None => get(key::ENGINE_METHOD)
@@ -71,7 +75,7 @@ impl AuroraEngine {
         }
         let addons_path = bin_path.join("Addons");
 
-        let gpaths = get_version_paths(&game_path, version, engine_method);
+        let gpaths = get_version_paths(&game_path, version, distribution, engine_method);
         trace!("Game paths: {gpaths:#?}");
         let derived = Self::derive_paths(&gpaths)?;
 
@@ -88,6 +92,7 @@ impl AuroraEngine {
             main_dlls: derived.main_dlls,
             addons_path,
             targets: derived.targets,
+            distribution,
             last_addon_warnings: vec![],
         };
         engine.publish_kill_snapshot();
@@ -114,7 +119,8 @@ impl AuroraEngine {
         trace!("Engine method: {engine_method}");
 
         let version = detect_version(&game_path)?;
-        let gpaths = get_version_paths(&game_path, version, engine_method);
+        let distribution = detect_distribution(&game_path);
+        let gpaths = get_version_paths(&game_path, version, distribution, engine_method);
         let derived = Self::derive_paths(&gpaths)?;
 
         self.game_path = game_path;
@@ -127,6 +133,7 @@ impl AuroraEngine {
         self.pak_dir = derived.pak_dir;
         self.main_dlls = derived.main_dlls;
         self.targets = derived.targets;
+        self.distribution = distribution;
         self.last_addon_warnings = vec![];
 
         trace!("Finished reinitializing engine");

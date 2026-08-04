@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::classes::info::{Target, NTE_GAME_EXE};
+use crate::classes::info::{version::Distribution, Target, NTE_GAME_EXE};
 
 use super::version::{BypassMethod, Version};
 
@@ -40,6 +40,8 @@ pub struct VersionPaths {
     pub launcher_process: &'static str,
     pub helper_processes: Vec<&'static str>,
     pub game_process: &'static str,
+    pub distribution: Distribution,
+    pub launch_args: Vec<&'static str>,
 }
 
 impl VersionPaths {
@@ -62,6 +64,7 @@ impl VersionPaths {
 pub fn get_version_paths(
     game_path: &Path,
     version: Version,
+    distribution: Distribution,
     engine_method: BypassMethod,
 ) -> VersionPaths {
     let spec = version.spec();
@@ -89,5 +92,7 @@ pub fn get_version_paths(
         launcher_process: spec.launcher_process,
         helper_processes: spec.helper_processes.to_vec(),
         game_process: NTE_GAME_EXE,
+        distribution,
+        launch_args: distribution.launch_args().to_vec(),
     }
 }

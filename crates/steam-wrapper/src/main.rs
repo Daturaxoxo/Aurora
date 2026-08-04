@@ -2,8 +2,9 @@
 
 slint::include_modules!();
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use shared::classes::info::version::detect_distribution;
 use slint::{LogicalPosition, WindowPosition};
 
 use shared::config::{self, key};
@@ -147,7 +148,12 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         };
 
-        match std::process::Command::new(&launcher).spawn() {
+        let distribution = detect_distribution(Path::new(game_path));
+
+        match std::process::Command::new(&launcher)
+            .args(distribution.launch_args())
+            .spawn()
+        {
             Ok(child) => launch_and_exit(child),
             Err(e) => eprintln!("Failed to launch NTE launcher: {e}"),
         }
