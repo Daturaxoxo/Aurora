@@ -213,9 +213,7 @@ class AuroraUI(QMainWindow):
                 ),
                 confirm_text=t("update_available_confirm"),
                 cancel_text=t("cancel"),
-                on_confirm=lambda: webbrowser.open(
-                    "https://github.com/Daturaxoxo/Aurora/releases/latest"
-                ),
+                on_confirm=lambda: webbrowser.open("https://getaurora.moe"),
             )
 
     # Top Bar

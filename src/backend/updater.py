@@ -1,68 +1,35 @@
 from __future__ import annotations
-import os
-import sys
-import json
+import time
 import shutil
-import zipfile
-import tempfile
 import traceback
-import urllib.request
+import http.client
 import urllib.error
 from src.translator import t
 from pathlib import Path
-from typing import Optional
 from PyQt6.QtCore import QThread, pyqtSignal
 from src.logger import logger
 from src.path_finder import get_local_version
-from src.utils import GetOnlineVersion, parse_version, get_app_dir
-GITHUB_OWNER = "Daturaxoxo"
-GITHUB_REPO  = "AuroraInstallation"
-ASSET_EXE    = "Aurora.exe"
-ASSET_UNINST = "uninst.exe"
-ASSET_BIN    = "Bin.zip"
+from src.utils import GetOnlineRelease, is_outdated, is_prerelease, get_app_dir
+from src import config_manager as cfg
+from src.backend.helpers.manifest import (
+    AURORA_EXE,
+    FileEntry,
+    Manifest,
+    download,
+    fetch_manifest,
+    file_size,
+    hash_file,
+    safe_join,
+    save_local_manifest,
+)
 
-def _api_download_url(asset_name: str) -> Optional[str]:
-    api_url = (
-        f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
-        f"/releases/latest"
-    )
-    try:
-        req = urllib.request.Request(
-            api_url,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": "AuroraLauncher/1.0",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp: data = json.load(resp)
-        for asset in data.get("assets", []):
-            if asset.get("name") == asset_name: return asset.get("browser_download_url")
-    except Exception: pass
-    return None
+# Progress budget for the pipeline stages.
+DOWNLOAD_START = 5
+DOWNLOAD_END   = 88
+INSTALL_END    = 97
 
-def _download(
-    url: str,
-    dest_path: str,
-    progress_cb=None,
-    start_pct: int = 0,
-    end_pct: int = 100,
-) -> None:
-    req = urllib.request.Request(url, headers={"User-Agent": "AuroraLauncher/1.0"})
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        total      = int(resp.headers.get("Content-Length", 0) or 0)
-        downloaded = 0
-        chunk      = 65536  # 64 KB
-        with open(dest_path, "wb") as fout:
-            while True:
-                block = resp.read(chunk)
-                if not block: break
-                fout.write(block)
-                downloaded += len(block)
-                if progress_cb and total:
-                    ratio = downloaded / total
-                    pct   = int(start_pct + ratio * (end_pct - start_pct))
-                    progress_cb(pct)
-    if progress_cb: progress_cb(end_pct)
+MOVE_ATTEMPTS = 20
+MOVE_DELAY    = 0.25
 
 class UpdateChecker(QThread):
     update_available = pyqtSignal(str, str)
@@ -70,14 +37,29 @@ class UpdateChecker(QThread):
 
     def run(self):
         try:
-            local  = get_local_version()
-            online = GetOnlineVersion()
-            if not online:
+            local   = get_local_version()
+            release = GetOnlineRelease()
+            if not release:
                 logger.warning("Aurora couldn't fetch the online version.", extra={"el": True})
                 return
-            logger.info(f"Update Checker: local={local}  online={online}", extra={"el": True})
-            if parse_version(local) < parse_version(online): self.update_available.emit(local, online)
-            else: self.up_to_date.emit()
+            logger.info(f"Update Checker: local={local}  online={release['display']}", extra={"el": True})
+
+            if not is_outdated(local, release["version"]):
+                self.up_to_date.emit()
+                return
+
+            # Pre-release builds are only offered to developer-mode installs.
+            # Everyone else waits for the channel to go stable, so publishing a
+            # beta to the API never pushes it onto ordinary users.
+            if is_prerelease(release) and not cfg.get(cfg.Key.DEV_MODE):
+                logger.info(
+                    f"Update Checker: {release['display']} is a pre-release; not offering it",
+                    extra={"el": True},
+                )
+                self.up_to_date.emit()
+                return
+
+            self.update_available.emit(local, release["display"])
         except Exception: logger.warning(f"Update Checker failed:\n{traceback.format_exc()}", extra={"el": True})
 
 class UpdateWorker(QThread):
@@ -90,35 +72,11 @@ class UpdateWorker(QThread):
         super().__init__(parent)
         self._install_root = Path(get_app_dir())
 
-    def _emit_progress(self, pct: int): self.progress.emit(max(0, min(100, pct)))
+    def _emit_progress(self, pct: int): self.progress.emit(max(0, min(100, int(pct))))
 
     def _log(self, msg: str):
         logger.info(f"[Updater] {msg}", extra={"el": True})
         self.log.emit(msg)
-
-    def _resolve_url(self, asset_name: str) -> str:
-        url = _api_download_url(asset_name)
-        if url: return url
-        raise RuntimeError(
-            f"Could not locate '{asset_name}' in the latest GitHub release.\n\n"
-            f"Make sure the release exists and the asset name is correct."
-        )
-
-    def _download_asset(
-        self,
-        asset_name: str,
-        dest_path: str,
-        start_pct: int,
-        end_pct: int,
-    ) -> None:
-        url = self._resolve_url(asset_name)
-        _download(
-            url,
-            dest_path,
-            progress_cb=self._emit_progress,
-            start_pct=start_pct,
-            end_pct=end_pct,
-        )
 
     def run(self):
         try: self._run_pipeline()
@@ -130,78 +88,178 @@ class UpdateWorker(QThread):
             logger.error(f"[Updater] Unexpected error:\n{tb}")
             self.error.emit("An unexpected error occurred during the update.\n\n" + tb)
 
+    # Pipeline
     def _run_pipeline(self):
-        install_root = self._install_root
-        aurora_live  = install_root / ASSET_EXE
-        uninst_live  = install_root / ASSET_UNINST
-        bin_live     = install_root / "Bin"
+        root = self._install_root
 
-        for leftover in install_root.glob("*.old"):
-            try: leftover.unlink(missing_ok=True)
-            except OSError: pass
+        self._log(t("updater_status_manifest"))
+        self._emit_progress(1)
+        manifest = fetch_manifest()
+        logger.info(
+            f"[Updater] Manifest version {manifest.version} lists {len(manifest.files)} file(s)",
+            extra={"el": True},
+        )
 
-        tmp_dir = install_root / ".update_tmp"
+        tmp_dir = root / ".update_tmp"
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         tmp_dir.mkdir(parents=True, exist_ok=True)
-
-        tmp_msg = t("updater_status_directory")
-        self._log(f"{tmp_msg}: {tmp_dir}")
-        self._emit_progress(2)
+        self._log(f"{t('updater_status_directory')} {tmp_dir}")
 
         try:
-            self._log(t("updater_status_download_exe"))
-            new_exe = tmp_dir / ASSET_EXE
-            try: self._download_asset(ASSET_EXE, str(new_exe), start_pct=2, end_pct=35)
-            except urllib.error.HTTPError as e:
-                raise RuntimeError(f"Failed to download {ASSET_EXE}: HTTP {e.code} {e.reason}")
-            except urllib.error.URLError as e:
-                raise RuntimeError(f"Failed to download {ASSET_EXE}: {e.reason}\n\nCheck your internet connection.")
+            plan = self._plan(manifest, tmp_dir)
+            if plan: self._download(plan)
+            self._log(t("updater_status_installing"))
+            backups = self._install(plan)
 
-            self._log(t("updater_status_download_uninst"))
-            new_uninst = tmp_dir / ASSET_UNINST
-            try: self._download_asset(ASSET_UNINST, str(new_uninst), start_pct=35, end_pct=58)
-            except urllib.error.HTTPError as e: raise RuntimeError(f"Failed to download {ASSET_UNINST}: HTTP {e.code} {e.reason}")
-            except urllib.error.URLError as e: raise RuntimeError(f"Failed to download {ASSET_UNINST}: {e.reason}\n\nCheck your internet connection.")
-
-            self._log(t("updater_status_download_bin"))
-            zip_path = tmp_dir / ASSET_BIN
-            try: self._download_asset(ASSET_BIN, str(zip_path), start_pct=58, end_pct=82)
-            except urllib.error.HTTPError as e: raise RuntimeError(f"Failed to download {ASSET_BIN}: HTTP {e.code} {e.reason}")
-            except urllib.error.URLError as e: raise RuntimeError(f"Failed to download {ASSET_BIN}: {e.reason}\n\nCheck your internet connection.")
-
-            self._log(t("updater_status_extract_zip"))
-            bin_tmp = tmp_dir / "Bin"
-            bin_tmp.mkdir(exist_ok=True)
-            try:
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    names = zf.namelist()
-                    total = len(names)
-                    for i, name in enumerate(names):
-                        zf.extract(name, str(bin_tmp))
-                        pct = 82 + int((i + 1) / max(total, 1) * 12)
-                        self._emit_progress(pct)
-            except zipfile.BadZipFile: raise RuntimeError(f"The downloaded {ASSET_BIN} archive is corrupted or invalid.")
-            zip_path.unlink(missing_ok=True)
-            self._emit_progress(94)
-            self._emit_progress(97)
-            aurora_old = aurora_live.with_name('Aurora.exe.old')
-            try: aurora_old.unlink(missing_ok=True)
-            except OSError: pass
-            aurora_live.rename(aurora_old)
-            new_exe.rename(aurora_live)
-
-            uninst_old = uninst_live.with_name('uninst.exe.old')
-            try: uninst_old.unlink(missing_ok=True)
-            except OSError: pass
-            if uninst_live.exists(): uninst_live.rename(uninst_old)
-            new_uninst.rename(uninst_live)
-
-            if bin_live.exists(): shutil.rmtree(bin_live)
-            bin_tmp.rename(bin_live)
+            self._emit_progress(INSTALL_END)
+            self._log(t("updater_status_finishing"))
+            self._write_local_manifest(manifest)
+            self._delete_backups(backups)
             shutil.rmtree(tmp_dir, ignore_errors=True)
             self._emit_progress(100)
-
         except Exception:
-            try: shutil.rmtree(tmp_dir, ignore_errors=True)
-            except Exception: pass
+            shutil.rmtree(tmp_dir, ignore_errors=True)
             raise
+
         self.finished.emit()
+
+    def _plan(self, manifest: Manifest, tmp_dir: Path) -> list[tuple[FileEntry, Path, Path]]:
+        """Files that still need fetching, as (entry, destination, staging path)."""
+        plan = []
+        for entry in manifest.files:
+            dst = safe_join(self._install_root, entry.path)
+            if self._matches(dst, entry.sha256):
+                logger.info(f"[Updater] {entry.path} is already up to date", extra={"el": True})
+                continue
+            plan.append((entry, dst, safe_join(tmp_dir, entry.path)))
+        return plan
+
+    @staticmethod
+    def _matches(path: Path, sha256: str) -> bool:
+        if not path.is_file(): return False
+        try: return hash_file(path) == sha256
+        except OSError: return False
+
+    # Downloading
+    def _download(self, plan: list[tuple[FileEntry, Path, Path]]):
+        sizes = [file_size(entry.url) for entry, _, _ in plan]
+        total = sum(sizes)
+        span  = DOWNLOAD_END - DOWNLOAD_START
+        done  = 0
+
+        for index, (entry, _, tmp) in enumerate(plan):
+            self._log(f"{t('updater_status_downloading')} {entry.path}")
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+
+            if total:
+                offset = done
+                progress_cb = lambda read, offset=offset: self._emit_progress(
+                    DOWNLOAD_START + (offset + read) / total * span
+                )
+            else:
+                # Content-Length was unavailable, so weight every file equally.
+                progress_cb = None
+                self._emit_progress(DOWNLOAD_START + index / len(plan) * span)
+
+            try: download(entry.url, tmp, progress_cb)
+            except urllib.error.HTTPError as e:
+                raise RuntimeError(f"Failed to download {entry.path}: HTTP {e.code} {e.reason}")
+            except urllib.error.URLError as e:
+                raise RuntimeError(f"Failed to download {entry.path}: {e.reason}\n\nCheck your internet connection.")
+            except (OSError, http.client.HTTPException) as e:
+                # Dropped connection or timeout part-way through the transfer.
+                raise RuntimeError(f"Failed to download {entry.path}: {e}\n\nCheck your internet connection.")
+
+            actual = hash_file(tmp)
+            if actual != entry.sha256:
+                raise RuntimeError(
+                    f"{entry.path} did not download correctly.\n\n"
+                    f"Expected checksum {entry.sha256}, got {actual}."
+                )
+            done += sizes[index] or tmp.stat().st_size
+
+        self._emit_progress(DOWNLOAD_END)
+
+    # Installing
+    def _install(self, plan: list[tuple[FileEntry, Path, Path]]) -> list[tuple[Path, Path | None]]:
+        """Move staged files into place, rolling back if any single move fails."""
+        # Aurora.exe goes last: it is the running image, so leaving it until the
+        # rest is in place keeps the window where a failure matters as small as
+        # possible.
+        ordered = sorted(plan, key=lambda item: item[0].path == AURORA_EXE)
+        backups: list[tuple[Path, Path | None]] = []
+
+        for entry, dst, tmp in ordered:
+            try: self._swap_in(dst, tmp, backups)
+            except OSError as e:
+                self._roll_back(backups)
+                raise RuntimeError(f"Failed to replace {entry.path}: {e}\n\nThe update was rolled back.")
+        return backups
+
+    def _swap_in(self, dst: Path, tmp: Path, backups: list[tuple[Path, Path | None]]):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.exists():
+            backup = dst.with_name(dst.name + ".old")
+            # A leftover backup from an earlier attempt is overwritten by the
+            # move below, so failing to clear it up front is not fatal.
+            try: self._remove(backup)
+            except OSError: pass
+            self._move(dst, backup)
+            backups.append((dst, backup))
+        else:
+            backups.append((dst, None))
+        self._move(tmp, dst)
+
+    def _roll_back(self, backups: list[tuple[Path, Path | None]]):
+        for dst, backup in reversed(backups):
+            try:
+                if backup is None: self._remove(dst)
+                else: self._move(backup, dst)
+            except OSError as e: logger.error(f"[Updater] Rollback failed for {dst}: {e}")
+
+    def _delete_backups(self, backups: list[tuple[Path, Path | None]]):
+        # Aurora.exe.old stays behind on purpose: Windows will not delete the
+        # image of the running process. The overlay clears it after Aurora quits.
+        for _, backup in backups:
+            if backup is None: continue
+            try: self._remove(backup)
+            except OSError: pass
+
+    @staticmethod
+    def _remove(path: Path):
+        try: path.unlink(missing_ok=True)
+        except IsADirectoryError: shutil.rmtree(path, ignore_errors=True)
+        except PermissionError:
+            if path.is_dir(): shutil.rmtree(path, ignore_errors=True)
+            else: raise
+
+    @staticmethod
+    def _move(src: Path, dst: Path):
+        """Move src onto dst, replacing dst if it is already there.
+
+        Rolling back means putting a backup back over the file that replaced
+        it, so overwriting has to be allowed. Antivirus and Explorer also hold
+        brief locks on files that were just written, hence the retries.
+        """
+        last: OSError | None = None
+        for _ in range(MOVE_ATTEMPTS):
+            try:
+                src.replace(dst)
+                return
+            except OSError as e:
+                last = e
+                time.sleep(MOVE_DELAY)
+        raise last if last else OSError(f"could not move {src} to {dst}")
+
+    def _write_local_manifest(self, manifest: Manifest):
+        """Record what is installed so Aurora 2.x can diff against it."""
+        installed = {
+            entry.path: entry.sha256
+            for entry in manifest.files
+            if safe_join(self._install_root, entry.path).is_file()
+        }
+        try: save_local_manifest(self._install_root, manifest.version, installed)
+        except OSError as e:
+            # Aurora 2.x rebuilds this from disk when it is missing, so a failure
+            # here costs a rehash on the next check rather than the update.
+            logger.warning(f"[Updater] Could not write the local manifest: {e}", extra={"el": True})

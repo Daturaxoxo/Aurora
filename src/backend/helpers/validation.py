@@ -1,16 +1,66 @@
 # src/backend/helpers/validation.py
 from __future__ import annotations
 
+import json
 import shutil
 import zipfile
 import tempfile
 import urllib.error
+import urllib.request
 from pathlib import Path
+from typing import Optional
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from src.logger import logger
 from src.backend.helpers.addons import PAK_ADDONS
-from src.backend.updater import _api_download_url, _download, ASSET_BIN
+
+# Repairing the Bin folder restores the files this build of Aurora shipped
+# with, so it pulls from this version's own GitHub release rather than from the
+# update manifest, which describes the next major version's layout instead.
+GITHUB_OWNER = "Daturaxoxo"
+GITHUB_REPO  = "AuroraInstallation"
+ASSET_BIN    = "Bin.zip"
+
+def _api_download_url(asset_name: str) -> Optional[str]:
+    api_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+    try:
+        req = urllib.request.Request(
+            api_url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "AuroraLauncher/1.0",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp: data = json.load(resp)
+        for asset in data.get("assets", []):
+            if asset.get("name") == asset_name: return asset.get("browser_download_url")
+    except Exception: pass
+    return None
+
+def _download(
+    url: str,
+    dest_path: str,
+    progress_cb=None,
+    start_pct: int = 0,
+    end_pct: int = 100,
+) -> None:
+    req = urllib.request.Request(url, headers={"User-Agent": "AuroraLauncher/1.0"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        total      = int(resp.headers.get("Content-Length", 0) or 0)
+        downloaded = 0
+        chunk      = 65536  # 64 KB
+        with open(dest_path, "wb") as fout:
+            while True:
+                block = resp.read(chunk)
+                if not block: break
+                fout.write(block)
+                downloaded += len(block)
+                if progress_cb and total:
+                    ratio = downloaded / total
+                    pct   = int(start_pct + ratio * (end_pct - start_pct))
+                    progress_cb(pct)
+    if progress_cb: progress_cb(end_pct)
+
 ARCHIVE_EXTENSIONS: frozenset[str] = frozenset({".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",})
 IGNORED_INI_FILES: frozenset[str] = frozenset({"desktop.ini",})
 

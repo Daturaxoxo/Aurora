@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import sys
 import urllib
@@ -24,15 +25,75 @@ def resource_path(relative_path):
     except Exception: base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-def parse_version(v):
-    try: return tuple(int(x) for x in v.strip().split("."))
-    except (ValueError, AttributeError): return (0, 0, 0)
+AURORA_API_BASE  = "https://api.getaurora.moe/v2"
+APP_VERSION_URL  = f"{AURORA_API_BASE}/app/version"
 
-def GetOnlineVersion():
+def parse_version(v):
+    # Release tags may carry a pre-release suffix ("2.0.0-BETA-4"), which is
+    # dropped: only the numeric core takes part in the comparison.
+    if not isinstance(v, str): return (0,)
+    core = v.strip().split("-", 1)[0].split("+", 1)[0]
+    parts = []
+    for chunk in core.split("."):
+        digits = "".join(c for c in chunk if c.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts) or (0,)
+
+def is_outdated(local, online) -> bool:
+    a, b = parse_version(local), parse_version(online)
+    pad = max(len(a), len(b))
+    return a + (0,) * (pad - len(a)) < b + (0,) * (pad - len(b))
+
+PRERELEASE_MARKERS = frozenset({
+    "alpha", "beta", "rc", "dev", "nightly", "preview", "canary", "prerelease", "test", "snapshot",
+})
+
+def is_prerelease(release) -> bool:
+    """Whether a release is a preview build that should not be offered publicly.
+
+    Read from the API's build channel, falling back to a pre-release suffix on
+    the version itself. An unrecognised or missing channel counts as stable, so
+    a genuine release is never hidden by a channel name this build has not seen
+    before; the cost of that choice is that a new pre-release channel has to be
+    added here to be filtered out.
+    """
+    if not isinstance(release, dict): return False
+    if str(release.get("build") or "").strip().lower() in PRERELEASE_MARKERS: return True
+    for field in ("display", "version"):
+        _, sep, suffix = str(release.get(field) or "").partition("-")
+        if not sep: continue
+        # Numbered markers ("rc1", "beta4") count too, hence the digit strip.
+        parts = re.split(r"[-_.+ ]", suffix.lower())
+        if any(p in PRERELEASE_MARKERS or p.rstrip("0123456789") in PRERELEASE_MARKERS for p in parts): return True
+    return False
+
+def GetOnlineRelease():
+    """Latest published release as {version, display, build}, or None."""
     try:
-        with urllib.request.urlopen("https://raw.githubusercontent.com/Daturaxoxo/Aurora/refs/heads/main/dev/VERSION") as response: version_info = response.read().decode('utf-8').strip()
-        return version_info or "9.9.9"
-    except Exception as _: print("WARN: Couldn't get version info from GitHub")
+        req = urllib.request.Request(APP_VERSION_URL, headers={"User-Agent": f"AuroraLauncher/{get_local_version()}"})
+        with urllib.request.urlopen(req, timeout=15) as response: data = json.load(response)
+    except Exception as e:
+        print(f"WARN: Couldn't get version info from the Aurora API ({e})")
+        data = None
+
+    if isinstance(data, dict):
+        version = str(data.get("version") or "").strip()
+        if version:
+            return {
+                "version": version,
+                "display": str(data.get("full") or version).strip(),
+                "build":   str(data.get("build") or "").strip(),
+            }
+
+    # The API is the source of truth, but the update manifest carries the same
+    # version, so a lone API outage doesn't hide an available update.
+    try:
+        from src.backend.helpers.manifest import fetch_manifest
+        version = fetch_manifest().version
+        return {"version": version, "display": version, "build": ""}
+    except Exception as e:
+        print(f"WARN: Couldn't get version info from the update manifest ({e})")
+        return None
 
 def get_mods_path():
     return Path(cfg.get(cfg.Key.GAME_PATH)) / "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods"
