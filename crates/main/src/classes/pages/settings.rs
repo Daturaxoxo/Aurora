@@ -7,6 +7,7 @@ use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
+use shared::pathfind::resolve_selected_game_root;
 use std::sync::atomic::Ordering;
 
 #[derive(serde::Deserialize)]
@@ -163,8 +164,26 @@ impl SettingsHandler {
 
                 match picked {
                     Some(path) => {
+                        info!("[Settings] game directory selected -> {:?}", path.display());
+
+                        let path = if let Some(root) = resolve_selected_game_root(&path) {
+                            if root != path {
+                                info!(
+                                    "[Settings] resolved selection to install root -> {:?}",
+                                    root.display()
+                                );
+                            }
+                            root
+                        } else {
+                            warn!(
+                                "[Settings] {:?} does not look like a game install (no launcher \
+                                 or game files found); saving it anyway",
+                                path.display()
+                            );
+                            path
+                        };
+
                         let path_str: String = path.to_string_lossy().into_owned();
-                        info!("[Settings] game directory selected -> {path_str:?}");
                         config::set(key::GAME_PATH, path_str.clone());
                         debug!("[Settings] game_path saved to config");
 

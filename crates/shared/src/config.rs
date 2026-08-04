@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
-
+use std::sync::{Mutex, PoisonError};
 use log::*;
-
 use serde_json::{json, Map, Value};
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 
 pub const LANGS: &[(&str, &str)] = &[
     ("English", "en"),
@@ -100,7 +100,6 @@ pub fn default_value(k: &str) -> Value {
 
         // [0 = Default (dsound only)]
         // [1 = Alternate (dsound + version.dll)]
-        // [2 = Alternate 2 (dsound + dinput8.dll)]
         key::ENGINE_METHOD => json!(0),
         _ => Value::Null,
     }
@@ -133,16 +132,40 @@ fn load_raw() -> Map<String, Value> {
             Value::Object(map) => Some(map),
             _ => None,
         })
-        .unwrap_or_default() // Falls back to an empty Map automatically
+        .unwrap_or_default()
 }
 
 fn save_raw(data: &Map<String, Value>) {
-    if let Ok(json_string) = serde_json::to_string_pretty(data) {
-        let _ = fs::write(config_file_path(), json_string);
+    let json_string = match serde_json::to_string_pretty(data) {
+        Ok(json_string) => json_string,
+        Err(e) => {
+            error!("Failed to serialize the config: {e}");
+            return;
+        }
+    };
+
+    let path = config_file_path();
+
+    // Write to a sibling first so a crash (or a full disk) can't leave a
+    // truncated config behind.
+    let tmp = path.with_extension("json.tmp");
+    if let Err(e) = fs::write(&tmp, &json_string) {
+        error!("Failed to write {}: {e}", tmp.display());
+        return;
+    }
+
+    if let Err(e) = fs::rename(&tmp, &path) {
+        warn!("Could not replace {} atomically: {e}", path.display());
+        if let Err(e) = fs::write(&path, &json_string) {
+            error!("Failed to write {}: {e}", path.display());
+        }
+        let _ = fs::remove_file(&tmp);
     }
 }
 
 pub fn get(k: &str) -> Value {
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+
     load_raw()
         .get(k)
         .cloned()
@@ -150,11 +173,19 @@ pub fn get(k: &str) -> Value {
 }
 
 pub fn set(k: &str, value: impl Into<Value>) {
+    // The whole read-modify-write has to be atomic: settings, the mod manager
+    // and the engine all write from their own threads, and an interleaved
+    // save used to roll another key (game_path, most painfully) back to
+    // whatever was on disk when the other thread read it.
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+
     let mut data = load_raw();
     data.insert(k.to_string(), value.into());
     save_raw(&data);
 }
 
 pub fn get_all_configs() -> Map<String, Value> {
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+
     load_raw()
 }
