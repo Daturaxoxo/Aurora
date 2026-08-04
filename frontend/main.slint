@@ -11,7 +11,7 @@ import { ModulesPage } from "components/pages/menus/modules.slint";
 import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
 export { LuaScriptsAdapter }
 import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
-import {GameBananaBrowser, GbModItem, GbFileItem} from "components/gbbrowser.slint";
+import {GameBananaBrowser, GbModItem, GbFileItem, GbCharacter} from "components/gbbrowser.slint";
 import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
 export { LogWindow, LogLine } from "components/logwindow.slint";
 
@@ -188,6 +188,7 @@ export component MainWindow inherits Window {
     in-out property <bool> show-gb-browser: false;
     in-out property <[GbModItem]> gb-mods: [];
     in-out property <bool> gb-loading: false;
+    in-out property <[GbCharacter]> gb-characters: [];
     in-out property <bool> gb-show-nsfw: false;
     in-out property <int> gb-selected-character: -1;
     in-out property <string> gb-search-text: "";
@@ -1040,6 +1041,7 @@ export component MainWindow inherits Window {
             height: parent.height - (Palette.topbar-height + 35px);
             mods: root.gb-mods;
             loading: root.gb-loading;
+            characters: root.gb-characters;
             show-nsfw <=> root.gb-show-nsfw;
             selected-character <=> root.gb-selected-character;
             search-text <=> root.gb-search-text;

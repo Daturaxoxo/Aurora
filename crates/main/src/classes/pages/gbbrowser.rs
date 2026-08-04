@@ -1,5 +1,6 @@
+use crate::classes::characters;
 use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::{GbFileItem, GbModItem, MainWindow};
+use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
 use log::*;
 use once_cell::sync::Lazy;
@@ -7,7 +8,7 @@ use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::gamebanana::types::{NteMod, NteModFile};
 use shared::config::{self, key};
 use shared::utils::format_bytes;
-use slint::{Model, VecModel};
+use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -16,8 +17,9 @@ use std::sync::Mutex;
 
 const PAGE_SIZE: usize = 15;
 
-/// Must stay in the same order as the character list in gbbrowser.slint.
-const CHARACTERS: &[(&str, u32)] = &[
+/// The character filter and its `GameBanana` category ids. Icons come from
+/// `classes::characters`, so this is the only list to keep up to date.
+pub const CHARACTERS: &[(&str, u32)] = &[
     ("Adler", 43034),
     ("Aurelia", 46387),
     ("Baicang", 43035),
@@ -154,8 +156,29 @@ impl GbBrowserHandler {
         let w = window.unwrap();
         w.set_gb_show_nsfw(show_nsfw());
         w.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
+        w.set_gb_characters(Self::character_model());
         Self::bind(window);
         info!("[GbBrowser] setup() complete");
+    }
+
+    /// The character filter, in `CHARACTERS` order (the index is what
+    /// `character-selected` reports back).
+    fn character_model() -> ModelRc<GbCharacter> {
+        let characters: Vec<GbCharacter> = CHARACTERS
+            .iter()
+            .map(|(name, _)| {
+                let icon = characters::icon_for(name).unwrap_or_else(|| {
+                    warn!("[GbBrowser] no character icon matches '{name}'");
+                    slint::Image::default()
+                });
+                GbCharacter {
+                    name: (*name).into(),
+                    icon,
+                }
+            })
+            .collect();
+
+        Rc::new(VecModel::from(characters)).into()
     }
 
     fn push_row(w: &MainWindow, item: GbModItem) {
