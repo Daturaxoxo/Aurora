@@ -22,7 +22,6 @@ use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 
 use bridge::Bridge;
-use slint::{LogicalPosition, WindowPosition};
 
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
@@ -142,20 +141,36 @@ fn main() -> Result<()> {
     }
 
     // DRAGGING
-    let window_weak = window.as_weak();
-    window.on_window_dragged(move |delta_x, delta_y| {
-        let Some(w) = window_weak.upgrade() else {
-            return;
-        };
-        let win = w.window();
-        let scale = win.scale_factor();
-        let phys = win.position();
-        let win_size = win.size();
+    // Wayland will not let a client move itself, so the compositor runs the drag there.
+    #[cfg(target_os = "linux")]
+    {
+        let window_weak = window.as_weak();
+        window.on_window_drag_started(move || {
+            if let Some(w) = window_weak.upgrade() {
+                classes::windowdrag::start(&w);
+            }
+        });
+    }
 
-        let (new_x, new_y) = shared::display::on_drag(scale, phys, win_size, delta_x, delta_y);
+    #[cfg(not(target_os = "linux"))]
+    {
+        use slint::{LogicalPosition, WindowPosition};
 
-        win.set_position(WindowPosition::Logical(LogicalPosition::new(new_x, new_y)));
-    });
+        let window_weak = window.as_weak();
+        window.on_window_dragged(move |delta_x, delta_y| {
+            let Some(w) = window_weak.upgrade() else {
+                return;
+            };
+            let win = w.window();
+            let scale = win.scale_factor();
+            let phys = win.position();
+            let win_size = win.size();
+
+            let (new_x, new_y) = shared::display::on_drag(scale, phys, win_size, delta_x, delta_y);
+
+            win.set_position(WindowPosition::Logical(LogicalPosition::new(new_x, new_y)));
+        });
+    }
 
     let window_weak = window.as_weak();
     window.on_minimize_clicked(move || {

@@ -13,3 +13,5 @@ pub mod repair;
 pub mod toast;
 pub mod tray;
 pub mod updater;
+#[cfg(target_os = "linux")]
+pub mod windowdrag;

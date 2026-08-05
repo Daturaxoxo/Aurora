@@ -101,6 +101,7 @@ export component LogWindow inherits Window {
     callback maximize-clicked();
     callback close-window();
     callback window-dragged(length, length);
+    callback window-drag-started();
 
     public function scroll-to-bottom() {
         if (list.visible-height > 0px) {
@@ -136,6 +137,11 @@ export component LogWindow inherits Window {
                     moved => {
                         if (self.pressed) {
                             root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                        }
+                    }
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                            root.window-drag-started();
                         }
                     }
                 }

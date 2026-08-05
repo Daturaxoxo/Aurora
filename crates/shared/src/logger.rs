@@ -230,7 +230,7 @@ impl Log for Logger {
             return;
         }
 
-        if NOISY_MODULES.iter().any(|n| record.module_path().map_or(false, |m| m.contains(n))) {
+        if NOISY_MODULES.iter().any(|n| record.module_path().is_some_and(|m| m.contains(n))) {
             return;
         }
 
