@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context, Result};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
+use shared::archive::{extract_archive_with_progress, ARCHIVE_EXTENSIONS};
 use shared::config::{self, key};
 use shared::utils::{get_mods_path, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
@@ -521,6 +521,16 @@ impl ModManagerHandler {
         Self::install_paths_with_done(window, paths, None);
     }
 
+    fn set_progress(window: &slint::Weak<MainWindow>, progress: f32, text: String) {
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(w) = ww.upgrade() {
+                w.set_progress_overlay_progress(progress);
+                w.set_progress_overlay_text(text.into());
+            }
+        });
+    }
+
     pub(crate) fn install_paths_with_done(
         window: &slint::Weak<MainWindow>,
         paths: Vec<PathBuf>,
@@ -531,8 +541,55 @@ impl ModManagerHandler {
             let mut installed: Vec<String> = Vec::new();
             let mut failed: Vec<String> = Vec::new();
 
-            for path in &paths {
-                match Self::install_path(path) {
+            let count = paths.len();
+            #[allow(clippy::cast_precision_loss)]
+            let total = count as f32;
+            let _ = slint::invoke_from_event_loop({
+                let ww = ww.clone();
+                move || {
+                    if let Some(w) = ww.upgrade() {
+                        w.set_progress_overlay_title(
+                            if count > 1 {
+                                "Installing Mods"
+                            } else {
+                                "Installing Mod"
+                            }
+                            .into(),
+                        );
+                        w.set_progress_overlay_progress(0.0);
+                        w.set_progress_overlay_text("Installing...".into());
+                        // Extraction can't be aborted halfway through
+                        w.set_progress_overlay_cancellable(false);
+                        w.set_progress_overlay_active(true);
+                    }
+                }
+            });
+
+            for (index, path) in paths.iter().enumerate() {
+                let label = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+
+                #[allow(clippy::cast_precision_loss)]
+                let base = index as f32;
+                Self::set_progress(&ww, base / total, format!("Extracting {label}..."));
+
+                let mut last_percent = 0u64;
+                let mut on_progress = |frac: f32| {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let percent = (frac * 100.0) as u64;
+                    if percent > last_percent {
+                        last_percent = percent;
+                        Self::set_progress(
+                            &ww,
+                            (base + frac) / total,
+                            format!("Extracting {label}..."),
+                        );
+                    }
+                };
+
+                match Self::install_path(path, &mut on_progress) {
                     Ok(name) => {
                         info!("[ModManager] installed '{name}' from '{}'", path.display());
                         installed.push(name);
@@ -552,6 +609,7 @@ impl ModManagerHandler {
             let ww2 = ww.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(win) = ww2.upgrade() else { return };
+                win.set_progress_overlay_active(false);
                 if let Some(err) = failed.first() {
                     Self::show_toast(&win, "error", format!("Install failed - {err}"));
                 } else if installed.len() == 1 {
@@ -572,7 +630,10 @@ impl ModManagerHandler {
         });
     }
 
-    fn install_path(path: &Path) -> Result<String> {
+    /// `progress` is called with how far along the archive extraction is
+    /// (0.0 - 1.0). It never fires for folders or bare mod files, which are
+    /// copied in one step.
+    fn install_path(path: &Path, progress: &mut dyn FnMut(f32)) -> Result<String> {
         let mods_path =
             get_mods_path().ok_or_else(|| anyhow!("mods folder could not be resolved"))?;
         std::fs::create_dir_all(&mods_path)?;
@@ -613,7 +674,12 @@ impl ModManagerHandler {
                 target.join(path.file_name().with_context(|| "invalid file name")?),
             )?;
         } else if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
-            extract_archive(path, &target)?;
+            extract_archive_with_progress(path, &target, &mut |done, total| {
+                if total > 0 {
+                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                    progress((done as f64 / total as f64).min(1.0) as f32);
+                }
+            })?;
         } else {
             return Err(anyhow!("unsupported file type '.{ext}'"));
         }
