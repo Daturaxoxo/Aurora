@@ -212,11 +212,18 @@ export component ModCard inherits Rectangle {
                 }
 
                 if root.editing-title: Rectangle {
-                    width: 200px;
+                    // Grow with the name so long titles stay readable while editing
+                    width: min(420px, max(200px, title-measure.preferred-width + 16px));
                     border-radius: 4px;
                     background: #ffffff10;
                     border-width: 1px;
                     border-color: #ffffff33;
+
+                    title-measure := Text {
+                        visible: false;
+                        text: root.title-draft;
+                        font-size: 13px;
+                    }
 
                     TextInput {
                         x: 6px;
@@ -341,11 +348,17 @@ export component ModCard inherits Rectangle {
                 }
 
                 if root.editing-notes: Rectangle {
-                    width: 260px;
+                    width: min(420px, max(260px, notes-measure.preferred-width + 16px));
                     border-radius: 4px;
                     background: #ffffff10;
                     border-width: 1px;
                     border-color: #ffffff33;
+
+                    notes-measure := Text {
+                        visible: false;
+                        text: root.notes-draft;
+                        font-size: 11.5px;
+                    }
 
                     TextInput {
                         x: 6px;

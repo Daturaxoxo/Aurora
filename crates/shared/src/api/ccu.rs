@@ -12,7 +12,7 @@ use crate::utils::get_local_version;
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
-const HEARTBEAT: Duration = Duration::from_secs(10 * 60);
+const HEARTBEAT: Duration = Duration::from_mins(10);
 const JITTER: f64 = 0.10;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -44,9 +44,9 @@ pub fn enabled() -> bool {
 }
 
 const fn os() -> &'static str {
-    if cfg!(target_os = "windows") {"windows"} 
-    else if cfg!(target_os = "linux") {"linux"} 
-    else if cfg!(target_os = "macos") {"macos"} 
+    if cfg!(target_os = "windows") {"windows"}
+    else if cfg!(target_os = "linux") {"linux"}
+    else if cfg!(target_os = "macos") {"macos"}
     else {"unknown"}
 }
 

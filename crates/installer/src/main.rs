@@ -1,47 +1,57 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "windows")]
 include!(concat!(env!("OUT_DIR"), "/main.rs"));
 
+#[cfg(target_os = "windows")]
 mod backend;
+#[cfg(target_os = "windows")]
 mod install;
+#[cfg(target_os = "windows")]
 mod net;
 
+#[cfg(target_os = "windows")]
 use shared::display::{center_window, on_drag};
+#[cfg(target_os = "windows")]
 use shared::utils::format_bytes;
 
+#[cfg(target_os = "windows")]
 use slint::{ComponentHandle, LogicalPosition, ModelRc, SharedString, VecModel, WindowPosition};
+#[cfg(target_os = "windows")]
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "windows")]
 use std::rc::Rc;
 
-fn default_install_path() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    let base = dirs::data_local_dir();
-    #[cfg(not(target_os = "windows"))]
-    let base = dirs::data_dir();
-
-    base.unwrap_or_else(|| PathBuf::from(".")).join("Aurora")
-}
-
-fn available_space_for(path: &Path) -> Option<u64> {
-    let disks = sysinfo::Disks::new_with_refreshed_list();
-    disks
-        .list()
-        .iter()
-        .filter(|d| path.starts_with(d.mount_point()))
-        .max_by_key(|d| d.mount_point().as_os_str().len())
-        .map(sysinfo::Disk::available_space)
-}
-
-fn update_available_space(ui: &InstallerWindow) {
-    let path = PathBuf::from(ui.get_install_path().as_str());
-    let text = match available_space_for(&path) {
-        Some(bytes) => format_bytes(bytes),
-        None => "Unknown".to_string(),
-    };
-    ui.set_space_available(text.into());
-}
-
+#[cfg(target_os = "windows")]
 fn main() -> Result<(), slint::PlatformError> {
+    fn default_install_path() -> PathBuf {
+        #[cfg(target_os = "windows")]
+        let base = dirs::data_local_dir();
+        #[cfg(not(target_os = "windows"))]
+        let base = dirs::data_dir();
+
+        base.unwrap_or_else(|| PathBuf::from(".")).join("Aurora")
+    }
+
+    fn available_space_for(path: &Path) -> Option<u64> {
+        let disks = sysinfo::Disks::new_with_refreshed_list();
+        disks
+            .list()
+            .iter()
+            .filter(|d| path.starts_with(d.mount_point()))
+            .max_by_key(|d| d.mount_point().as_os_str().len())
+            .map(sysinfo::Disk::available_space)
+    }
+
+    fn update_available_space(ui: &InstallerWindow) {
+        let path = PathBuf::from(ui.get_install_path().as_str());
+        let text = match available_space_for(&path) {
+            Some(bytes) => format_bytes(bytes),
+            None => "Unknown".to_string(),
+        };
+        ui.set_space_available(text.into());
+    }
+
     let ui = InstallerWindow::new()?;
 
     let window = ui.window();
@@ -194,5 +204,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
     ui.show()?;
     slint::run_event_loop_until_quit()?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }

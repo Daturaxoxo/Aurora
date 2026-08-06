@@ -65,6 +65,7 @@ pub mod key {
     pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
     pub const SELECTED_GAME: &str = "selected_game";
     pub const PROTON_ARGS: &str = "proton_args";
+    pub const PROTON_VERSION: &str = "proton_version";
     pub const QUICK_START_CREATED: &str = "quick_start_created";
     pub const DESKTOP_ENTRY: &str = "desktop_entry";
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
@@ -91,7 +92,11 @@ pub fn default_value(k: &str) -> Value {
             json!(false)
         }
 
-        key::GAME_PATH | key::APP_LOCATION | key::SELECTED_GAME | key::PROTON_ARGS => json!(""),
+        key::GAME_PATH
+        | key::APP_LOCATION
+        | key::SELECTED_GAME
+        | key::PROTON_ARGS
+        | key::PROTON_VERSION => json!(""),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

@@ -159,17 +159,31 @@ fn build(main: &slint::Weak<MainWindow>) -> Result<State, slint::PlatformError> 
 
     window.set_lines(ModelRc::from(view.borrow().model.clone()));
 
-    let ww = window.as_weak();
-    window.on_window_dragged(move |delta_x, delta_y| {
-        let Some(w) = ww.upgrade() else { return };
-        let position = w.window().position();
-        #[allow(clippy::cast_precision_loss)]
-        w.window()
-            .set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
-                position.x as f32 + delta_x,
-                position.y as f32 + delta_y,
-            )));
-    });
+    // Wayland will not let a client move itself, so the compositor runs the drag there.
+    #[cfg(target_os = "linux")]
+    {
+        let ww = window.as_weak();
+        window.on_window_drag_started(move || {
+            if let Some(w) = ww.upgrade() {
+                crate::classes::windowdrag::start(&w);
+            }
+        });
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let ww = window.as_weak();
+        window.on_window_dragged(move |delta_x, delta_y| {
+            let Some(w) = ww.upgrade() else { return };
+            let position = w.window().position();
+            #[allow(clippy::cast_precision_loss)]
+            w.window()
+                .set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
+                    position.x as f32 + delta_x,
+                    position.y as f32 + delta_y,
+                )));
+        });
+    }
 
     let ww = window.as_weak();
     window.on_minimize_clicked(move || {

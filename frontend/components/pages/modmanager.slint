@@ -130,11 +130,18 @@ component GroupHeader inherits Rectangle {
         }
 
         if root.editing-name: Rectangle {
-            width: 200px;
+            // Grow with the name so long group names stay readable while editing
+            width: min(420px, max(200px, name-measure.preferred-width + 16px));
             border-radius: 4px;
             background: #ffffff10;
             border-width: 1px;
             border-color: #ffffff33;
+
+            name-measure := Text {
+                visible: false;
+                text: root.name-draft;
+                font-size: 12.5px;
+            }
 
             TextInput {
                 x: 6px;
