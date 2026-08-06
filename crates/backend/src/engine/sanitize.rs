@@ -9,7 +9,6 @@ use shared::config::{self, key};
 
 use super::AuroraEngine;
 
-/// Plugin files a previous session copied into Win64.
 fn injected_plugins() -> Vec<PathBuf> {
     config::get(key::INJECTED_PLUGINS)
         .as_array()
@@ -23,8 +22,6 @@ fn injected_plugins() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-/// Drops every manifest entry that is gone from disk, keeping the ones whose
-/// removal failed so the next sanitization retries them.
 fn prune_injected_plugins(injected: &[PathBuf]) {
     let remaining: Vec<String> = injected
         .iter()
@@ -91,8 +88,6 @@ impl AuroraEngine {
             }
         }
 
-        // Anything still on disk could not be removed, so keep it in the
-        // manifest and try again next time.
         prune_injected_plugins(&injected);
 
         if !failures.is_empty() {

@@ -186,8 +186,6 @@ impl AuroraEngine {
         Ok(Some(destination))
     }
 
-    /// Records freshly copied plugins in the manifest so `sanitize` can remove
-    /// them by name later, even if Aurora crashes before the session ends.
     fn record_injected_plugins(destinations: &[PathBuf]) {
         if destinations.is_empty() {
             return;

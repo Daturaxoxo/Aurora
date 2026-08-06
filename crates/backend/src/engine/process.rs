@@ -35,6 +35,16 @@ fn matches_process(process: &Process, target_lower: &str) -> bool {
     name_matches(&process.name().to_string_lossy())
 }
 
+fn process_gone(pid: Pid) -> bool {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
+    system.process(pid).is_none()
+}
+
 pub(super) struct ProcessSnapshot(System);
 
 impl ProcessSnapshot {
@@ -84,6 +94,11 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
         return true;
     }
 
+    if process_gone(pid) {
+        trace!("{exe} (pid {pid}) already exited on its own");
+        return true;
+    }
+
     #[cfg(target_os = "windows")]
     {
         let pid_u32 = pid.as_u32();
@@ -97,6 +112,10 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
                 return true;
             }
             Ok(output) => {
+                if process_gone(pid) {
+                    trace!("{exe} (pid {pid}) already exited on its own");
+                    return true;
+                }
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 error!(
                     "{exe} could not be killed (taskkill exit {}: {stderr}). \
@@ -105,6 +124,10 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
                 );
             }
             Err(e) => {
+                if process_gone(pid) {
+                    trace!("{exe} (pid {pid}) already exited on its own");
+                    return true;
+                }
                 error!(
                     "{exe} could not be killed (taskkill unavailable: {e}). \
                      Ensure Aurora Engine is running as Administrator."
