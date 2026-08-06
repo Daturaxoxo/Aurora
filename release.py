@@ -1,10 +1,10 @@
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
-import platform
 from urllib.parse import quote
 
 APPIMAGE_NAME = "Aurora-x86_64.AppImage"
@@ -31,6 +31,7 @@ BLACKLISTED_EXTENSIONS = (
     "disabled",
 )
 
+
 def get_os():
     os_name = platform.system().lower()
 
@@ -40,6 +41,7 @@ def get_os():
         return "linux"
     else:
         return os_name
+
 
 def calculate_sha256(filepath, chunk_size=8192):
     """Calculate the SHA256 hash of a file."""
@@ -138,7 +140,7 @@ def get_all_files(folder_path, relative=False):
 def build_manifest(
     version, base_dir=".", output_filename="manifest.json", base_url=BASE_URL
 ):
-    """Scans base_dir and generates a manifest JSON file with flattened file paths."""
+    """Scans base_dir and generates a manifest JSON file with file hashes."""
     files_list = []
 
     print("Scanning directories and calculating hashes...")
@@ -149,18 +151,22 @@ def build_manifest(
                 continue
 
             filepath = os.path.join(root, file)
-            filename = path_to_filename(filepath)
 
-            if filename == os.path.basename(output_filename):
+            # Relative path with forward slashes
+            rel_path = os.path.relpath(filepath, base_dir).replace(os.sep, "/")
+
+            # Skip manifest output file if scanning current dir
+            if rel_path == output_filename:
                 continue
 
             file_hash = calculate_sha256(filepath)
 
             if file_hash:
-                file_url = base_url + quote(filename)
+                file_name = os.path.basename(rel_path)
+                file_url = base_url + quote(file_name)
 
                 files_list.append(
-                    {"path": filename, "sha256": file_hash, "url": file_url}
+                    {"path": rel_path, "sha256": file_hash, "url": file_url}
                 )
 
     os_name = get_os()
@@ -177,10 +183,6 @@ def build_manifest(
     }
 
     manifest_path = os.path.join(base_dir, output_filename)
-    output_dir = os.path.dirname(os.path.abspath(manifest_path))
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
     with open(manifest_path, "w", encoding="utf-8") as json_file:
         json.dump(output_data, json_file, indent=2)
 
