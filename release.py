@@ -249,7 +249,7 @@ def release_windows(version):
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
-        copy_file(f"./release/Bin/{file}", f"./release-host/Bin/{file}")
+        copy_file(f"./release/Bin/{file}", f"./release-host/{file}")
 
     shutil.make_archive(
         base_name=f"aurora-host-{version}-WINDOWS",
