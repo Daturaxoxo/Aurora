@@ -1,6 +1,8 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub struct SingletonLock {
@@ -151,9 +153,36 @@ fn flock_nonblocking(file: &File) -> io::Result<bool> {
 }
 
 #[cfg(windows)]
+pub fn holder_pid(path: &Path) -> Option<u32> {
+    let pid = fs::read_to_string(path).ok()?.trim().parse::<u32>().ok()?;
+    pid_alive(pid).then_some(pid)
+}
+
+#[cfg(windows)]
+pub fn wait_until_released(path: &Path, timeout: Duration) -> bool {
+    const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+    let deadline = Instant::now() + timeout;
+    loop {
+        if holder_pid(path).is_none() {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+#[cfg(windows)]
 fn pid_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED};
-    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess
+    const STILL_ACTIVE: u32 = 259;
 
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
@@ -161,8 +190,11 @@ fn pid_alive(pid: u32) -> bool {
             // Access denied means the process exists but we can't open it.
             return GetLastError() == ERROR_ACCESS_DENIED;
         }
+
+        let mut code: u32 = 0;
+        let queried = GetExitCodeProcess(handle, &raw mut code) != 0;
         CloseHandle(handle);
-        true
+        !queried || code == STILL_ACTIVE
     }
 }
 
@@ -196,6 +228,33 @@ mod tests {
         let lock = SingletonLock::acquire(&path).unwrap();
         assert!(lock.is_some());
         drop(lock);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn wait_until_released_sees_a_held_then_freed_lock() {
+        let path = temp_lock_path("aurora_lock_test_wait.lock");
+        let _ = fs::remove_file(&path);
+
+        let lock = SingletonLock::acquire(&path).unwrap().unwrap();
+        assert_eq!(holder_pid(&path), Some(std::process::id()));
+        assert!(!wait_until_released(&path, Duration::from_millis(200)));
+
+        drop(lock);
+        assert!(wait_until_released(&path, Duration::from_millis(200)));
+        assert_eq!(holder_pid(&path), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_dead_pid_does_not_hold_the_lock() {
+        let path = temp_lock_path("aurora_lock_test_dead_pid.lock");
+        let _ = fs::remove_file(&path);
+
+        fs::write(&path, u32::MAX.to_string()).unwrap();
+        assert_eq!(holder_pid(&path), None);
+        assert!(wait_until_released(&path, Duration::from_millis(200)));
+        let _ = fs::remove_file(&path);
     }
 
     #[test]

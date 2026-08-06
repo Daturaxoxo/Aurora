@@ -56,8 +56,14 @@ pub const QUICK_START_ARG: &str = "--quick-start";
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
-pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(15);
+pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(30);
 pub const UPDATER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long the updater waits for the running Aurora to release its singleton
+/// lock after `close_now` before swapping the exe and starting the new one.
+pub const AURORA_EXIT_TIMEOUT: Duration = Duration::from_secs(20);
+/// How long a relaunched Aurora keeps retrying the singleton lock while the
+/// instance that spawned it finishes shutting down.
+pub const RELAUNCH_LOCK_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub fn install_root() -> PathBuf {
     std::env::current_exe()

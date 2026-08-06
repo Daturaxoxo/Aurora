@@ -21,6 +21,7 @@ const CONNECT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const ROLLBACK_ATTEMPTS: u32 = 8;
 const ROLLBACK_DELAY: Duration = Duration::from_millis(250);
 const READ_GRACE: Duration = Duration::from_millis(500);
+const ACCEPT_SLICE: Duration = Duration::from_millis(250);
 
 enum RollbackStep {
     Restore { dst: PathBuf, bak: PathBuf },
@@ -274,6 +275,7 @@ fn apply_update(
 
     log("Aurora.exe changed; sending close_now");
     send(conn, &Message::CloseNow);
+    wait_for_aurora_exit(root);
 
     if let Err(e) = rename_with_retry(&exe, &exe_bak, 40, Duration::from_millis(500)) {
         let message = fail(
@@ -322,8 +324,9 @@ fn apply_update(
         }
     };
 
-    let confirmed = if child.is_some() {
-        wait_for_init_confirmed(&listener, ipc::INIT_CONFIRM_TIMEOUT)
+    let mut child = child;
+    let confirmed = if let Some(child) = child.as_mut() {
+        wait_for_init_confirmed(&listener, child, ipc::INIT_CONFIRM_TIMEOUT)
     } else {
         drop(listener);
         false
@@ -340,12 +343,18 @@ fn apply_update(
     }
 
     if let Some(mut child) = child {
-        log("no init_confirmed within timeout; terminating the new Aurora");
-        if let Err(e) = child.kill() {
-            log(&format!("failed to terminate the new Aurora: {e}"));
-        }
-        if let Err(e) = child.wait() {
-            log(&format!("failed to reap the new Aurora: {e}"));
+        if let Ok(Some(status)) = child.try_wait() {
+            log(&format!(
+                "the new Aurora is already gone ({status}); nothing to terminate"
+            ));
+        } else {
+            log("no init_confirmed within timeout; terminating the new Aurora");
+            if let Err(e) = child.kill() {
+                log(&format!("failed to terminate the new Aurora: {e}"));
+            }
+            if let Err(e) = child.wait() {
+                log(&format!("failed to reap the new Aurora: {e}"));
+            }
         }
     }
 
@@ -500,14 +509,56 @@ fn remove_with_retry(path: &Path, attempts: u32, delay: Duration) -> std::io::Re
     Err(last.unwrap_or_else(|| std::io::Error::other("remove failed")))
 }
 
-fn wait_for_init_confirmed(listener: &protocol::IpcListener, timeout: Duration) -> bool {
-    let deadline = Instant::now() + timeout;
-    let stream = match protocol::accept_timeout(listener, timeout) {
-        Ok(stream) => stream,
-        Err(e) => {
-            log(&format!("nothing connected to the init pipe: {e}"));
-            return false;
+fn wait_for_aurora_exit(root: &Path) {
+    let lock = root.join(ipc::AURORA_LOCK_FILE);
+    if ipc::lock::wait_until_released(&lock, ipc::AURORA_EXIT_TIMEOUT) {
+        log("the running Aurora has exited");
+    } else {
+        log(&format!(
+            "the running Aurora still holds {} after {}s; continuing anyway",
+            ipc::AURORA_LOCK_FILE,
+            ipc::AURORA_EXIT_TIMEOUT.as_secs()
+        ));
+    }
+}
+
+fn accept_init(
+    listener: &protocol::IpcListener,
+    child: &mut std::process::Child,
+    deadline: Instant,
+) -> Option<protocol::IpcStream> {
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            log("nothing connected to the init pipe before the timeout");
+            return None;
         }
+        match protocol::accept_timeout(listener, left.min(ACCEPT_SLICE)) {
+            Ok(stream) => return Some(stream),
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                if let Ok(Some(status)) = child.try_wait() {
+                    log(&format!(
+                        "the new Aurora exited ({status}) without confirming init"
+                    ));
+                    return None;
+                }
+            }
+            Err(e) => {
+                log(&format!("could not accept on the init pipe: {e}"));
+                return None;
+            }
+        }
+    }
+}
+
+fn wait_for_init_confirmed(
+    listener: &protocol::IpcListener,
+    child: &mut std::process::Child,
+    timeout: Duration,
+) -> bool {
+    let deadline = Instant::now() + timeout;
+    let Some(stream) = accept_init(listener, child, deadline) else {
+        return false;
     };
     let remaining = deadline
         .saturating_duration_since(Instant::now())

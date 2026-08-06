@@ -286,15 +286,38 @@ fn create_quick_start_shortcut() -> Result<()> {
 }
 
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
-    let path = ipc::state_root().join(ipc::AURORA_LOCK_FILE);
-    let relaunched = std::env::args().any(|arg| arg == ipc::RELAUNCH_ARG);
+    const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
 
-    let attempts = if relaunched { 40 } else { 1 };
+    let path = ipc::state_root().join(ipc::AURORA_LOCK_FILE);
+
+    let relaunched = std::env::args().any(|arg| {
+        matches!(
+            arg.as_str(),
+            ipc::RELAUNCH_ARG | ipc::POST_UPDATE_ARG | ipc::SKIP_UPDATE_CHECK_ARG
+        )
+    });
+
+    let attempts = if relaunched {
+        u32::try_from(ipc::RELAUNCH_LOCK_TIMEOUT.as_millis() / RETRY_DELAY.as_millis())
+            .unwrap_or(u32::MAX)
+            .max(1)
+    } else {
+        1
+    };
+
     for attempt in 0..attempts {
         match ipc::lock::SingletonLock::acquire(&path)? {
-            Some(lock) => return Ok(Some(lock)),
+            Some(lock) => {
+                if attempt > 0 {
+                    info!("Acquired the instance lock after {attempt} retry(s)");
+                }
+                return Ok(Some(lock));
+            }
             None if attempt + 1 < attempts => {
-                std::thread::sleep(std::time::Duration::from_millis(250));
+                if attempt == 0 {
+                    info!("Another instance still holds the lock; waiting for it to exit");
+                }
+                std::thread::sleep(RETRY_DELAY);
             }
             None => {}
         }
