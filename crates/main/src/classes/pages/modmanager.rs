@@ -1155,7 +1155,20 @@ impl ModManagerHandler {
                         m.folder_name
                     );
                 } else if let Err(e) = std::fs::rename(&m.path, &target) {
-                    error!("[ModManager] could not move '{}': {e}", m.folder_name);
+                    warn!("[ModManager] could not move '{}': {e}", m.folder_name);
+                    let ww2 = ww.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = ww2.upgrade() {
+                            Self::show_toast(
+                                &win,
+                                "error",
+                                format!(
+                                    "Could not move '{}'. Game needs to be closed before moving mods.",
+                                    m.folder_name
+                                ),
+                            );
+                        }
+                    });
                 } else {
                     rekey_mod_config(id, &target.to_string_lossy());
                     info!(
