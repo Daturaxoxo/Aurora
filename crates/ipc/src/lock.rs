@@ -98,7 +98,7 @@ impl SingletonLock {
 
             return Ok(Some(Self {
                 path: path.to_path_buf(),
-                _file: file,
+                file,
             }));
         }
 
