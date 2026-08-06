@@ -2,6 +2,7 @@ use crate::bridge::Bridge;
 use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
+use crate::classes::pages::settings::SettingsHandler;
 use crate::classes::repair::RepairHandler;
 use crate::classes::updater::UpdateHandler;
 use crate::{CheckboxItem, MainWindow};
@@ -36,6 +37,9 @@ impl PopupHandler {
                     }
                     "beta-phase-inactive" => {
                         std::process::exit(0);
+                    }
+                    crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID => {
+                        SettingsHandler::confirm_ignore_checksum();
                     }
                     #[cfg(target_os = "linux")]
                     crate::classes::desktop::POPUP_ID => {
@@ -73,6 +77,10 @@ impl PopupHandler {
 
                 if id.as_str() == "screenshot-delete" {
                     ScreenshotHandler::cancel_delete();
+                }
+
+                if id.as_str() == crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID {
+                    SettingsHandler::cancel_ignore_checksum(&w);
                 }
 
                 #[cfg(target_os = "linux")]

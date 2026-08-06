@@ -19,6 +19,14 @@ const TIMESTAMP_LEN: usize = 19;
 const LOG_WAIT_TIMEOUT: Duration = Duration::from_secs(45);
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
+const CHKSUM_MARKER: &str = "CHKSUM";
+
+pub(super) fn checksum_ignored() -> bool {
+    shared::config::get(shared::config::key::IGNORE_CHECKSUM)
+        .as_bool()
+        .unwrap_or(false)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EverlightCode {
     /// E100: Fatal error, the engine locked up for this session.
@@ -98,7 +106,62 @@ fn kill_game(game_process: &str) {
     }
 }
 
+fn watch_checksum(win64: &Path, evt_tx: &mpsc::Sender<EngineEvent>, stop: &AtomicBool) {
+    if checksum_ignored() {
+        info!("'Ignore Checksum Matching' is enabled, not watching for the CHKSUM marker");
+        return;
+    }
+
+    let marker = win64.join("Plugins").join(CHKSUM_MARKER);
+    let mut warned = false;
+
+    loop {
+        let stop_requested = stop.load(Ordering::Relaxed);
+
+        if marker.is_file() {
+            match fs::remove_file(&marker) {
+                Ok(()) => info!("Removed CHKSUM marker: {}", marker.display()),
+                Err(e) => warn!("Failed to remove CHKSUM marker {}: {e}", marker.display()),
+            }
+
+            if !warned {
+                warned = true;
+                error!(
+                    "Game version mismatch, CHKSUM marker found in {}",
+                    win64.display()
+                );
+                evt_tx
+                    .send(EngineEvent::Toast {
+                        text: "Game version mismatch, wait for Aurora to update".to_string(),
+                        kind: "error".to_string(),
+                    })
+                    .ok();
+            }
+        }
+
+        if stop_requested {
+            trace!("CHKSUM watcher stopped, game exited");
+            return;
+        }
+
+        thread::sleep(POLL_INTERVAL);
+    }
+}
+
 pub(super) fn watch(
+    win64: &Path,
+    game_process: &'static str,
+    evt_tx: &mpsc::Sender<EngineEvent>,
+    stop: &AtomicBool,
+) {
+    thread::scope(|scope| {
+        let chksum_tx = evt_tx.clone();
+        scope.spawn(move || watch_checksum(win64, &chksum_tx, stop));
+        watch_log(win64, game_process, evt_tx, stop);
+    });
+}
+
+fn watch_log(
     win64: &Path,
     game_process: &'static str,
     evt_tx: &mpsc::Sender<EngineEvent>,

@@ -1,13 +1,14 @@
 use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
-use crate::MainWindow;
+use crate::{MainWindow, Tr, TrKey};
 use backend::classes::rpc::RPC;
 use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
 use shared::pathfind::resolve_selected_game_root;
+use slint::{ComponentHandle as _, Model as _};
 use std::sync::atomic::Ordering;
 
 #[derive(serde::Deserialize)]
@@ -23,6 +24,8 @@ static LANGUAGES: Lazy<Vec<LangEntry>> = Lazy::new(|| {
     ))
     .expect("lang-codes.json is missing or malformed!")
 });
+
+pub const IGNORE_CHECKSUM_POPUP_ID: &str = "ignore-checksum";
 
 pub struct SettingsHandler;
 
@@ -77,6 +80,11 @@ impl SettingsHandler {
         let engine_method = raw_engine.as_i64().unwrap_or(0).try_into().unwrap_or(0);
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
+
+        let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
+        let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
+        debug!("[Settings] ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
+        w.set_ignore_checksum(ignore_checksum);
 
         // Linux only
         w.set_is_linux(cfg!(target_os = "linux"));
@@ -261,6 +269,35 @@ impl SettingsHandler {
             });
         });
 
+        let ww = window.clone();
+        w.on_ignore_checksum_changed(move |enabled| {
+            info!("[Settings] ignore_checksum toggled → {enabled}");
+
+            if !enabled {
+                config::set(key::IGNORE_CHECKSUM, false);
+                debug!("[Settings] ignore_checksum saved to config");
+                return;
+            }
+
+            // Turning it on is only committed once the warning popup is confirmed.
+            let Some(w) = ww.upgrade() else {
+                error!("[Settings] window handle dead when opening the ignore_checksum warning");
+                return;
+            };
+
+            let keys = w.global::<TrKey>();
+            let title = Self::translation(&w, keys.get_popup_ignore_checksum_title());
+            let message = Self::translation(&w, keys.get_popup_ignore_checksum_message());
+
+            w.set_popup_id(IGNORE_CHECKSUM_POPUP_ID.into());
+            w.set_popup_title(title);
+            w.set_popup_message(message);
+            w.set_popup_confirm_delay(0);
+            w.set_popup_required_count(0);
+            w.set_popup_checkboxes(slint::ModelRc::default());
+            w.set_popup_active(true);
+        });
+
         w.on_engine_method_index_changed(move |index| {
             info!("[Settings] engine_method changed -> {index}");
             config::set(key::ENGINE_METHOD, index);
@@ -365,6 +402,31 @@ impl SettingsHandler {
         });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");
+    }
+
+    fn translation(w: &MainWindow, index: i32) -> slint::SharedString {
+        w.global::<Tr>()
+            .get_values()
+            .row_data(index.try_into().unwrap_or(0))
+            .unwrap_or_default()
+    }
+
+    /// The user accepted the warning, so "Ignore Checksum Matching" stays on.
+    pub fn confirm_ignore_checksum() {
+        info!("[Settings] ignore_checksum warning confirmed");
+        config::set(key::IGNORE_CHECKSUM, true);
+        debug!("[Settings] ignore_checksum saved to config");
+    }
+
+    /// The user backed out of the warning, so flip the switch back off without
+    /// touching the config.
+    pub fn cancel_ignore_checksum(window: &slint::Weak<MainWindow>) {
+        info!("[Settings] ignore_checksum warning cancelled, reverting the toggle");
+        if let Some(w) = window.upgrade() {
+            w.set_ignore_checksum(false);
+        } else {
+            error!("[Settings] window handle dead when reverting ignore_checksum");
+        }
     }
 
     pub fn index_to_code(index: i32) -> &'static str {

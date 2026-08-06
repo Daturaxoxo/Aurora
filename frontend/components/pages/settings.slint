@@ -245,6 +245,7 @@ export component SettingsPage inherits Rectangle {
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
+    in-out property <bool> ignore-checksum: false;
 
     // LINUX
     in property <bool> is-linux: false;
@@ -262,6 +263,7 @@ export component SettingsPage inherits Rectangle {
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback ignore-checksum-changed(bool);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback language-index-changed(int);
@@ -497,6 +499,15 @@ export component SettingsPage inherits Rectangle {
                                         ];
                                         selected-index <=> root.engine-method-index;
                                         selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-ignore-checksum-title];
+                                    subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.ignore-checksum;
+                                        toggled => { root.ignore-checksum-changed(self.checked); }
                                     }
                                 }
                             }

@@ -69,9 +69,12 @@ impl AuroraEngine {
         let mut snapshot = ProcessSnapshot::refresh();
         let mut launcher_seen = false;
         let mut missing_ticks = 0u32;
-        let grace_ticks = (Duration::from_secs(u64::from(grace_secs)).as_millis()
-            / THREAD_SLEEP_DURATION.as_millis())
-        .max(1) as u32;
+        let grace_ticks = u32::try_from(
+            (Duration::from_secs(u64::from(grace_secs)).as_millis()
+                / THREAD_SLEEP_DURATION.as_millis())
+            .max(1),
+        )
+        .unwrap_or(1);
         let deadline = Instant::now() + LAUNCHER_WAIT_TIMEOUT;
 
         loop {

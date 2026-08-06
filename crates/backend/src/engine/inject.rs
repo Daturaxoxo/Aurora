@@ -38,6 +38,8 @@ impl AuroraEngine {
             self.copy_custom_files(&custom_files)?;
         }
 
+        self.copy_chksum_plugin()?;
+
         self.launch_game()
     }
 
@@ -151,6 +153,37 @@ impl AuroraEngine {
                 ));
             }
         }
+        Ok(())
+    }
+
+    fn copy_chksum_plugin(&self) -> Result<()> {
+        if super::everlight::checksum_ignored() {
+            info!("'Ignore Checksum Matching' is enabled, skipping chksum.asi");
+            return Ok(());
+        }
+
+        let source = self.bin_path.join("Plugins").join("chksum.asi");
+        if !source.exists() {
+            warn!(
+                "chksum.asi is missing from {}, launching without it",
+                source.display()
+            );
+            return Ok(());
+        }
+
+        let dst_dir = self.win64.join("Plugins");
+        ensure_dir(&dst_dir)?;
+        let destination = dst_dir.join("chksum.asi");
+
+        fs::copy(&source, &destination).map_err(|e| {
+            error!(
+                "Failed to copy {} to {}: {e}",
+                source.display(),
+                destination.display()
+            );
+            anyhow!("Failed to copy chksum.asi: {e}")
+        })?;
+        trace!("Copied {} to {}", source.display(), destination.display());
         Ok(())
     }
 

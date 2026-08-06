@@ -70,6 +70,7 @@ pub mod key {
     pub const DESKTOP_ENTRY: &str = "desktop_entry";
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
     pub const ERROR_TELEMETRY: &str = "error_telemetry";
+    pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -89,7 +90,8 @@ pub fn default_value(k: &str) -> Value {
         | key::GB_NSFW
         | key::QUICK_START_CREATED
         | key::DESKTOP_ENTRY
-        | key::DESKTOP_ENTRY_PROMPTED => {
+        | key::DESKTOP_ENTRY_PROMPTED
+        | key::IGNORE_CHECKSUM => {
             json!(false)
         }
 
