@@ -4,31 +4,100 @@ slint::include_modules!();
 
 use std::path::{Path, PathBuf};
 
-use shared::classes::info::version::detect_distribution;
+use shared::classes::info::version::{detect_distribution, LAUNCHER_MAP};
 use slint::{LogicalPosition, WindowPosition};
 
 use shared::config::{self, key};
 use shared::display::{center_window, on_drag};
+const LAUNCHER_SEARCH_DEPTH: usize = 2;
 
-fn find_nte_launcher(game_path: &str) -> Option<PathBuf> {
-    std::fs::read_dir(game_path).ok()?.find_map(|entry| {
-        let path = entry.ok()?.path();
-        let name = path.file_name()?.to_string_lossy().to_string();
-        if name.contains("NTE") && name.contains("Launcher") && name.ends_with(".exe") {
-            Some(path)
-        } else {
-            None
-        }
-    })
+#[cfg(windows)]
+const STARTING_AURORA: &str = "Starting Aurora - accept the Windows administrator prompt to continue.";
+#[cfg(not(windows))]
+const STARTING_AURORA: &str = "Starting Aurora...";
+
+enum Status {
+    Busy(String),
+    Error(String),
 }
 
-fn launch_and_exit(child: std::process::Child) {
+fn report(ui: &slint::Weak<AppWindow>, status: Status) {
+    if let Status::Error(message) = &status {
+        eprintln!("{message}");
+    }
+
+    let delivered = ui.upgrade_in_event_loop(move |ui| match status {
+        Status::Busy(message) => {
+            ui.set_status_error(false);
+            ui.set_status_text(message.into());
+        }
+        Status::Error(message) => {
+            ui.set_busy(false);
+            ui.set_status_error(true);
+            ui.set_status_text(message.into());
+        }
+    });
+
+    if let Err(e) = delivered {
+        eprintln!("Could not deliver a status update to the window: {e}");
+    }
+}
+
+fn is_launcher(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".exe") && lower.contains("nte") && lower.contains("launcher")
+}
+
+fn search_for_launcher(dir: &Path, depth: usize) -> Option<PathBuf> {
+    let mut subdirs = Vec::new();
+
+    for entry in std::fs::read_dir(dir).ok()?.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        let path = entry.path();
+
+        if file_type.is_dir() {
+            subdirs.push(path);
+        } else if path
+            .file_name()
+            .is_some_and(|name| is_launcher(&name.to_string_lossy()))
+        {
+            return Some(path);
+        }
+    }
+
+    if depth == 0 {
+        return None;
+    }
+
+    subdirs
+        .into_iter()
+        .find_map(|sub| search_for_launcher(&sub, depth - 1))
+}
+
+fn find_nte_launcher(game_path: &Path) -> Option<PathBuf> {
+    // The known names cover every real install and cost three stats.
+    for (exe, _) in LAUNCHER_MAP {
+        let candidate = game_path.join(exe);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+
+    search_for_launcher(game_path, LAUNCHER_SEARCH_DEPTH)
+}
+
+fn launch_and_exit(child: std::process::Child, ui: slint::Weak<AppWindow>, what: &'static str) {
     std::thread::spawn(move || {
         let mut child = child;
         std::thread::sleep(std::time::Duration::from_millis(500));
         match child.try_wait() {
             Ok(Some(status)) if !status.success() => {
-                eprintln!("Process exited early: {status}");
+                report(
+                    &ui,
+                    Status::Error(format!("{what} started but exited immediately ({status}).")),
+                );
             }
             _ => std::process::exit(0),
         }
@@ -36,38 +105,43 @@ fn launch_and_exit(child: std::process::Child) {
 }
 
 #[cfg(windows)]
-fn launch_elevated(path: &std::path::Path) {
+fn launch_elevated(path: PathBuf, ui: slint::Weak<AppWindow>) {
     use std::process::Command;
+    std::thread::spawn(move || {
+        let path_str = path.to_string_lossy().replace('\'', "''");
+        let ps_command = format!("Start-Process -FilePath '{path_str}' -Verb RunAs");
 
-    let path_str = path.to_string_lossy().replace('\'', "''");
-    let ps_command = format!("Start-Process -FilePath '{}' -Verb RunAs", path_str);
+        let status = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps_command])
+            .status();
 
-    let status = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_command])
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {
-            std::thread::spawn(|| {
+        match status {
+            Ok(s) if s.success() => {
                 std::thread::sleep(std::time::Duration::from_millis(500));
                 std::process::exit(0);
-            });
+            }
+            Ok(s) => report(
+                &ui,
+                Status::Error(format!(
+                    "Aurora was not started. The administrator prompt was declined or dismissed ({s})."
+                )),
+            ),
+            Err(e) => report(
+                &ui,
+                Status::Error(format!(
+                    "Could not run PowerShell to request administrator rights: {e}"
+                )),
+            ),
         }
-        Ok(s) => {
-            eprintln!("PowerShell command failed with status: {s}");
-        }
-        Err(e) => {
-            eprintln!("Failed to execute PowerShell: {e}");
-        }
-    }
+    });
 }
 
 #[cfg(not(windows))]
-fn launch_elevated(path: &std::path::Path) {
-    // On Linux under Wine/Proton, just launch normally
-    match std::process::Command::new(path).spawn() {
-        Ok(child) => launch_and_exit(child),
-        Err(e) => eprintln!("Failed to launch: {e}"),
+fn launch_elevated(path: PathBuf, ui: slint::Weak<AppWindow>) {
+    // On Linux under Wine/Proton there is no UAC, so this just spawns.
+    match std::process::Command::new(&path).spawn() {
+        Ok(child) => launch_and_exit(child, ui, "Aurora"),
+        Err(e) => report(&ui, Status::Error(format!("Could not start Aurora: {e}"))),
     }
 }
 
@@ -121,42 +195,107 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // Launch Buttons
 
-    ui.on_launch_with_mods(|| {
-        let raw_app_location = config::get(key::APP_LOCATION);
-        let app_location = raw_app_location.as_str().unwrap_or_default();
-        let aurora_exe = PathBuf::from(app_location);
-        if !aurora_exe.exists() {
-            eprintln!("Aurora.exe not found at: {}", aurora_exe.display());
+    let ui_weak_mods = ui.as_weak();
+    ui.on_launch_with_mods(move || {
+        let Some(window) = ui_weak_mods.upgrade() else {
+            return;
+        };
+        if window.get_busy() {
             return;
         }
-        launch_elevated(&aurora_exe);
+
+        let raw_app_location = config::get(key::APP_LOCATION);
+        let app_location = raw_app_location.as_str().unwrap_or_default().trim();
+        if app_location.is_empty() {
+            report(
+                &ui_weak_mods,
+                Status::Error(
+                    "Aurora is not installed on this machine. Run the Aurora installer and start \
+                     Aurora once, then this launcher can find it."
+                        .to_string(),
+                ),
+            );
+            return;
+        }
+
+        let aurora_exe = PathBuf::from(app_location);
+        if !aurora_exe.is_file() {
+            report(
+                &ui_weak_mods,
+                Status::Error(format!(
+                    "Aurora is no longer at {}. Reinstall it, or start it once from its new \
+                     location so this launcher picks up the change.",
+                    aurora_exe.display()
+                )),
+            );
+            return;
+        }
+
+        window.set_busy(true);
+        report(&ui_weak_mods, Status::Busy(STARTING_AURORA.to_string()));
+        launch_elevated(aurora_exe, ui_weak_mods.clone());
     });
 
-    ui.on_launch_vanilla(|| {
-        let raw_game_path = config::get(key::GAME_PATH);
-        let game_path = raw_game_path.as_str().unwrap_or_default();
-        if game_path.is_empty() {
-            eprintln!("Game path not set");
+    let ui_weak_vanilla = ui.as_weak();
+    ui.on_launch_vanilla(move || {
+        let Some(window) = ui_weak_vanilla.upgrade() else {
+            return;
+        };
+        if window.get_busy() {
             return;
         }
 
-        let launcher = match find_nte_launcher(game_path) {
-            Some(p) => p,
-            None => {
-                eprintln!("NTE launcher not found in: {}", game_path);
-                return;
-            }
-        };
-
-        let distribution = detect_distribution(Path::new(game_path));
-
-        match std::process::Command::new(&launcher)
-            .args(distribution.launch_args())
-            .spawn()
-        {
-            Ok(child) => launch_and_exit(child),
-            Err(e) => eprintln!("Failed to launch NTE launcher: {e}"),
+        let raw_game_path = config::get(key::GAME_PATH);
+        let game_path = raw_game_path.as_str().unwrap_or_default().trim().to_string();
+        if game_path.is_empty() {
+            report(
+                &ui_weak_vanilla,
+                Status::Error(
+                    "No game folder is set. Open Aurora once and point it at your Neverness To \
+                     Everness install."
+                        .to_string(),
+                ),
+            );
+            return;
         }
+
+        window.set_busy(true);
+        report(
+            &ui_weak_vanilla,
+            Status::Busy("Looking for the game launcher...".to_string()),
+        );
+
+        let ui = ui_weak_vanilla.clone();
+        std::thread::spawn(move || {
+            let game_path = Path::new(&game_path);
+
+            let Some(launcher) = find_nte_launcher(game_path) else {
+                report(
+                    &ui,
+                    Status::Error(format!(
+                        "No NTE launcher was found in {}. Check the game folder set in Aurora.",
+                        game_path.display()
+                    )),
+                );
+                return;
+            };
+
+            let distribution = detect_distribution(game_path);
+
+            match std::process::Command::new(&launcher)
+                .args(distribution.launch_args())
+                .spawn()
+            {
+                Ok(child) => {
+                    report(&ui, Status::Busy("Starting the game...".to_string()));
+                    launch_and_exit(child, ui.clone(), "The game launcher");
+                }
+                Err(e) => report(
+                    &ui,
+                    Status::Error(format!("Could not start {}: {e}", launcher.display())),
+                ),
+            }
+        });
     });
 
     ui.run()
