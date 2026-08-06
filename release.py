@@ -277,6 +277,11 @@ def release_linux(version):
     os.mkdir("./release-host")
     copy_file(APPIMAGE_NAME, f"./release-host/{APPIMAGE_NAME}")
     build_linux_manifest(version, APPIMAGE_NAME, "./release-host/linux/manifest.json")
+    shutil.make_archive(
+        base_name=f"aurora-host-{version}-LINUX",
+        format="zip",
+        base_dir="./release-host",
+    )
 
 
 def main():
