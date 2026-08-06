@@ -250,6 +250,8 @@ export component SettingsPage inherits Rectangle {
     in property <bool> is-linux: false;
     in-out property <string> proton-launch-args: "";
     in-out property <bool> desktop-entry: false;
+    in property <[string]> proton-versions: [];
+    in-out property <int> proton-version-index: 0;     // 0=Automatic
 
     // DEVELOPER
     in-out property <bool> developer-mode: false;
@@ -264,6 +266,7 @@ export component SettingsPage inherits Rectangle {
     callback extensive-logging-changed(bool);
     callback language-index-changed(int);
     callback proton-launch-args-changed(string);
+    callback proton-version-index-changed(int);
     callback desktop-entry-changed(bool);
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
@@ -603,6 +606,16 @@ export component SettingsPage inherits Rectangle {
                                                 vertical-alignment: center;
                                             }
                                         }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-proton-version-title];
+                                    subtitle: Tr.values[TrKey.settings-proton-version-subtitle];
+                                    Dropdown {
+                                        options: root.proton-versions;
+                                        selected-index <=> root.proton-version-index;
+                                        selection-changed(idx) => { root.proton-version-index-changed(idx); }
                                     }
                                 }
                             }

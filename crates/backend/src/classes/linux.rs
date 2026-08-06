@@ -343,14 +343,26 @@ fn chown_to_real_user(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Locates the newest DW-Proton build installed under Steam's
-/// `compatibilitytools.d`. The priority for choosing the version is:
-/// 10.* > 11.* > Any other
-fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
-    let tools_dir = steam_root.join("compatibilitytools.d");
-    let entries = std::fs::read_dir(&tools_dir).ok()?;
+struct DwProtonBuild {
+    rank: (u8, bool, Vec<u64>),
+    name: String,
+    script: PathBuf,
+}
 
-    let mut candidates = Vec::new();
+impl DwProtonBuild {
+    fn new(rank: (u8, bool, Vec<u64>), name: String, script: PathBuf) -> Self {
+        Self { rank, name, script }
+    }
+}
+
+fn dwproton_builds(steam_root: &Path) -> Vec<DwProtonBuild> {
+    let tools_dir = steam_root.join("compatibilitytools.d");
+    let Ok(entries) = std::fs::read_dir(&tools_dir) else {
+        debug!("could not read {}", tools_dir.display());
+        return Vec::new();
+    };
+
+    let mut builds = Vec::new();
 
     for entry in entries.flatten() {
         let name = entry.file_name();
@@ -375,14 +387,62 @@ fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
             _ => 0,
         };
 
-        candidates.push(((priority, is_latest, vkey), name, script));
+        builds.push(DwProtonBuild::new(
+            (priority, is_latest, vkey),
+            name,
+            script,
+        ));
     }
 
-    let (_, name, script) = candidates.into_iter().max_by_key(|c| c.0.clone())?;
+    builds.sort_by(|a, b| b.rank.cmp(&a.rank));
 
-    info!("Selected DW-Proton build {name} at {}", script.display());
+    builds
+}
 
-    Some(script)
+pub fn installed_dwproton_builds() -> Vec<String> {
+    let Some(steam_root) = find_steam_root() else {
+        warn!("could not determine the Steam client install directory; no DW-Proton builds listed");
+        return Vec::new();
+    };
+
+    dwproton_builds(&steam_root)
+        .into_iter()
+        .map(|build| build.name)
+        .collect()
+}
+
+fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
+    let builds = dwproton_builds(steam_root);
+
+    let configured = shared::config::get(shared::config::key::PROTON_VERSION);
+    let configured = configured.as_str().unwrap_or("").trim().to_string();
+
+    if !configured.is_empty() {
+        match builds.iter().find(|build| build.name == configured) {
+            Some(build) => {
+                info!(
+                    "Using the configured DW-Proton build {} at {}",
+                    build.name,
+                    build.script.display()
+                );
+                return Some(build.script.clone());
+            }
+            None => warn!(
+                "The configured DW-Proton build {configured:?} is not installed any more; \
+                 falling back to automatic selection"
+            ),
+        }
+    }
+
+    let build = builds.into_iter().next()?;
+
+    info!(
+        "Selected DW-Proton build {} at {}",
+        build.name,
+        build.script.display()
+    );
+
+    Some(build.script)
 }
 
 /// Numeric components of a build name, in order, so `dwproton-10.2` sorts

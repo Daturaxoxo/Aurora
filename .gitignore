@@ -32,6 +32,7 @@ config.json
 *.disabled
 *.md5
 *.zip
+/Bin/Lua
 AuroraTF.asi
 /target-appimage
 /Aurora-x86_64.AppImage
