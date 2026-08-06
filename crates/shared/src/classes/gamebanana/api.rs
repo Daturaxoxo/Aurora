@@ -1,6 +1,7 @@
 use super::cache::CacheManager;
 use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
 use crate::utils::get_local_version;
+use anyhow::{Context, Result};
 use futures::{stream, StreamExt};
 use reqwest::Client;
 use tokio::sync::mpsc::UnboundedSender;
@@ -9,6 +10,7 @@ use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
 const NTE_GAME_ID: u32 = 23012;
+const FETCH_CONCURRENCY: usize = 15;
 
 pub struct GameBananaApi {
     client: Client,
@@ -64,21 +66,42 @@ impl GameBananaApi {
         root.contains("nsfw") || sub.contains("nsfw")
     }
 
-    async fn fetch_one(client: &Client, record: ApiRecord) -> Option<NteMod> {
-        let mut thumbnail_bytes = Vec::new();
+    async fn fetch_thumbnail(client: &Client, url: &str) -> Vec<u8> {
+        let resp = match client.get(url).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                warn!("Failed to fetch thumbnail '{url}': {e}");
+                return Vec::new();
+            }
+        };
 
-        if let Some(media) = &record.preview_media {
-            if let Some(images) = &media.images {
-                if let Some(image) = images.first() {
-                    let thumb_url = image.thumbnail_url();
-                    if let Ok(resp) = client.get(&thumb_url).send().await {
-                        if let Ok(bytes) = resp.bytes().await {
-                            thumbnail_bytes = bytes.to_vec();
-                        }
-                    }
-                }
+        let status = resp.status();
+        if !status.is_success() {
+            warn!("Thumbnail '{url}' returned HTTP {status}");
+            return Vec::new();
+        }
+
+        match resp.bytes().await {
+            Ok(bytes) => bytes.to_vec(),
+            Err(e) => {
+                warn!("Failed to read thumbnail '{url}': {e}");
+                Vec::new()
             }
         }
+    }
+
+    async fn fetch_one(client: &Client, record: ApiRecord) -> NteMod {
+        let thumb_url = record
+            .preview_media
+            .as_ref()
+            .and_then(|media| media.images.as_ref())
+            .and_then(|images| images.first())
+            .map(super::types::Image::thumbnail_url);
+
+        let thumbnail_bytes = match thumb_url {
+            Some(url) => Self::fetch_thumbnail(client, &url).await,
+            None => Vec::new(),
+        };
 
         let author = record
             .submitter
@@ -111,7 +134,7 @@ impl GameBananaApi {
             })
             .unwrap_or_default();
 
-        Some(NteMod {
+        NteMod {
             id: record.id,
             name: record.name,
             thumbnail: thumbnail_bytes,
@@ -124,7 +147,58 @@ impl GameBananaApi {
             sub_category: sub_cat,
             mod_url,
             preview_urls,
-        })
+        }
+    }
+
+    async fn collect_mods(
+        &self,
+        records: Vec<ApiRecord>,
+        on_mod_ready: Option<&UnboundedSender<NteMod>>,
+    ) -> Vec<NteMod> {
+        let mut stream = stream::iter(records)
+            .map(|record| Self::fetch_one(&self.client, record))
+            .buffered(FETCH_CONCURRENCY);
+
+        let mut mods = Vec::new();
+        while let Some(m) = stream.next().await {
+            if let Some(tx) = on_mod_ready {
+                let _ = tx.send(m.clone());
+            }
+            mods.push(m);
+        }
+        mods
+    }
+
+    async fn fetch_profile_mod(&self, record: &ApiRecord) -> Option<NteMod> {
+        let url = format!("{}/apiv11/Mod/{}/ProfilePage", BASE_URL, record.id);
+        let resp = match self.client.get(&url).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                warn!("Failed to fetch profile for mod {}: {e}", record.id);
+                return None;
+            }
+        };
+
+        let status = resp.status();
+        if !status.is_success() {
+            warn!("Profile for mod {} returned HTTP {status}", record.id);
+            return None;
+        }
+
+        match resp.json::<ProfilePage>().await {
+            Ok(profile) => Some(Self::fetch_one(&self.client, profile.record).await),
+            Err(e) => {
+                warn!("Failed to parse profile for mod {}: {e}", record.id);
+                None
+            }
+        }
+    }
+
+    fn only_mod_records(records: Vec<ApiRecord>) -> Vec<ApiRecord> {
+        records
+            .into_iter()
+            .filter(|r| r.model_name.as_deref() == Some("Mod"))
+            .collect()
     }
 
     pub async fn get_nte_mods(
@@ -132,7 +206,7 @@ impl GameBananaApi {
         page: u32,
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Option<Vec<NteMod>> {
+    ) -> Result<Vec<NteMod>> {
         if !force_refresh {
             if let Some(cached) = self.cache.get_feed_cache(page).await {
                 if let Some(tx) = on_mod_ready {
@@ -140,7 +214,7 @@ impl GameBananaApi {
                         let _ = tx.send(m.clone());
                     }
                 }
-                return Some(cached);
+                return Ok(cached);
             }
         }
 
@@ -151,42 +225,27 @@ impl GameBananaApi {
             .query(&[("_nPage", page)])
             .send()
             .await
-            .ok()?;
-        let subfeed: SubfeedResponse = resp.json().await.ok()?;
+            .with_context(|| format!("could not reach the feed (page {page})"))?
+            .error_for_status()
+            .with_context(|| format!("the feed returned an error (page {page})"))?;
+        let subfeed: SubfeedResponse = resp
+            .json()
+            .await
+            .with_context(|| format!("could not parse the feed (page {page})"))?;
 
-        let only_mods: Vec<ApiRecord> = subfeed
-            .records
-            .into_iter()
-            .filter(|r| {
-                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
-            })
-            .collect();
-
+        let only_mods = Self::only_mod_records(subfeed.records);
         if only_mods.is_empty() {
-            return None;
+            return Ok(Vec::new());
         }
 
-        let nte_mods: Vec<NteMod> = stream::iter(only_mods)
-            .map(|record| {
-                let value = on_mod_ready.clone();
-                async move {
-                    let m = Self::fetch_one(&self.client, record).await?;
-                    if let Some(tx) = &value {
-                        let _ = tx.send(m.clone());
-                    }
-                    Some(m)
-                }
-            })
-            .buffer_unordered(15)
-            .filter_map(|m| async { m })
-            .collect()
-            .await;
+        let expected = only_mods.len();
+        let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
-        if !nte_mods.is_empty() {
+        if nte_mods.len() == expected {
             self.cache.save_feed_cache(page, nte_mods.clone()).await;
         }
 
-        Some(nte_mods)
+        Ok(nte_mods)
     }
 
     pub async fn search_nte_mods(
@@ -195,9 +254,9 @@ impl GameBananaApi {
         page: u32,
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Option<Vec<NteMod>> {
+    ) -> Result<Vec<NteMod>> {
         if query.len() < 3 {
-            return None;
+            return Ok(Vec::new());
         }
 
         if !force_refresh {
@@ -207,7 +266,7 @@ impl GameBananaApi {
                         let _ = tx.send(m.clone());
                     }
                 }
-                return Some(cached);
+                return Ok(cached);
             }
         }
 
@@ -224,46 +283,42 @@ impl GameBananaApi {
             ])
             .send()
             .await
-            .ok()?;
+            .with_context(|| format!("could not reach search for '{query}'"))?
+            .error_for_status()
+            .with_context(|| format!("search for '{query}' returned an error"))?;
 
-        let search_response: SearchResponse = resp.json().await.ok()?;
-        let only_mods: Vec<ApiRecord> = search_response
-            .records
-            .into_iter()
-            .filter(|r| {
-                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
-            })
-            .collect();
+        let search_response: SearchResponse = resp
+            .json()
+            .await
+            .with_context(|| format!("could not parse search results for '{query}'"))?;
 
-        let nte_mods: Vec<NteMod> = stream::iter(only_mods)
-            .map(|record| {
-                let value = on_mod_ready.clone();
-                async move {
-                    let profile_url = format!("{}/apiv11/Mod/{}/ProfilePage", BASE_URL, record.id);
-                    if let Ok(profile_resp) = self.client.get(&profile_url).send().await {
-                        if let Ok(full_profile) = profile_resp.json::<ProfilePage>().await {
-                            let m = Self::fetch_one(&self.client, full_profile.record).await?;
-                            if let Some(tx) = &value {
-                                let _ = tx.send(m.clone());
-                            }
-                            return Some(m);
-                        }
-                    }
-                    None
+        let only_mods = Self::only_mod_records(search_response.records);
+        if only_mods.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let expected = only_mods.len();
+        let mut stream = stream::iter(only_mods)
+            .map(|record| async move { self.fetch_profile_mod(&record).await })
+            .buffered(FETCH_CONCURRENCY);
+
+        let mut nte_mods = Vec::new();
+        while let Some(m) = stream.next().await {
+            if let Some(m) = m {
+                if let Some(tx) = &on_mod_ready {
+                    let _ = tx.send(m.clone());
                 }
-            })
-            .buffer_unordered(15)
-            .filter_map(|m| async { m })
-            .collect()
-            .await;
+                nte_mods.push(m);
+            }
+        }
 
-        if !nte_mods.is_empty() {
+        if nte_mods.len() == expected {
             self.cache
                 .save_search_cache(query, page, nte_mods.clone())
                 .await;
         }
 
-        Some(nte_mods)
+        Ok(nte_mods)
     }
 
     pub async fn get_category_mods(
@@ -272,7 +327,7 @@ impl GameBananaApi {
         page: u32,
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Option<Vec<NteMod>> {
+    ) -> Result<Vec<NteMod>> {
         if !force_refresh {
             if let Some(cached) = self.cache.get_category_cache(category_id, page).await {
                 if let Some(tx) = on_mod_ready {
@@ -280,7 +335,7 @@ impl GameBananaApi {
                         let _ = tx.send(m.clone());
                     }
                 }
-                return Some(cached);
+                return Ok(cached);
             }
         }
 
@@ -298,40 +353,29 @@ impl GameBananaApi {
             ])
             .send()
             .await
-            .ok()?;
-        let index: SearchResponse = resp.json().await.ok()?;
+            .with_context(|| format!("could not reach category {category_id} (page {page})"))?
+            .error_for_status()
+            .with_context(|| format!("category {category_id} returned an error (page {page})"))?;
+        let index: SearchResponse = resp
+            .json()
+            .await
+            .with_context(|| format!("could not parse category {category_id} (page {page})"))?;
 
-        let only_mods: Vec<ApiRecord> = index
-            .records
-            .into_iter()
-            .filter(|r| {
-                r.model_name.is_some() && r.model_name.as_ref().unwrap_or(&String::new()) == "Mod"
-            })
-            .collect();
+        let only_mods = Self::only_mod_records(index.records);
+        if only_mods.is_empty() {
+            return Ok(Vec::new());
+        }
 
-        let nte_mods: Vec<NteMod> = stream::iter(only_mods)
-            .map(|record| {
-                let value = on_mod_ready.clone();
-                async move {
-                    let m = Self::fetch_one(&self.client, record).await?;
-                    if let Some(tx) = &value {
-                        let _ = tx.send(m.clone());
-                    }
-                    Some(m)
-                }
-            })
-            .buffer_unordered(15)
-            .filter_map(|m| async { m })
-            .collect()
-            .await;
+        let expected = only_mods.len();
+        let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
-        if !nte_mods.is_empty() {
+        if nte_mods.len() == expected {
             self.cache
                 .save_category_cache(category_id, page, nte_mods.clone())
                 .await;
         }
 
-        Some(nte_mods)
+        Ok(nte_mods)
     }
 
     pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<NteModFile>> {
@@ -343,6 +387,12 @@ impl GameBananaApi {
                 return None;
             }
         };
+
+        let status = resp.status();
+        if !status.is_success() {
+            error!("Mod files for mod {mod_id} returned HTTP {status}");
+            return None;
+        }
 
         let profile: ProfilePage = match resp.json().await {
             Ok(p) => p,

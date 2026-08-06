@@ -1,17 +1,21 @@
 pub mod ccu;
-use std::error::Error;
-use std::fmt;
-use std::sync::OnceLock;
-use std::time::Duration;
+
 use anyhow::{Context, Result};
 use log::*;
 use reqwest::blocking::Client;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+use std::error::Error;
+use std::fmt;
+use std::sync::OnceLock;
+use std::time::Duration;
+
 const DEFAULT_BASE_URL: &str = "https://api.getaurora.moe/v2";
 const BASE_URL_ENV: &str = "AURORA_API_BASE";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
 #[derive(Debug, Clone, Copy)]
 pub struct StatusError(pub u16);
 

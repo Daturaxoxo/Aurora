@@ -11,6 +11,7 @@ use slint::{Model, VecModel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 const DISABLED_SUFFIX: &str = ".disabled";
@@ -32,6 +33,10 @@ struct State {
 }
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
+
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+static ADDONS_SYNC: Mutex<u64> = Mutex::new(0);
 
 pub struct ModulesHandler;
 
@@ -112,22 +117,37 @@ impl ModulesHandler {
         modules
     }
 
-    fn sync_custom_addons(modules: &[Module]) {
+    fn sync_custom_addons(generation: u64, modules: &[Module]) {
+        let mut synced = ADDONS_SYNC.lock().unwrap();
+        if generation < *synced {
+            return;
+        }
+        *synced = generation;
+
         let paths: Vec<Value> = modules
             .iter()
             .filter(|m| m.enabled)
             .map(|m| Value::from(m.path.to_string_lossy().into_owned()))
             .collect();
-        config::set(key::CUSTOM_ADDONS, Value::Array(paths));
+
+        if !config::modify(|data| {
+            data.insert(key::CUSTOM_ADDONS.to_string(), Value::Array(paths));
+        }) {
+            error!("[Modules] could not save the custom addon list");
+        }
     }
 
     fn reload(window: &slint::Weak<MainWindow>) {
+        let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
         std::thread::spawn(move || {
             let modules = Self::scan();
-            Self::sync_custom_addons(&modules);
+            Self::sync_custom_addons(generation, &modules);
 
             let _ = slint::invoke_from_event_loop(move || {
+                if GENERATION.load(Ordering::SeqCst) != generation {
+                    return;
+                }
                 let Some(w) = ww.upgrade() else {
                     error!("[Modules] could not load: window handle is dead");
                     return;
@@ -248,7 +268,7 @@ impl ModulesHandler {
         Ok(file_name.to_string())
     }
 
-    fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
+    pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
         let ww = window.clone();
         std::thread::spawn(move || {
             let mut installed: Vec<String> = Vec::new();

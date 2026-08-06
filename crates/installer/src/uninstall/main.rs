@@ -14,11 +14,19 @@ use std::rc::Rc;
 use plan::Plan;
 use run::Options;
 
+fn current_plan() -> Plan {
+    if elevate::is_relaunch() {
+        elevate::plan_from_args()
+    } else {
+        Plan::resolve()
+    }
+}
+
 fn start(ui: &UninstallerWindow, options: Options) {
-    let plan = Plan::resolve();
+    let plan = current_plan();
 
     if !elevate::is_relaunch() && elevate::needed(&plan, options) {
-        match elevate::relaunch(options) {
+        match elevate::relaunch(&plan, options) {
             Ok(()) => {
                 let _ = ui.hide();
                 let _ = slint::quit_event_loop();
@@ -56,7 +64,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     }
 
-    let plan = Plan::resolve();
+    let plan = current_plan();
     ui.set_app_path(
         plan.app_dir
             .as_ref()

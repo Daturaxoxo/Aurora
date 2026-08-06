@@ -15,6 +15,12 @@ compile_error!("unsupported target: no manifest URL");
 // TODO: fill in fallback before release
 pub const MANIFEST_URL_FALLBACK: &str = "";
 
+pub fn manifest_urls() -> impl Iterator<Item = &'static str> {
+    [MANIFEST_URL_PRIMARY, MANIFEST_URL_FALLBACK]
+        .into_iter()
+        .filter(|url| !url.is_empty())
+}
+
 pub const MAIN_PIPE_NAME: &str = "aurora-updater";
 pub const INIT_PIPE_NAME: &str = "aurora-updater-init";
 
@@ -55,10 +61,9 @@ pub const UPDATER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub fn install_root() -> PathBuf {
     std::env::current_exe()
-        .expect("could not resolve exe path")
-        .parent()
-        .map(PathBuf::from)
-        .expect("exe has no parent directory")
+        .ok()
+        .and_then(|exe| exe.parent().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 #[cfg(windows)]

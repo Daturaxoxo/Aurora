@@ -1,4 +1,5 @@
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modules::ModulesHandler;
 use crate::MainWindow;
 
 use i_slint_backend_winit::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -28,13 +29,18 @@ const SUBCLASS_ID: usize = 0x4155_5244; // "AURD"
 pub fn setup(window: &slint::Weak<MainWindow>) {
     let ww = window.clone();
     let installed = Cell::new(false);
+    let deferred = Cell::new(false);
     window
         .unwrap()
         .window()
         .on_winit_window_event(move |w, _event| {
             if !installed.get() {
-                installed.set(true);
-                w.with_winit_window(|winit_win| install(winit_win, &ww));
+                if w.with_winit_window(|winit_win| install(winit_win, &ww)) == Some(true) {
+                    installed.set(true);
+                } else if !deferred.get() {
+                    deferred.set(true);
+                    warn!("[FileDrop] the window is not ready yet, retrying on the next event");
+                }
             }
             i_slint_backend_winit::EventResult::Propagate
         });
@@ -43,10 +49,10 @@ pub fn setup(window: &slint::Weak<MainWindow>) {
 fn install(
     winit_win: &i_slint_backend_winit::winit::window::Window,
     weak: &slint::Weak<MainWindow>,
-) {
+) -> bool {
     let Ok(RawWindowHandle::Win32(handle)) = winit_win.window_handle().map(|h| h.as_raw()) else {
         error!("[FileDrop] could not get a Win32 window handle");
-        return;
+        return false;
     };
     let hwnd = handle.hwnd.get() as HWND;
 
@@ -66,11 +72,12 @@ fn install(
         if SetWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID, ctx as usize) == 0 {
             error!("[FileDrop] SetWindowSubclass failed");
             drop(Box::from_raw(ctx));
-            return;
+            return false;
         }
     }
 
     info!("[FileDrop] WM_DROPFILES handler installed");
+    true
 }
 
 unsafe extern "system" fn subclass_proc(
@@ -89,9 +96,17 @@ unsafe extern "system" fn subclass_proc(
 
             let weak = &*(refdata as *const slint::Weak<MainWindow>);
             if let Some(win) = weak.upgrade() {
-                if win.get_show_mod_manager() && !paths.is_empty() {
-                    info!("[FileDrop] {} path(s) dropped", paths.len());
-                    ModManagerHandler::install_paths(weak, paths);
+                if !paths.is_empty() {
+                    if win.get_show_mod_manager() {
+                        info!(
+                            "[FileDrop] {} path(s) dropped on the mod manager",
+                            paths.len()
+                        );
+                        ModManagerHandler::install_paths(weak, paths);
+                    } else if win.get_show_modules() {
+                        info!("[FileDrop] {} path(s) dropped on the modules", paths.len());
+                        ModulesHandler::install_paths(weak, paths);
+                    }
                 }
             }
             0

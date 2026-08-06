@@ -46,12 +46,14 @@ pub fn center_window(window: &slint::Window) -> Result<()> {
     };
     let window_size = window.size();
 
-    let x = (monitor_size.width.cast_signed() - window_size.width.cast_signed()) / 2;
-    let y = (monitor_size.height.cast_signed() - window_size.height.cast_signed()) / 2;
+    let x =
+        monitor_size.x + (monitor_size.width.cast_signed() - window_size.width.cast_signed()) / 2;
+    let y =
+        monitor_size.y + (monitor_size.height.cast_signed() - window_size.height.cast_signed()) / 2;
 
     window.set_position(WindowPosition::Physical(PhysicalPosition::new(
-        x.max(0),
-        y.max(0),
+        x.max(monitor_size.x),
+        y.max(monitor_size.y),
     )));
 
     Ok(())

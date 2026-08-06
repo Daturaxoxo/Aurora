@@ -16,22 +16,43 @@ fn entries() -> &'static [Value] {
     })
 }
 
-fn localized<'a>(entry: &'a Value, lang_code: &str) -> &'a str {
-    let key = entry["key"].as_str().unwrap_or("<unknown key>");
+fn first_report(id: String) -> bool {
+    static REPORTED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+        std::sync::OnceLock::new();
 
+    REPORTED
+        .get_or_init(Default::default)
+        .lock()
+        .map(|mut reported| reported.insert(id))
+        .unwrap_or(false)
+}
+
+fn value_for<'a>(entry: &'a Value, lang_code: &str) -> Option<&'a str> {
     entry
         .get(lang_code)
         .and_then(|v| v.as_str())
         .filter(|v| !v.is_empty())
-        .or_else(|| {
-            warn!(
-                "translations.json: key \"{key}\" has no \"{lang_code}\" value, falling back to \"en\""
-            );
-            entry["en"].as_str()
-        })
-        .unwrap_or_else(|| {
-            panic!("translations.json: key \"{key}\" is missing its required \"en\" value")
-        })
+}
+
+fn localized<'a>(entry: &'a Value, lang_code: &str) -> &'a str {
+    let key = entry["key"].as_str().unwrap_or("<unknown key>");
+
+    if let Some(value) = value_for(entry, lang_code) {
+        return value;
+    }
+
+    if lang_code != "en" && first_report(format!("{lang_code}/{key}")) {
+        warn!(
+            "translations.json: key \"{key}\" has no \"{lang_code}\" value, falling back to \"en\""
+        );
+    }
+
+    value_for(entry, "en").unwrap_or_else(|| {
+        if first_report(format!("en/{key}")) {
+            error!("translations.json: key \"{key}\" is missing its required \"en\" value");
+        }
+        key
+    })
 }
 
 fn build_values(lang_code: &str) -> ModelRc<SharedString> {

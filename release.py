@@ -160,8 +160,7 @@ def build_manifest(
             file_hash = calculate_sha256(filepath)
 
             if file_hash:
-                file_name = os.path.basename(rel_path)
-                file_url = base_url + quote(file_name)
+                file_url = base_url + quote(rel_path)
 
                 files_list.append(
                     {"path": rel_path, "sha256": file_hash, "url": file_url}
@@ -226,6 +225,9 @@ def release_windows(version):
 
     copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release/updater.exe")
+    copy_file(
+        "./target/release/AuroraUninstaller.exe", "./release/AuroraUninstaller.exe"
+    )
 
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
@@ -239,12 +241,15 @@ def release_windows(version):
     os.mkdir("./release-host")
     copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release-host/updater.exe")
+    copy_file(
+        "./target/release/AuroraUninstaller.exe",
+        "./release-host/AuroraUninstaller.exe",
+    )
 
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
-        file_name = path_to_filename(file)
-        copy_file(f"./release/Bin/{file}", f"./release-host/{file_name}")
+        copy_file(f"./release/Bin/{file}", f"./release-host/Bin/{file}")
 
     shutil.make_archive(
         base_name=f"aurora-host-{version}-WINDOWS",

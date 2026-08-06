@@ -4,7 +4,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use ipc::manifest::Manifest;
-use ipc::{MANIFEST_URL_FALLBACK, MANIFEST_URL_PRIMARY};
+use ipc::manifest_urls;
 
 use crate::logfile::log;
 
@@ -16,8 +16,8 @@ fn agent() -> ureq::Agent {
 }
 
 pub fn fetch_manifest() -> Result<Manifest, String> {
-    let mut last_err = String::new();
-    for url in [MANIFEST_URL_PRIMARY, MANIFEST_URL_FALLBACK] {
+    let mut last_err = String::from("no manifest sources configured");
+    for url in manifest_urls() {
         match fetch_manifest_from(url) {
             Ok(manifest) => return Ok(manifest),
             Err(e) => {
@@ -40,7 +40,10 @@ fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
         .body_mut()
         .read_to_string()
         .map_err(|e| format!("failed to read body: {e}"))?;
-    serde_json::from_str(&body).map_err(|e| format!("invalid manifest JSON: {e}"))
+    let manifest: Manifest =
+        serde_json::from_str(&body).map_err(|e| format!("invalid manifest JSON: {e}"))?;
+    manifest.validate_urls()?;
+    Ok(manifest)
 }
 
 pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {

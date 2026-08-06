@@ -43,13 +43,6 @@ pub fn enabled() -> bool {
     config::get(TELEMETRY_KEY).as_bool().unwrap_or(true)
 }
 
-const fn os() -> &'static str {
-    if cfg!(target_os = "windows") {"windows"}
-    else if cfg!(target_os = "linux") {"linux"}
-    else if cfg!(target_os = "macos") {"macos"}
-    else {"unknown"}
-}
-
 fn entropy(salt: u64) -> u64 {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
@@ -97,7 +90,7 @@ fn send(event: &str, version: &str) -> Result<()> {
             session: session_id(),
             event,
             version,
-            os: os(),
+            os: std::env::consts::OS,
         },
     )
 }
@@ -155,7 +148,7 @@ pub fn stop() {
         session,
         event: "stop",
         version: &version,
-        os: os(),
+        os: std::env::consts::OS,
     };
 
     match client.post(super::url(PATH)).json(&payload).send() {

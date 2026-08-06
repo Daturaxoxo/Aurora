@@ -110,7 +110,7 @@ fn main() -> Result<()> {
         warn!("Could not set the XDG app id: {e}");
     }
 
-    window.set_app_version(format!("v{}", shared::utils::get_local_version().trim()).into());
+    window.set_app_version(format!("v{}", shared::utils::get_local_version()).into());
     let slint_window = window.window();
 
     window.set_ui_font_family("Segoe UI".into());
@@ -125,7 +125,18 @@ fn main() -> Result<()> {
         }
     };
 
-    let (window_width, window_height) = if monitor_size.width < 1366 {
+    let scale_factor = if monitor_size.scale_factor.is_finite() && monitor_size.scale_factor > 0.0 {
+        monitor_size.scale_factor
+    } else {
+        warn!(
+            "Monitor reported an unusable scale factor ({}); assuming 1.0",
+            monitor_size.scale_factor
+        );
+        1.0
+    };
+    let logical_monitor_width = monitor_size.width as f32 / scale_factor;
+
+    let (window_width, window_height) = if logical_monitor_width < 1366.0 {
         (960.0, 540.0)
     } else {
         (1280.0, 720.0)

@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::LOCAL_MANIFEST_FILE;
+
+pub const DOWNLOAD_HOST: &str = "host.getaurora.moe";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Manifest {
@@ -34,6 +36,13 @@ pub struct LinuxManifest {
 pub struct AppImageEntry {
     pub sha256: String,
     pub url: String,
+}
+
+#[cfg(target_os = "linux")]
+impl AppImageEntry {
+    pub fn validate_url(&self) -> Result<(), String> {
+        check_url("appimage entry", &self.url)
+    }
 }
 
 const WINDOWS_RESERVED_NAMES: [&str; 22] = [
@@ -98,9 +107,31 @@ pub fn safe_join(install_root: &Path, relative: &str) -> Option<PathBuf> {
         .map(|rel| install_root.join(rel))
 }
 
+pub fn is_trusted_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '\\', '?', '#']).next().unwrap_or_default();
+    authority.eq_ignore_ascii_case(DOWNLOAD_HOST)
+}
+
+fn check_url(kind: &str, url: &str) -> Result<(), String> {
+    if is_trusted_url(url) {
+        Ok(())
+    } else {
+        Err(format!(
+            "rejected {kind}: url `{url}` is not an https url on `{DOWNLOAD_HOST}`"
+        ))
+    }
+}
+
 impl FileEntry {
     pub fn resolve(&self, install_root: &Path) -> Option<PathBuf> {
         safe_join(install_root, &self.path)
+    }
+
+    pub fn validate_url(&self) -> Result<(), String> {
+        check_url(&format!("manifest entry `{}`", self.path), &self.url)
     }
 }
 
@@ -109,6 +140,13 @@ impl Manifest {
         for entry in &self.files {
             check_relative_path(&entry.path)
                 .map_err(|e| format!("rejected manifest entry `{}`: {e}", entry.path))?;
+        }
+        Ok(())
+    }
+
+    pub fn validate_urls(&self) -> Result<(), String> {
+        for entry in &self.files {
+            entry.validate_url()?;
         }
         Ok(())
     }
@@ -154,7 +192,23 @@ impl LocalManifest {
 
     pub fn save(&self, install_root: &Path) -> io::Result<()> {
         let json = serde_json::to_vec_pretty(self).map_err(io::Error::other)?;
-        fs::write(install_root.join(LOCAL_MANIFEST_FILE), json)
+        let target = install_root.join(LOCAL_MANIFEST_FILE);
+        let temp = install_root.join(format!("{LOCAL_MANIFEST_FILE}.{}.tmp", std::process::id()));
+
+        let write_temp = || -> io::Result<()> {
+            let mut file = fs::File::create(&temp)?;
+            file.write_all(&json)?;
+            file.sync_all()
+        };
+        if let Err(e) = write_temp() {
+            let _ = fs::remove_file(&temp);
+            return Err(e);
+        }
+        if let Err(e) = fs::rename(&temp, &target) {
+            let _ = fs::remove_file(&temp);
+            return Err(e);
+        }
+        Ok(())
     }
 
     pub fn build_manifest_from_disk(install_root: &Path, manifest: &Manifest) -> Self {

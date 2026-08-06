@@ -3,6 +3,7 @@ use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::sanitize_download_filename;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
+use anyhow::{anyhow, Result};
 use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
@@ -13,12 +14,19 @@ use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const PAGE_SIZE: usize = 15;
 const DOWNLOAD_BUFFER: usize = 1 << 20;
+const MIN_SEARCH_LEN: usize = 3;
+const DOWNLOAD_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_hours(1);
+
+const INSTALL_RUNNING: u8 = 0;
+const INSTALL_CANCELLED: u8 = 1;
+const INSTALL_COMMITTED: u8 = 2;
 
 /// Must stay in the same order as the character list in gbbrowser.slint.
 pub const CHARACTERS: &[(&str, u32)] = &[
@@ -52,8 +60,12 @@ static API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
 static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
     reqwest::Client::builder()
         .user_agent(format!("AuroraLauncher/{}", get_local_version()))
+        .read_timeout(DOWNLOAD_IDLE_TIMEOUT)
         .build()
-        .unwrap_or_default()
+        .unwrap_or_else(|e| {
+            error!("[GbBrowser] could not build the HTTP client, falling back to default: {e}");
+            reqwest::Client::default()
+        })
 });
 
 #[derive(Debug, Clone)]
@@ -68,6 +80,7 @@ enum Mode {
     Feed,
     Search(String),
     Category(u32),
+    Partial(String),
 }
 
 struct PreviewState {
@@ -106,7 +119,8 @@ impl Default for GbState {
 }
 
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
-static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
+static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_RUNNING);
+static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
 
 fn show_nsfw() -> bool {
     config::get(key::GB_NSFW).as_bool().unwrap_or(false)
@@ -209,6 +223,40 @@ impl GbBrowserHandler {
         w.set_gb_mods(Rc::new(VecModel::from(items)).into());
     }
 
+    fn set_mode(window: &slint::Weak<MainWindow>, mode: Mode) {
+        let partial = matches!(mode, Mode::Partial(_));
+        {
+            let mut state = STATE.lock().unwrap();
+            if state.mode == mode {
+                return;
+            }
+            state.mode = mode;
+        }
+
+        if partial {
+            Self::clear_results(window);
+        } else {
+            Self::load(window, true);
+        }
+    }
+
+    fn clear_results(window: &slint::Weak<MainWindow>) {
+        {
+            let mut state = STATE.lock().unwrap();
+            state.generation += 1;
+            state.page = 1;
+            state.loading = false;
+            state.end_reached = true;
+            state.mods.clear();
+            state.seen.clear();
+        }
+
+        if let Some(w) = window.upgrade() {
+            w.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
+            w.set_gb_loading(false);
+        }
+    }
+
     fn load(window: &slint::Weak<MainWindow>, reset: bool) {
         let (generation, mode, page) = {
             let mut state = STATE.lock().unwrap();
@@ -250,12 +298,19 @@ impl GbBrowserHandler {
                     Mode::Feed => API.get_nte_mods(page, false, Some(tx)).await,
                     Mode::Search(query) => API.search_nte_mods(&query, page, false, Some(tx)).await,
                     Mode::Category(id) => API.get_category_mods(id, page, false, Some(tx)).await,
+                    Mode::Partial(_) => Ok(Vec::new()),
                 }
             });
 
             let hide_downloads = matches!(mode, Mode::Category(_));
             while let Some(m) = rx.recv().await {
-                let thumb = decode_thumb(&m.thumbnail);
+                let bytes = m.thumbnail.clone();
+                let thumb = tokio::task::spawn_blocking(move || decode_thumb(&bytes))
+                    .await
+                    .unwrap_or_else(|e| {
+                        warn!("[GbBrowser] thumbnail decode panicked: {e}");
+                        None
+                    });
                 let ww2 = ww.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(w) = ww2.upgrade() else { return };
@@ -273,14 +328,26 @@ impl GbBrowserHandler {
                 });
             }
 
-            let result = fetch.await.ok().flatten();
-            let end_reached = result.as_ref().is_none_or(|mods| {
+            let outcome = match fetch.await {
+                Ok(Ok(loaded)) => Some(loaded),
+                Ok(Err(e)) => {
+                    error!("[GbBrowser] could not load page {page}: {e}");
+                    None
+                }
+                Err(e) => {
+                    error!("[GbBrowser] loading page {page} panicked: {e}");
+                    None
+                }
+            };
+            let end_reached = outcome.as_ref().is_some_and(|mods| {
                 if matches!(mode, Mode::Feed) {
                     mods.is_empty()
                 } else {
                     mods.len() < PAGE_SIZE
                 }
             });
+            let failed = outcome.is_none();
+
             let ww2 = ww.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(w) = ww2.upgrade() else { return };
@@ -291,6 +358,9 @@ impl GbBrowserHandler {
                 state.loading = false;
                 if end_reached {
                     state.end_reached = true;
+                }
+                if failed && !reset && state.page == page {
+                    state.page = state.page.saturating_sub(1).max(1);
                 }
                 drop(state);
                 w.set_gb_loading(false);
@@ -378,8 +448,17 @@ impl GbBrowserHandler {
         });
     }
 
+    async fn discard_partial(path: &std::path::Path) {
+        if let Err(e) = tokio::fs::remove_file(path).await {
+            warn!(
+                "[GbBrowser] could not remove partial download '{}': {e}",
+                path.display()
+            );
+        }
+    }
+
     fn download_and_install(window: &slint::Weak<MainWindow>, file: NteModFile) {
-        INSTALL_CANCELLED.store(false, Ordering::SeqCst);
+        INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
@@ -397,14 +476,19 @@ impl GbBrowserHandler {
 
         RUNTIME.spawn(async move {
             // Ok(None) means the download was cancelled by the user
-            let result: anyhow::Result<Option<std::path::PathBuf>> = async {
+            let result: Result<Option<std::path::PathBuf>> = async {
                 use tokio::io::AsyncWriteExt;
 
                 let Some(safe_name) = sanitize_download_filename(&file.name) else {
-                    return Err(anyhow::anyhow!("unsafe file name '{}'", file.name));
+                    return Err(anyhow!("unsafe file name '{}'", file.name));
                 };
 
-                let mut resp = HTTP.get(&file.url).send().await?.error_for_status()?;
+                let mut resp = HTTP
+                    .get(&file.url)
+                    .timeout(DOWNLOAD_TOTAL_TIMEOUT)
+                    .send()
+                    .await?
+                    .error_for_status()?;
                 let total = resp.content_length().unwrap_or(file.size);
                 let dir = std::env::temp_dir().join("Aurora/GameBanana");
                 tokio::fs::create_dir_all(&dir).await?;
@@ -417,29 +501,73 @@ impl GbBrowserHandler {
                 let started = Instant::now();
                 let mut done: u64 = 0;
                 let mut last_percent: u64 = 0;
-                while let Some(chunk) = resp.chunk().await? {
-                    if INSTALL_CANCELLED.load(Ordering::SeqCst) {
-                        drop(out);
-                        if let Err(e) = tokio::fs::remove_file(&path).await {
-                            warn!(
-                                "[GbBrowser] could not remove partial download '{}': {e}",
-                                path.display()
-                            );
+                let mut hasher = md5::Context::new();
+
+                let transfer: Result<bool> = async {
+                    loop {
+                        if INSTALL_STATE.load(Ordering::SeqCst) == INSTALL_CANCELLED {
+                            return Ok(true);
                         }
+                        let chunk = tokio::select! {
+                            biased;
+                            () = INSTALL_CANCEL_SIGNAL.notified() => return Ok(true),
+                            chunk = tokio::time::timeout(DOWNLOAD_IDLE_TIMEOUT, resp.chunk()) => {
+                                chunk.map_err(|_| {
+                                    anyhow!(
+                                        "the download stalled for more than {}s",
+                                        DOWNLOAD_IDLE_TIMEOUT.as_secs()
+                                    )
+                                })??
+                            }
+                        };
+                        let Some(chunk) = chunk else { break };
+                        hasher.consume(&chunk);
+                        out.write_all(&chunk).await?;
+                        done += chunk.len() as u64;
+                        if let Some(percent) = (done * 100).checked_div(total) {
+                            if percent > last_percent {
+                                last_percent = percent;
+                                #[allow(
+                                    clippy::cast_precision_loss,
+                                    clippy::cast_possible_truncation
+                                )]
+                                let frac = (done as f64 / total as f64).min(1.0) as f32;
+                                Self::set_progress(
+                                    &ww,
+                                    frac,
+                                    format!("Downloading {}...", file.name),
+                                );
+                            }
+                        }
+                    }
+                    out.flush().await?;
+                    Ok(false)
+                }
+                .await;
+
+                drop(out);
+                match transfer {
+                    Ok(true) => {
+                        Self::discard_partial(&path).await;
                         return Ok(None);
                     }
-                    out.write_all(&chunk).await?;
-                    done += chunk.len() as u64;
-                    if let Some(percent) = (done * 100).checked_div(total) {
-                        if percent > last_percent {
-                            last_percent = percent;
-                            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-                            let frac = (done as f64 / total as f64).min(1.0) as f32;
-                            Self::set_progress(&ww, frac, format!("Downloading {}...", file.name));
-                        }
+                    Err(e) => {
+                        Self::discard_partial(&path).await;
+                        return Err(e);
                     }
+                    Ok(false) => {}
                 }
-                out.flush().await?;
+
+                let digest = hasher.finalize();
+                let digest = format!("{:x}", digest);
+                if !file.md5.is_empty() && !file.md5.eq_ignore_ascii_case(&digest) {
+                    Self::discard_partial(&path).await;
+                    return Err(anyhow!(
+                        "checksum mismatch for '{}' (expected {}, got {digest})",
+                        file.name,
+                        file.md5,
+                    ));
+                }
 
                 let secs = started.elapsed().as_secs_f64();
                 #[allow(
@@ -465,10 +593,17 @@ impl GbBrowserHandler {
 
             match result {
                 Ok(Some(path)) => {
-                    // Cancelled right as the download finished
-                    if INSTALL_CANCELLED.load(Ordering::SeqCst) {
+                    if INSTALL_STATE
+                        .compare_exchange(
+                            INSTALL_RUNNING,
+                            INSTALL_COMMITTED,
+                            Ordering::SeqCst,
+                            Ordering::SeqCst,
+                        )
+                        .is_err()
+                    {
                         info!("[GbBrowser] download of '{}' cancelled", file.name);
-                        let _ = tokio::fs::remove_file(&path).await;
+                        Self::discard_partial(&path).await;
                         return;
                     }
                     info!("[GbBrowser] downloaded '{}'", path.display());
@@ -528,20 +663,14 @@ impl GbBrowserHandler {
         let ww = window.clone();
         w.on_gb_search_changed(move |text| {
             let query = text.trim().to_string();
-            let mut state = STATE.lock().unwrap();
-            if query.is_empty() {
-                if state.mode == Mode::Feed {
-                    return;
-                }
-                state.mode = Mode::Feed;
+            let mode = if query.is_empty() {
+                Mode::Feed
+            } else if query.len() < MIN_SEARCH_LEN {
+                Mode::Partial(query)
             } else {
-                if query.len() < 3 || state.mode == Mode::Search(query.clone()) {
-                    return;
-                }
-                state.mode = Mode::Search(query);
-            }
-            drop(state);
-            Self::load(&ww, true);
+                Mode::Search(query)
+            };
+            Self::set_mode(&ww, mode);
         });
 
         let ww = window.clone();
@@ -553,13 +682,10 @@ impl GbBrowserHandler {
                     trace!("[GbBrowser] filtering by character '{name}'");
                     Mode::Category(*id)
                 });
-            let mut state = STATE.lock().unwrap();
-            if state.mode == mode {
-                return;
+            if let Some(win) = ww.upgrade() {
+                win.set_gb_search_text("".into());
             }
-            state.mode = mode;
-            drop(state);
-            Self::load(&ww, true);
+            Self::set_mode(&ww, mode);
         });
 
         let ww = window.clone();
@@ -590,9 +716,14 @@ impl GbBrowserHandler {
 
             let ww2 = ww.clone();
             RUNTIME.spawn(async move {
-                let files = API.get_mod_files(mod_id).await.unwrap_or_default();
+                let files = API.get_mod_files(mod_id).await;
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
+                    let Some(files) = files else {
+                        error!("[GbBrowser] could not fetch the files of mod {mod_id}");
+                        show_toast(&win, "error", "Could not fetch this mod's files".into());
+                        return;
+                    };
                     match files.len() {
                         0 => {
                             warn!("[GbBrowser] mod {mod_id} has no downloadable files");
@@ -700,7 +831,18 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         w.on_progress_overlay_cancel(move || {
-            INSTALL_CANCELLED.store(true, Ordering::SeqCst);
+            if INSTALL_STATE
+                .compare_exchange(
+                    INSTALL_RUNNING,
+                    INSTALL_CANCELLED,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                )
+                .is_err()
+            {
+                return;
+            }
+            INSTALL_CANCEL_SIGNAL.notify_waiters();
             if let Some(win) = ww.upgrade() {
                 win.set_progress_overlay_active(false);
                 show_toast(&win, "info", "Install cancelled".into());

@@ -16,7 +16,17 @@ use crate::telemetry::{spawn_error_worker, ErrorEvent};
 
 const FILTER_ENV: &str = "AURORA_LOG";
 
-const NOISY_MODULES: [&str; 9] = ["mslnk", "reqwest", "rustls", "calloop", "smithay_client_toolkit", "hyper_util", "zbus", "winit", "sctk_adwaita"];
+const NOISY_MODULES: [&str; 9] = [
+    "mslnk",
+    "reqwest",
+    "rustls",
+    "calloop",
+    "smithay_client_toolkit",
+    "hyper_util",
+    "zbus",
+    "winit",
+    "sctk_adwaita",
+];
 
 #[cfg(any(debug_assertions, feature = "beta"))]
 const DEFAULT_LEVEL: LevelFilter = LevelFilter::Trace;
@@ -230,7 +240,10 @@ impl Log for Logger {
             return;
         }
 
-        if NOISY_MODULES.iter().any(|n| record.module_path().is_some_and(|m| m.contains(n))) {
+        if NOISY_MODULES
+            .iter()
+            .any(|n| record.module_path().is_some_and(|m| m.contains(n)))
+        {
             return;
         }
 

@@ -7,7 +7,7 @@ const NTE: &[&str] = &[
     "NTELauncher.exe",
     "NTEGlobalLauncher.exe",
     "NTETWLauncher.exe",
-    "Client",
+    "Client/WindowsNoEditor/HT/Content/Paks",
 ];
 
 const SP: &[&str] = &["temp"];
@@ -18,7 +18,7 @@ pub const MARKERS: &[GameMarkers] = &[
         markers: NTE,
     },
     GameMarkers {
-        folder_names: &["Silver Palace"], // confirm the folder name later! -daturas
+        folder_names: &["Silver Palace"], // TODO: confirm the folder name later! -daturas
         markers: SP,
     },
 ];

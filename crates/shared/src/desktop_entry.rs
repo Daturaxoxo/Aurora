@@ -4,6 +4,9 @@ use std::path::Path;
 
 pub const APP_ID: &str = "aurora";
 
+#[cfg(target_os = "windows")]
+const SHORTCUT_FILE: &str = "Aurora.lnk";
+
 #[cfg(target_os = "linux")]
 const ICON: &[u8] = include_bytes!("../../../production/icons/logo.png");
 
@@ -41,16 +44,31 @@ pub fn uninstall() {
 
 #[cfg(target_os = "windows")]
 pub fn uninstall() {
-    warn!("Uninstall is not yet supported on Windows");
+    if let Err(e) = uninstall_inner_windows() {
+        warn!("Could not remove the desktop entry: {e}");
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn start_menu_shortcut() -> Result<std::path::PathBuf> {
+    Ok(dirs::config_dir()
+        .ok_or_else(|| anyhow!("could not find the AppData directory"))?
+        .join("Microsoft/Windows/Start Menu/Programs")
+        .join(SHORTCUT_FILE))
 }
 
 #[cfg(target_os = "windows")]
 fn install_inner_windows(exe: &Path) -> Result<()> {
-    let programs = dirs::config_dir()
-        .ok_or_else(|| anyhow!("could not find the AppData directory"))?
-        .join("Microsoft/Windows/Start Menu/Programs");
-    std::fs::create_dir_all(&programs)?;
-    create_lnk(exe, &programs.join("Aurora.lnk"))
+    let shortcut = start_menu_shortcut()?;
+    if let Some(parent) = shortcut.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    create_lnk(exe, &shortcut)
+}
+
+#[cfg(target_os = "windows")]
+fn uninstall_inner_windows() -> Result<()> {
+    remove_if_present(&start_menu_shortcut()?)
 }
 
 #[cfg(target_os = "windows")]
@@ -70,7 +88,18 @@ fn create_lnk(target: &Path, shortcut: &Path) -> Result<()> {
 #[cfg(target_os = "windows")]
 pub fn create_desktop_shortcut(target: &Path) -> Result<()> {
     let desktop = dirs::desktop_dir().ok_or_else(|| anyhow!("could not find desktop directory"))?;
-    create_lnk(target, &desktop.join("Aurora.lnk"))
+    create_lnk(target, &desktop.join(SHORTCUT_FILE))
+}
+
+#[cfg(target_os = "windows")]
+pub fn remove_desktop_shortcut() -> Result<()> {
+    let desktop = dirs::desktop_dir().ok_or_else(|| anyhow!("could not find desktop directory"))?;
+    remove_if_present(&desktop.join(SHORTCUT_FILE))
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn remove_desktop_shortcut() -> Result<()> {
+    Ok(())
 }
 
 #[cfg(target_os = "linux")]
@@ -92,7 +121,7 @@ fn uninstall_inner_linux() -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn remove_if_present(path: &Path) -> Result<()> {
     match std::fs::remove_file(path) {
         Ok(()) => {

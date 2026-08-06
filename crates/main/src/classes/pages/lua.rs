@@ -6,6 +6,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use anyhow::{anyhow, Result};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use once_cell::sync::Lazy;
@@ -53,7 +54,12 @@ impl LuaScriptsHandler {
                 };
                 let adapter = win.global::<LuaScriptsAdapter>();
                 let enabled = !adapter.get_debug_enabled();
-                set_debug_enabled(&bin_dir, enabled);
+                if let Err(e) = set_debug_enabled(&bin_dir, enabled) {
+                    adapter.set_toast_message(
+                        format!("Couldn't change the debugging setting: {e}").into(),
+                    );
+                    return;
+                }
                 adapter.set_debug_enabled(enabled);
             });
         }
@@ -171,16 +177,20 @@ impl LuaScriptsHandler {
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
                     let old_name = item.name.to_string();
 
-                    match rename_script_folder(&mods_dir, &old_name, &new_name) {
-                        Ok(()) => {
-                            rename_mod_in_config(&mods_dir, &old_name, &new_name);
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to rename script folder from '{old_name}' to '{new_name}': {e}"
+                    if let Err(e) = rename_script_folder(&mods_dir, &old_name, &new_name) {
+                        error!(
+                            "Failed to rename script folder from '{old_name}' to '{new_name}': {e}"
+                        );
+                        if let Some(win) = window.upgrade() {
+                            win.global::<LuaScriptsAdapter>().set_toast_message(
+                                format!("Couldn't rename \"{old_name}\" to \"{new_name}\": {e}")
+                                    .into(),
                             );
                         }
+                        return;
                     }
+
+                    rename_mod_in_config(&mods_dir, &old_name, &new_name);
 
                     item.name = new_name;
                     model.set_row_data(idx, item);
@@ -297,10 +307,7 @@ impl LuaScriptsHandler {
         }
     }
 
-    async fn download_and_extract(
-        bin_dir: &Path,
-        window: &Weak<MainWindow>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn download_and_extract(bin_dir: &Path, window: &Weak<MainWindow>) -> Result<()> {
         Self::report(window, true, 0, "Downloading UE4SS…");
 
         let resp = reqwest::get(UE4SS_DOWNLOAD_URL).await?.error_for_status()?;
@@ -373,18 +380,17 @@ fn find_by_id(model: &Rc<VecModel<LuaScriptItem>>, id: &str) -> Option<(usize, L
     model.iter().enumerate().find(|(_, item)| item.id == id)
 }
 
-fn write_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()> {
+fn write_script(mods_dir: &Path, name: &str, code: &str) -> Result<()> {
     let scripts_dir = mods_dir.join(name).join("Scripts");
     fs::create_dir_all(&scripts_dir)?;
-    fs::write(scripts_dir.join("main.lua"), code)
+    fs::write(scripts_dir.join("main.lua"), code).map_err(|e| anyhow!(e))
 }
 
-fn create_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()> {
+fn create_script(mods_dir: &Path, name: &str, code: &str) -> Result<()> {
     let script_dir = mods_dir.join(name);
     if script_dir.exists() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            format!("a script folder named '{name}' already exists"),
+        return Err(anyhow::anyhow!(
+            "a script folder named '{name}' already exists"
         ));
     }
 
@@ -395,7 +401,7 @@ fn create_script(mods_dir: &Path, name: &str, code: &str) -> std::io::Result<()>
         .write(true)
         .create_new(true)
         .open(lua_dir.join("main.lua"))?;
-    file.write_all(code.as_bytes())
+    file.write_all(code.as_bytes()).map_err(|e| anyhow!(e))
 }
 
 fn next_available_script_name(mods_dir: &Path) -> String {
@@ -414,12 +420,23 @@ fn next_available_script_name(mods_dir: &Path) -> String {
     }
 }
 
-fn rename_script_folder(mods_dir: &Path, old_name: &str, new_name: &str) -> std::io::Result<()> {
+fn rename_script_folder(mods_dir: &Path, old_name: &str, new_name: &str) -> Result<()> {
+    if old_name == new_name {
+        return Ok(());
+    }
+
     let old_dir = mods_dir.join(old_name);
+    let new_dir = mods_dir.join(new_name);
+
+    if !old_name.eq_ignore_ascii_case(new_name) && new_dir.exists() {
+        return Err(anyhow!("a script folder named '{new_name}' already exists"));
+    }
+
     if !old_dir.exists() {
         return Ok(());
     }
-    fs::rename(old_dir, mods_dir.join(new_name))
+
+    fs::rename(old_dir, new_dir).map_err(|e| anyhow!(e))
 }
 
 fn validate_script_name(name: &str) -> Result<(), String> {
@@ -520,14 +537,14 @@ fn read_debug_enabled(bin_dir: &Path) -> bool {
     false
 }
 
-fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
+fn set_debug_enabled(bin_dir: &Path, enabled: bool) -> Result<()> {
     let path = settings_ini_path(bin_dir);
-    let Ok(contents) = fs::read_to_string(&path) else {
-        warn!(
-            "Could not read {} to toggle debugging; skipping",
-            path.display()
-        );
-        return;
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            error!("Could not read {} to toggle debugging: {e}", path.display());
+            return Err(anyhow!(e));
+        }
     };
 
     let line_ending = if contents.contains("\r\n") {
@@ -569,7 +586,10 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) {
 
     if let Err(e) = fs::write(&path, updated) {
         error!("Failed to write {}: {e}", path.display());
+        return Err(anyhow!(e));
     }
+
+    Ok(())
 }
 
 fn read_mods_json(mods_dir: &Path) -> Vec<ModJsonEntry> {

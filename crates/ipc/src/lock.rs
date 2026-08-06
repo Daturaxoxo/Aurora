@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 pub struct SingletonLock {
     path: PathBuf,
-    _file: File,
+    file: File,
 }
 
 #[cfg(windows)]
@@ -14,31 +14,38 @@ impl SingletonLock {
     ///
     /// Returns `Ok(None)` if another live process already holds it.
     pub fn acquire(path: &Path) -> io::Result<Option<Self>> {
-        match Self::try_create(path) {
-            Ok(lock) => Ok(Some(lock)),
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                let owner = fs::read_to_string(path)
-                    .ok()
-                    .and_then(|s| s.trim().parse::<u32>().ok());
-                match owner {
-                    Some(pid) if pid_alive(pid) => Ok(None),
-                    // Stale or unreadable lock: clear it and retry once.
-                    _ => {
-                        if let Err(e) = fs::remove_file(path) {
-                            if e.kind() != io::ErrorKind::NotFound {
-                                return Err(e);
-                            }
+        for _ in 0..5 {
+            match Self::try_create(path) {
+                Ok(lock) => {
+                    if owns_lock_file(&lock.path, &lock.file) {
+                        return Ok(Some(lock));
+                    }
+                    drop(lock);
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                    let owner = fs::read_to_string(path)
+                        .ok()
+                        .and_then(|s| s.trim().parse::<u32>().ok());
+                    if let Some(pid) = owner {
+                        if pid_alive(pid) {
+                            return Ok(None);
                         }
-                        match Self::try_create(path) {
-                            Ok(lock) => Ok(Some(lock)),
-                            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(None),
-                            Err(e) => Err(e),
+                    }
+                    // Stale or unreadable lock: clear it and retry.
+                    if let Err(e) = fs::remove_file(path) {
+                        if e.kind() != io::ErrorKind::NotFound {
+                            return Err(e);
                         }
                     }
                 }
+                Err(e) => return Err(e),
             }
-            Err(e) => Err(e),
         }
+
+        Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            "could not stabilize singleton lock file",
+        ))
     }
 
     fn try_create(path: &Path) -> io::Result<Self> {
@@ -59,7 +66,7 @@ impl SingletonLock {
         file.flush()?;
         Ok(Self {
             path: path.to_path_buf(),
-            _file: file,
+            file,
         })
     }
 }
@@ -104,8 +111,28 @@ impl SingletonLock {
 
 impl Drop for SingletonLock {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        if owns_lock_file(&self.path, &self.file) {
+            let _ = fs::remove_file(&self.path);
+        }
     }
+}
+
+#[cfg(windows)]
+fn owns_lock_file(path: &Path, _file: &File) -> bool {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        == Some(std::process::id())
+}
+
+#[cfg(not(windows))]
+fn owns_lock_file(path: &Path, file: &File) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(locked) = file.metadata() else {
+        return false;
+    };
+    fs::metadata(path).is_ok_and(|meta| meta.ino() == locked.ino())
 }
 
 #[cfg(not(windows))]

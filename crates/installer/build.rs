@@ -2,6 +2,17 @@ use image::imageops::FilterType;
 use std::fs;
 use std::path::Path;
 
+#[cfg(target_os = "windows")]
+const MANIFEST: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>"#;
+
 fn main() {
     let pairs = [("./production/icons", "./production/icons/processed")];
 
@@ -18,6 +29,14 @@ fn main() {
     // only ever point at whichever file was compiled last.
     slint_build::compile("./frontend/main.slint").unwrap();
     slint_build::compile("./frontend/uninstall.slint").unwrap();
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut res = winresource::WindowsResource::new();
+        res.set_icon("../../production/icons/logo.ico");
+        res.set_manifest(MANIFEST);
+        res.compile().unwrap();
+    }
 }
 
 fn process_directory(root_source: &Path, current_source: &Path, target_base: &Path) {

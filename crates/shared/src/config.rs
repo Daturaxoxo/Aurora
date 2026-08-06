@@ -1,12 +1,12 @@
+use anyhow::{anyhow, Context, Result};
+use log::*;
+use serde_json::{json, Map, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
-use anyhow::{anyhow, Context, Result};
-use log::*;
-use serde_json::{json, Map, Value};
 static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 
 const LOCK_TIMEOUT: Duration = Duration::from_secs(2);
@@ -68,11 +68,12 @@ pub mod key {
     pub const QUICK_START_CREATED: &str = "quick_start_created";
     pub const DESKTOP_ENTRY: &str = "desktop_entry";
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
+    pub const ERROR_TELEMETRY: &str = "error_telemetry";
 }
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::DISCORD_RPC | key::UI_MINIMIZATION | key::HIDE_UID => {
+        key::DISCORD_RPC | key::UI_MINIMIZATION | key::HIDE_UID | key::ERROR_TELEMETRY => {
             json!(true)
         }
 
@@ -105,8 +106,8 @@ pub fn default_value(k: &str) -> Value {
 
         key::UI_SCALING => json!(1.0),
 
-        // [0 = Default (dsound only)]
-        // [1 = Alternate (dsound + version.dll)]
+        // [0 = Default (version.dll)]
+        // [1 = Alternate (dsound)]
         key::ENGINE_METHOD => json!(0),
         _ => Value::Null,
     }

@@ -1,8 +1,10 @@
+use log::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
-use log::*;
+
 include!(concat!(env!("OUT_DIR"), "/character_icons.rs"));
+
 thread_local! {
     static CACHE: RefCell<HashMap<&'static str, Option<slint::Image>>> =
         RefCell::new(HashMap::new());

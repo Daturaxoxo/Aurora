@@ -75,7 +75,9 @@ fn connect_with_retry(pipe: &str, attempts: u32, delay: Duration) -> Option<prot
         match protocol::connect(pipe) {
             Ok(stream) => return Some(stream),
             Err(_) if attempt + 1 < attempts => std::thread::sleep(delay),
-            Err(e) => log(&format!("IPC connect failed after {attempts} attempt(s): {e}")),
+            Err(e) => log(&format!(
+                "IPC connect failed after {attempts} attempt(s): {e}"
+            )),
         }
     }
     None

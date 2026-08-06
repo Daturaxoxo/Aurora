@@ -110,22 +110,22 @@ pub(super) fn watch(
             trace!("Everlight watcher stopped before a log file appeared");
             return;
         }
-        
+
         if let Some(path) = find_latest_log(win64) {
             info!("Found Everlight log: {}", path.display());
             break path;
         }
-        
+
         if Instant::now() >= deadline {
             error!(
                 "No Everlight log appeared in {} within {}s, closing {game_process}",
                 win64.display(),
                 LOG_WAIT_TIMEOUT.as_secs()
             );
-            
+
             kill_game(game_process);
             evt_tx.send(EngineEvent::EverlightTimeout).ok();
-            
+
             return;
         }
         thread::sleep(POLL_INTERVAL);
@@ -141,7 +141,7 @@ fn tail_log(
     stop: &AtomicBool,
 ) {
     let mut offset = 0usize;
-    let mut pending = String::new();
+    let mut pending: Vec<u8> = Vec::new();
 
     loop {
         let stop_requested = stop.load(Ordering::Relaxed);
@@ -153,17 +153,18 @@ fn tail_log(
                     offset = 0;
                     pending.clear();
                 }
-                
+
                 if data.len() > offset {
-                    pending.push_str(&String::from_utf8_lossy(&data[offset..]));
+                    pending.extend_from_slice(&data[offset..]);
                     offset = data.len();
                 }
             }
             Err(e) => warn!("Could not read Everlight log: {e}"),
         }
 
-        while let Some(idx) = pending.find('\n') {
-            let line: String = pending.drain(..=idx).collect();
+        while let Some(idx) = pending.iter().position(|b| *b == b'\n') {
+            let raw: Vec<u8> = pending.drain(..=idx).collect();
+            let line = String::from_utf8_lossy(&raw);
             if handle_line(line.trim(), game_process, evt_tx) {
                 return;
             }
@@ -171,11 +172,12 @@ fn tail_log(
 
         if stop_requested {
             // The game exited; flush a possible final line without a newline.
-            let line = pending.trim().to_string();
+            let line = String::from_utf8_lossy(&pending);
+            let line = line.trim();
             if !line.is_empty() {
-                handle_line(&line, game_process, evt_tx);
+                handle_line(line, game_process, evt_tx);
             }
-            
+
             info!("Everlight watcher stopped, game exited");
             return;
         }
@@ -188,7 +190,7 @@ fn handle_line(line: &str, game_process: &'static str, evt_tx: &mpsc::Sender<Eng
     if line.is_empty() {
         return false;
     }
-    
+
     let Some((code, message)) = parse_line(line) else {
         warn!("Ignoring unrecognized Everlight log line: {line}");
         return false;

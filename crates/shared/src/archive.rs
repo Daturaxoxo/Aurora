@@ -25,11 +25,18 @@ pub fn extract_archive_with_progress<P: AsRef<Path>>(
 ) -> Result<()> {
     let src = src.as_ref();
     let dest = dest.as_ref();
-    let Some(extension) = src.extension() else {
+    let Some(extension) = src.extension().and_then(|os| os.to_str()) else {
         return Err(anyhow!("Couldn't get file extension"));
     };
+    let extension = extension.to_lowercase();
 
-    match extension.to_str().unwrap_or("") {
+    let tarball = src
+        .file_stem()
+        .map(Path::new)
+        .and_then(Path::extension)
+        .is_some_and(|e| e.eq_ignore_ascii_case("tar"));
+
+    match extension.as_str() {
         "" => return Err(anyhow!("Couldn't get file extension")),
         "rar" => {
             let total: u64 = RarArchive::new(&src)
@@ -100,6 +107,12 @@ pub fn extract_archive_with_progress<P: AsRef<Path>>(
                 .with_max_file_size(20 * 1024 * 1024 * 1024)
                 .with_max_total_size(30 * 1024 * 1024 * 1024);
             let files = match ext {
+                "gz" if tarball => extractor.extract(&data, ArchiveFormat::TarGz)?,
+                "bz2" if tarball => extractor.extract(&data, ArchiveFormat::TarBz2)?,
+                "xz" if tarball => extractor.extract(&data, ArchiveFormat::TarXz)?,
+                "zst" if tarball => extractor.extract(&data, ArchiveFormat::TarZst)?,
+                "lz4" if tarball => extractor.extract(&data, ArchiveFormat::TarLz4)?,
+
                 "7z" => extractor.extract(&data, ArchiveFormat::SevenZ)?,
                 "tar" => extractor.extract(&data, ArchiveFormat::Tar)?,
                 "gz" => extractor.extract(&data, ArchiveFormat::Gz)?,

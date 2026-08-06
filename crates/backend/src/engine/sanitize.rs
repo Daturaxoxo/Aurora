@@ -3,7 +3,7 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::{error, info, trace, warn};
 
 use super::AuroraEngine;
@@ -30,28 +30,45 @@ impl AuroraEngine {
                     .into_iter()
                     .map(|p| ("Everlight log".to_string(), p)),
             )
-            .map(|(label, path)| thread::spawn(move || Self::remove_target(&label, &path)))
+            .map(|(label, path)| {
+                thread::spawn(move || Self::remove_target(&label, &path).map_err(|e| e.to_string()))
+            })
             .collect();
 
+        let mut failures: Vec<String> = Vec::new();
+
         for handle in handles {
-            if let Err(panic) = handle.join() {
-                error!("Sanitize worker thread panicked: {panic:?}");
+            match handle.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => failures.push(e),
+                Err(panic) => {
+                    error!("Sanitize worker thread panicked: {panic:?}");
+                    failures.push(format!("worker thread panicked: {panic:?}"));
+                }
             }
+        }
+
+        if !failures.is_empty() {
+            return Err(anyhow!(
+                "Sanitization failed for {} target(s): {}",
+                failures.len(),
+                failures.join("; ")
+            ));
         }
 
         Ok(())
     }
 
-    fn remove_target(label: &str, path: &Path) {
+    fn remove_target(label: &str, path: &Path) -> Result<()> {
         if !path.exists() {
-            return;
+            return Ok(());
         }
 
         for attempt in 1..=5 {
             match Self::try_remove(path) {
                 Ok(()) => {
                     info!("Removed {label} ({})", path.display());
-                    return;
+                    return Ok(());
                 }
                 Err(e) => {
                     if attempt < 5 {
@@ -66,10 +83,13 @@ impl AuroraEngine {
                             "Failed to remove {} after 5 attempts, giving up: {e}",
                             path.display()
                         );
+                        return Err(anyhow!("{label} ({}): {e}", path.display()));
                     }
                 }
             }
         }
+
+        Ok(())
     }
 
     fn try_remove(path: &Path) -> std::io::Result<()> {

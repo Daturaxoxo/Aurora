@@ -71,6 +71,10 @@ impl PopupHandler {
                     std::process::exit(0);
                 }
 
+                if id.as_str() == "screenshot-delete" {
+                    ScreenshotHandler::cancel_delete();
+                }
+
                 #[cfg(target_os = "linux")]
                 if id.as_str() == crate::classes::desktop::POPUP_ID {
                     crate::classes::desktop::mark_prompted();

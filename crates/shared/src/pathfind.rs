@@ -19,8 +19,8 @@ use crate::{
     config::{get, key, set},
 };
 
-const MAX_ANCESTOR_HOPS: usize = 8; // maximum number of ancestor jumps done when searching for Neverness to Everness
-// ^^ done so if someone selects "C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries", it'll resolve to "C:\Program Files\Neverness To Everness"
+const MAX_ANCESTOR_HOPS: usize = 5; // maximum number of ancestor jumps done when searching for Neverness to Everness
+                                    // ^^ done so if someone selects "C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries", it'll resolve to "C:\Program Files\Neverness To Everness"
 const LIBRARY_FOLDERS: &[&str] = &[
     "common",
     "Games",
@@ -237,9 +237,134 @@ fn should_descend(parent: &Path, name: &str) -> bool {
 }
 
 #[cfg(target_os = "linux")]
-fn steam_candidate(game_folder_name: &str) -> Option<PathBuf> {
-    use crate::classes::steam::steam_libraries;
+fn steam_libraries() -> Vec<PathBuf> {
+    crate::classes::steam::steam_libraries()
+}
 
+#[cfg(windows)]
+fn registry_string(hive: isize, subkey: &str, value: &str) -> Option<PathBuf> {
+    use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+    use windows_sys::Win32::System::Registry::RegGetValueW;
+
+    const RRF_RT_REG_SZ: u32 = 0x0000_0002;
+    const ERROR_SUCCESS: u32 = 0;
+
+    fn wide(text: &str) -> Vec<u16> {
+        OsStr::new(text)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    let subkey_w = wide(subkey);
+    let value_w = wide(value);
+    let mut size: u32 = 0;
+
+    let status = unsafe {
+        RegGetValueW(
+            hive as *mut _,
+            subkey_w.as_ptr(),
+            value_w.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &raw mut size,
+        )
+    };
+
+    if status != ERROR_SUCCESS || size == 0 {
+        trace!("Registry value {subkey}\\{value} is unavailable (status {status})");
+        return None;
+    }
+
+    let mut buffer = vec![0u16; (size as usize).div_ceil(2)];
+    let mut written = size;
+
+    let status = unsafe {
+        RegGetValueW(
+            hive as *mut _,
+            subkey_w.as_ptr(),
+            value_w.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buffer.as_mut_ptr().cast(),
+            &raw mut written,
+        )
+    };
+
+    if status != ERROR_SUCCESS {
+        warn!("Could not read registry value {subkey}\\{value} (status {status})");
+        return None;
+    }
+
+    let chars = (written as usize / 2).min(buffer.len());
+    let text: Vec<u16> = buffer[..chars]
+        .iter()
+        .copied()
+        .take_while(|unit| *unit != 0)
+        .collect();
+
+    if text.is_empty() {
+        return None;
+    }
+
+    Some(PathBuf::from(std::ffi::OsString::from_wide(&text)))
+}
+
+#[cfg(windows)]
+fn parse_library_folders(vdf_path: &Path) -> Vec<PathBuf> {
+    let Ok(text) = fs::read_to_string(vdf_path) else {
+        return Vec::new();
+    };
+
+    text.lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("\"path\"")?;
+            let value = rest.trim().strip_prefix('"')?.strip_suffix('"')?;
+            Some(PathBuf::from(value.replace("\\\\", "\\")))
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn steam_libraries() -> Vec<PathBuf> {
+    const HKEY_CURRENT_USER: isize = -2_147_483_647;
+    const HKEY_LOCAL_MACHINE: isize = -2_147_483_646;
+
+    let mut roots: Vec<PathBuf> = [
+        (HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\WOW6432Node\Valve\Steam",
+            "InstallPath",
+        ),
+        (HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath"),
+    ]
+    .into_iter()
+    .filter_map(|(hive, subkey, value)| registry_string(hive, subkey, value))
+    .collect();
+
+    roots.push(PathBuf::from(r"C:\Program Files (x86)\Steam"));
+
+    let mut libraries = Vec::new();
+    for root in roots {
+        let steamapps = root.join("steamapps");
+        if !steamapps.is_dir() {
+            continue;
+        }
+
+        trace!("Found a Steam install at {}", root.display());
+        libraries.push(root);
+        libraries.extend(parse_library_folders(&steamapps.join("libraryfolders.vdf")));
+    }
+
+    libraries.sort();
+    libraries.dedup();
+    libraries
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn steam_candidate(game_folder_name: &str) -> Option<PathBuf> {
     let libraries = steam_libraries();
     if libraries.is_empty() {
         debug!("No Steam libraries found");
@@ -282,7 +407,7 @@ fn steam_candidate(game_folder_name: &str) -> Option<PathBuf> {
     None
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 const fn steam_candidate(_game_folder_name: &str) -> Option<PathBuf> {
     None
 }
@@ -427,15 +552,45 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
     Ok(result)
 }
 
+#[cfg(windows)]
+fn suppress_drive_error_dialogs() {
+    use std::sync::Once;
+
+    const SEM_FAILCRITICALERRORS: u32 = 0x0001;
+
+    static ONCE: Once = Once::new();
+
+    ONCE.call_once(|| unsafe {
+        use windows_sys::Win32::System::Diagnostics::Debug::SetErrorMode;
+
+        let previous = SetErrorMode(SEM_FAILCRITICALERRORS);
+        SetErrorMode(previous | SEM_FAILCRITICALERRORS);
+    });
+}
+
 fn get_root_paths() -> Vec<PathBuf> {
-    if cfg!(windows) {
+    #[cfg(windows)]
+    {
+        suppress_drive_error_dialogs();
+
         (b'A'..=b'Z')
             .filter_map(|b| {
                 let path = PathBuf::from(format!("{}:\\", b as char));
-                path.exists().then_some(path)
+                if !path.exists() {
+                    return None;
+                }
+
+                if fs::read_dir(&path).is_err() {
+                    debug!("Skipping drive {} because it is not ready", path.display());
+                    return None;
+                }
+
+                Some(path)
             })
             .collect()
-    } else {
+    }
+    #[cfg(not(windows))]
+    {
         vec![PathBuf::from("/")]
     }
 }

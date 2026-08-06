@@ -81,15 +81,15 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
 
             for arc in fs::read_dir(entry.path())? {
                 let arc = arc?;
-                if arc.file_type()?.is_file()
-                    && ARCHIVE_EXTENSIONS.contains(
-                        &arc.path()
-                            .extension()
-                            .ok_or_else(|| anyhow!("Could not get file extension"))?
-                            .to_str()
-                            .ok_or_else(|| anyhow!("Could not get file extension"))?,
-                    )
-                {
+                if !arc.file_type()?.is_file() {
+                    continue;
+                }
+                let arc_path = arc.path();
+                let Some(extension) = arc_path.extension().and_then(|os| os.to_str()) else {
+                    continue;
+                };
+                let extension = extension.to_lowercase();
+                if ARCHIVE_EXTENSIONS.contains(&extension.as_str()) {
                     issues.push(Issue::new(
                         format!(
                             "{}/{}",

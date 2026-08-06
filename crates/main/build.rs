@@ -246,8 +246,11 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                         continue;
                     }
 
-                    let size = if relative.starts_with("characters") {128}
-                    else {64};
+                    let size = if relative.starts_with("characters") {
+                        128
+                    } else {
+                        64
+                    };
 
                     if let Ok(img) = image::open(&path) {
                         let scaled = img.resize(size, size, FilterType::Lanczos3);

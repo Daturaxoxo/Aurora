@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
@@ -24,10 +24,15 @@ fn matches_process(process: &Process, target_lower: &str) -> bool {
         return true;
     }
 
-    process
+    if process
         .cmd()
-        .iter()
-        .any(|arg| arg.to_string_lossy().contains(target_lower))
+        .first()
+        .is_some_and(|arg| name_matches(&arg.to_string_lossy()))
+    {
+        return true;
+    }
+
+    name_matches(&process.name().to_string_lossy())
 }
 
 pub(super) struct ProcessSnapshot(System);
@@ -138,10 +143,10 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     let snapshot = {
         let guard = kill_snapshot_lock()
             .read()
-            .map_err(|e| anyhow::anyhow!("Kill snapshot poisoned: {e}"))?;
+            .map_err(|e| anyhow!("Kill snapshot poisoned: {e}"))?;
         guard
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("Kill snapshot not initialized yet"))?
+            .ok_or_else(|| anyhow!("Kill snapshot not initialized yet"))?
     };
 
     let snapshot_data = ProcessSnapshot::refresh();
@@ -165,13 +170,15 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     }
 
     if !kill_failures.is_empty() {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "Failed to kill {} process(es): {}. \
              On Windows, ensure Aurora Engine is running as Administrator.",
             kill_failures.len(),
             kill_failures.join(", ")
         ));
     }
+
+    let mut locked_files: Vec<String> = Vec::new();
 
     for (label, destination) in &snapshot.loader_dlls {
         if !destination.exists() {
@@ -198,8 +205,17 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
             }
         }
         if still_locked {
-            warn!("{label} is still locked after 5 attempts, proceeding anyway");
+            error!("{label} is still locked after 5 attempts");
+            locked_files.push(label.clone());
         }
+    }
+
+    if !locked_files.is_empty() {
+        return Err(anyhow!(
+            "{} file(s) are still locked: {}.",
+            locked_files.len(),
+            locked_files.join(", ")
+        ));
     }
 
     Ok(())

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::plan::Plan;
 use crate::run::Options;
@@ -6,6 +6,10 @@ const ELEVATED_ARG: &str = "--elevated";
 const DELETE_CONFIG_ARG: &str = "--delete-config";
 const DELETE_MODS_ARG: &str = "--delete-mods";
 const PRESERVE_MODS_ARG: &str = "--preserve-mods";
+const DATA_DIR_ARG: &str = "--data-dir";
+const APP_DIR_ARG: &str = "--app-dir";
+const MODS_DIR_ARG: &str = "--mods-dir";
+const BACKUP_DIR_ARG: &str = "--backup-dir";
 pub fn is_relaunch() -> bool {
     std::env::args().any(|arg| arg == ELEVATED_ARG)
 }
@@ -18,6 +22,24 @@ pub fn options_from_args() -> Options {
         delete_mods: has(DELETE_MODS_ARG),
         preserve_mods: has(PRESERVE_MODS_ARG),
     }
+}
+pub fn plan_from_args() -> Plan {
+    let args: Vec<String> = std::env::args().collect();
+    let value = |flag: &str| -> Option<PathBuf> {
+        args.iter()
+            .position(|arg| arg == flag)
+            .and_then(|index| args.get(index + 1))
+            .filter(|value| !value.is_empty() && !value.starts_with("--"))
+            .map(PathBuf::from)
+    };
+
+    let fallback = Plan::resolve();
+    Plan::from_paths(
+        value(DATA_DIR_ARG).unwrap_or(fallback.data_dir),
+        value(APP_DIR_ARG).or(fallback.app_dir),
+        value(MODS_DIR_ARG).or(fallback.mods_dir),
+        value(BACKUP_DIR_ARG).unwrap_or(fallback.backup_dir),
+    )
 }
 pub fn needed(plan: &Plan, options: Options) -> bool {
     if options.delete_mods
@@ -40,7 +62,32 @@ fn can_remove(dir: &Path) -> bool {
     if !dir.exists() {
         return true;
     }
-    is_writable(dir) && dir.parent().is_none_or(is_writable)
+    dir.parent().is_none_or(is_writable) && tree_is_removable(dir)
+}
+
+fn tree_is_removable(path: &Path) -> bool {
+    if !path.is_dir() {
+        return file_is_removable(path);
+    }
+
+    if !is_writable(path) {
+        return false;
+    }
+
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+
+    entries
+        .flatten()
+        .all(|entry| tree_is_removable(&entry.path()))
+}
+
+fn file_is_removable(file: &Path) -> bool {
+    match std::fs::OpenOptions::new().write(true).open(file) {
+        Ok(_) => true,
+        Err(e) => e.kind() != std::io::ErrorKind::PermissionDenied,
+    }
 }
 
 fn is_writable(dir: &Path) -> bool {
@@ -54,7 +101,7 @@ fn is_writable(dir: &Path) -> bool {
     }
 }
 #[cfg(windows)]
-pub fn relaunch(options: Options) -> Result<(), String> {
+pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
@@ -62,6 +109,22 @@ pub fn relaunch(options: Options) -> Result<(), String> {
 
     fn wide(value: &std::ffi::OsStr) -> Vec<u16> {
         value.encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    fn push_path(params: &mut String, flag: &str, path: Option<&Path>) {
+        let Some(path) = path else {
+            return;
+        };
+        let text = path.display().to_string();
+        let trimmed = text.trim_end_matches('\\');
+        if trimmed.is_empty() {
+            return;
+        }
+        params.push(' ');
+        params.push_str(flag);
+        params.push_str(" \"");
+        params.push_str(trimmed);
+        params.push('"');
     }
 
     let exe = std::env::current_exe().map_err(|e| format!("could not resolve the exe: {e}"))?;
@@ -79,6 +142,10 @@ pub fn relaunch(options: Options) -> Result<(), String> {
         params.push(' ');
         params.push_str(PRESERVE_MODS_ARG);
     }
+    push_path(&mut params, DATA_DIR_ARG, Some(&plan.data_dir));
+    push_path(&mut params, APP_DIR_ARG, plan.app_dir.as_deref());
+    push_path(&mut params, MODS_DIR_ARG, plan.mods_dir.as_deref());
+    push_path(&mut params, BACKUP_DIR_ARG, Some(&plan.backup_dir));
 
     let operation = wide("runas".as_ref());
     let file = wide(exe.as_os_str());
@@ -106,6 +173,6 @@ pub fn relaunch(options: Options) -> Result<(), String> {
 }
 
 #[cfg(not(windows))]
-pub fn relaunch(_options: Options) -> Result<(), String> {
+pub fn relaunch(_plan: &Plan, _options: Options) -> Result<(), String> {
     Err("Aurora's files are owned by another user. Please retry with elevated permissions.".into())
 }

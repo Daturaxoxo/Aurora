@@ -27,7 +27,11 @@ use crate::{
 };
 use crate::{logger::get_latest_logs, utils};
 
+#[cfg(any(debug_assertions, feature = "beta"))]
 const TELEMETRY_ENDPOINT: &str = "https://beta.getaurora.moe/api/v2/telemetry";
+
+#[cfg(not(any(debug_assertions, feature = "beta")))]
+const TELEMETRY_ENDPOINT: &str = "https://api.getaurora.moe/v2/telemetry";
 
 pub fn export_telemetry() -> Result<()> {
     let Some(logs) = get_latest_logs() else {
@@ -127,7 +131,7 @@ pub fn export_telemetry() -> Result<()> {
     let distro = detect_distribution(game_path.as_path());
     writeln!(file, "Distribution:    {distro:?}")?;
 
-    let write_access = std::fs::metadata(&game_path).is_ok();
+    let write_access = probe_write_access(game_path.as_path());
     writeln!(file, "Write Access:    {write_access}")?;
 
     let disks = Disks::new_with_refreshed_list();
@@ -172,6 +176,7 @@ pub fn export_telemetry() -> Result<()> {
     let mut print_entry = |name: &str, path: &Path| -> Result<()> {
         if !path.exists() {
             writeln!(file, "{} MISSING [{}]", name, path.display())?;
+            return Ok(());
         }
 
         if path.is_file() {
@@ -183,7 +188,7 @@ pub fn export_telemetry() -> Result<()> {
 
             let mtime = cfg_select! {
                 windows => metadata.last_write_time(),
-                unix => metadata.st_atime(),
+                unix => metadata.st_mtime(),
             };
             writeln!(
                 file,
@@ -232,29 +237,36 @@ pub fn export_telemetry() -> Result<()> {
 
     // TODO: should use the read_dir_recursive fn from utils but i don't
     // get paid enough....... it works
-    let entries = std::fs::read_dir(&addon_dir)?;
-    for entry in entries {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            for entry in std::fs::read_dir(entry.path())? {
+    match std::fs::read_dir(&addon_dir) {
+        Ok(entries) => {
+            for entry in entries {
                 let entry = entry?;
-                if entry.file_type()?.is_file() {
-                    let name = entry.file_name().into_string().unwrap_or_default();
-                    if std::path::Path::new(&name)
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
-                    {
-                        let path = entry.path();
-                        print_entry(&format!("ENABLED: {name}"), path.as_path())?;
-                    } else if std::path::Path::new(&name)
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("disabled"))
-                    {
-                        let path = entry.path();
-                        print_entry(&format!("DISABLED: {name}"), path.as_path())?;
+                if entry.file_type()?.is_dir() {
+                    for entry in std::fs::read_dir(entry.path())? {
+                        let entry = entry?;
+                        if entry.file_type()?.is_file() {
+                            let name = entry.file_name().into_string().unwrap_or_default();
+                            if std::path::Path::new(&name)
+                                .extension()
+                                .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"))
+                            {
+                                let path = entry.path();
+                                print_entry(&format!("ENABLED: {name}"), path.as_path())?;
+                            } else if std::path::Path::new(&name)
+                                .extension()
+                                .is_some_and(|ext| ext.eq_ignore_ascii_case("disabled"))
+                            {
+                                let path = entry.path();
+                                print_entry(&format!("DISABLED: {name}"), path.as_path())?;
+                            }
+                        }
                     }
                 }
             }
+        }
+        Err(e) => {
+            warn!("Could not read the addon directory: {e}");
+            print_entry("Addon folder", addon_dir.as_path())?;
         }
     }
 
@@ -266,6 +278,35 @@ pub fn export_telemetry() -> Result<()> {
     file.flush()?;
 
     Ok(())
+}
+
+fn probe_write_access(dir: &Path) -> bool {
+    let probe = dir.join(format!(".aurora_write_probe_{}", std::process::id()));
+
+    match std::fs::File::create(&probe) {
+        Ok(_) => {
+            if let Err(e) = std::fs::remove_file(&probe) {
+                warn!("Could not remove the write probe {}: {e}", probe.display());
+            }
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+fn scrub_username(text: &str) -> String {
+    let user = dirs::home_dir()
+        .and_then(|home| {
+            home.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .unwrap_or_default();
+
+    if user.is_empty() {
+        return text.to_string();
+    }
+
+    text.replace(&user, "<user>")
 }
 
 #[cfg(target_os = "windows")]
@@ -307,14 +348,12 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
     let spawned = std::thread::Builder::new()
         .name("error-telemetry".into())
         .spawn(move || {
-            let clean = get_local_version().trim().to_string();
+            let version = get_local_version();
             let client = reqwest::blocking::Client::builder()
-                .user_agent(format!("AuroraLauncher/{clean}"))
+                .user_agent(format!("AuroraLauncher/{version}"))
                 .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap_or_default();
-
-            let version = get_local_version().trim().to_string();
 
             let os_main = System::name().unwrap_or_else(|| "Unknown".to_string());
             let os_version = System::os_version()
@@ -322,8 +361,15 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                 .unwrap_or_else(|| "Unknown".to_string());
 
             while let Ok(event) = rx.recv() {
+                if !config::get(config::key::ERROR_TELEMETRY)
+                    .as_bool()
+                    .unwrap_or(true)
+                {
+                    continue;
+                }
+
                 let payload = serde_json::json!({
-                    "message": event.message,
+                    "message": scrub_username(&event.message),
                     "module": event.module,
                     "version": version,
                     "timestamp": event.timestamp,

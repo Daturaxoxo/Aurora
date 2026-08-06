@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex, OnceLock,
+        mpsc, Arc, Mutex, OnceLock, PoisonError,
     },
     thread,
     time::Duration,
@@ -67,7 +67,7 @@ impl EngineHandler {
                     match AuroraEngine::new(&game_path) {
                         Ok(e) => {
                             info!("Game Path: {}", game_path.display());
-                            *engine.lock().unwrap() = Some(e);
+                            *engine.lock().unwrap_or_else(PoisonError::into_inner) = Some(e);
                             evt_tx.send(EngineEvent::EngineReady).ok();
                         }
                         Err(e) => {
@@ -107,7 +107,8 @@ impl EngineHandler {
                             let mut attempts = 0;
                             let result = loop {
                                 {
-                                    let mut guard = engine.lock().unwrap();
+                                    let mut guard =
+                                        engine.lock().unwrap_or_else(PoisonError::into_inner);
                                     if let Some(e) = guard.as_mut() {
                                         break match e.inject(custom_files) {
                                             Ok(()) => Ok(e.clone()),
@@ -128,7 +129,11 @@ impl EngineHandler {
                                 Err(e) => {
                                     error!("Inject failed: {e}");
                                     evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
-                                    if let Some(e) = engine.lock().unwrap().as_mut() {
+                                    if let Some(e) = engine
+                                        .lock()
+                                        .unwrap_or_else(PoisonError::into_inner)
+                                        .as_mut()
+                                    {
                                         e.sanitize(false).ok();
                                     }
                                     GAME_RUNNING.store(false, Ordering::SeqCst);
@@ -145,13 +150,19 @@ impl EngineHandler {
                         });
                     }
                     EngineCommand::Sanitize => {
-                        std::thread::spawn(move || match engine.lock().unwrap().as_mut() {
-                            Some(e) => {
-                                if let Err(e) = e.sanitize(true) {
-                                    error!("Sanitize failed: {e}");
+                        std::thread::spawn(move || {
+                            match engine
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .as_mut()
+                            {
+                                Some(e) => {
+                                    if let Err(e) = e.sanitize(true) {
+                                        error!("Sanitize failed: {e}");
+                                    }
                                 }
+                                None => error!("Sanitize failed: engine not initialized"),
                             }
-                            None => error!("Sanitize failed: engine not initialized"),
                         });
                     }
                     EngineCommand::Update => {
@@ -173,7 +184,8 @@ impl EngineHandler {
                                 .ok();
                             #[allow(clippy::option_if_let_else)]
                             let result = {
-                                let mut guard = engine.lock().unwrap();
+                                let mut guard =
+                                    engine.lock().unwrap_or_else(PoisonError::into_inner);
                                 if let Some(e) = guard.as_mut() {
                                     e.reinit(&game_path)
                                 } else {
@@ -203,7 +215,11 @@ impl EngineHandler {
                     }
                     EngineCommand::Validate => {
                         std::thread::spawn(move || {
-                            if let Some(e) = engine.lock().unwrap().as_mut() {
+                            if let Some(e) = engine
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .as_mut()
+                            {
                                 match e.validate() {
                                     Ok(missing) => {
                                         evt_tx.send(EngineEvent::ValidationResult { missing }).ok();

@@ -42,6 +42,7 @@ reqwest = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 sysinfo = { workspace = true }
+md5 = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true }

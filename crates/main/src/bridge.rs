@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{LaunchState, MainWindow};
+use crate::{classes::updater, LaunchState, MainWindow};
 use anyhow::{anyhow, Result};
 use backend::handler::{EngineCommand, EngineEvent, EngineHandler};
 use log::*;
@@ -125,6 +125,10 @@ impl Bridge {
                     EngineEvent::EngineReady => {
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
+                            if updater::UpdateHandler::ui_locked() {
+                                info!("Engine ready while an update holds the UI lock");
+                                return;
+                            }
                             if let Some(w) = w_ui.upgrade() {
                                 w.set_launch_disabled(false);
                             }
@@ -161,6 +165,10 @@ impl Bridge {
                         Self::show_toast(&w, &msg, "error");
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
+                            if updater::UpdateHandler::ui_locked() {
+                                info!("Launch failed while an update holds the UI lock");
+                                return;
+                            }
                             if let Some(w) = w_ui.upgrade() {
                                 w.set_launch_state(LaunchState::Launch);
                                 w.set_launch_disabled(false);
@@ -172,6 +180,10 @@ impl Bridge {
                         crate::classes::tray::deactivate(&w);
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
+                            if updater::UpdateHandler::ui_locked() {
+                                info!("Game closed while an update holds the UI lock");
+                                return;
+                            }
                             if let Some(w) = w_ui.upgrade() {
                                 w.set_launch_state(LaunchState::Launch);
                                 w.set_launch_disabled(false);

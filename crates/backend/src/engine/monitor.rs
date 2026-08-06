@@ -69,6 +69,9 @@ impl AuroraEngine {
         let mut snapshot = ProcessSnapshot::refresh();
         let mut launcher_seen = false;
         let mut missing_ticks = 0u32;
+        let grace_ticks = (Duration::from_secs(u64::from(grace_secs)).as_millis()
+            / THREAD_SLEEP_DURATION.as_millis())
+        .max(1) as u32;
         let deadline = Instant::now() + LAUNCHER_WAIT_TIMEOUT;
 
         loop {
@@ -77,7 +80,9 @@ impl AuroraEngine {
 
             if !snapshot.matching(game_process).is_empty() {
                 info!("NTE process ({game_process}) was detected, game is running.");
-                RPC.set_ingame()?;
+                if let Err(e) = RPC.set_ingame() {
+                    warn!("Failed to update Discord RPC: {e}");
+                }
                 return Ok(true);
             }
 
@@ -92,7 +97,9 @@ impl AuroraEngine {
                 if !launcher_seen {
                     info!("NTE Launcher activity detected.");
                     launcher_seen = true;
-                    RPC.set_launching()?;
+                    if let Err(e) = RPC.set_launching() {
+                        warn!("Failed to update Discord RPC: {e}");
+                    }
                 }
                 continue;
             }
@@ -105,7 +112,7 @@ impl AuroraEngine {
             if missing_ticks == 1 {
                 warn!("NTE Launcher process not detected");
             }
-            if missing_ticks >= grace_secs {
+            if missing_ticks >= grace_ticks {
                 warn!(
                     "NTE Launcher failed to resolve within {grace_secs}s of continuous absence. Aborting monitor."
                 );
@@ -124,7 +131,12 @@ impl AuroraEngine {
             snapshot.rerefresh();
         }
 
-        RPC.set_idle()
+        if let Err(e) = RPC.set_idle() {
+            warn!("Failed to update Discord RPC: {e}");
+            return Err(anyhow!(e));
+        }
+
+        Ok(())
     }
 
     fn ensure_processes_gone(&self, grace: Duration) -> Result<()> {

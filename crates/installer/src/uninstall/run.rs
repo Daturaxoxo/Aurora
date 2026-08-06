@@ -1,13 +1,13 @@
+use crate::UninstallerWindow;
+use crate::plan::Plan;
+use ipc::manifest::LocalManifest;
+use shared::utils::format_bytes;
+use slint::{Model, SharedString, VecModel, Weak};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use ipc::manifest::LocalManifest;
-use shared::utils::format_bytes;
-use slint::{Model, SharedString, VecModel, Weak};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-use crate::UninstallerWindow;
-use crate::plan::Plan;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 static PENDING_CLEANUP: Mutex<Option<PathBuf>> = Mutex::new(None);
 
@@ -80,7 +80,7 @@ fn run_inner(
     let mut backup: Option<String> = None;
     if let Some(mods) = mods_dir {
         if backup_wanted {
-            let archive = backup_path();
+            let archive = backup_path(&plan.backup_dir);
             log_line(ui, format!("Archiving mods to {}...", archive.display()));
             archive_mods(ui, mods, &archive, ratio(step, steps), ratio(1, steps))?;
             backup = Some(archive.to_string_lossy().into_owned());
@@ -109,6 +109,21 @@ fn run_inner(
             );
         }
         Some(app_dir) => {
+            log_line(ui, "Removing shortcuts...".into());
+            shared::desktop_entry::uninstall();
+            if let Err(e) = shared::desktop_entry::remove_desktop_shortcut() {
+                log_line(
+                    ui,
+                    format!("WARNING: could not remove the desktop shortcut: {e}"),
+                );
+            }
+            if let Err(e) = unregister_uninstall_entry() {
+                log_line(
+                    ui,
+                    format!("WARNING: could not remove the Add or Remove Programs entry: {e}"),
+                );
+            }
+
             log_line(ui, format!("Deleting {}...", app_dir.display()));
             if remove_app_dir(app_dir)? {
                 *PENDING_CLEANUP.lock().unwrap() = Some(app_dir.to_path_buf());
@@ -182,7 +197,10 @@ fn remove_app_dir(dir: &Path) -> Result<bool, String> {
     }
     crate::plan::verify_app_dir(dir)?;
 
-    let self_exe = &std::env::current_exe().unwrap_or_default().canonicalize().ok();
+    let self_exe = &std::env::current_exe()
+        .unwrap_or_default()
+        .canonicalize()
+        .ok();
     let mut skipped = false;
 
     for path in owned_paths(dir) {
@@ -261,13 +279,33 @@ fn remove_dir(dir: &Path) -> Result<(), String> {
     fs::remove_dir_all(dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))
 }
 
-fn backup_path() -> PathBuf {
-    let base = dirs::document_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."));
+fn backup_path(base: &Path) -> PathBuf {
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    base.join("Aurora Mods Backup")
-        .join(format!("AuroraMods-{stamp}.zip"))
+    base.join(format!("AuroraMods-{stamp}.zip"))
+}
+
+#[cfg(windows)]
+fn unregister_uninstall_entry() -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+
+    const ARP_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora";
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let status = std::process::Command::new("reg.exe")
+        .args(["delete", ARP_KEY, "/f"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|e| format!("failed to run reg.exe: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("reg.exe exited with {status}"));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn unregister_uninstall_entry() -> Result<(), String> {
+    Ok(())
 }
 
 fn aurora_is_running() -> bool {

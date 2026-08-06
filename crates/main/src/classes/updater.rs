@@ -40,6 +40,15 @@ struct BetaPhaseResponse {
 }
 
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
+static UI_LOCKED: AtomicBool = AtomicBool::new(false);
+
+struct UpdateRunningGuard;
+
+impl Drop for UpdateRunningGuard {
+    fn drop(&mut self) {
+        UPDATE_RUNNING.store(false, Ordering::SeqCst);
+    }
+}
 
 pub struct UpdateHandler;
 
@@ -138,13 +147,13 @@ impl UpdateHandler {
 
         let w = window.clone();
         std::thread::spawn(move || {
+            let _running = UpdateRunningGuard;
             if let Err(e) = Self::run_update_flow(&w, show_toast) {
                 warn!("update flow failed: {e}");
                 if show_toast {
                     Bridge::show_toast(&w, "Could not check for updates.", "error");
                 }
             }
-            UPDATE_RUNNING.store(false, Ordering::SeqCst);
         });
     }
 
@@ -265,11 +274,14 @@ impl UpdateHandler {
 
     pub fn start_update(window: &slint::Weak<MainWindow>) {
         if UPDATE_RUNNING.swap(true, Ordering::SeqCst) {
+            warn!("start_update ignored: an update is already running");
+            Bridge::show_toast(window, "An update is already running.", "info");
             return;
         }
 
         let w = window.clone();
         std::thread::spawn(move || {
+            let _running = UpdateRunningGuard;
             #[cfg(windows)]
             let result = Self::run_updater(&w, false);
             #[cfg(target_os = "linux")]
@@ -281,7 +293,6 @@ impl UpdateHandler {
                 Self::set_locked(&w, false);
                 Bridge::show_toast(&w, "Update failed. Try again later.", "error");
             }
-            UPDATE_RUNNING.store(false, Ordering::SeqCst);
         });
     }
 
@@ -527,12 +538,19 @@ impl UpdateHandler {
     #[cfg(target_os = "linux")]
     fn fetch_linux_manifest() -> Result<ipc::manifest::LinuxManifest> {
         let mut last_err = anyhow!("no manifest sources configured");
-        for url in [ipc::MANIFEST_URL_PRIMARY, ipc::MANIFEST_URL_FALLBACK] {
+        for url in ipc::manifest_urls() {
             let result = reqwest::blocking::get(url)
                 .and_then(Response::error_for_status)
                 .and_then(Response::json::<ipc::manifest::LinuxManifest>);
             match result {
-                Ok(manifest) => return Ok(manifest),
+                Ok(manifest) => {
+                    if let Err(e) = manifest.appimage.validate_url() {
+                        warn!("manifest from {url} rejected: {e}");
+                        last_err = anyhow!(e);
+                        continue;
+                    }
+                    return Ok(manifest);
+                }
                 Err(e) => {
                     warn!("manifest fetch failed from {url}: {e}");
                     last_err = e.into();
@@ -606,12 +624,19 @@ impl UpdateHandler {
     #[cfg(windows)]
     fn fetch_manifest() -> Result<Manifest> {
         let mut last_err = anyhow!("no manifest sources configured");
-        for url in [ipc::MANIFEST_URL_PRIMARY, ipc::MANIFEST_URL_FALLBACK] {
+        for url in ipc::manifest_urls() {
             let result = reqwest::blocking::get(url)
                 .and_then(Response::error_for_status)
                 .and_then(Response::json::<Manifest>);
             match result {
-                Ok(manifest) => return Ok(manifest),
+                Ok(manifest) => {
+                    if let Err(e) = manifest.validate_urls() {
+                        warn!("manifest from {url} rejected: {e}");
+                        last_err = anyhow!(e);
+                        continue;
+                    }
+                    return Ok(manifest);
+                }
                 Err(e) => {
                     warn!("manifest fetch failed from {url}: {e}");
                     last_err = e.into();
@@ -639,7 +664,12 @@ impl UpdateHandler {
         .ok();
     }
 
+    pub fn ui_locked() -> bool {
+        UI_LOCKED.load(Ordering::SeqCst)
+    }
+
     fn begin_locked_update(window: &slint::Weak<MainWindow>) {
+        UI_LOCKED.store(true, Ordering::SeqCst);
         let w = window.clone();
         slint::invoke_from_event_loop(move || {
             crate::classes::logwindow::hide();
@@ -746,6 +776,7 @@ impl UpdateHandler {
     }
 
     fn set_locked(window: &slint::Weak<MainWindow>, locked: bool) {
+        UI_LOCKED.store(locked, Ordering::SeqCst);
         let w = window.clone();
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {

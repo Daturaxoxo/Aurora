@@ -315,6 +315,12 @@ component ScreenshotCard inherits Rectangle {
     }
 }
 
+global ScreenshotState {
+    in-out property <int> sort-index: 0;
+    in-out property <bool> favorites-only: false;
+    in-out property <bool> select-mode: false;
+}
+
 export component ScreenshotsPage inherits Rectangle {
     callback close-screenshots();
     callback screenshot-favorite(int);
@@ -335,9 +341,9 @@ export component ScreenshotsPage inherits Rectangle {
     in property <int> selected-count: 0;
     in property <image> preview-image;
 
-    in-out property <int> sort-index: 0; // 0 = newest, 1 = oldest, 2 = name
-    in-out property <bool> favorites-only: false;
-    in-out property <bool> select-mode: false;
+    in-out property <int> sort-index <=> ScreenshotState.sort-index; // 0 = newest, 1 = oldest, 2 = name
+    in-out property <bool> favorites-only <=> ScreenshotState.favorites-only;
+    in-out property <bool> select-mode <=> ScreenshotState.select-mode;
 
     // -1 = no preview open
     in-out property <int> preview-index: -1;

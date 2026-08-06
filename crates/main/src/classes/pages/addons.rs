@@ -423,13 +423,15 @@ impl AddonsHandler {
         let mut addons = Vec::new();
 
         let mut unseen_keys: Vec<&str> = ADDON_CONFIG_KEYS.iter().map(|(_, k)| *k).collect();
+        let mut seen_keys: Vec<(&str, bool)> = Vec::new();
 
         let entries = match std::fs::read_dir(&addon_dir) {
             Ok(e) => e,
-            Err(_e) => {
-                for key in unseen_keys {
-                    config::set(key, false);
-                }
+            Err(e) => {
+                warn!(
+                    "Addons scan: could not read '{}', keeping the existing config: {e}",
+                    addon_dir.display()
+                );
                 return addons;
             }
         };
@@ -508,26 +510,46 @@ impl AddonsHandler {
 
             if addon.installed {
                 let local_hash = fs::read_to_string(folder.join("addon.md5")).unwrap_or_default();
-                let remote_hash = addon.install_data.first().map_or("", |d| d.md5.as_str());
+                let remote_hash = Self::combined_md5(&addon.install_data);
                 addon.update_available =
-                    !remote_hash.is_empty() && local_hash.trim() != remote_hash.trim();
+                    !remote_hash.is_empty() && local_hash.trim() != remote_hash;
             }
 
             let Some((_, k)) = ADDON_CONFIG_KEYS.iter().find(|(n, _)| *n == addon.name) else {
                 error!("Unknown addon name: {}", addon.name);
                 continue;
             };
-            config::set(k, addon.enabled);
+            seen_keys.push((k, addon.enabled));
             unseen_keys.retain(|key| key != k);
 
             addons.push(addon);
         }
 
-        for key in unseen_keys {
-            config::set(key, false);
+        let persisted = config::modify(|data| {
+            for (key, enabled) in &seen_keys {
+                data.insert((*key).to_string(), (*enabled).into());
+            }
+            for key in &unseen_keys {
+                data.insert((*key).to_string(), false.into());
+            }
+        });
+        if !persisted {
+            warn!("Addons scan: could not persist the addon config keys");
         }
 
         addons
+    }
+
+    fn combined_md5(install_data: &[AddonData]) -> String {
+        if install_data.is_empty() || install_data.iter().any(|d| d.md5.trim().is_empty()) {
+            return String::new();
+        }
+
+        install_data
+            .iter()
+            .map(|d| d.md5.trim())
+            .collect::<Vec<_>>()
+            .join(",")
     }
 
     fn fetch_gamebanana_files(addon: &Addon) -> Vec<AddonData> {
@@ -622,56 +644,17 @@ impl AddonsHandler {
             );
             match Self::download_file(&data.file_name, &data.url, &addon.folder) {
                 Ok(dest) => {
-                    if !data.md5.is_empty() {
-                        let _ = fs::write(addon.folder.join("addon.md5"), &data.md5);
-                    }
-
                     if dest
                         .extension()
                         .is_some_and(|e| ARCHIVE_EXTENSIONS.contains(&e.to_str().unwrap_or("")))
                     {
-                        extract_archive(&dest, &addon.folder)?;
-
-                        let files = fs::read_dir(&addon.folder)?.collect::<Vec<_>>();
-                        for file in files {
-                            let path = file?.path();
-                            let extension = path.extension().unwrap_or_default();
-                            let name = path
-                                .file_name()
-                                .with_context(|| {
-                                    "install download file: couldn't get path file name"
-                                })?
-                                .to_str()
-                                .with_context(|| {
-                                    "install download file: couldn't get path file name as str"
-                                })?;
-                            if extension == "txt" {
-                                fs::remove_file(&path)?;
-                            }
-
-                            // HACK: Red dots has 2 folders, need to get files from the "Disable" folder
-                            if name == "Muted" {
-                                fs::remove_dir_all(&path)?;
-                            }
-                            if name == "Disable" {
-                                let files = fs::read_dir(&path)?.collect::<Vec<_>>();
-                                for file in files {
-                                    let path = file?.path();
-                                    // put them in the parent
-                                    fs::rename(
-                                        &path,
-                                        addon.folder.join(path.file_name().unwrap()),
-                                    )?;
-                                }
-
-                                fs::remove_dir_all(&path)?;
-                            }
-
-                            // HACK: Hide UID also has 2 other mods inside, remove those
-                            // wow what a hack -daturas
-                            if name.contains("PingStatus") || name.contains("PhoneFunctions") {
-                                fs::remove_file(&path)?;
-                            }
+                        if let Err(e) = Self::unpack(&dest, &addon.folder) {
+                            error!(
+                                "Could not install addon: failed to extract '{}': {e}",
+                                dest.display()
+                            );
+                            failures.push(format!("{}: {e}", data.file_name));
+                            continue;
                         }
                         info!("Installed addon: extracted '{}'", dest.display());
                     }
@@ -688,6 +671,15 @@ impl AddonsHandler {
         }
 
         if failures.is_empty() {
+            let md5 = Self::combined_md5(&addon.install_data);
+            if !md5.is_empty() {
+                if let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5) {
+                    warn!(
+                        "Installed addon: could not record the hash for '{}': {e}",
+                        addon.name
+                    );
+                }
+            }
             Ok(())
         } else {
             Err(anyhow::anyhow!(
@@ -699,16 +691,61 @@ impl AddonsHandler {
         }
     }
 
+    fn unpack(dest: &Path, folder: &Path) -> Result<()> {
+        extract_archive(dest, folder)?;
+
+        let files = fs::read_dir(folder)?.collect::<Vec<_>>();
+        for file in files {
+            let path = file?.path();
+            let extension = path.extension().unwrap_or_default();
+            let name = path
+                .file_name()
+                .with_context(|| "install download file: couldn't get path file name")?
+                .to_str()
+                .with_context(|| "install download file: couldn't get path file name as str")?;
+            if extension == "txt" {
+                fs::remove_file(&path)?;
+            }
+
+            // HACK: Red dots has 2 folders, need to get files from the "Disable" folder
+            if name == "Muted" {
+                fs::remove_dir_all(&path)?;
+            }
+            if name == "Disable" {
+                let files = fs::read_dir(&path)?.collect::<Vec<_>>();
+                for file in files {
+                    let path = file?.path();
+                    // put them in the parent
+                    fs::rename(&path, folder.join(path.file_name().unwrap()))?;
+                }
+
+                fs::remove_dir_all(&path)?;
+            }
+
+            // HACK: Hide UID also has 2 other mods inside, remove those
+            // wow what a hack -daturas
+            if name.contains("PingStatus") || name.contains("PhoneFunctions") {
+                fs::remove_file(&path)?;
+            }
+        }
+
+        Ok(())
+    }
+
     const DOWNLOAD_MAX_ATTEMPTS: u32 = 4;
 
     fn download_file(file_name: &str, url: &str, dest_folder: &Path) -> anyhow::Result<PathBuf> {
-        let file_name = sanitize_download_filename(file_name).with_context(|| {
-            format!("refusing to download to unsafe file name '{file_name}'")
-        })?;
+        let file_name = sanitize_download_filename(file_name)
+            .with_context(|| format!("refusing to download to unsafe file name '{file_name}'"))?;
 
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
+
+        let temp_dir = std::env::temp_dir().join("Aurora/Addons");
+        std::fs::create_dir_all(&temp_dir)
+            .with_context(|| format!("creating '{}'", temp_dir.display()))?;
+        let temp_path = temp_dir.join(&file_name);
 
         let mut last_err = None;
         for attempt in 1..=Self::DOWNLOAD_MAX_ATTEMPTS {
@@ -720,9 +757,24 @@ impl AddonsHandler {
             {
                 Ok(bytes) => {
                     let dest = dest_folder.join(&file_name);
-                    std::fs::write(&dest, &bytes)
-                        .with_context(|| format!("writing '{}' to disk", dest.display()))?;
-                    return Ok(dest);
+                    let written = std::fs::write(&temp_path, &bytes)
+                        .with_context(|| format!("writing '{}' to disk", temp_path.display()))
+                        .and_then(|()| Self::move_into_place(&temp_path, &dest));
+
+                    return match written {
+                        Ok(()) => Ok(dest),
+                        Err(e) => {
+                            if temp_path.exists() {
+                                if let Err(e) = std::fs::remove_file(&temp_path) {
+                                    warn!(
+                                        "Addon download: could not remove '{}': {e}",
+                                        temp_path.display()
+                                    );
+                                }
+                            }
+                            Err(e)
+                        }
+                    };
                 }
                 Err(e) => {
                     warn!(
@@ -744,6 +796,24 @@ impl AddonsHandler {
             Self::DOWNLOAD_MAX_ATTEMPTS,
             last_err.map(|e| e.to_string()).unwrap_or_default()
         ))
+    }
+
+    fn move_into_place(from: &Path, to: &Path) -> Result<()> {
+        if fs::rename(from, to).is_ok() {
+            return Ok(());
+        }
+
+        fs::copy(from, to)
+            .with_context(|| format!("moving '{}' to '{}'", from.display(), to.display()))?;
+
+        if let Err(e) = fs::remove_file(from) {
+            warn!(
+                "Addon download: could not remove '{}' after moving it: {e}",
+                from.display()
+            );
+        }
+
+        Ok(())
     }
 
     fn set_enabled(addon: &Addon, enable: bool) {

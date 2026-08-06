@@ -318,6 +318,10 @@ fn browsable_folder() -> Option<PathBuf> {
     }
 }
 
+fn favorite_key(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
 fn favorites() -> HashSet<String> {
     config::get(key::SCREENSHOT_FAVORITES)
         .as_array()
@@ -329,10 +333,34 @@ fn favorites() -> HashSet<String> {
         .unwrap_or_default()
 }
 
-fn save_favorites(favs: &HashSet<String>) {
-    let mut list: Vec<String> = favs.iter().cloned().collect();
-    list.sort();
-    config::set(key::SCREENSHOT_FAVORITES, list);
+fn update_favorites(f: impl FnOnce(&mut HashSet<String>)) {
+    config::modify(|data| {
+        let mut favs: HashSet<String> = data
+            .get(key::SCREENSHOT_FAVORITES)
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        f(&mut favs);
+
+        let mut list: Vec<String> = favs.into_iter().collect();
+        list.sort();
+        data.insert(
+            key::SCREENSHOT_FAVORITES.to_string(),
+            serde_json::Value::from(list),
+        );
+    });
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    let (Ok(a), Ok(b)) = (std::fs::canonicalize(a), std::fs::canonicalize(b)) else {
+        return false;
+    };
+    a == b
 }
 
 fn parse_name_timestamp(stem: &str) -> Option<NaiveDateTime> {
@@ -382,7 +410,7 @@ fn scan() -> Vec<Screenshot> {
         });
 
         shots.push(Screenshot {
-            favorite: favs.contains(&file_name),
+            favorite: favs.contains(&favorite_key(&path)),
             path,
             duplicates,
             file_name,
@@ -561,41 +589,58 @@ impl ScreenshotHandler {
         paths
     }
 
+    pub fn cancel_delete() {
+        STATE.lock().unwrap().pending_delete.clear();
+    }
+
     pub fn confirm_delete(window: &slint::Weak<MainWindow>) {
         let pending = std::mem::take(&mut STATE.lock().unwrap().pending_delete);
         if pending.is_empty() {
             return;
         }
 
-        let mut favs = favorites();
-        let mut favs_changed = false;
-        for path in &pending {
-            for copy in Self::copies(path) {
-                if let Err(e) = std::fs::remove_file(&copy) {
-                    error!("Could not delete '{}': {e}", copy.display());
-                } else {
-                    info!("Deleted '{}'", copy.display());
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            for path in &pending {
+                for copy in Self::copies(path) {
+                    if let Err(e) = std::fs::remove_file(&copy) {
+                        error!("Could not delete '{}': {e}", copy.display());
+                    } else {
+                        info!("Deleted '{}'", copy.display());
+                    }
                 }
             }
 
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            if favs.remove(&name) {
-                favs_changed = true;
+            let favs = favorites();
+            let stale: Vec<String> = pending
+                .iter()
+                .map(|path| favorite_key(path))
+                .filter(|key| favs.contains(key))
+                .collect();
+            if !stale.is_empty() {
+                update_favorites(|favs| {
+                    for key in &stale {
+                        favs.remove(key);
+                    }
+                });
             }
-            STATE.lock().unwrap().selected.remove(path);
-        }
-        if favs_changed {
-            save_favorites(&favs);
-        }
 
-        Self::reload(window);
+            {
+                let mut state = STATE.lock().unwrap();
+                for path in &pending {
+                    state.selected.remove(path);
+                }
+            }
+
+            let _ = slint::invoke_from_event_loop(move || {
+                Self::reload(&ww);
+            });
+        });
     }
 
     fn show_delete_popup(w: &MainWindow, paths: Vec<PathBuf>) {
         if paths.is_empty() {
+            STATE.lock().unwrap().pending_delete.clear();
             return;
         }
 
@@ -630,16 +675,12 @@ impl ScreenshotHandler {
             let Some(path) = Self::path_at(index) else {
                 return;
             };
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-
-            let mut favs = favorites();
-            if !favs.remove(&name) {
-                favs.insert(name);
-            }
-            save_favorites(&favs);
+            let key = favorite_key(&path);
+            update_favorites(move |favs| {
+                if !favs.remove(&key) {
+                    favs.insert(key);
+                }
+            });
             Self::reload(&ww);
         });
 
@@ -740,7 +781,7 @@ impl ScreenshotHandler {
                 if target == copy {
                     continue;
                 }
-                if target.exists() {
+                if target.exists() && !same_file(&target, &copy) {
                     warn!(
                         "Rename target '{}' already exists, ignoring",
                         target.display()
@@ -758,14 +799,13 @@ impl ScreenshotHandler {
             }
 
             if renamed {
-                let old_name = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let mut favs = favorites();
-                if favs.remove(&old_name) {
-                    favs.insert(name);
-                    save_favorites(&favs);
+                let old_key = favorite_key(&path);
+                let new_key = favorite_key(&path.with_file_name(&name));
+                if favorites().contains(&old_key) {
+                    update_favorites(move |favs| {
+                        favs.remove(&old_key);
+                        favs.insert(new_key);
+                    });
                 }
             }
             Self::reload(&ww);

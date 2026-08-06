@@ -20,6 +20,7 @@ pub struct Plan {
     pub app_dir: Option<PathBuf>,
     pub app_dir_error: Option<String>,
     pub mods_dir: Option<PathBuf>,
+    pub backup_dir: PathBuf,
     pub dev_build: bool,
 }
 
@@ -27,7 +28,25 @@ impl Plan {
     pub fn resolve() -> Self {
         let config = read_config();
 
-        let (app_dir, app_dir_error) = match candidate_app_dir(&config) {
+        let mods_dir = path_value(&config, key::GAME_PATH)
+            .map(|game| game.join(CLIENT_PAK_DIR))
+            .filter(|mods| mods.is_dir());
+
+        Self::from_paths(
+            aurora_data_dir(),
+            candidate_app_dir(&config),
+            mods_dir,
+            default_backup_dir(),
+        )
+    }
+
+    pub fn from_paths(
+        data_dir: PathBuf,
+        app_dir: Option<PathBuf>,
+        mods_dir: Option<PathBuf>,
+        backup_dir: PathBuf,
+    ) -> Self {
+        let (app_dir, app_dir_error) = match app_dir {
             Some(dir) => match verify_app_dir(&dir) {
                 Ok(()) => (Some(dir), None),
                 Err(e) => (None, Some(e)),
@@ -37,18 +56,22 @@ impl Plan {
 
         let dev_build = app_dir.as_deref().is_some_and(is_build_dir);
 
-        let mods_dir = path_value(&config, key::GAME_PATH)
-            .map(|game| game.join(CLIENT_PAK_DIR))
-            .filter(|mods| mods.is_dir());
-
         Self {
-            data_dir: aurora_data_dir(),
+            data_dir,
             app_dir,
             app_dir_error,
-            mods_dir,
+            mods_dir: mods_dir.filter(|mods| mods.is_dir()),
+            backup_dir,
             dev_build,
         }
     }
+}
+
+pub fn default_backup_dir() -> PathBuf {
+    dirs::document_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("Aurora Mods Backup")
 }
 
 pub fn verify_app_dir(dir: &Path) -> Result<(), String> {

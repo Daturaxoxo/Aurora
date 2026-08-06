@@ -40,6 +40,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 reqwest = { workspace = true }
 sysinfo = { workspace = true }
+md5 = { workspace = true }
 
 [build-dependencies]
 slint-build = { workspace = true }

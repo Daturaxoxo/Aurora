@@ -9,10 +9,15 @@ use ipc::manifest::{LocalManifest, Manifest, hash_file};
 use shared::desktop_entry::create_desktop_shortcut;
 use shared::utils::format_bytes;
 use slint::{Model, ModelRc, SharedString, VecModel, Weak};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 use crate::{ComponentItem, InstallerWindow, backend, net};
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+
+const UNINSTALLER_EXE: &str = "AuroraUninstaller.exe";
+
+const ARP_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora";
 
 #[derive(Clone)]
 struct Plan {
@@ -158,6 +163,11 @@ fn run_inner(
     start_menu: bool,
 ) -> Result<(), String> {
     log_line(ui, "Preparing installation...".into());
+
+    if aurora_is_running() {
+        return Err("Aurora is still running. Please close it and try again.".into());
+    }
+
     let plan = get_or_build_plan()?;
 
     fs::create_dir_all(install_dir)
@@ -166,7 +176,7 @@ fn run_inner(
     let total_bytes = plan.total_bytes();
     let file_count = plan.manifest.files.len();
     let mut done_bytes: u64 = 0;
-    let mut tmps: Vec<PathBuf> = Vec::new();
+    let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
 
     let result = (|| -> Result<(), String> {
         for (i, entry) in plan.manifest.files.iter().enumerate() {
@@ -175,12 +185,12 @@ fn run_inner(
             let dst = entry
                 .resolve(install_dir)
                 .ok_or_else(|| format!("rejected manifest entry `{}`", entry.path))?;
-            let tmp = tmp_path(&dst);
+            let tmp = with_suffix(&dst, ".tmp");
             if let Some(parent) = tmp.parent() {
                 fs::create_dir_all(parent)
                     .map_err(|e| format!("failed to create {}: {e}", parent.display()))?;
             }
-            tmps.push(tmp.clone());
+            staged.push((tmp.clone(), dst));
 
             let mut last_progress = Instant::now();
             net::download(&entry.url, &tmp, |done, total| {
@@ -210,20 +220,19 @@ fn run_inner(
                 ));
             }
 
-            if dst.exists() {
-                fs::remove_file(&dst)
-                    .map_err(|e| format!("failed to replace {}: {e}", entry.path))?;
-            }
-            fs::rename(&tmp, &dst)
-                .map_err(|e| format!("failed to move {} into place: {e}", entry.path))?;
-
             done_bytes += plan.sizes.get(&entry.path).copied().unwrap_or(0);
         }
         Ok(())
     })();
 
     if let Err(e) = result {
-        cleanup(&tmps);
+        cleanup(&staged);
+        return Err(e);
+    }
+
+    log_line(ui, "Installing files...".into());
+    if let Err(e) = commit(&staged) {
+        cleanup(&staged);
         return Err(e);
     }
 
@@ -240,6 +249,19 @@ fn run_inner(
     local
         .save(install_dir)
         .map_err(|e| format!("failed to save local manifest: {e}"))?;
+
+    log_line(
+        ui,
+        "Registering Aurora with Add or Remove Programs...".into(),
+    );
+    if let Err(e) =
+        register_uninstall_entry(install_dir, &plan.manifest.version, total_bytes / 1024)
+    {
+        log_line(
+            ui,
+            format!("WARNING: could not register the uninstall entry: {e}"),
+        );
+    }
 
     let aurora_exe = install_dir.join(ipc::AURORA_EXE);
     if desktop_shortcut {
@@ -266,17 +288,120 @@ fn run_inner(
     Ok(())
 }
 
-fn cleanup(tmps: &[PathBuf]) {
-    for tmp in tmps {
+fn commit(staged: &[(PathBuf, PathBuf)]) -> Result<(), String> {
+    let mut backups: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let mut moved: Vec<PathBuf> = Vec::new();
+
+    for (tmp, dst) in staged {
+        if dst.exists() {
+            let backup = with_suffix(dst, ".bak");
+            let _ = fs::remove_file(&backup);
+            if let Err(e) = fs::rename(dst, &backup) {
+                rollback(&backups, &moved);
+                return Err(format!("failed to replace {}: {e}", dst.display()));
+            }
+            backups.push((backup, dst.clone()));
+        }
+
+        if let Err(e) = fs::rename(tmp, dst) {
+            rollback(&backups, &moved);
+            return Err(format!("failed to move {} into place: {e}", dst.display()));
+        }
+        moved.push(dst.clone());
+    }
+
+    for (backup, _) in &backups {
+        let _ = fs::remove_file(backup);
+    }
+    Ok(())
+}
+
+fn rollback(backups: &[(PathBuf, PathBuf)], moved: &[PathBuf]) {
+    for dst in moved {
+        let _ = fs::remove_file(dst);
+    }
+    for (backup, dst) in backups {
+        let _ = fs::remove_file(dst);
+        let _ = fs::rename(backup, dst);
+    }
+}
+
+fn cleanup(staged: &[(PathBuf, PathBuf)]) {
+    for (tmp, _) in staged {
         let _ = fs::remove_file(tmp);
     }
 }
 
-fn tmp_path(dst: &Path) -> PathBuf {
+fn with_suffix(dst: &Path, suffix: &str) -> PathBuf {
     let mut name = dst
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    name.push_str(".tmp");
+    name.push_str(suffix);
     dst.with_file_name(name)
+}
+
+fn aurora_is_running() -> bool {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+    );
+
+    let target = ipc::AURORA_EXE.to_lowercase();
+    system.processes().values().any(|process| {
+        process
+            .exe()
+            .and_then(Path::file_name)
+            .is_some_and(|name| name.to_string_lossy().to_lowercase() == target)
+    })
+}
+
+fn register_uninstall_entry(install_dir: &Path, version: &str, size_kb: u64) -> Result<(), String> {
+    let values: [(&str, &str, String); 9] = [
+        ("DisplayName", "REG_SZ", "Aurora".to_owned()),
+        ("DisplayVersion", "REG_SZ", version.to_owned()),
+        ("Publisher", "REG_SZ", "Aurora".to_owned()),
+        (
+            "InstallLocation",
+            "REG_SZ",
+            install_dir.display().to_string(),
+        ),
+        (
+            "DisplayIcon",
+            "REG_SZ",
+            install_dir.join(ipc::AURORA_EXE).display().to_string(),
+        ),
+        (
+            "UninstallString",
+            "REG_SZ",
+            format!("\"{}\"", install_dir.join(UNINSTALLER_EXE).display()),
+        ),
+        ("EstimatedSize", "REG_DWORD", size_kb.to_string()),
+        ("NoModify", "REG_DWORD", "1".to_owned()),
+        ("NoRepair", "REG_DWORD", "1".to_owned()),
+    ];
+
+    for (name, kind, data) in &values {
+        reg(&["add", ARP_KEY, "/v", name, "/t", kind, "/d", data, "/f"])?;
+    }
+    Ok(())
+}
+
+fn reg(args: &[&str]) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let status = std::process::Command::new("reg.exe")
+        .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|e| format!("failed to run reg.exe: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("reg.exe exited with {status}"));
+    }
+    Ok(())
 }

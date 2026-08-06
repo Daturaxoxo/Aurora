@@ -1,4 +1,4 @@
-use log::error;
+use log::*;
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -131,16 +131,30 @@ pub fn apply_scale(scale: f64) -> bool {
     }
     let _ = write!(new_text, "{SECTION_HEADER}\n{KEY}={scale}\n");
 
-    match fs::write(&path, new_text) {
-        Ok(()) => {
-            set_readonly(&path, true);
-            true
-        }
-        Err(e) => {
-            error!("engine_ini.apply_scale failed: {e}");
-            false
+    let tmp = path.with_extension("ini.tmp");
+    if let Err(e) = fs::write(&tmp, &new_text) {
+        error!("engine_ini.apply_scale failed: {e}");
+        return false;
+    }
+
+    if !existing.is_empty() {
+        let backup = path.with_extension("ini.bak");
+        if let Err(e) = fs::write(&backup, &existing) {
+            warn!(
+                "engine_ini.apply_scale could not back up {}: {e}",
+                path.display()
+            );
         }
     }
+
+    if let Err(e) = fs::rename(&tmp, &path) {
+        error!("engine_ini.apply_scale failed: {e}");
+        let _ = fs::remove_file(&tmp);
+        return false;
+    }
+
+    set_readonly(&path, true);
+    true
 }
 
 pub fn remove_scale() -> bool {

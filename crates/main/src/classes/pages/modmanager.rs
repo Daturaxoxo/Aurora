@@ -10,14 +10,16 @@ use shared::config::{self, key};
 use shared::utils::{get_mods_path, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 const GROUP_PREFIX: &str = "AU GRP - ";
 const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
 const DISABLED_SUFFIX: &str = ".disabled";
+const STAGING_PREFIX: &str = ".aurora-installing-";
 
 fn is_mod_file(name: &str) -> bool {
     Path::new(name)
@@ -127,7 +129,7 @@ impl ModManager {
 
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
-            display_name: mod_name.replace("_P", ""),
+            display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
             path: folder.clone(),
             is_enabled,
             ..Default::default()
@@ -268,6 +270,10 @@ impl ModManager {
 
             let name = entry.file_name().to_string_lossy().into_owned();
 
+            if name.starts_with(STAGING_PREFIX) {
+                continue;
+            }
+
             if let Some(group_name) = name.strip_prefix(GROUP_PREFIX) {
                 let mut group = Group::new(Some(group_name.to_string()), Some(entry.path()));
                 match entry.path().read_dir() {
@@ -322,6 +328,28 @@ impl ModManager {
         Ok(groups)
     }
 
+    fn rename_all(pairs: &[(PathBuf, PathBuf)]) -> Result<()> {
+        let mut done: Vec<&(PathBuf, PathBuf)> = Vec::with_capacity(pairs.len());
+
+        for pair in pairs {
+            let (old, new) = pair;
+            if let Err(e) = std::fs::rename(old, new) {
+                for (old, new) in done.iter().rev() {
+                    if let Err(e) = std::fs::rename(new, old) {
+                        error!(
+                            "[ModManager] could not roll back '{}': {e}; the mod is now in a mixed state",
+                            new.display()
+                        );
+                    }
+                }
+                return Err(anyhow!("could not rename '{}': {e}", old.display()));
+            }
+            done.push(pair);
+        }
+
+        Ok(())
+    }
+
     pub fn toggle_mod(mod_: &Mod) -> Result<()> {
         let folder = mod_.path.clone();
         if !folder.exists() {
@@ -336,6 +364,14 @@ impl ModManager {
             let targets = files
                 .iter()
                 .filter(|p| is_mod_file(&p.file_name().to_string_lossy()))
+                .map(|pak| {
+                    let old = pak.path();
+                    let new = old.with_file_name(format!(
+                        "{}{DISABLED_SUFFIX}",
+                        pak.file_name().to_string_lossy()
+                    ));
+                    (old, new)
+                })
                 .collect::<Vec<_>>();
 
             if targets.is_empty() {
@@ -345,14 +381,7 @@ impl ModManager {
                 ));
             }
 
-            for pak in &targets {
-                let old = pak.path();
-                let new = old.with_file_name(format!(
-                    "{}{DISABLED_SUFFIX}",
-                    pak.file_name().to_string_lossy()
-                ));
-                std::fs::rename(&old, &new)?;
-            }
+            Self::rename_all(&targets)?;
             trace!(
                 "Mod disabled: renamed {} file(s) in {}",
                 targets.len(),
@@ -362,6 +391,13 @@ impl ModManager {
             let targets = files
                 .iter()
                 .filter(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()))
+                .map(|pak| {
+                    let old = pak.path();
+                    let name = pak.file_name().to_string_lossy().into_owned();
+                    let new =
+                        old.with_file_name(name.strip_suffix(DISABLED_SUFFIX).unwrap_or(&name));
+                    (old, new)
+                })
                 .collect::<Vec<_>>();
 
             if targets.is_empty() {
@@ -371,12 +407,7 @@ impl ModManager {
                 ));
             }
 
-            for pak in &targets {
-                let old = pak.path();
-                let name = old.file_name().unwrap_or_default().to_string_lossy();
-                let new = old.with_file_name(name.strip_suffix(DISABLED_SUFFIX).unwrap_or(&name));
-                std::fs::rename(&old, &new)?;
-            }
+            Self::rename_all(&targets)?;
             trace!(
                 "Mod enabled: renamed {} file(s) in {}",
                 targets.len(),
@@ -411,6 +442,8 @@ struct State {
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
 
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
 pub fn config_map(key: &str) -> serde_json::Map<String, Value> {
     config::get(key).as_object().cloned().unwrap_or_default()
 }
@@ -438,6 +471,43 @@ pub fn config_map_set(key: &str, entry: &str, value: Option<&str>) {
 
 fn mod_id(mod_: &Mod) -> String {
     mod_.path.to_string_lossy().into_owned()
+}
+
+fn rekey_mod_config(old: &str, new: &str) {
+    if old == new {
+        return;
+    }
+
+    for map_key in [key::MODMNG_NOTES, key::MODMNG_DISPLAY_NAMES] {
+        config::modify(|data| {
+            let Some(mut map) = data.get(map_key).and_then(Value::as_object).cloned() else {
+                return;
+            };
+
+            let moved: Vec<String> = map
+                .keys()
+                .filter(|k| {
+                    k.as_str() == old
+                        || k.strip_prefix(old)
+                            .is_some_and(|rest| rest.starts_with(std::path::MAIN_SEPARATOR))
+                })
+                .cloned()
+                .collect();
+
+            if moved.is_empty() {
+                return;
+            }
+
+            for k in moved {
+                let Some(value) = map.remove(&k) else {
+                    continue;
+                };
+                map.insert(format!("{new}{}", &k[old.len()..]), value);
+            }
+
+            data.insert(map_key.to_string(), Value::Object(map));
+        });
+    }
 }
 
 /// The icon shown on a mod's card, in priority order:
@@ -538,10 +608,11 @@ impl ModManagerHandler {
     ) {
         let ww = window.clone();
         std::thread::spawn(move || {
+            let units = Self::group_siblings(paths);
             let mut installed: Vec<String> = Vec::new();
             let mut failed: Vec<String> = Vec::new();
 
-            let count = paths.len();
+            let count = units.len();
             #[allow(clippy::cast_precision_loss)]
             let total = count as f32;
             let _ = slint::invoke_from_event_loop({
@@ -565,7 +636,9 @@ impl ModManagerHandler {
                 }
             });
 
-            for (index, path) in paths.iter().enumerate() {
+            for (index, unit) in units.iter().enumerate() {
+                let path = unit.get(0);
+                let Some(path) = path else { continue };
                 let label = path
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
@@ -589,7 +662,7 @@ impl ModManagerHandler {
                     }
                 };
 
-                match Self::install_path(path, &mut on_progress) {
+                match Self::install_path(unit, &mut on_progress) {
                     Ok(name) => {
                         info!("[ModManager] installed '{name}' from '{}'", path.display());
                         installed.push(name);
@@ -610,16 +683,25 @@ impl ModManagerHandler {
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(win) = ww2.upgrade() else { return };
                 win.set_progress_overlay_active(false);
-                if let Some(err) = failed.first() {
-                    Self::show_toast(&win, "error", format!("Install failed - {err}"));
-                } else if installed.len() == 1 {
-                    Self::show_toast(&win, "success", format!("Installed {}", installed[0]));
-                } else if !installed.is_empty() {
-                    Self::show_toast(
-                        &win,
-                        "success",
-                        format!("Installed {} mods", installed.len()),
-                    );
+
+                let ok = match installed.len() {
+                    0 => String::new(),
+                    1 => format!("Installed {}", installed[0]),
+                    n => format!("Installed {n} mods"),
+                };
+
+                if failed.is_empty() {
+                    if !ok.is_empty() {
+                        Self::show_toast(&win, "success", ok);
+                    }
+                } else {
+                    let errors = failed.join("; ");
+                    let text = if ok.is_empty() {
+                        format!("Install failed - {errors}")
+                    } else {
+                        format!("{ok}, {} failed - {errors}", failed.len())
+                    };
+                    Self::show_toast(&win, "error", text);
                 }
                 if let Some(on_done) = on_done {
                     on_done(&win);
@@ -630,10 +712,86 @@ impl ModManagerHandler {
         });
     }
 
+    fn group_siblings(paths: Vec<PathBuf>) -> Vec<Vec<PathBuf>> {
+        let mut units: Vec<Vec<PathBuf>> = Vec::new();
+        let mut index: HashMap<(PathBuf, String), usize> = HashMap::new();
+
+        for path in paths {
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            if MOD_EXTENSIONS.contains(&ext.as_str()) && path.is_file() {
+                let key = (
+                    path.parent().map(Path::to_path_buf).unwrap_or_default(),
+                    path.file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_lowercase(),
+                );
+                if let Some(&at) = index.get(&key) {
+                    units[at].push(path);
+                    continue;
+                }
+                index.insert(key, units.len());
+            }
+
+            units.push(vec![path]);
+        }
+
+        units
+    }
+
+    fn install_into(target: &Path, fill: impl FnOnce(&Path) -> Result<()>) -> Result<()> {
+        if target.exists() {
+            return Err(anyhow!("a mod with this name already exists"));
+        }
+
+        let parent = target
+            .parent()
+            .ok_or_else(|| anyhow!("mods folder could not be resolved"))?;
+        let name = target
+            .file_name()
+            .ok_or_else(|| anyhow!("invalid mod name"))?
+            .to_string_lossy()
+            .into_owned();
+        let staging = parent.join(format!("{STAGING_PREFIX}{name}"));
+
+        if staging.exists() {
+            std::fs::remove_dir_all(&staging)?;
+        }
+        std::fs::create_dir_all(&staging)?;
+
+        let finish = |staging: &Path| -> Result<()> {
+            fill(staging)?;
+            if target.exists() {
+                return Err(anyhow!("a mod with this name already exists"));
+            }
+            std::fs::rename(staging, target)?;
+            Ok(())
+        };
+
+        match finish(&staging) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if let Err(cleanup) = std::fs::remove_dir_all(&staging) {
+                    warn!(
+                        "[ModManager] could not clean up '{}': {cleanup}",
+                        staging.display()
+                    );
+                }
+                Err(e)
+            }
+        }
+    }
+
     /// `progress` is called with how far along the archive extraction is
     /// (0.0 - 1.0). It never fires for folders or bare mod files, which are
     /// copied in one step.
-    fn install_path(path: &Path, progress: &mut dyn FnMut(f32)) -> Result<String> {
+    fn install_path(unit: &[PathBuf], progress: &mut dyn FnMut(f32)) -> Result<String> {
+        let path = unit.first().ok_or_else(|| anyhow!("nothing to install"))?;
         let mods_path =
             get_mods_path().ok_or_else(|| anyhow!("mods folder could not be resolved"))?;
         std::fs::create_dir_all(&mods_path)?;
@@ -649,10 +807,7 @@ impl ModManagerHandler {
                 path.file_name()
                     .ok_or_else(|| anyhow!("invalid folder name"))?,
             );
-            if target.exists() {
-                return Err(anyhow!("a mod with this name already exists"));
-            }
-            Self::copy_dir_recursive(path, &target)?;
+            Self::install_into(&target, |staging| Self::copy_dir_recursive(path, staging))?;
             return Ok(name);
         }
 
@@ -663,22 +818,25 @@ impl ModManagerHandler {
             .to_lowercase();
 
         let target = mods_path.join(&name);
-        if target.exists() {
-            return Err(anyhow!("a mod with this name already exists"));
-        }
 
-        if ext == "pak" || ext == "utoc" || ext == "ucas" {
-            std::fs::create_dir_all(&target)?;
-            std::fs::copy(
-                path,
-                target.join(path.file_name().with_context(|| "invalid file name")?),
-            )?;
-        } else if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
-            extract_archive_with_progress(path, &target, &mut |done, total| {
-                if total > 0 {
-                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-                    progress((done as f64 / total as f64).min(1.0) as f32);
+        if MOD_EXTENSIONS.contains(&ext.as_str()) {
+            Self::install_into(&target, |staging| {
+                for file in unit {
+                    std::fs::copy(
+                        file,
+                        staging.join(file.file_name().with_context(|| "invalid file name")?),
+                    )?;
                 }
+                Ok(())
+            })?;
+        } else if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
+            Self::install_into(&target, |staging| {
+                extract_archive_with_progress(path.as_path(), staging, &mut |done, total| {
+                    if total > 0 {
+                        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                        progress((done as f64 / total as f64).min(1.0) as f32);
+                    }
+                })
             })?;
         } else {
             return Err(anyhow!("unsupported file type '.{ext}'"));
@@ -702,6 +860,7 @@ impl ModManagerHandler {
     }
 
     pub(crate) fn reload(window: &slint::Weak<MainWindow>) {
+        let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
         std::thread::spawn(move || {
             let (groups, error) = match ModManager::scan_mods() {
@@ -726,6 +885,9 @@ impl ModManagerHandler {
                 .collect();
 
             let _ = slint::invoke_from_event_loop(move || {
+                if GENERATION.load(Ordering::SeqCst) != generation {
+                    return;
+                }
                 let Some(w) = ww.upgrade() else {
                     error!("[ModManager] could not load: window handle is dead");
                     return;
@@ -747,7 +909,7 @@ impl ModManagerHandler {
 
         let shown_name = |m: &Mod| -> String {
             display_names
-                .get(&m.folder_name)
+                .get(&mod_id(m))
                 .and_then(|v| v.as_str())
                 .unwrap_or(&m.display_name)
                 .to_string()
@@ -832,7 +994,7 @@ impl ModManagerHandler {
                             author: m.author.clone().unwrap_or_default().into(),
                             version: version.into(),
                             notes: notes
-                                .get(&m.folder_name)
+                                .get(&mod_id(m))
                                 .and_then(|v| v.as_str())
                                 .unwrap_or_default()
                                 .into(),
@@ -995,6 +1157,7 @@ impl ModManagerHandler {
                 } else if let Err(e) = std::fs::rename(&m.path, &target) {
                     error!("[ModManager] could not move '{}': {e}", m.folder_name);
                 } else {
+                    rekey_mod_config(id, &target.to_string_lossy());
                     info!(
                         "[ModManager] moved '{}' → '{}'",
                         m.folder_name,
@@ -1038,6 +1201,17 @@ impl ModManagerHandler {
                 if let Some(m) = Self::mod_by_id(&id) {
                     if let Err(e) = ModManager::toggle_mod(&m) {
                         error!("[ModManager] could not toggle '{}': {e}", m.folder_name);
+                        let ww = ww.clone();
+                        let name = m.folder_name.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(win) = ww.upgrade() {
+                                Self::show_toast(
+                                    &win,
+                                    "error",
+                                    format!("Could not toggle {name} - {e}"),
+                                );
+                            }
+                        });
                     }
                 }
                 Self::reload(&ww);
@@ -1067,8 +1241,8 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("[ModManager] deleted '{}'", m.path.display());
-                            config_map_set(key::MODMNG_NOTES, &m.folder_name, None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &m.folder_name, None);
+                            config_map_set(key::MODMNG_NOTES, &id, None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &id, None);
                         }
                         Err(e) => {
                             error!("[ModManager] could not delete '{}': {e}", m.path.display());
@@ -1089,7 +1263,7 @@ impl ModManagerHandler {
 
             config_map_set(
                 key::MODMNG_DISPLAY_NAMES,
-                &m.folder_name,
+                &id,
                 (!name.is_empty()).then_some(name),
             );
 
@@ -1104,14 +1278,14 @@ impl ModManagerHandler {
         let ww = window.clone();
         w.on_mod_set_notes(move |id, notes| {
             let Some(win) = ww.upgrade() else { return };
-            let Some(m) = Self::mod_by_id(&id) else {
+            if Self::mod_by_id(&id).is_none() {
                 return;
-            };
+            }
             let notes = notes.trim().to_string();
 
             config_map_set(
                 key::MODMNG_NOTES,
-                &m.folder_name,
+                &id,
                 (!notes.is_empty()).then_some(&notes),
             );
             Self::update_row(&win, &id, |row| row.notes = notes.as_str().into());
@@ -1213,8 +1387,8 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("[ModManager] deleted '{}'", m.path.display());
-                            config_map_set(key::MODMNG_NOTES, &m.folder_name, None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &m.folder_name, None);
+                            config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
                         }
                         Err(e) => {
                             error!("[ModManager] could not delete '{}': {e}", m.path.display());
@@ -1291,6 +1465,7 @@ impl ModManagerHandler {
                         old_path.display()
                     );
                 } else {
+                    rekey_mod_config(&old_path.to_string_lossy(), &new_path.to_string_lossy());
                     let mut state = STATE.lock().unwrap();
                     if state
                         .collapsed
@@ -1327,6 +1502,11 @@ impl ModManagerHandler {
                             error!(
                                 "[ModManager] could not move '{}' out of group: {e}",
                                 entry.path().display()
+                            );
+                        } else {
+                            rekey_mod_config(
+                                &entry.path().to_string_lossy(),
+                                &target.to_string_lossy(),
                             );
                         }
                     }

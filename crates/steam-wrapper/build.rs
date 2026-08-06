@@ -14,6 +14,13 @@ fn main() {
     }
 
     slint_build::compile("./frontend/main.slint").unwrap();
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut res = winresource::WindowsResource::new();
+        res.set_icon("./production/icons/logo.ico");
+        res.compile().unwrap();
+    }
 }
 
 fn process_directory(root_source: &Path, current_source: &Path, target_base: &Path) {

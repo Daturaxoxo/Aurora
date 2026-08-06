@@ -23,7 +23,6 @@ pub struct AuroraEngine {
     pub win64: PathBuf,
     pub pak_base: PathBuf,
     pub pak_dir: PathBuf,
-    pub main_dlls: Vec<String>,
     pub addons_path: PathBuf,
     pub targets: Vec<(Target, PathBuf)>,
     pub distribution: Distribution,
@@ -35,7 +34,6 @@ struct DerivedPaths {
     win64: PathBuf,
     pak_base: PathBuf,
     pak_dir: PathBuf,
-    main_dlls: Vec<String>,
     targets: Vec<(Target, PathBuf)>,
 }
 
@@ -83,7 +81,6 @@ impl AuroraEngine {
             win64: derived.win64,
             pak_base: derived.pak_base.clone(),
             pak_dir: derived.pak_dir,
-            main_dlls: derived.main_dlls,
             addons_path,
             targets: derived.targets,
             distribution,
@@ -119,7 +116,6 @@ impl AuroraEngine {
         self.win64 = derived.win64;
         self.pak_base.clone_from(&derived.pak_base);
         self.pak_dir = derived.pak_dir;
-        self.main_dlls = derived.main_dlls;
         self.targets = derived.targets;
         self.distribution = distribution;
         self.last_addon_warnings = vec![];
@@ -152,7 +148,6 @@ impl AuroraEngine {
             .pak_dir()
             .ok_or_else(|| anyhow!("Engine could not find paks folder: {}", pak_base.display()))?
             .to_path_buf();
-        let main_dlls = gpaths.dll_slots.iter().map(|s| s.name.clone()).collect();
         let targets = vec![
             (Target::AsiPlugin, gpaths.asi_plugin.clone()),
             (Target::AuroraTf, win64.join(Target::AuroraTf.as_file())),
@@ -163,7 +158,6 @@ impl AuroraEngine {
             win64,
             pak_base,
             pak_dir,
-            main_dlls,
             targets,
         })
     }
