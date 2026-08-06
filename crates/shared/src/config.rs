@@ -71,6 +71,9 @@ pub mod key {
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
     pub const ERROR_TELEMETRY: &str = "error_telemetry";
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
+    /// Absolute paths of the plugin files the engine last copied into Win64, so
+    /// sanitization can remove them by name even after a crash.
+    pub const INJECTED_PLUGINS: &str = "injected_plugins";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -107,7 +110,8 @@ pub fn default_value(k: &str) -> Value {
         | key::MODMNG_VIEW_GRID
         | key::MOD_NOTES
         | key::MOD_DISPLAY_NAMES
-        | key::SCREENSHOT_FAVORITES => json!([]),
+        | key::SCREENSHOT_FAVORITES
+        | key::INJECTED_PLUGINS => json!([]),
 
         key::LANGUAGE => json!("en"),
 

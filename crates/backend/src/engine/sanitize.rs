@@ -1,12 +1,46 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use log::{error, info, trace, warn};
+use shared::config::{self, key};
 
 use super::AuroraEngine;
+
+/// Plugin files a previous session copied into Win64.
+fn injected_plugins() -> Vec<PathBuf> {
+    config::get(key::INJECTED_PLUGINS)
+        .as_array()
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(PathBuf::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Drops every manifest entry that is gone from disk, keeping the ones whose
+/// removal failed so the next sanitization retries them.
+fn prune_injected_plugins(injected: &[PathBuf]) {
+    let remaining: Vec<String> = injected
+        .iter()
+        .filter(|p| p.exists())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+
+    if !remaining.is_empty() {
+        warn!(
+            "{} injected plugin(s) could not be removed, keeping them in the manifest",
+            remaining.len()
+        );
+    }
+
+    config::set(key::INJECTED_PLUGINS, remaining);
+}
 
 impl AuroraEngine {
     pub fn sanitize(&self, stop_processes: bool) -> Result<()> {
@@ -16,15 +50,24 @@ impl AuroraEngine {
             self.kill_nte_processes()?;
         }
 
+        let injected = injected_plugins();
+
         let handles: Vec<_> = self
             .managed_files()
             .into_iter()
             .map(|f| (f.label, f.destination))
             .chain([
+                // Plugins now live directly in Win64; this only clears the
+                // folder older Aurora versions used to create.
                 ("Plugins".to_string(), self.win64.join("Plugins")),
                 //("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
                 // ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])
+            .chain(
+                injected
+                    .iter()
+                    .map(|p| ("Injected plugin".to_string(), p.clone())),
+            )
             .chain(
                 super::everlight::find_logs(&self.win64)
                     .into_iter()
@@ -47,6 +90,10 @@ impl AuroraEngine {
                 }
             }
         }
+
+        // Anything still on disk could not be removed, so keep it in the
+        // manifest and try again next time.
+        prune_injected_plugins(&injected);
 
         if !failures.is_empty() {
             return Err(anyhow!(

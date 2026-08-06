@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use log::*;
+use shared::config::{self, key};
 
 use crate::classes::validate::ensure_dir;
 use crate::engine::files::{group_by_addon, FileGroup, ManagedFile};
@@ -34,11 +35,12 @@ impl AuroraEngine {
             LuaManager::setup(&self.bin_path, &self.win64)?;
         }
 
-        if let Some(custom_files) = custom_files {
-            self.copy_custom_files(&custom_files)?;
-        }
-
-        self.copy_chksum_plugin()?;
+        let mut injected = match custom_files {
+            Some(custom_files) => self.copy_custom_files(&custom_files)?,
+            None => vec![],
+        };
+        injected.extend(self.copy_chksum_plugin()?);
+        Self::record_injected_plugins(&injected);
 
         self.launch_game()
     }
@@ -130,36 +132,35 @@ impl AuroraEngine {
         Ok(())
     }
 
-    fn copy_custom_files(&self, custom_files: &[PathBuf]) -> Result<()> {
-        let dst_dir = self.win64.join("Plugins");
-        if !dst_dir.exists() {
-            fs::create_dir(&dst_dir)?;
-        }
+    fn copy_custom_files(&self, custom_files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+        let mut copied = Vec::with_capacity(custom_files.len());
 
         for file in custom_files {
             info!(
                 "Copying custom file {} to {}",
                 file.display(),
-                dst_dir.display()
+                self.win64.display()
             );
             let file_name = file
                 .file_name()
                 .ok_or_else(|| anyhow!("Failed to get file name"))?;
-            if let Err(e) = fs::copy(file, dst_dir.join(file_name)) {
+            let destination = self.win64.join(file_name);
+            if let Err(e) = fs::copy(file, &destination) {
                 error!("Failed to copy custom file {}: {e}", file.display());
                 return Err(anyhow!(
                     "Failed to copy custom file {}: {e}",
                     file.display()
                 ));
             }
+            copied.push(destination);
         }
-        Ok(())
+        Ok(copied)
     }
 
-    fn copy_chksum_plugin(&self) -> Result<()> {
+    fn copy_chksum_plugin(&self) -> Result<Option<PathBuf>> {
         if super::everlight::checksum_ignored() {
             info!("'Ignore Checksum Matching' is enabled, skipping chksum.asi");
-            return Ok(());
+            return Ok(None);
         }
 
         let source = self.bin_path.join("Plugins").join("chksum.asi");
@@ -168,12 +169,10 @@ impl AuroraEngine {
                 "chksum.asi is missing from {}, launching without it",
                 source.display()
             );
-            return Ok(());
+            return Ok(None);
         }
 
-        let dst_dir = self.win64.join("Plugins");
-        ensure_dir(&dst_dir)?;
-        let destination = dst_dir.join("chksum.asi");
+        let destination = self.win64.join("chksum.asi");
 
         fs::copy(&source, &destination).map_err(|e| {
             error!(
@@ -184,7 +183,35 @@ impl AuroraEngine {
             anyhow!("Failed to copy chksum.asi: {e}")
         })?;
         trace!("Copied {} to {}", source.display(), destination.display());
-        Ok(())
+        Ok(Some(destination))
+    }
+
+    /// Records freshly copied plugins in the manifest so `sanitize` can remove
+    /// them by name later, even if Aurora crashes before the session ends.
+    fn record_injected_plugins(destinations: &[PathBuf]) {
+        if destinations.is_empty() {
+            return;
+        }
+
+        let mut paths: Vec<String> = config::get(key::INJECTED_PLUGINS)
+            .as_array()
+            .map(|list| {
+                list.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        for destination in destinations {
+            let path = destination.to_string_lossy().into_owned();
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+
+        trace!("Recording {} injected plugin(s)", destinations.len());
+        config::set(key::INJECTED_PLUGINS, paths);
     }
 
     fn launch_game(&self) -> Result<()> {

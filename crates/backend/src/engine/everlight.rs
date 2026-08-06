@@ -112,7 +112,7 @@ fn watch_checksum(win64: &Path, evt_tx: &mpsc::Sender<EngineEvent>, stop: &Atomi
         return;
     }
 
-    let marker = win64.join("Plugins").join(CHKSUM_MARKER);
+    let marker = win64.join(CHKSUM_MARKER);
     let mut warned = false;
 
     loop {
