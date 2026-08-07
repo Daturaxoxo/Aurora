@@ -108,13 +108,19 @@ impl AuroraEngine {
                 .collect();
 
             if !missing.is_empty() {
+                let source = entries
+                    .first()
+                    .with_context(|| "Failed to get first pak addon")?
+                    .source
+                    .display();
+
+                if missing.len() == entries.len() {
+                    debug!("PAK Addon '{addon}' is enabled but not installed ({source}), skipping");
+                    continue;
+                }
+
                 let msg = format!(
-                    "PAK Addon '{addon}'. Path: {}. Missing required files: {}",
-                    entries
-                        .first()
-                        .with_context(|| "Failed to get first pak addon")?
-                        .source
-                        .display(),
+                    "PAK Addon '{addon}'. Path: {source}. Missing required files: {}",
                     missing.join(", ")
                 );
                 error!("{msg}");

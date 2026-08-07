@@ -76,12 +76,13 @@ pub mod key {
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::DISCORD_RPC | key::UI_MINIMIZATION | key::HIDE_UID | key::ERROR_TELEMETRY => {
+        key::DISCORD_RPC | key::UI_MINIMIZATION | key::ERROR_TELEMETRY => {
             json!(true)
         }
 
         key::DEV_MODE
         | key::NO_DRIVE_LINE
+        | key::HIDE_UID
         | key::HIDE_NOTIF_DOTS
         | key::SHOW_NSFW_MODS
         | key::CUSTOM_ADDONS_TOGGLED
