@@ -1,8 +1,11 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, info, warn};
+
+use crate::classes::launch_options::{self, LaunchOptions};
 use shared::classes::steam::real_user;
 use shared::classes::steam::{
     aurora_compat_data_dir, find_steam_root, steam_libraries, STEAM_APP_ID,
@@ -61,14 +64,22 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
         compat_data.display()
     );
 
-    let (extra_env, extra_args) = proton_launch_options();
+    let opts = proton_launch_options();
 
-    let mut cmd = command_as_real_user(&proton_bin);
-    cmd.arg("waitforexitandrun")
-        .arg(exe)
-        .args(game_args)
-        .args(&extra_args);
-    for (k, v) in &extra_env {
+    let mut command_line: Vec<OsString> = Vec::new();
+    command_line.extend(opts.wrapper.iter().map(OsString::from));
+    command_line.push(proton_bin.into_os_string());
+    command_line.push(OsString::from("waitforexitandrun"));
+    command_line.push(exe.as_os_str().to_os_string());
+    command_line.extend(game_args.iter().map(OsString::from));
+    command_line.extend(opts.trailing_args.iter().map(OsString::from));
+
+    let mut command_line = command_line.into_iter();
+    let program = PathBuf::from(command_line.next().expect("the Proton path is always present"));
+
+    let mut cmd = command_as_real_user(&program);
+    cmd.args(command_line);
+    for (k, v) in &opts.env {
         cmd.env(k, v);
     }
 
@@ -80,72 +91,40 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
         .env("SteamAppId", STEAM_APP_ID)
         .env("SteamGameId", STEAM_APP_ID)
         .spawn()
-        .with_context(|| format!("failed to spawn proton for {}", exe.display()))?;
+        .with_context(|| {
+            format!(
+                "failed to spawn {} for {}",
+                program.display(),
+                exe.display()
+            )
+        })?;
 
     Ok(child)
 }
 
-fn proton_launch_options() -> (Vec<(String, String)>, Vec<String>) {
+fn proton_launch_options() -> LaunchOptions {
     let raw = shared::config::get(shared::config::key::PROTON_ARGS);
-    let raw = raw.as_str().unwrap_or("").trim();
+    let raw = raw.as_str().unwrap_or("").trim().to_string();
 
     if raw.is_empty() {
-        return (Vec::new(), Vec::new());
+        return LaunchOptions::default();
     }
 
-    let tokens = split_launch_options(raw);
+    let opts = launch_options::parse(&raw);
 
-    let mut env = Vec::new();
-    let mut args = Vec::new();
-
-    for token in tokens {
-        if args.is_empty() {
-            if let Some((k, v)) = token.split_once('=') {
-                if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                    env.push((k.to_string(), v.to_string()));
-                    continue;
-                }
-            }
+    info!(
+        "Proton launch options: env={:?} wrapper={:?} args={:?} (%command% {})",
+        opts.env,
+        opts.wrapper,
+        opts.trailing_args,
+        if opts.has_command {
+            "present"
+        } else {
+            "absent, treating the remaining tokens as game arguments"
         }
-        args.push(token);
-    }
+    );
 
-    info!("Proton launch options: env={env:?} args={args:?}");
-
-    (env, args)
-}
-
-fn split_launch_options(input: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut in_token = false;
-    let mut quote: Option<char> = None;
-
-    for ch in input.chars() {
-        match quote {
-            Some(q) if ch == q => quote = None,
-            Some(_) => current.push(ch),
-            None if ch == '"' || ch == '\'' => {
-                quote = Some(ch);
-                in_token = true;
-            }
-            None if ch.is_whitespace() => {
-                if in_token {
-                    tokens.push(std::mem::take(&mut current));
-                    in_token = false;
-                }
-            }
-            None => {
-                current.push(ch);
-                in_token = true;
-            }
-        }
-    }
-    if in_token {
-        tokens.push(current);
-    }
-
-    tokens
+    opts
 }
 
 /// Runs Proton once with no real work to do, purely so it creates and

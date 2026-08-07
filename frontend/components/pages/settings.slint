@@ -2,6 +2,7 @@ import { Palette } from "../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Languages } from "../../languages.slint";
 import { Tr, TrKey } from "../../translations.slint";
+import { ScrollingTextInput } from "../textfield.slint";
 
 // TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
@@ -468,7 +469,7 @@ export component SettingsPage inherits Rectangle {
                                             text: Tr.values[TrKey.settings-game-directory-browse];
                                             color: Palette.text-primary;
                                             font-size: 13px;
-                                            
+
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
                                         }
@@ -581,40 +582,31 @@ export component SettingsPage inherits Rectangle {
                                         }
 
                                         Rectangle {
-                                            width: 260px;
+                                            width: 290px;
                                             height: 32px;
                                             border-radius: 6px;
                                             background: #ffffff08;
                                             border-width: 1px;
-                                            border-color: args-input.has-focus ? #6db3f2 : #ffffff18;
+                                            border-color: args-input.input-focused ? #6db3f2 : #ffffff18;
 
                                             animate border-color { duration: 100ms; }
 
-                                            args-input := TextInput {
-                                                x: 10px;
-                                                width: parent.width - 20px;
-                                                color: Palette.text-primary;
+                                            args-input := ScrollingTextInput {
+                                                width: 100%;
+                                                height: 100%;
+                                                text-padding: 10px;
                                                 font-size: 13px;
-                                                vertical-alignment: center;
-                                                single-line: true;
                                                 text: root.proton-launch-args;
-                                                edited => {
+                                                placeholder: Tr.values[TrKey.settings-linux-args-placeholder];
+
+                                                edited(text) => {
                                                     debounce-timer.stop();
                                                     debounce-timer.start();
                                                 }
-                                                accepted => { commit-args(); }
-                                                changed has-focus => {
-                                                    if (!self.has-focus) { commit-args(); }
+                                                accepted(text) => { commit-args(); }
+                                                focus-changed(focused) => {
+                                                    if (!focused) { commit-args(); }
                                                 }
-                                            }
-
-                                            if args-input.text == "" && !args-input.has-focus: Text {
-                                                x: 10px;
-                                                height: 100%;
-                                                text: Tr.values[TrKey.settings-linux-args-placeholder];
-                                                color: Palette.text-secondary;
-                                                font-size: 13px;
-                                                vertical-alignment: center;
                                             }
                                         }
                                     }
@@ -670,7 +662,7 @@ export component SettingsPage inherits Rectangle {
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-                                    
+
                                 }
 
                                 SettingCard {

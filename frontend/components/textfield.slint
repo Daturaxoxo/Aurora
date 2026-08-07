@@ -1,0 +1,69 @@
+import { Palette } from "../global.slint";
+
+// SINGLE-LINE INPUT THAT SCROLLS HORIZONTALLY INSTEAD OF SPILLING PAST ITS BOX.
+export component ScrollingTextInput inherits Rectangle {
+    in-out property <string> text;
+    in property <length> text-padding: 6px;
+    in property <length> font-size: 13px;
+    in property <int> font-weight: 400;
+    in property <color> text-color: Palette.text-primary;
+    in property <string> placeholder: "";
+    in property <color> placeholder-color: Palette.text-secondary;
+    in property <bool> placeholder-italic: false;
+
+    out property <bool> input-focused: input.has-focus;
+    out property <length> content-width: input.preferred-width;
+
+    callback edited(string /* text */);
+    callback accepted(string /* text */);
+    callback focus-changed(bool /* focused */);
+
+    public function focus-input() { input.focus(); }
+    public function select-all() { input.select-all(); }
+
+    forward-focus: input;
+
+    // CLIP WINDOW: THE INPUT SLIDES INSIDE THIS, THE OVERFLOW IS CUT OFF
+    Rectangle {
+        x: root.text-padding;
+        width: max(1px, parent.width - root.text-padding * 2);
+        height: 100%;
+        clip: true;
+
+        input := TextInput {
+            // KEEP THE CARET INSIDE THE WINDOW BY OFFSETTING THE TEXT
+            property <length> computed-x;
+
+            x: min(0px, max(parent.width - self.width - self.text-cursor-width, self.computed-x));
+            width: max(parent.width - self.text-cursor-width, self.preferred-width);
+            height: 100%;
+            vertical-alignment: center;
+            single-line: true;
+            font-size: root.font-size;
+            font-weight: root.font-weight;
+            color: root.text-color;
+            text <=> root.text;
+
+            cursor-position-changed(cursor-position) => {
+                if (cursor-position.x + self.computed-x < 0px) {
+                    self.computed-x = -cursor-position.x;
+                } else if (cursor-position.x + self.computed-x > parent.width - self.text-cursor-width) {
+                    self.computed-x = parent.width - cursor-position.x - self.text-cursor-width;
+                }
+            }
+
+            edited => { root.edited(self.text); }
+            accepted => { root.accepted(self.text); }
+            changed has-focus => { root.focus-changed(self.has-focus); }
+        }
+
+        if root.text == "" && root.placeholder != "": Text {
+            height: 100%;
+            text: root.placeholder;
+            color: root.placeholder-color;
+            font-size: root.font-size;
+            font-italic: root.placeholder-italic;
+            vertical-alignment: center;
+        }
+    }
+}
