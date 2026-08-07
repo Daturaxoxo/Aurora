@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
@@ -22,6 +22,8 @@ const THUMB_MAX_H: u32 = 512;
 const HASH_CHUNK: usize = 128 * 1024;
 
 const IGNORED_PLAYER_ID: &str = "66666";
+
+const MIN_COPY_FEEDBACK: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone)]
 struct Screenshot {
@@ -60,6 +62,12 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
+static COPY_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+mod copy_state {
+    pub const COPIED: i32 = 2;
+    pub const FAILED: i32 = 3;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
@@ -453,6 +461,96 @@ fn load_rgba(path: &Path, max_w: u32, max_h: u32) -> anyhow::Result<(Vec<u8>, u3
     Ok((rgba.into_raw(), w, h))
 }
 
+/// Encodes an image as an uncompressed BMP
+#[cfg(windows)]
+fn bmp_bytes(path: &Path) -> anyhow::Result<Vec<u8>> {
+    use image::ImageEncoder as _;
+
+    let rgb = image::open(path)?.into_rgb8();
+    let (w, h) = rgb.dimensions();
+
+    let mut bmp = Vec::new();
+    image::codecs::bmp::BmpEncoder::new(&mut bmp).write_image(
+        rgb.as_raw(),
+        w,
+        h,
+        image::ExtendedColorType::Rgb8,
+    )?;
+
+    Ok(bmp)
+}
+
+#[cfg(windows)]
+fn copy_image_to_clipboard(path: &Path) -> bool {
+    let png = match std::fs::read(path) {
+        Ok(png) => png,
+        Err(e) => {
+            error!("Could not read '{}' for clipboard: {e}", path.display());
+            return false;
+        }
+    };
+
+    let Some(png_format) = clipboard_win::register_format("PNG") else {
+        error!("Could not register the PNG clipboard format");
+        return false;
+    };
+
+    let bmp = bmp_bytes(path)
+        .map_err(|e| warn!("Could not build a bitmap for '{}': {e}", path.display()))
+        .ok();
+
+    let _clipboard = match clipboard_win::Clipboard::new_attempts(10) {
+        Ok(clipboard) => clipboard,
+        Err(e) => {
+            error!("Could not open the clipboard: {e}");
+            return false;
+        }
+    };
+
+    if let Err(e) = clipboard_win::raw::empty() {
+        error!("Could not empty the clipboard: {e}");
+        return false;
+    }
+
+    if let Err(e) = clipboard_win::raw::set_without_clear(png_format.get(), &png) {
+        error!("Could not copy to clipboard: {e}");
+        return false;
+    }
+
+    if let Some(bmp) = bmp {
+        if let Err(e) = clipboard_win::raw::set_bitmap(&bmp) {
+            warn!("Could not add a bitmap to the clipboard: {e}");
+        }
+    }
+
+    true
+}
+
+#[cfg(not(windows))]
+fn copy_image_to_clipboard(path: &Path) -> bool {
+    let rgba = load_rgba(path, u32::MAX, u32::MAX)
+        .map_err(|e| {
+            error!("Could not read '{}' for clipboard: {e}", path.display());
+        })
+        .ok();
+    let Some((raw, w, h)) = rgba else {
+        return false;
+    };
+
+    let image_data = arboard::ImageData {
+        width: w as usize,
+        height: h as usize,
+        bytes: raw.into(),
+    };
+    match arboard::Clipboard::new().and_then(|mut c| c.set_image(image_data)) {
+        Ok(()) => true,
+        Err(e) => {
+            error!("Could not copy to clipboard: {e}");
+            false
+        }
+    }
+}
+
 pub struct ScreenshotHandler;
 
 impl ScreenshotHandler {
@@ -587,6 +685,34 @@ impl ScreenshotHandler {
             paths.extend(duplicates.iter().cloned());
         }
         paths
+    }
+
+    fn copy_to_clipboard(path: &Path) -> bool {
+        let started = Instant::now();
+        let copied = copy_image_to_clipboard(path);
+        if copied {
+            info!(
+                "Copied '{}' to clipboard in {}ms",
+                path.display(),
+                started.elapsed().as_millis()
+            );
+        }
+        copied
+    }
+
+    fn report_copy(window: &slint::Weak<MainWindow>, generation: u64, copied: bool) {
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if COPY_GENERATION.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            let Some(w) = ww.upgrade() else { return };
+            w.set_screenshot_copy_state(if copied {
+                copy_state::COPIED
+            } else {
+                copy_state::FAILED
+            });
+        });
     }
 
     pub fn cancel_delete() {
@@ -732,27 +858,24 @@ impl ScreenshotHandler {
             }
         });
 
+        let ww = window.clone();
         w.on_screenshot_copy(move |index| {
+            let generation = COPY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+            let ww = ww.clone();
+
             let Some(path) = Self::path_at(index) else {
+                Self::report_copy(&ww, generation, false);
                 return;
             };
-            std::thread::spawn(move || {
-                let rgba = load_rgba(&path, u32::MAX, u32::MAX)
-                    .map_err(|e| {
-                        error!("Could not read '{}' for clipboard: {e}", path.display());
-                    })
-                    .ok();
-                let Some((raw, w, h)) = rgba else { return };
 
-                let image_data = arboard::ImageData {
-                    width: w as usize,
-                    height: h as usize,
-                    bytes: raw.into(),
-                };
-                match arboard::Clipboard::new().and_then(|mut c| c.set_image(image_data)) {
-                    Ok(()) => info!("Copied '{}' to clipboard", path.display()),
-                    Err(e) => error!("Could not copy to clipboard: {e}"),
+            std::thread::spawn(move || {
+                let started = Instant::now();
+                let copied = Self::copy_to_clipboard(&path);
+
+                if let Some(remaining) = MIN_COPY_FEEDBACK.checked_sub(started.elapsed()) {
+                    std::thread::sleep(remaining);
                 }
+                Self::report_copy(&ww, generation, copied);
             });
         });
 

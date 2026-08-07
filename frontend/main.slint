@@ -250,6 +250,9 @@ export component MainWindow inherits Window {
     in-out property <[ScreenshotItem]> screenshots: [];
     in-out property <int> screenshot-selected-count: 0;
     in-out property <image> screenshot-preview-image;
+    // Copy feedback: 0 = idle, 1 = copying, 2 = copied, 3 = failed
+    in-out property <int> screenshot-copy-state: 0;
+    in-out property <int> screenshot-copy-index: -1;
     callback screenshot-favorite(int);
     callback screenshot-delete(int);
     callback screenshot-open(int);
@@ -970,6 +973,8 @@ export component MainWindow inherits Window {
             screenshots: root.screenshots;
             selected-count: root.screenshot-selected-count;
             preview-image: root.screenshot-preview-image;
+            copy-state <=> root.screenshot-copy-state;
+            copy-index <=> root.screenshot-copy-index;
             close-screenshots => { root.show-screenshots = false; }
             screenshot-favorite(i) => { root.screenshot-favorite(i); }
             screenshot-delete(i) => { root.screenshot-delete(i); }
