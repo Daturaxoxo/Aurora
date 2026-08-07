@@ -13,6 +13,18 @@ pub fn get_local_version() -> String {
     String::from_utf8_lossy(VERSION).trim().to_string()
 }
 
+/// Flattens an error and every one of its sources into a single line.
+pub fn error_chain(error: &dyn std::error::Error) -> String {
+    let mut out = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        out.push_str(" <- ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
+
 pub fn get_current_timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

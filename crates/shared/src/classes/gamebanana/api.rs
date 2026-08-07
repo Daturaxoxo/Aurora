@@ -1,16 +1,24 @@
 use super::cache::CacheManager;
 use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
-use crate::utils::get_local_version;
+use crate::utils::{error_chain, get_local_version};
 use anyhow::{Context, Result};
 use futures::{stream, StreamExt};
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
+
+use std::time::Duration;
 
 use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
 const NTE_GAME_ID: u32 = 23012;
 const FETCH_CONCURRENCY: usize = 15;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
+const MAX_ATTEMPTS: u32 = 3;
+const RETRY_BACKOFF: Duration = Duration::from_millis(400);
 
 pub struct GameBananaApi {
     client: Client,
@@ -27,6 +35,9 @@ impl GameBananaApi {
     pub fn new() -> Self {
         let client = Client::builder()
             .user_agent(format!("AuroraLauncher/{}", get_local_version()))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .build()
             .unwrap_or_else(|e| {
                 error!("Failed to build GameBanana client, falling back to default: {e}");
@@ -36,6 +47,48 @@ impl GameBananaApi {
         Self {
             client,
             cache: CacheManager::new(),
+        }
+    }
+
+    /// Whether the request never reached GameBanana, so sending it again is safe.
+    fn is_transient(error: &reqwest::Error) -> bool {
+        error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
+    }
+
+    async fn send_retrying(request: RequestBuilder, what: &str) -> Result<Response> {
+        let mut attempt = 1;
+        loop {
+            let Some(attempt_request) = request.try_clone() else {
+                return request
+                    .send()
+                    .await
+                    .with_context(|| format!("could not reach {what}"));
+            };
+
+            match attempt_request.send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if attempt >= MAX_ATTEMPTS
+                        || !(status.is_server_error()
+                            || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
+                    {
+                        return Ok(resp);
+                    }
+                    warn!("{what} returned HTTP {status}, retrying ({attempt}/{MAX_ATTEMPTS})");
+                }
+                Err(e) => {
+                    if attempt >= MAX_ATTEMPTS || !Self::is_transient(&e) {
+                        return Err(e).with_context(|| format!("could not reach {what}"));
+                    }
+                    warn!(
+                        "{what} failed, retrying ({attempt}/{MAX_ATTEMPTS}): {}",
+                        error_chain(&e)
+                    );
+                }
+            }
+
+            tokio::time::sleep(RETRY_BACKOFF * attempt).await;
+            attempt += 1;
         }
     }
 
@@ -67,10 +120,11 @@ impl GameBananaApi {
     }
 
     async fn fetch_thumbnail(client: &Client, url: &str) -> Vec<u8> {
-        let resp = match client.get(url).send().await {
+        let request = client.get(url);
+        let resp = match Self::send_retrying(request, &format!("thumbnail '{url}'")).await {
             Ok(resp) => resp,
             Err(e) => {
-                warn!("Failed to fetch thumbnail '{url}': {e}");
+                warn!("Failed to fetch thumbnail '{url}': {e:#}");
                 return Vec::new();
             }
         };
@@ -84,7 +138,7 @@ impl GameBananaApi {
         match resp.bytes().await {
             Ok(bytes) => bytes.to_vec(),
             Err(e) => {
-                warn!("Failed to read thumbnail '{url}': {e}");
+                warn!("Failed to read thumbnail '{url}': {}", error_chain(&e));
                 Vec::new()
             }
         }
@@ -171,10 +225,13 @@ impl GameBananaApi {
 
     async fn fetch_profile_mod(&self, record: &ApiRecord) -> Option<NteMod> {
         let url = format!("{}/apiv11/Mod/{}/ProfilePage", BASE_URL, record.id);
-        let resp = match self.client.get(&url).send().await {
+        let request = self.client.get(&url);
+        let resp = match Self::send_retrying(request, &format!("the profile of mod {}", record.id))
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
-                warn!("Failed to fetch profile for mod {}: {e}", record.id);
+                warn!("Failed to fetch profile for mod {}: {e:#}", record.id);
                 return None;
             }
         };
@@ -188,7 +245,11 @@ impl GameBananaApi {
         match resp.json::<ProfilePage>().await {
             Ok(profile) => Some(Self::fetch_one(&self.client, profile.record).await),
             Err(e) => {
-                warn!("Failed to parse profile for mod {}: {e}", record.id);
+                warn!(
+                    "Failed to parse profile for mod {}: {}",
+                    record.id,
+                    error_chain(&e)
+                );
                 None
             }
         }
@@ -219,13 +280,9 @@ impl GameBananaApi {
         }
 
         let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[("_nPage", page)])
-            .send()
-            .await
-            .with_context(|| format!("could not reach the feed (page {page})"))?
+        let request = self.client.get(&url).query(&[("_nPage", page)]);
+        let resp = Self::send_retrying(request, &format!("the feed (page {page})"))
+            .await?
             .error_for_status()
             .with_context(|| format!("the feed returned an error (page {page})"))?;
         let subfeed: SubfeedResponse = resp
@@ -271,19 +328,15 @@ impl GameBananaApi {
         }
 
         let url = format!("{BASE_URL}/apiv11/Util/Search/Results");
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[
-                ("_sSearchString", query),
-                ("_sModelName", "Mod"),
-                ("_idGameRow", &NTE_GAME_ID.to_string()),
-                ("_nPage", &page.to_string()),
-                ("_nPerpage", "15"),
-            ])
-            .send()
-            .await
-            .with_context(|| format!("could not reach search for '{query}'"))?
+        let request = self.client.get(&url).query(&[
+            ("_sSearchString", query),
+            ("_sModelName", "Mod"),
+            ("_idGameRow", &NTE_GAME_ID.to_string()),
+            ("_nPage", &page.to_string()),
+            ("_nPerpage", "15"),
+        ]);
+        let resp = Self::send_retrying(request, &format!("search for '{query}'"))
+            .await?
             .error_for_status()
             .with_context(|| format!("search for '{query}' returned an error"))?;
 
@@ -340,20 +393,16 @@ impl GameBananaApi {
         }
 
         let url = format!("{BASE_URL}/apiv11/Mod/Index");
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[
-                (
-                    "_aFilters[Generic_Category]",
-                    category_id.to_string().as_str(),
-                ),
-                ("_nPage", &page.to_string()),
-                ("_nPerpage", "15"),
-            ])
-            .send()
-            .await
-            .with_context(|| format!("could not reach category {category_id} (page {page})"))?
+        let request = self.client.get(&url).query(&[
+            (
+                "_aFilters[Generic_Category]",
+                category_id.to_string().as_str(),
+            ),
+            ("_nPage", &page.to_string()),
+            ("_nPerpage", "15"),
+        ]);
+        let resp = Self::send_retrying(request, &format!("category {category_id} (page {page})"))
+            .await?
             .error_for_status()
             .with_context(|| format!("category {category_id} returned an error (page {page})"))?;
         let index: SearchResponse = resp
@@ -380,10 +429,11 @@ impl GameBananaApi {
 
     pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<NteModFile>> {
         let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
-        let resp = match self.client.get(&url).send().await {
+        let request = self.client.get(&url);
+        let resp = match Self::send_retrying(request, &format!("the files of mod {mod_id}")).await {
             Ok(r) => r,
             Err(e) => {
-                error!("Failed to fetch mod files for mod {mod_id}: {e}");
+                error!("Failed to fetch mod files for mod {mod_id}: {e:#}");
                 return None;
             }
         };
@@ -397,7 +447,7 @@ impl GameBananaApi {
         let profile: ProfilePage = match resp.json().await {
             Ok(p) => p,
             Err(e) => {
-                error!("Failed to parse profile for mod {mod_id}: {e}");
+                error!("Failed to parse profile for mod {mod_id}: {}", error_chain(&e));
                 return None;
             }
         };

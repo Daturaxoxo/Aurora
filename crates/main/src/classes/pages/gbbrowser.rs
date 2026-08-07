@@ -22,6 +22,8 @@ const PAGE_SIZE: usize = 15;
 const DOWNLOAD_BUFFER: usize = 1 << 20;
 const MIN_SEARCH_LEN: usize = 3;
 const DOWNLOAD_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_hours(1);
 
 const INSTALL_RUNNING: u8 = 0;
@@ -61,6 +63,8 @@ static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
     reqwest::Client::builder()
         .user_agent(format!("AuroraLauncher/{}", get_local_version()))
         .read_timeout(DOWNLOAD_IDLE_TIMEOUT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
         .build()
         .unwrap_or_else(|e| {
             error!("[GbBrowser] could not build the HTTP client, falling back to default: {e}");
