@@ -637,7 +637,7 @@ impl ModManagerHandler {
             });
 
             for (index, unit) in units.iter().enumerate() {
-                let path = unit.get(0);
+                let path = unit.first();
                 let Some(path) = path else { continue };
                 let label = path
                     .file_name()

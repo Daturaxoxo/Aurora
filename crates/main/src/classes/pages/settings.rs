@@ -115,48 +115,48 @@ impl SettingsHandler {
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
 
-    fn load_proton_versions(w: &MainWindow) {
-        #[cfg(target_os = "linux")]
-        {
-            let builds = backend::classes::linux::installed_dwproton_builds();
-            debug!("[Settings] installed DW-Proton builds: {builds:?}");
-
-            let raw_version = config::get(key::PROTON_VERSION);
-            let saved = raw_version.as_str().unwrap_or("").trim().to_string();
-
-            // Entry 0 is "Automatic", so an installed build sits one slot later.
-            let index = if saved.is_empty() {
-                0
-            } else {
-                builds
-                    .iter()
-                    .position(|build| *build == saved)
-                    .and_then(|i| i32::try_from(i).ok())
-                    .map_or_else(
-                        || {
-                            warn!(
-                                "[Settings] saved proton_version {saved:?} is not installed any \
-                                 more, showing Automatic instead"
-                            );
-                            0
-                        },
-                        |i| i + 1,
-                    )
-            };
-            debug!("[Settings] proton_version: raw={raw_version:?} → index={index}");
-
-            let mut options = Vec::with_capacity(builds.len() + 1);
-            options.push(slint::SharedString::from(crate::translations::tr(
-                "settings.proton-version.automatic",
-            )));
-            options.extend(builds.iter().map(slint::SharedString::from));
-
-            w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
-            w.set_proton_version_index(index);
-        }
-
-        #[cfg(not(target_os = "linux"))]
+    #[cfg(not(target_os = "linux"))]
+    const fn load_proton_versions(w: &MainWindow) {
         let _ = w;
+    }
+
+    #[cfg(target_os = "linux")]
+    fn load_proton_versions(w: &MainWindow) {
+        let builds = backend::classes::linux::installed_dwproton_builds();
+        debug!("[Settings] installed DW-Proton builds: {builds:?}");
+
+        let raw_version = config::get(key::PROTON_VERSION);
+        let saved = raw_version.as_str().unwrap_or("").trim().to_string();
+
+        // Entry 0 is "Automatic", so an installed build sits one slot later.
+        let index = if saved.is_empty() {
+            0
+        } else {
+            builds
+                .iter()
+                .position(|build| *build == saved)
+                .and_then(|i| i32::try_from(i).ok())
+                .map_or_else(
+                    || {
+                        warn!(
+                            "[Settings] saved proton_version {saved:?} is not installed any \
+                                 more, showing Automatic instead"
+                        );
+                        0
+                    },
+                    |i| i + 1,
+                )
+        };
+        debug!("[Settings] proton_version: raw={raw_version:?} → index={index}");
+
+        let mut options = Vec::with_capacity(builds.len() + 1);
+        options.push(slint::SharedString::from(crate::translations::tr(
+            "settings.proton-version.automatic",
+        )));
+        options.extend(builds.iter().map(slint::SharedString::from));
+
+        w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
+        w.set_proton_version_index(index);
     }
 
     fn bind(window: &slint::Weak<MainWindow>) {

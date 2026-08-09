@@ -50,7 +50,7 @@ impl GameBananaApi {
         }
     }
 
-    /// Whether the request never reached GameBanana, so sending it again is safe.
+    /// Whether the request never reached `GameBanana`, so sending it again is safe.
     fn is_transient(error: &reqwest::Error) -> bool {
         error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
     }
@@ -447,7 +447,10 @@ impl GameBananaApi {
         let profile: ProfilePage = match resp.json().await {
             Ok(p) => p,
             Err(e) => {
-                error!("Failed to parse profile for mod {mod_id}: {}", error_chain(&e));
+                error!(
+                    "Failed to parse profile for mod {mod_id}: {}",
+                    error_chain(&e)
+                );
                 return None;
             }
         };

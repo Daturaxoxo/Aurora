@@ -23,8 +23,7 @@ fn first_report(id: String) -> bool {
     REPORTED
         .get_or_init(Default::default)
         .lock()
-        .map(|mut reported| reported.insert(id))
-        .unwrap_or(false)
+        .is_ok_and(|mut reported| reported.insert(id))
 }
 
 fn value_for<'a>(entry: &'a Value, lang_code: &str) -> Option<&'a str> {

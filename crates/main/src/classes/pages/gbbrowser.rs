@@ -563,7 +563,7 @@ impl GbBrowserHandler {
                 }
 
                 let digest = hasher.finalize();
-                let digest = format!("{:x}", digest);
+                let digest = format!("{digest:x}");
                 if !file.md5.is_empty() && !file.md5.eq_ignore_ascii_case(&digest) {
                     Self::discard_partial(&path).await;
                     return Err(anyhow!(
