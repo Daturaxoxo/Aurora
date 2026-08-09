@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use log::*;
+use anyhow::{Result,anyhow};
 
 use jwalk::DirEntry;
 
@@ -95,4 +97,30 @@ pub fn get_config_cache_dir() -> PathBuf {
         .unwrap_or_else(|| ".".into())
         .join("Aurora")
         .join("Cache")
+}
+
+pub fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
+    if std::fs::read(path).is_ok_and(|existing| existing == contents) {
+        return Ok(());
+    }
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow!("{} has no parent directory", path.display()))?;
+    std::fs::create_dir_all(parent)?;
+    std::fs::write(path, contents)?;
+    info!("Wrote {}", path.display());
+
+    Ok(())
+}
+
+pub fn remove_if_present(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            info!("Removed {}", path.display());
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }

@@ -38,6 +38,9 @@ fn main() -> Result<()> {
         error!("PANIC: {info}");
     }));
 
+    #[cfg(target_os = "windows")]
+    set_app_user_model_id();
+
     #[cfg(target_os = "linux")]
     if is_running_root() {
         error!("Aurora should not be run as root; exiting.");
@@ -76,22 +79,12 @@ fn main() -> Result<()> {
     #[cfg(not(target_os = "linux"))]
     let app_location = installed.then(|| exe.clone());
 
-    match app_location {
+    match &app_location {
         Some(path) => config::set(key::APP_LOCATION, path.display().to_string()),
         None => info!(
             "{} is not an installed copy of Aurora; keeping the stored app location",
             exe.display()
         ),
-    }
-
-    #[cfg(target_os = "windows")]
-    if !config::get(key::QUICK_START_CREATED)
-        .as_bool()
-        .unwrap_or(false)
-    {
-        info!("Quick start not created; running first-time setup");
-        create_quick_start_shortcut()
-            .unwrap_or_else(|e| warn!("Could not create desktop shortcut: {e}"));
     }
 
     if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {
@@ -101,6 +94,20 @@ fn main() -> Result<()> {
             std::process::exit(1);
         }
         return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    if let Some(app_path) = &app_location {
+        if !config::get(key::QUICK_START_CREATED)
+            .as_bool()
+            .unwrap_or(false)
+        {
+            info!("Quick start not created; running first-time setup");
+            match shared::desktop_entry::create_quick_start_shortcut(app_path) {
+                Ok(()) => config::set(key::QUICK_START_CREATED, true),
+                Err(e) => warn!("Could not create the quick start shortcut: {e}"),
+            }
+        }
     }
 
     let window = MainWindow::new()?;
@@ -245,6 +252,10 @@ fn main() -> Result<()> {
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
+
+    #[cfg(target_os = "windows")]
+    set_window_icon(&window);
+
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
     shared::api::ccu::stop();
@@ -252,37 +263,53 @@ fn main() -> Result<()> {
 }
 
 #[cfg(target_os = "windows")]
-fn create_quick_start_shortcut() -> Result<()> {
-    use mslnk::ShellLink;
-    use std::path::PathBuf;
+fn set_app_user_model_id() {
+    use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
 
-    const QUICK_START_ICON: &[u8] = include_bytes!("../../../production/icons/startup.ico");
+    const APP_USER_MODEL_ID: &str = "Aurora.Launcher";
 
-    let assets_path = config::get_userdata_path()
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .ok_or_else(|| anyhow!("could not resolve the userdata parent directory"))?;
-    std::fs::create_dir_all(&assets_path)?;
-    let icon_location = assets_path.join("startup.ico");
-    std::fs::write(&icon_location, QUICK_START_ICON)?;
+    let id: Vec<u16> = APP_USER_MODEL_ID
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
 
-    let exe = std::env::current_exe()?;
-    let desktop_dir = dirs::desktop_dir().unwrap_or_else(|| PathBuf::from("."));
+    let hr = unsafe { SetCurrentProcessExplicitAppUserModelID(id.as_ptr()) };
+    if hr < 0 {
+        warn!("Could not set the app user model id (hresult {hr:#x})");
+    }
+}
 
-    let mut link = ShellLink::new(&exe)?;
-    link.set_name(Some("Aurora Quick Start".to_string()));
-    link.set_arguments(Some(ipc::QUICK_START_ARG.to_string()));
-    link.set_working_dir(
-        exe.parent()
-            .and_then(|p| p.to_str())
-            .map(std::string::ToString::to_string),
-    );
-    link.set_icon_location(icon_location.to_str().map(std::string::ToString::to_string));
-    link.create_lnk(desktop_dir.join("Aurora Quick Start.lnk"))?;
+#[cfg(target_os = "windows")]
+fn set_window_icon(window: &MainWindow) {
+    use i_slint_backend_winit::winit::window::Icon;
+    use i_slint_backend_winit::WinitWindowAccessor;
 
-    config::set(key::QUICK_START_CREATED, true);
-    info!("Quick start desktop shortcut created");
-    Ok(())
+    const LOGO: &[u8] = include_bytes!("../../../production/icons/logo.png");
+
+    let icon = match image::load_from_memory(LOGO) {
+        Ok(image) => {
+            let image = image.into_rgba8();
+            let (width, height) = image.dimensions();
+            Icon::from_rgba(image.into_raw(), width, height)
+        }
+        Err(e) => {
+            warn!("Could not decode the window icon: {e}");
+            return;
+        }
+    };
+
+    match icon {
+        Ok(icon) => {
+            if window
+                .window()
+                .with_winit_window(|w| w.set_window_icon(Some(icon.clone())))
+                .is_none()
+            {
+                warn!("Could not access the winit window to set the icon");
+            }
+        }
+        Err(e) => warn!("Could not build the window icon: {e}"),
+    }
 }
 
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {

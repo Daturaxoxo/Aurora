@@ -53,7 +53,6 @@ winresource = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-mslnk = { workspace = true }
 tray-icon = { version = "0.24.2", default-features = false }
 # Lets a screenshot's own PNG bytes go on the clipboard untouched; arboard's
 # set_image re-encodes the pixels, which costs ~2s for a full-size screenshot
