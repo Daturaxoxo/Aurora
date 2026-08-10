@@ -1,4 +1,5 @@
 import { Palette } from "../../../global.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Tr, TrKey } from "../../../translations.slint";
 
 export struct AddonItem {
@@ -404,15 +405,18 @@ export component AddonsPage inherits Rectangle {
                     }
                 }
 
-                if root.addons.length > 0: Flickable {
+                if root.addons.length > 0: grid-scroll := ScrollView {
                     width: 100%;
                     height: 100%;
+
+                    property <length> gutter: 12px;
+
                     viewport-width: self.width;
                     viewport-height: (Math.ceil(root.addons.length / 2) * (310px + 16px)) - 16px + 24px;
 
                     HorizontalLayout {
                         y: 8px;
-                        width: 100%;
+                        width: grid-scroll.width - grid-scroll.gutter;
                         height: self.preferred-height;
                         spacing: 16px;
                         alignment: start;
