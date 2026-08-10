@@ -2,6 +2,7 @@ use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
+use backend::classes::addons::scale;
 use backend::classes::rpc::RPC;
 use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
 use log::{debug, error, info, warn};
@@ -80,6 +81,11 @@ impl SettingsHandler {
         let engine_method = raw_engine.as_i64().unwrap_or(0).try_into().unwrap_or(0);
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
+
+        let current_scale = scale::get_current_scale();
+        let engine_scale = Self::scale_to_percent(current_scale);
+        debug!("[Settings] engine_scale: Engine.ini={current_scale} → {engine_scale}%");
+        w.set_engine_scale(engine_scale);
 
         let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
@@ -313,6 +319,27 @@ impl SettingsHandler {
             }
         });
 
+        let ww = window.clone();
+        w.on_engine_scale_changed(move |percent| {
+            info!("[Settings] engine_scale changed -> {percent}%");
+
+            if scale::apply_scale(f64::from(percent) / 100.0) {
+                debug!("[Settings] engine_scale written to Engine.ini");
+                return;
+            }
+
+            error!("[Settings] engine_scale could not be written to Engine.ini");
+            ToastHandler::show(&ww, "Failed to save the application scale.", "error");
+
+            // The write failed, so put the slider back on what the file still says.
+            let actual = Self::scale_to_percent(scale::get_current_scale());
+            if let Some(w) = ww.upgrade() {
+                w.set_engine_scale(actual);
+            } else {
+                error!("[Settings] window handle dead when reverting engine_scale");
+            }
+        });
+
         // [LINUX]
 
         w.on_proton_launch_args_changed(move |args| {
@@ -402,6 +429,12 @@ impl SettingsHandler {
         });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn scale_to_percent(scale: f64) -> i32 {
+        let stepped = (scale * 20.0).round() * 5.0;
+        stepped.clamp(50.0, 200.0) as i32
     }
 
     fn translation(w: &MainWindow, index: i32) -> slint::SharedString {

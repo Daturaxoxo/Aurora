@@ -1,10 +1,7 @@
 use anyhow::{Context, Result};
 use backend::handler::EngineCommand;
 use log::*;
-use shared::{
-    pathfind,
-    utils::{get_cache_dir, get_config_cache_dir},
-};
+use shared::{pathfind, utils::get_cache_dir};
 
 pub struct RepairHandler;
 
@@ -31,7 +28,6 @@ impl RepairHandler {
         if clean_cache {
             trace!("[Repair] Cleaning cache");
             std::fs::remove_dir_all(get_cache_dir())?;
-            std::fs::remove_dir_all(get_config_cache_dir())?;
         }
 
         Ok(())

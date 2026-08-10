@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
+use anyhow::{anyhow, Result};
 use log::*;
-use anyhow::{Result,anyhow};
+use std::path::{Path, PathBuf};
 
 use jwalk::DirEntry;
 
@@ -89,10 +89,6 @@ pub fn format_bytes(bytes: u64) -> String {
 }
 
 pub fn get_cache_dir() -> PathBuf {
-    ipc::state_root().join("Cache")
-}
-
-pub fn get_config_cache_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| ".".into())
         .join("Aurora")

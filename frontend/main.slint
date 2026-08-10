@@ -118,6 +118,7 @@ export component MainWindow inherits Window {
     in-out property <bool> discord-rpc: true;
     in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;
+    in-out property <int> engine-scale: 100;
     in-out property <bool> ignore-checksum: false;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
@@ -132,6 +133,7 @@ export component MainWindow inherits Window {
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
@@ -1131,6 +1133,7 @@ export component MainWindow inherits Window {
             discord-rpc <=> root.discord-rpc;
             game-directory <=> root.game-directory;
             engine-method-index <=> root.engine-method-index;
+            engine-scale <=> root.engine-scale;
             ignore-checksum <=> root.ignore-checksum;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
@@ -1146,6 +1149,7 @@ export component MainWindow inherits Window {
             interface-minimization-changed(v) => { root.interface-minimization-changed(v); }
             discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
+            engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }

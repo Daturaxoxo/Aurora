@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { Languages } from "../../languages.slint";
 import { Tr, TrKey } from "../../translations.slint";
 import { ScrollingTextInput } from "../textfield.slint";
+import { Slider } from "../slider.slint";
 
 // TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
@@ -246,6 +247,9 @@ export component SettingsPage inherits Rectangle {
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
+    in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
+    // TODO: change this if we ever do scale for Linux
+    in property <bool> show-engine-scale: !root.is-linux;
     in-out property <bool> ignore-checksum: false;
 
     // LINUX
@@ -264,6 +268,7 @@ export component SettingsPage inherits Rectangle {
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
@@ -490,6 +495,39 @@ export component SettingsPage inherits Rectangle {
                                     font-weight: 700;
                                 }
 
+                                if root.show-engine-scale: SettingCard {
+                                    title: Tr.values[TrKey.settings-engine-scale-title];
+                                    subtitle: Tr.values[TrKey.settings-engine-scale-subtitle];
+
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        alignment: end;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Slider {
+                                                width: 160px;
+                                                minimum: 50;
+                                                maximum: 200;
+                                                step: 5;
+                                                value <=> root.engine-scale;
+                                                changed(value) => { root.engine-scale-changed(value); }
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Text {
+                                                width: 42px;
+                                                text: "\{root.engine-scale}%";
+                                                color: Palette.text-primary;
+                                                font-size: 13px;
+                                                horizontal-alignment: right;
+                                            }
+                                        }
+                                    }
+                                }
+
                                 SettingCard {
                                     title: Tr.values[TrKey.settings-engine-method-title];
                                     subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
@@ -662,7 +700,6 @@ export component SettingsPage inherits Rectangle {
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-
                                 }
 
                                 SettingCard {
