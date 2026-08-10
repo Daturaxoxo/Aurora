@@ -26,9 +26,10 @@ Lightweight modding platform for anime games.
 </p>
 <br></br>
 Aurora is a lightweight modding platform for Unreal Engine anime games allowing you to freely load Unreal Engine 5 PAK mods, Lua scripts and blueprints.
-<br></br>
 Easily start modding your favourite games with a clean desktop interface and super easy setup.
 <br></br>
+
+Easily load both `.pak` character model mods and `.asi` DLL mods into your game, with support for Lua scripts as well.
 
 Aurora is written in [Rust](https://rust-lang.org) and rendered with [Slint](https://slint.dev), both being extremely lightweight languages.
 <br></br>
@@ -37,6 +38,11 @@ Aurora is written in [Rust](https://rust-lang.org) and rendered with [Slint](htt
 > Because our application is not signed, Windows Defender might false flag Aurora on first launch. We do not support Microsoft's [Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview) system. You are most likely to get blocked by Smart App Control while running Aurora for the first time.
 >
 > Find out how to disable Smart App Control: [Click Me!](https://docs.getaurora.moe/hidden/guides/smart-app-control)
+<br>
+</br>
+
+> [!IMPORTANT]
+> Aurora does not and will never support `.ini` mods, those mods are loaded in by D3D11 hooking projects like 3DMigoto or XXMI. It's close near impossible creating support for them, the architecture between Aurora and 3DMigoto is vastly different. We are an Unreal Engine PAK loader, not a DirectX hook.
 <br>
 </br>
 
