@@ -1,6 +1,6 @@
+use super::INVALID_FILENAME_CHARS;
 use crate::classes::{characters, modicons};
 use crate::{GroupOption, MainWindow, ModItem};
-use super::INVALID_FILENAME_CHARS;
 
 use anyhow::{anyhow, Context, Result};
 use log::*;
@@ -437,6 +437,7 @@ struct State {
     selected: HashSet<String>,
     selected_groups: HashSet<String>,
     collapsed: HashSet<String>,
+    pending_edit_group: Option<String>,
     search: String,
     // TODO: Make this an enum
     filter: i32, // 0 = all, 1 = enabled only, 2 = disabled only
@@ -1082,6 +1083,9 @@ impl ModManagerHandler {
         w.set_mods_selected_group_count(i32::try_from(selected_group_count).unwrap_or(0));
         w.set_mods_all_selected(all_selected);
 
+        let pending_edit = STATE.lock().unwrap().pending_edit_group.take();
+        w.set_mods_editing_group_id(pending_edit.unwrap_or_default().into());
+
         modicons::load(w.as_weak(), wanted_images, Self::apply_icon);
     }
 
@@ -1538,6 +1542,8 @@ impl ModManagerHandler {
                             error!("[ModManager] could not create group '{name}': {e}");
                         } else {
                             info!("[ModManager] created group '{name}'");
+                            STATE.lock().unwrap().pending_edit_group =
+                                Some(path.to_string_lossy().into_owned());
                         }
                     }
                     None => error!("[ModManager] could not create group: no mods path"),

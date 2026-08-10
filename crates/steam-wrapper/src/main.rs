@@ -4,7 +4,7 @@ slint::include_modules!();
 
 use std::path::{Path, PathBuf};
 
-use shared::classes::info::version::{detect_distribution, LAUNCHER_MAP};
+use shared::classes::info::version::{LAUNCHER_MAP, detect_distribution};
 use slint::{LogicalPosition, WindowPosition};
 
 use shared::config::{self, key};
@@ -12,7 +12,8 @@ use shared::display::{center_window, on_drag};
 const LAUNCHER_SEARCH_DEPTH: usize = 2;
 
 #[cfg(windows)]
-const STARTING_AURORA: &str = "Starting Aurora - accept the Windows administrator prompt to continue.";
+const STARTING_AURORA: &str =
+    "Starting Aurora - accept the Windows administrator prompt to continue.";
 #[cfg(not(windows))]
 const STARTING_AURORA: &str = "Starting Aurora...";
 
@@ -246,7 +247,11 @@ fn main() -> Result<(), slint::PlatformError> {
         }
 
         let raw_game_path = config::get(key::GAME_PATH);
-        let game_path = raw_game_path.as_str().unwrap_or_default().trim().to_string();
+        let game_path = raw_game_path
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         if game_path.is_empty() {
             report(
                 &ui_weak_vanilla,

@@ -189,6 +189,7 @@ export component MainWindow inherits Window {
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
     in-out property <string> mods-drag-target: "";
+    in-out property <string> mods-editing-group-id: "";
     callback mods-select-all();
     callback mods-toggle-all();
     callback mods-toggle-selected();
@@ -1066,6 +1067,7 @@ export component MainWindow inherits Window {
             create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
+            editing-group-id <=> root.mods-editing-group-id;
             mod-drag-moved(id, y) => { root.mod-drag-moved(id, y); }
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
             refresh => { root.mods-refresh(); }

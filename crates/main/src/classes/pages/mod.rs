@@ -15,7 +15,7 @@ const RESERVED_DEVICE_NAMES: [&str; 22] = [
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-pub (crate) const INVALID_FILENAME_CHARS: [char; 10] = ['/', '\\', '\0', ':', '*', '?', '"', '<', '>', '|'];
+pub const INVALID_FILENAME_CHARS: [char; 10] = ['/', '\\', '\0', ':', '*', '?', '"', '<', '>', '|'];
 
 fn is_reserved_device_name(name: &str) -> bool {
     let stem = name.split('.').next().unwrap_or(name).trim_end();

@@ -18,22 +18,32 @@ export {
 component GroupHeader inherits Rectangle {
     in property <ModItem> item;
     in property <bool> drop-target: false;
+    in property <string> auto-edit-id: "";
 
     callback collapse(string /* id */);
     callback rename(string /* id */, string /* new name */);
     callback request-delete(string /* id */);
     callback toggle-enabled(string /* id */);
     callback toggle-select(string /* id */);
+    callback auto-edit-consumed();
+    callback auto-edit-opened();
 
+    // Editing opened by the rename button
     property <bool> editing-name: false;
+    // Editing opened by this group having just been created
+    property <bool> auto-editing: root.auto-edit-id != "" && root.auto-edit-id == root.item.id;
+    property <bool> editing: root.editing-name || root.auto-editing;
     property <string> name-draft;
     property <bool> hovered: header-ta.has-hover || rename-ta.has-hover
         || delete-ta.has-hover || select-ta.has-hover;
 
     function commit-name() {
-        if (root.editing-name) {
+        if (root.editing) {
             root.rename(root.item.id, root.name-draft);
             root.editing-name = false;
+            if (root.auto-editing) {
+                root.auto-edit-consumed();
+            }
         }
     }
 
@@ -128,7 +138,7 @@ component GroupHeader inherits Rectangle {
             }
         }
 
-        if !root.editing-name: Text {
+        if !root.editing: Text {
             text: root.item.name;
             color: Palette.text-primary;
             font-size: 13px;
@@ -138,36 +148,45 @@ component GroupHeader inherits Rectangle {
             vertical-alignment: center;
         }
 
-        if root.editing-name: Rectangle {
-            property <length> desired-width: min(420px, max(200px, name-measure.preferred-width + 16px));
+        if root.editing: VerticalLayout {
+            alignment: center;
 
-            preferred-width: self.desired-width;
-            max-width: self.desired-width;
-            min-width: 0px;
-            border-radius: 4px;
-            background: #ffffff10;
-            border-width: 1px;
-            border-color: #ffffff33;
+            Rectangle {
+                property <length> desired-width: min(420px, max(200px, name-measure.preferred-width + 16px));
 
-            name-measure := Text {
-                visible: false;
-                text: root.name-draft;
-                font-size: 12.5px;
-            }
+                preferred-width: self.desired-width;
+                max-width: self.desired-width;
+                min-width: 0px;
+                height: 24px;
+                border-radius: 4px;
+                background: #ffffff10;
+                border-width: 1px;
+                border-color: #ffffff33;
 
-            ScrollingTextInput {
-                width: 100%;
-                height: 100%;
-                font-size: 12.5px;
-                init => {
-                    self.text = root.item.name;
-                    root.name-draft = root.item.name;
-                    self.focus-input();
+                name-measure := Text {
+                    visible: false;
+                    text: root.name-draft;
+                    font-size: 12.5px;
                 }
-                edited(text) => { root.name-draft = text; }
-                accepted(text) => { root.commit-name(); }
-                focus-changed(focused) => {
-                    if (!focused) { root.commit-name(); }
+
+                ScrollingTextInput {
+                    width: 100%;
+                    height: 100%;
+                    font-size: 12.5px;
+                    init => {
+                        self.text = root.item.name;
+                        root.name-draft = root.item.name;
+                        self.focus-input();
+                        if (root.auto-editing) {
+                            self.select-all();
+                            root.auto-edit-opened();
+                        }
+                    }
+                    edited(text) => { root.name-draft = text; }
+                    accepted(text) => { root.commit-name(); }
+                    focus-changed(focused) => {
+                        if (!focused) { root.commit-name(); }
+                    }
                 }
             }
         }
@@ -194,7 +213,7 @@ component GroupHeader inherits Rectangle {
 
                 rename-ta := TouchArea {
                     clicked => {
-                        if (root.editing-name) {
+                        if (root.editing) {
                             root.commit-name();
                         } else {
                             root.editing-name = true;
@@ -302,6 +321,9 @@ export component ModManagerPage inherits Rectangle {
     in-out property <length> drag-pos-x;
     in-out property <length> drag-pos-y;
     in property <string> drag-target-group: "";
+    in-out property <string> editing-group-id: "";
+    // Group waiting to be scrolled into view, cleared once that has happened
+    property <string> reveal-group-id: "";
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
     callback drop-mod-on-zone(string /* id */, string /* zone */);
@@ -331,6 +353,11 @@ export component ModManagerPage inherits Rectangle {
     drop-shadow-color: Palette.shadow-color;
     drop-shadow-blur: 25px;
     drop-shadow-offset-y: 10px;
+
+    commit-focus := FocusScope {
+        width: 0px;
+        height: 0px;
+    }
 
     VerticalLayout {
         spacing: 0px;
@@ -375,7 +402,10 @@ export component ModManagerPage inherits Rectangle {
                         animate border-color { duration: 100ms; }
 
                         add-mods-ta := TouchArea {
-                            clicked => { add-menu.show(); }
+                            clicked => {
+                                commit-focus.focus();
+                                add-menu.show();
+                            }
                         }
 
                         add-menu := PopupWindow {
@@ -556,7 +586,10 @@ export component ModManagerPage inherits Rectangle {
                         animate border-color { duration: 100ms; }
 
                         group-ta := TouchArea {
-                            clicked => { root.create-group(); }
+                            clicked => {
+                                commit-focus.focus();
+                                root.create-group();
+                            }
                         }
 
                         group-row := HorizontalLayout {
@@ -732,7 +765,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         refresh-ta := TouchArea {
-                            clicked => { root.refresh(); }
+                            clicked => {
+                                commit-focus.focus();
+                                root.refresh();
+                            }
                         }
                     }
                 }
@@ -816,7 +852,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         select-all-ta := TouchArea {
-                            clicked => { root.select-all(); }
+                            clicked => {
+                                commit-focus.focus();
+                                root.select-all();
+                            }
                         }
                     }
                 }
@@ -881,6 +920,7 @@ export component ModManagerPage inherits Rectangle {
                             Tr.values[TrKey.modmanager-filter-disabled]
                         ];
                         selection-changed(idx) => {
+                            commit-focus.focus();
                             root.filter-index = idx;
                             root.filter-changed(idx);
                         }
@@ -909,7 +949,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         toggle-ta := TouchArea {
-                            clicked => { root.toggle-all(); }
+                            clicked => {
+                                commit-focus.focus();
+                                root.toggle-all();
+                            }
                         }
                     }
                 }
@@ -942,7 +985,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         move-sel-ta := TouchArea {
-                            clicked => { move-menu.show(); }
+                            clicked => {
+                                commit-focus.focus();
+                                move-menu.show();
+                            }
                         }
 
                         move-menu := PopupWindow {
@@ -1088,7 +1134,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         toggle-sel-ta := TouchArea {
-                            clicked => { root.toggle-selected(); }
+                            clicked => {
+                                commit-focus.focus();
+                                root.toggle-selected();
+                            }
                         }
                     }
                 }
@@ -1114,7 +1163,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         delete-sel-ta := TouchArea {
-                            clicked => { root.pending-delete-selected = true; }
+                            clicked => {
+                                commit-focus.focus();
+                                root.pending-delete-selected = true;
+                            }
                         }
                     }
                 }
@@ -1141,7 +1193,10 @@ export component ModManagerPage inherits Rectangle {
                         }
 
                         delete-groups-ta := TouchArea {
-                            clicked => { root.pending-delete-selected-groups = true; }
+                            clicked => {
+                                commit-focus.focus();
+                                root.pending-delete-selected-groups = true;
+                            }
                         }
                     }
                 }
@@ -1190,6 +1245,16 @@ export component ModManagerPage inherits Rectangle {
                     && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
                 property <length> scroll-min: min(0px, self.height - self.viewport-height);
 
+                // Scrolls a row into view, taking its y in content space
+                function reveal(content-y: length, h: length) {
+                    if (content-y + self.viewport-y < 12px) {
+                        self.viewport-y = min(0px, 12px - content-y);
+                    } else if (content-y + h + self.viewport-y > self.height - 12px) {
+                        self.viewport-y = min(0px, max(self.scroll-min,
+                            self.height - 12px - content-y - h));
+                    }
+                }
+
                 Timer {
                     interval: 16ms;
                     running: list-scroll.drag-near-top || list-scroll.drag-near-bottom;
@@ -1226,11 +1291,28 @@ export component ModManagerPage inherits Rectangle {
                             drop-target: root.drag-id != ""
                                 && root.drag-target-group != ""
                                 && mod.id == root.drag-target-group;
+                            auto-edit-id: root.editing-group-id;
+                            auto-edit-consumed => { root.editing-group-id = ""; }
+                            auto-edit-opened => { root.reveal-group-id = mod.id; }
                             collapse(id) => { root.collapse-group(id); }
                             rename(id, name) => { root.rename-group(id, name); }
                             request-delete(id) => { root.pending-delete-group-id = id; }
                             toggle-enabled(id) => { root.toggle-group(id); }
                             toggle-select(id) => { root.select-group(id); }
+                        }
+
+                        if mod.is-group-header: Rectangle {
+                            width: 0px;
+                            height: 0px;
+                            Timer {
+                                interval: 16ms;
+                                running: root.reveal-group-id != ""
+                                    && root.reveal-group-id == mod.id;
+                                triggered => {
+                                    list-scroll.reveal(mod-row.y, mod-row.height);
+                                    root.reveal-group-id = "";
+                                }
+                            }
                         }
 
                         if mod-row.nested: Rectangle {
@@ -1306,6 +1388,15 @@ export component ModManagerPage inherits Rectangle {
                     && self.drag-inside-x
                     && self.drag-local-y >= 0px && self.drag-local-y <= self.height;
 
+                function reveal(content-y: length, h: length) {
+                    if (content-y + self.viewport-y < 12px) {
+                        self.viewport-y = min(0px, 12px - content-y);
+                    } else if (content-y + h + self.viewport-y > self.height - 12px) {
+                        self.viewport-y = min(0px, max(self.scroll-min,
+                            self.height - 12px - content-y - h));
+                    }
+                }
+
                 Timer {
                     interval: 16ms;
                     running: grid-scroll.drag-near-top || grid-scroll.drag-near-bottom;
@@ -1354,11 +1445,28 @@ export component ModManagerPage inherits Rectangle {
                         if section-root.has-header: GroupHeader {
                             item: section[0];
                             drop-target: section-root.drag-highlight;
+                            auto-edit-id: root.editing-group-id;
+                            auto-edit-consumed => { root.editing-group-id = ""; }
+                            auto-edit-opened => { root.reveal-group-id = section-root.zone; }
                             collapse(id) => { root.collapse-group(id); }
                             rename(id, name) => { root.rename-group(id, name); }
                             request-delete(id) => { root.pending-delete-group-id = id; }
                             toggle-enabled(id) => { root.toggle-group(id); }
                             toggle-select(id) => { root.select-group(id); }
+                        }
+
+                        if section-root.has-header: Rectangle {
+                            width: 0px;
+                            height: 0px;
+                            Timer {
+                                interval: 16ms;
+                                running: root.reveal-group-id != ""
+                                    && root.reveal-group-id == section-root.zone;
+                                triggered => {
+                                    grid-scroll.reveal(section-root.y, 40px);
+                                    root.reveal-group-id = "";
+                                }
+                            }
                         }
 
                         if section-root.tile-count > 0: tile-area := Rectangle {

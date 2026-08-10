@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use log::*;
 use std::path::Path;
-    
+
 use crate::utils::{remove_if_present, write_if_changed};
 
 pub const APP_ID: &str = "aurora";
