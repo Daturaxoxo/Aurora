@@ -1,10 +1,16 @@
 import { Palette } from "../../global.slint";
-import { ScrollView } from "std-widgets.slint";
+import { LineEdit, ScrollView } from "std-widgets.slint";
 import { ModCard, ModItem, ToggleSwitch } from "../modcard.slint";
 import { PopupDialog } from "../popup.slint";
+import { ChipButton } from "../chipbutton.slint";
 import { Dropdown } from "settings.slint";
 import { ScrollingTextInput } from "../textfield.slint";
 import { Tr, TrKey } from "../../translations.slint";
+
+export struct GroupOption {
+    id: string,
+    name: string,
+}
 
 export {
     ModItem,
@@ -56,8 +62,8 @@ component GroupHeader inherits Rectangle {
         VerticalLayout {
             alignment: center;
             Rectangle {
-                width: 16px;
-                height: 16px;
+                width: 18px;
+                height: 18px;
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
@@ -68,10 +74,10 @@ component GroupHeader inherits Rectangle {
                 animate border-color { duration: 120ms; }
 
                 if root.item.selected: Path {
-                    x: 2px;
-                    y: 3px;
-                    width: 12px;
-                    height: 10px;
+                    x: 2.5px;
+                    y: 3.5px;
+                    width: 13px;
+                    height: 11px;
                     viewbox-x: 0;
                     viewbox-y: 0;
                     viewbox-width: 12;
@@ -249,7 +255,9 @@ export component ModManagerPage inherits Rectangle {
     callback view-changed(bool);
     in property <bool> all-selected: false;
     in property <int> selected-count: 0;
+    in property <int> selected-group-count: 0;
     in property <bool> file-hover: false;
+    in property <[GroupOption]> groups: [];
 
     // [CALLBACKS]
     callback close-mod-manager();
@@ -266,6 +274,7 @@ export component ModManagerPage inherits Rectangle {
     callback set-mod-notes(string, string);
     callback toggle-selected();
     callback delete-selected();
+    callback delete-selected-groups();
     callback create-group();
     callback rename-group(string, string);
     callback delete-group(string);
@@ -278,10 +287,15 @@ export component ModManagerPage inherits Rectangle {
     callback search-changed(string);
     callback filter-changed(int);
     callback move-mod-to-group(string, string);
+    callback move-selected-to-group(string /* group id, "" = mods root */);
+    callback create-group-with-selected(string /* new group name */);
+
+    in-out property <bool> naming-group: false;
 
     in-out property <string> pending-delete-id: "";
     in-out property <string> pending-delete-group-id: "";
     in-out property <bool> pending-delete-selected: false;
+    in-out property <bool> pending-delete-selected-groups: false;
 
     in-out property <string> drag-id: "";
     in-out property <string> drag-name: "";
@@ -297,6 +311,13 @@ export component ModManagerPage inherits Rectangle {
     in-out property <bool> grid-drag-zone-valid: false;
 
     changed search-text => { root.search-changed(root.search-text); }
+
+    function commit-new-group(name: string) {
+        if (name != "") {
+            root.create-group-with-selected(name);
+        }
+        root.naming-group = false;
+    }
 
     init => {
         root.search-changed(root.search-text);
@@ -768,8 +789,8 @@ export component ModManagerPage inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     Rectangle {
-                        width: 16px;
-                        height: 16px;
+                        width: 18px;
+                        height: 18px;
                         border-radius: 4px;
                         border-width: 1px;
                         border-color: root.all-selected
@@ -780,10 +801,10 @@ export component ModManagerPage inherits Rectangle {
                         animate border-color { duration: 120ms; }
 
                         if root.all-selected: Path {
-                            x: 2px;
-                            y: 3px;
-                            width: 12px;
-                            height: 10px;
+                            x: 2.5px;
+                            y: 3.5px;
+                            width: 13px;
+                            height: 11px;
                             viewbox-x: 0;
                             viewbox-y: 0;
                             viewbox-width: 12;
@@ -895,6 +916,159 @@ export component ModManagerPage inherits Rectangle {
 
                 if root.selected-count > 0: VerticalLayout {
                     alignment: center;
+                    move-sel-btn := Rectangle {
+                        // "No Group" + every group + "New Group..."
+                        property <int> entry-count: root.groups.length + 2;
+                        property <length> row-height: 32px;
+                        property <length> row-spacing: 2px;
+                        property <length> list-height: min(self.entry-count, 8)
+                            * (self.row-height + self.row-spacing) - self.row-spacing;
+
+                        width: move-sel-text.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: move-sel-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: move-sel-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+
+                        move-sel-text := Text {
+                            text: Tr.values[TrKey.modmanager-move-to-group] + " (" + root.selected-count + ")";
+                            color: #ffffffcc;
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        move-sel-ta := TouchArea {
+                            clicked => { move-menu.show(); }
+                        }
+
+                        move-menu := PopupWindow {
+                            x: 0px;
+                            y: parent.height + 6px;
+                            width: 220px;
+                            height: move-sel-btn.list-height + 12px;
+
+                            Rectangle {
+                                background: #1e1e24;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #3f3f46;
+
+                                ScrollView {
+                                    x: 6px;
+                                    y: 6px;
+                                    width: parent.width - 12px;
+                                    height: move-sel-btn.list-height;
+                                    viewport-height: move-menu-list.preferred-height;
+
+                                    move-menu-list := VerticalLayout {
+                                        spacing: move-sel-btn.row-spacing;
+                                        alignment: start;
+
+                                        // Back out of any group, into the mods root
+                                        Rectangle {
+                                            height: move-sel-btn.row-height;
+                                            border-radius: 6px;
+                                            background: root-entry-ta.has-hover ? #ffffff10 : transparent;
+
+                                            root-entry-ta := TouchArea {
+                                                clicked => {
+                                                    root.move-selected-to-group("");
+                                                    move-menu.close();
+                                                }
+                                            }
+
+                                            Text {
+                                                x: 10px;
+                                                width: parent.width - 20px;
+                                                text: Tr.values[TrKey.modmanager-move-no-group];
+                                                color: #ffffffaa;
+                                                font-size: 12.5px;
+                                                font-weight: 500;
+                                                overflow: elide;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+
+                                        for group in root.groups: Rectangle {
+                                            height: move-sel-btn.row-height;
+                                            border-radius: 6px;
+                                            background: group-entry-ta.has-hover ? #ffffff10 : transparent;
+
+                                            group-entry-ta := TouchArea {
+                                                clicked => {
+                                                    root.move-selected-to-group(group.id);
+                                                    move-menu.close();
+                                                }
+                                            }
+
+                                            Text {
+                                                x: 10px;
+                                                width: parent.width - 20px;
+                                                text: group.name;
+                                                color: #ffffffdd;
+                                                font-size: 12.5px;
+                                                font-weight: 500;
+                                                overflow: elide;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            height: move-sel-btn.row-height;
+                                            border-radius: 6px;
+                                            background: new-group-entry-ta.has-hover ? #ffffff10 : transparent;
+
+                                            new-group-entry-ta := TouchArea {
+                                                clicked => {
+                                                    root.naming-group = true;
+                                                    move-menu.close();
+                                                }
+                                            }
+
+                                            HorizontalLayout {
+                                                padding-left: 10px;
+                                                padding-right: 10px;
+                                                spacing: 8px;
+                                                alignment: start;
+
+                                                VerticalLayout {
+                                                    alignment: center;
+                                                    Path {
+                                                        width: 12px;
+                                                        height: 12px;
+                                                        viewbox-x: 0;
+                                                        viewbox-y: 0;
+                                                        viewbox-width: 14;
+                                                        viewbox-height: 14;
+                                                        commands: "M7 1 L7 13 M1 7 L13 7";
+                                                        stroke: #ffffffaa;
+                                                        stroke-width: 1.8px;
+                                                        fill: transparent;
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: Tr.values[TrKey.modmanager-move-new-group];
+                                                    color: #ffffffdd;
+                                                    font-size: 12.5px;
+                                                    font-weight: 500;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.selected-count > 0: VerticalLayout {
+                    alignment: center;
                     toggle-sel-btn := Rectangle {
                         width: toggle-sel-text.preferred-width + 24px;
                         height: 28px;
@@ -941,6 +1115,33 @@ export component ModManagerPage inherits Rectangle {
 
                         delete-sel-ta := TouchArea {
                             clicked => { root.pending-delete-selected = true; }
+                        }
+                    }
+                }
+
+                if root.selected-group-count > 0: VerticalLayout {
+                    alignment: center;
+                    delete-groups-btn := Rectangle {
+                        width: delete-groups-text.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: #ee493766;
+                        background: delete-groups-ta.has-hover ? #ee4937 : #ee4937cc;
+                        animate background { duration: 100ms; }
+
+                        delete-groups-text := Text {
+                            text: Tr.values[TrKey.modmanager-delete-groups-button]
+                                + " (" + root.selected-group-count + ")";
+                            color: Palette.text-primary;
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        delete-groups-ta := TouchArea {
+                            clicked => { root.pending-delete-selected-groups = true; }
                         }
                     }
                 }
@@ -1315,22 +1516,92 @@ export component ModManagerPage inherits Rectangle {
         }
     }
 
+    if root.naming-group: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000aa;
+
+        TouchArea {
+            clicked => { root.naming-group = false; }
+        }
+
+        Rectangle {
+            width: 360px;
+            height: new-group-layout.preferred-height;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #1e1e24;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: #00000099;
+            drop-shadow-blur: 30px;
+
+            TouchArea { }
+
+            new-group-layout := VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+
+                Text {
+                    text: Tr.values[TrKey.modmanager-new-group-title];
+                    color: Palette.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                }
+
+                new-group-input := LineEdit {
+                    height: 34px;
+                    font-size: 13px;
+                    placeholder-text: Tr.values[TrKey.modmanager-new-group-placeholder];
+                    init => { self.focus(); }
+                    accepted => { root.commit-new-group(self.text); }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.naming-group = false; }
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-button-create];
+                        active: true;
+                        clicked => { root.commit-new-group(new-group-input.text); }
+                    }
+                }
+            }
+        }
+    }
+
     delete-dialog := PopupDialog {
         active: root.pending-delete-id != ""
             || root.pending-delete-group-id != ""
-            || root.pending-delete-selected;
+            || root.pending-delete-selected
+            || root.pending-delete-selected-groups;
         title: root.pending-delete-group-id != "" ? Tr.values[TrKey.modmanager-delete-group-title]
+            : root.pending-delete-selected-groups
+            ? Tr.values[TrKey.modmanager-delete-selected-groups-title]
             : root.pending-delete-selected ? Tr.values[TrKey.modmanager-delete-selected-title]
             : Tr.values[TrKey.modmanager-delete-mod-title];
         message: root.pending-delete-group-id != ""
             ? Tr.values[TrKey.modmanager-delete-group-message]
+            : root.pending-delete-selected-groups
+            ? Tr.values[TrKey.modmanager-delete-selected-groups-message-prefix]
+                + root.selected-group-count
+                + Tr.values[TrKey.modmanager-delete-selected-groups-message-suffix]
             : root.pending-delete-selected
             ? Tr.values[TrKey.modmanager-delete-selected-message-prefix]
                 + root.selected-count
                 + Tr.values[TrKey.modmanager-delete-selected-message-suffix]
             : Tr.values[TrKey.modmanager-delete-mod-message];
         confirm => {
-            if (root.pending-delete-selected) {
+            if (root.pending-delete-selected-groups) {
+                root.delete-selected-groups();
+            } else if (root.pending-delete-selected) {
                 root.delete-selected();
             } else if (root.pending-delete-group-id != "") {
                 root.delete-group(root.pending-delete-group-id);
@@ -1340,11 +1611,13 @@ export component ModManagerPage inherits Rectangle {
             root.pending-delete-id = "";
             root.pending-delete-group-id = "";
             root.pending-delete-selected = false;
+            root.pending-delete-selected-groups = false;
         }
         cancel => {
             root.pending-delete-id = "";
             root.pending-delete-group-id = "";
             root.pending-delete-selected = false;
+            root.pending-delete-selected-groups = false;
         }
     }
 }

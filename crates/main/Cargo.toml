@@ -9,7 +9,7 @@ default = ["beta"]
 beta = []
 
 [dependencies]
-i-slint-backend-winit = { version = "1.17", default-features = false }
+i-slint-backend-winit = { version = "1.17.1", default-features = false }
 rfd = { version = "0.17", default-features = false, features = [
     "xdg-portal",
     "wayland",

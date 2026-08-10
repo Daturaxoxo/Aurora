@@ -11,8 +11,8 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-slint = { version = "1.17", default-features = false, features = [
-    "renderer-femtovg",
+slint = { version = "1.17.1", default-features = false, features = [
+    "renderer-skia-vulkan",
     "backend-winit",
     "compat-1-2",
     "unstable-fontique-010",
@@ -54,7 +54,7 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Registry",
 ] }
-slint-build = "1.17"
+slint-build = "1.17.1"
 winresource = "0.1.31"
 image = "0.25.10"
 mslnk = "0.1"

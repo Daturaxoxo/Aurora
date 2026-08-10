@@ -1,5 +1,6 @@
 use crate::classes::{characters, modicons};
-use crate::{MainWindow, ModItem};
+use crate::{GroupOption, MainWindow, ModItem};
+use super::INVALID_FILENAME_CHARS;
 
 use anyhow::{anyhow, Context, Result};
 use log::*;
@@ -434,6 +435,7 @@ struct State {
     displayed: Vec<Mod>,
     rows: Vec<(bool, String)>,
     selected: HashSet<String>,
+    selected_groups: HashSet<String>,
     collapsed: HashSet<String>,
     search: String,
     // TODO: Make this an enum
@@ -915,7 +917,15 @@ impl ModManagerHandler {
                 .to_string()
         };
 
-        let (items, grid_sections, selected_count, all_selected, wanted_images) = {
+        let (
+            items,
+            grid_sections,
+            groups,
+            selected_count,
+            selected_group_count,
+            all_selected,
+            wanted_images,
+        ) = {
             let mut state = STATE.lock().unwrap();
             let mut items: Vec<ModItem> = Vec::new();
             let mut grid_sections: Vec<Vec<ModItem>> = Vec::new();
@@ -961,8 +971,12 @@ impl ModManagerHandler {
                         icon: slint::Image::default(),
                         notes: "".into(),
                         enabled: !group.mods.is_empty() && group.mods.iter().all(|m| m.is_enabled),
-                        selected: !visible.is_empty()
-                            && visible.iter().all(|m| state.selected.contains(&mod_id(m))),
+                        selected: if group.mods.is_empty() {
+                            state.selected_groups.contains(&group.id)
+                        } else {
+                            !visible.is_empty()
+                                && visible.iter().all(|m| state.selected.contains(&mod_id(m)))
+                        },
                         has_json: false,
                         is_editing: false,
                         group_id: "".into(),
@@ -1018,16 +1032,43 @@ impl ModManagerHandler {
                 }
             }
 
+            let groups: Vec<GroupOption> = state
+                .scanned
+                .iter()
+                .filter(|g| !g.id.is_empty())
+                .map(|g| GroupOption {
+                    id: g.id.as_str().into(),
+                    name: g.name.as_str().into(),
+                })
+                .collect();
+
+            let empty_groups: HashSet<String> = state
+                .scanned
+                .iter()
+                .filter(|g| !g.id.is_empty() && g.mods.is_empty())
+                .map(|g| g.id.clone())
+                .collect();
+            state.selected_groups.retain(|id| empty_groups.contains(id));
+
             let existing: HashSet<String> = displayed.iter().map(mod_id).collect();
             state.selected.retain(|id| existing.contains(id));
             state.displayed = displayed;
             state.rows = rows;
 
             let count = state.selected.len();
+            let group_count = state.selected_groups.len();
             let all = !state.displayed.is_empty() && count == state.displayed.len();
             drop(state);
 
-            (items, grid_sections, count, all, wanted_images)
+            (
+                items,
+                grid_sections,
+                groups,
+                count,
+                group_count,
+                all,
+                wanted_images,
+            )
         };
 
         w.set_mods(Rc::new(VecModel::from(items)).into());
@@ -1036,7 +1077,9 @@ impl ModManagerHandler {
             .map(|s| ModelRc::from(Rc::new(VecModel::from(s))))
             .collect();
         w.set_mods_grid(Rc::new(VecModel::from(sections)).into());
+        w.set_mods_groups(Rc::new(VecModel::from(groups)).into());
         w.set_mods_selected_count(i32::try_from(selected_count).unwrap_or(0));
+        w.set_mods_selected_group_count(i32::try_from(selected_group_count).unwrap_or(0));
         w.set_mods_all_selected(all_selected);
 
         modicons::load(w.as_weak(), wanted_images, Self::apply_icon);
@@ -1171,6 +1214,11 @@ impl ModManagerHandler {
                     });
                 } else {
                     rekey_mod_config(id, &target.to_string_lossy());
+                    let mut state = STATE.lock().unwrap();
+                    if state.selected.remove(id) {
+                        state.selected.insert(target.to_string_lossy().into_owned());
+                    }
+                    drop(state);
                     info!(
                         "[ModManager] moved '{}' → '{}'",
                         m.folder_name,
@@ -1180,6 +1228,52 @@ impl ModManagerHandler {
             }
             Self::reload(&ww);
         });
+    }
+
+    fn delete_group_folder(group_path: &Path) {
+        let Some(mods_path) = get_mods_path() else {
+            return;
+        };
+
+        if let Ok(entries) = group_path.read_dir() {
+            for entry in entries.flatten() {
+                let target = mods_path.join(entry.file_name());
+                if target.exists() {
+                    warn!(
+                        "[ModManager] not moving '{}' out of group: target exists",
+                        entry.path().display()
+                    );
+                    continue;
+                }
+                if let Err(e) = std::fs::rename(entry.path(), &target) {
+                    error!(
+                        "[ModManager] could not move '{}' out of group: {e}",
+                        entry.path().display()
+                    );
+                } else {
+                    rekey_mod_config(&entry.path().to_string_lossy(), &target.to_string_lossy());
+                }
+            }
+        }
+
+        if let Err(e) = std::fs::remove_dir(group_path) {
+            error!(
+                "[ModManager] could not delete group '{}': {e}",
+                group_path.display()
+            );
+        } else {
+            info!("[ModManager] deleted group '{}'", group_path.display());
+        }
+    }
+
+    fn selected_ids() -> Vec<String> {
+        let state = STATE.lock().unwrap();
+        state
+            .displayed
+            .iter()
+            .map(mod_id)
+            .filter(|id| state.selected.contains(id))
+            .collect()
     }
 
     fn mod_by_id(id: &str) -> Option<Mod> {
@@ -1498,40 +1592,21 @@ impl ModManagerHandler {
             let ww = ww.clone();
             let group_path = PathBuf::from(id.to_string());
             std::thread::spawn(move || {
-                let Some(mods_path) = get_mods_path() else {
-                    return;
-                };
-                if let Ok(entries) = group_path.read_dir() {
-                    for entry in entries.flatten() {
-                        let target = mods_path.join(entry.file_name());
-                        if target.exists() {
-                            warn!(
-                                "[ModManager] not moving '{}' out of group: target exists",
-                                entry.path().display()
-                            );
-                            continue;
-                        }
-                        if let Err(e) = std::fs::rename(entry.path(), &target) {
-                            error!(
-                                "[ModManager] could not move '{}' out of group: {e}",
-                                entry.path().display()
-                            );
-                        } else {
-                            rekey_mod_config(
-                                &entry.path().to_string_lossy(),
-                                &target.to_string_lossy(),
-                            );
-                        }
-                    }
-                }
+                Self::delete_group_folder(&group_path);
+                Self::reload(&ww);
+            });
+        });
 
-                if let Err(e) = std::fs::remove_dir(&group_path) {
-                    error!(
-                        "[ModManager] could not delete group '{}': {e}",
-                        group_path.display()
-                    );
-                } else {
-                    info!("[ModManager] deleted group '{}'", group_path.display());
+        let ww = window.clone();
+        w.on_mods_delete_selected_groups(move || {
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let ids: Vec<String> = {
+                    let mut state = STATE.lock().unwrap();
+                    state.selected_groups.drain().collect()
+                };
+                for id in &ids {
+                    Self::delete_group_folder(Path::new(id));
                 }
                 Self::reload(&ww);
             });
@@ -1571,6 +1646,20 @@ impl ModManagerHandler {
 
             {
                 let mut state = STATE.lock().unwrap();
+
+                if state
+                    .scanned
+                    .iter()
+                    .any(|g| g.id == id && g.mods.is_empty())
+                {
+                    if !state.selected_groups.remove(&id) {
+                        state.selected_groups.insert(id);
+                    }
+                    drop(state);
+                    Self::rebuild(&win);
+                    return;
+                }
+
                 let group_ids: Vec<String> = state
                     .displayed
                     .iter()
@@ -1610,6 +1699,61 @@ impl ModManagerHandler {
         let ww = window.clone();
         w.on_mod_move_to_group(move |id, group_id| {
             Self::move_mods_to_zone(&ww, vec![id.to_string()], group_id.to_string());
+        });
+
+        let ww = window.clone();
+        w.on_mods_move_selected_to_group(move |group_id| {
+            let ids = Self::selected_ids();
+            if ids.is_empty() {
+                return;
+            }
+            Self::move_mods_to_zone(&ww, ids, group_id.to_string());
+        });
+
+        let ww = window.clone();
+        w.on_mods_create_group_with_selected(move |name| {
+            let Some(win) = ww.upgrade() else { return };
+            let name = name.trim().to_string();
+
+            if name.is_empty() || INVALID_FILENAME_CHARS.iter().any(|c| name.contains(*c)) {
+                Self::show_toast(&win, "error", format!("'{name}' is not a valid group name"));
+                return;
+            }
+
+            let Some(path) = Self::group_path(&name) else {
+                Self::show_toast(
+                    &win,
+                    "error",
+                    "Could not create group - no mods folder".into(),
+                );
+                return;
+            };
+            if path.exists() {
+                Self::show_toast(
+                    &win,
+                    "error",
+                    format!("A group named '{name}' already exists"),
+                );
+                return;
+            }
+
+            let ids = Self::selected_ids();
+            if ids.is_empty() {
+                return;
+            }
+
+            if let Err(e) = std::fs::create_dir_all(&path) {
+                error!("[ModManager] could not create group '{name}': {e}");
+                Self::show_toast(
+                    &win,
+                    "error",
+                    format!("Could not create group '{name}' - {e}"),
+                );
+                return;
+            }
+            info!("[ModManager] created group '{name}'");
+
+            Self::move_mods_to_zone(&ww, ids, path.to_string_lossy().into_owned());
         });
 
         let ww = window.clone();

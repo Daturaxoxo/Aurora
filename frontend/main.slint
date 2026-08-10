@@ -10,7 +10,7 @@ import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
 import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
 export { LuaScriptsAdapter }
-import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
+import { ModManagerPage, ModItem, GroupOption } from "components/pages/modmanager.slint";
 import {GameBananaBrowser, GbModItem, GbFileItem, GbCharacter} from "components/gbbrowser.slint";
 import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
 export { LogWindow, LogLine } from "components/logwindow.slint";
@@ -171,6 +171,8 @@ export component MainWindow inherits Window {
     callback mods-view-changed(bool);
     in-out property <bool> mods-all-selected: false;
     in-out property <int> mods-selected-count: 0;
+    in-out property <int> mods-selected-group-count: 0;
+    callback mods-delete-selected-groups();
     callback mod-toggle(string);
     callback mod-delete(string);
     callback mod-rename(string, string);
@@ -178,6 +180,9 @@ export component MainWindow inherits Window {
     callback mod-set-notes(string, string);
     callback mod-open-link(string);
     callback mod-move-to-group(string, string);
+    in-out property <[GroupOption]> mods-groups: [];
+    callback mods-move-selected-to-group(string);
+    callback mods-create-group-with-selected(string);
     callback mod-drop-on-zone(string, string);
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
@@ -1025,6 +1030,8 @@ export component MainWindow inherits Window {
             view-changed(grid) => { root.mods-view-changed(grid); }
             all-selected: root.mods-all-selected;
             selected-count: root.mods-selected-count;
+            selected-group-count: root.mods-selected-group-count;
+            delete-selected-groups => { root.mods-delete-selected-groups(); }
             file-hover: root.mods-file-hover;
             install-from-archive => { root.mods-install-archive(); }
             install-from-folder => { root.mods-install-folder(); }
@@ -1052,6 +1059,9 @@ export component MainWindow inherits Window {
             collapse-group(id) => { root.mod-group-collapse(id); }
             select-group(id) => { root.mod-group-select(id); }
             move-mod-to-group(id, group) => { root.mod-move-to-group(id, group); }
+            groups: root.mods-groups;
+            move-selected-to-group(group) => { root.mods-move-selected-to-group(group); }
+            create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
             mod-drag-moved(id, y) => { root.mod-drag-moved(id, y); }
