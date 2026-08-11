@@ -131,7 +131,15 @@ component TabButton inherits Rectangle {
     border-radius: 8px;
     background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
 
+    border-width: 1px;
+    border-color: root.active
+        ? Palette.glass-border
+        : (ta.has-hover
+            ? @linear-gradient(135deg, #ffffff1b 0%, #ffffff09 100%)
+            : @linear-gradient(135deg, #ffffff12 0%, #ffffff06 100%));
+
     animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
 
     ta := TouchArea {
         clicked => { root.clicked(); }
@@ -281,7 +289,7 @@ export component SettingsPage inherits Rectangle {
     callback desktop-entry-changed(bool);
     callback telemetry-opt-out-changed(bool);
 
-    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    background: @linear-gradient(180deg, #111115f8 0%, #16161af5 100%);
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -294,57 +302,68 @@ export component SettingsPage inherits Rectangle {
         spacing: 32px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
-        VerticalLayout {
+        Rectangle {
             width: 180px;
-            spacing: 8px;
 
             VerticalLayout {
-                // Without this the header would soak up the free space that is
-                // meant to push the Privacy tab to the bottom.
-                vertical-stretch: 0;
-                padding-left: 8px;
-                padding-bottom: 12px;
-                Text {
-                    text: Tr.values[TrKey.settings-panel-title];
-                    color: Palette.text-secondary;
-                    font-size: 11px;
-                    font-weight: 700;
+                spacing: 8px;
+
+                VerticalLayout {
+                    // Without this the header would soak up the free space that is
+                    // meant to push the Privacy tab to the bottom.
+                    vertical-stretch: 0;
+                    padding-left: 8px;
+                    padding-bottom: 12px;
+                    Text {
+                        text: Tr.values[TrKey.settings-panel-title];
+                        color: Palette.text-secondary;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-general];
+                    active: root.active-tab == 0;
+                    clicked => { root.active-tab = 0; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-launcher];
+                    active: root.active-tab == 1;
+                    clicked => { root.active-tab = 1; }
+                }
+
+                if root.is-linux: TabButton {
+                    text: Tr.values[TrKey.settings-tab-linux];
+                    active: root.active-tab == 3;
+                    clicked => { root.active-tab = 3; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-developer];
+                    active: root.active-tab == 2;
+                    clicked => { root.active-tab = 2; }
+                }
+
+                // Pushes Privacy down to the bottom of the sidebar
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-privacy];
+                    active: root.active-tab == 4;
+                    clicked => { root.active-tab = 4; }
                 }
             }
 
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-general];
-                active: root.active-tab == 0;
-                clicked => { root.active-tab = 0; }
-            }
-
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-launcher];
-                active: root.active-tab == 1;
-                clicked => { root.active-tab = 1; }
-            }
-
-            if root.is-linux: TabButton {
-                text: Tr.values[TrKey.settings-tab-linux];
-                active: root.active-tab == 3;
-                clicked => { root.active-tab = 3; }
-            }
-
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-developer];
-                active: root.active-tab == 2;
-                clicked => { root.active-tab = 2; }
-            }
-
-            // Pushes Privacy down to the bottom of the sidebar
+            // Separator
             Rectangle {
-                vertical-stretch: 1;
-            }
-
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-privacy];
-                active: root.active-tab == 4;
-                clicked => { root.active-tab = 4; }
+                x: parent.width + 15px;
+                width: 1px;
+                height: 100%;
+                background: Palette.glass-border;
             }
         }
 
