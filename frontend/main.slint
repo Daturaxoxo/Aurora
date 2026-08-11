@@ -8,12 +8,29 @@ import { ProgressOverlay } from "components/progressoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
-import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
+import {
+    LuaScriptsPage,
+    LuaScriptsAdapter,
+} from "components/pages/menus/lua.slint";
 export { LuaScriptsAdapter }
-import { ModManagerPage, ModItem, GroupOption } from "components/pages/modmanager.slint";
-import {GameBananaBrowser, GbModItem, GbFileItem, GbCharacter} from "components/gbbrowser.slint";
-import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
-export { LogWindow, LogLine } from "components/logwindow.slint";
+import {
+    ModManagerPage,
+    ModItem,
+    GroupOption,
+    FilterOption,
+    ModFilters,
+} from "components/pages/modmanager.slint";
+import {
+    GameBananaBrowser,
+    GbModItem,
+    GbFileItem,
+    GbCharacter,
+} from "components/gbbrowser.slint";
+import {
+    ScreenshotsPage,
+    ScreenshotItem,
+} from "components/pages/menus/screenshots.slint";
+export { LogWindow, LogLine }from "components/logwindow.slint";
 
 // The launch button label is driven by the backend, so it travels as a state
 // rather than a string: the UI picks the translated text itself and re-picks it
@@ -197,7 +214,14 @@ export component MainWindow inherits Window {
     callback mods-toggle-selected();
     callback mods-delete-selected();
     callback mods-search-changed(string);
-    callback mods-filter-changed(int);
+    in-out property <ModFilters> mods-filters: { status: 0, group-id: "" };
+    in-out property <[FilterOption]> mods-filter-characters: [];
+    in-out property <[FilterOption]> mods-filter-authors: [];
+    in-out property <[FilterOption]> mods-filter-groups: [];
+    in-out property <string> mods-filter-group-label: "";
+    in-out property <int> mods-active-filter-count: 0;
+    callback mods-filters-changed(ModFilters);
+    callback mods-clear-filters();
     callback mods-refresh();
     callback open-mods-folder();
     callback mod-group-create();
@@ -456,7 +480,9 @@ export component MainWindow inherits Window {
                                 root.popup-title = Tr.values[TrKey.popup-discord-title];
                                 root.popup-message = Tr.values[TrKey.popup-discord-message];
                                 root.popup-required-count = 1;
-                                root.popup-checkboxes = [{ label: Tr.values[TrKey.popup-discord-agree-checkbox], required: true, checked: false }];
+                                root.popup-checkboxes = [
+                                    { label: Tr.values[TrKey.popup-discord-agree-checkbox], required: true, checked: false }
+                                ];
                                 root.popup-active = true;
                             }
                         }
@@ -1056,7 +1082,14 @@ export component MainWindow inherits Window {
             toggle-selected => { root.mods-toggle-selected(); }
             delete-selected => { root.mods-delete-selected(); }
             search-changed(text) => { root.mods-search-changed(text); }
-            filter-changed(idx) => { root.mods-filter-changed(idx); }
+            filters <=> root.mods-filters;
+            filter-characters <=> root.mods-filter-characters;
+            filter-authors <=> root.mods-filter-authors;
+            filter-groups: root.mods-filter-groups;
+            filter-group-label: root.mods-filter-group-label;
+            active-filter-count: root.mods-active-filter-count;
+            filters-changed(filters) => { root.mods-filters-changed(filters); }
+            clear-filters => { root.mods-clear-filters(); }
             create-group => { root.mod-group-create(); }
             rename-group(id, name) => { root.mod-group-rename(id, name); }
             delete-group(id) => { root.mod-group-delete(id); }
