@@ -264,6 +264,9 @@ export component SettingsPage inherits Rectangle {
     in-out property <bool> extensive-logging: false;
     callback export-telemetry();
 
+    // PRIVACY
+    in-out property <bool> telemetry-opt-out: false;
+
     // [CALLBACKS]
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
@@ -276,6 +279,7 @@ export component SettingsPage inherits Rectangle {
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
     callback desktop-entry-changed(bool);
+    callback telemetry-opt-out-changed(bool);
 
     background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
     border-radius: 16px;
@@ -293,9 +297,11 @@ export component SettingsPage inherits Rectangle {
         VerticalLayout {
             width: 180px;
             spacing: 8px;
-            alignment: start;
 
             VerticalLayout {
+                // Without this the header would soak up the free space that is
+                // meant to push the Privacy tab to the bottom.
+                vertical-stretch: 0;
                 padding-left: 8px;
                 padding-bottom: 12px;
                 Text {
@@ -329,6 +335,17 @@ export component SettingsPage inherits Rectangle {
                 active: root.active-tab == 2;
                 clicked => { root.active-tab = 2; }
             }
+
+            // Pushes Privacy down to the bottom of the sidebar
+            Rectangle {
+                vertical-stretch: 1;
+            }
+
+            TabButton {
+                text: Tr.values[TrKey.settings-tab-privacy];
+                active: root.active-tab == 4;
+                clicked => { root.active-tab = 4; }
+            }
         }
 
         // RIGHT COLUMN: PAGES VIEWS CONTENT
@@ -342,7 +359,8 @@ export component SettingsPage inherits Rectangle {
                 Text {
                     text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
                         root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
-                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] : Tr.values[TrKey.settings-tab-developer];
+                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] :
+                        root.active-tab == 4 ? Tr.values[TrKey.settings-tab-privacy] : Tr.values[TrKey.settings-tab-developer];
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -736,6 +754,38 @@ export component SettingsPage inherits Rectangle {
                                         export-ta := TouchArea {
                                             clicked => { root.export-telemetry(); }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TAB 4: PRIVACY SETTINGS CONTENT
+                TabPage {
+                    active: root.active-tab == 4;
+
+                    ScrollView {
+                        viewport-height: privacy-layout.min-height;
+                        privacy-layout := VerticalLayout {
+                            spacing: 24px;
+                            alignment: start;
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-telemetry];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-telemetry-opt-out-title];
+                                    subtitle: Tr.values[TrKey.settings-telemetry-opt-out-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.telemetry-opt-out;
+                                        toggled => { root.telemetry-opt-out-changed(self.checked); }
                                     }
                                 }
                             }

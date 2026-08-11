@@ -127,6 +127,7 @@ export component MainWindow inherits Window {
     in-out property <bool> desktop-entry: false;
     in-out property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;
+    in-out property <bool> telemetry-opt-out: false;
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
@@ -140,6 +141,7 @@ export component MainWindow inherits Window {
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
     callback desktop-entry-changed(bool);
+    callback telemetry-opt-out-changed(bool);
 
     // Progress Overlay Properties (shared by the updater and GameBanana installs)
     in-out property <bool> progress-overlay-active: false;
@@ -1144,6 +1146,7 @@ export component MainWindow inherits Window {
             desktop-entry <=> root.desktop-entry;
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
+            telemetry-opt-out <=> root.telemetry-opt-out;
 
             browse-game-directory => { root.browse-game-directory(); }
             export-telemetry => { root.export-telemetry(); }
@@ -1158,6 +1161,7 @@ export component MainWindow inherits Window {
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
             proton-version-index-changed(i) => { root.proton-version-index-changed(i); }
             desktop-entry-changed(v) => { root.desktop-entry-changed(v); }
+            telemetry-opt-out-changed(v) => { root.telemetry-opt-out-changed(v); }
         }
 
         toast-widget := WindowToast {

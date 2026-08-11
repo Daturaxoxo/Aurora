@@ -364,9 +364,9 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                 .unwrap_or_else(|| "Unknown".to_string());
 
             while let Ok(event) = rx.recv() {
-                if !config::get(config::key::ERROR_TELEMETRY)
+                if config::get(config::key::TELEMETRY_OPT_OUT)
                     .as_bool()
-                    .unwrap_or(true)
+                    .unwrap_or(false)
                 {
                     continue;
                 }

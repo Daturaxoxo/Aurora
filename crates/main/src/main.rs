@@ -38,6 +38,8 @@ fn main() -> Result<()> {
         error!("PANIC: {info}");
     }));
 
+    config::migrate();
+
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
 

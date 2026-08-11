@@ -118,6 +118,12 @@ impl SettingsHandler {
             logwindow::set_visible(true, window);
         }
 
+        // Privacy
+        let raw_opt_out = config::get(key::TELEMETRY_OPT_OUT);
+        let telemetry_opt_out = raw_opt_out.as_bool().unwrap_or(false);
+        debug!("[Settings] telemetry_opt_out: raw={raw_opt_out:?} → {telemetry_opt_out}");
+        w.set_telemetry_opt_out(telemetry_opt_out);
+
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
 
@@ -426,6 +432,14 @@ impl SettingsHandler {
                     }
                 });
             }
+        });
+
+        // [PRIVACY]
+
+        w.on_telemetry_opt_out_changed(move |opted_out| {
+            info!("[Settings] telemetry_opt_out changed → {opted_out}");
+            config::set(key::TELEMETRY_OPT_OUT, opted_out);
+            debug!("[Settings] telemetry_opt_out saved to config");
         });
 
         info!("[Settings] bind() complete shortcut all callbacks registered");
