@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use shared::archive::{extract_archive_with_progress, ARCHIVE_EXTENSIONS};
 use shared::config::{self, key};
-use shared::utils::{get_mods_path, read_dir_recursive};
+use shared::utils::{get_mods_path, open_folder, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -2028,7 +2028,7 @@ impl ModManagerHandler {
                 return;
             };
             let _ = std::fs::create_dir_all(&folder);
-            if let Err(e) = open::that(&folder) {
+            if let Err(e) = open_folder(&folder) {
                 error!(
                     "[ModManager] could not open mods folder '{}': {e}",
                     folder.display()

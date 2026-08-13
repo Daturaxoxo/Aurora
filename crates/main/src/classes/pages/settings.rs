@@ -9,6 +9,7 @@ use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
 use shared::pathfind::resolve_selected_game_root;
+use shared::utils::open_folder;
 use slint::{ComponentHandle as _, Model as _};
 use std::sync::atomic::Ordering;
 
@@ -416,7 +417,7 @@ impl SettingsHandler {
                             );
 
                             let logs_dir = shared::logger::logs_directory();
-                            if let Err(e) = open::that(&logs_dir) {
+                            if let Err(e) = open_folder(&logs_dir) {
                                 error!("[Settings] failed to open Logs directory: {e}");
                                 ToastHandler::show(&ww, "Failed to open logs folder.", "error");
                             }

@@ -120,3 +120,23 @@ pub fn remove_if_present(path: &Path) -> Result<()> {
         Err(e) => Err(e.into()),
     }
 }
+
+pub fn open_folder(path: &Path) -> Result<()> {
+    if !path.is_dir() {
+        return Err(anyhow!("{} is not a directory", path.display()));
+    }
+
+    if let Err(e) = open::that(path) {
+        warn!("Failed to open folder: {}", e);
+
+        return match std::process::Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|e| anyhow!("Failed to open folder with fallback: {}", e))
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        };
+    }
+    Ok(())
+}
