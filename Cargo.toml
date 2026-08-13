@@ -12,7 +12,7 @@ resolver = "2"
 
 [workspace.dependencies]
 slint = { version = "1.17.1", default-features = false, features = [
-    "renderer-skia-vulkan",
+    "renderer-femtovg",
     "backend-winit",
     "compat-1-2",
     "unstable-fontique-010",

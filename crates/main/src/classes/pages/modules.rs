@@ -209,6 +209,7 @@ impl ModulesHandler {
                     support_link: "".into(),
                     is_group_header: false,
                     collapsed: false,
+                    restart_required: false,
                 })
                 .collect();
 

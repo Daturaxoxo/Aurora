@@ -3,6 +3,7 @@ use crate::classes::{characters, modicons};
 use crate::{FilterOption, GroupOption, MainWindow, ModFilters, ModItem};
 
 use anyhow::{anyhow, Context, Result};
+use backend::handler::GAME_RUNNING;
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -17,8 +18,10 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
+// prefixes & shit, done so we have an easy job later on when adding new game support (even tho we will probably have to change these to arrays later on...) -datura
 const GROUP_PREFIX: &str = "AU GRP - ";
 const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
+const TOGGLE_EXTENSION: &str = "pak";
 const DISABLED_SUFFIX: &str = ".disabled";
 const STAGING_PREFIX: &str = ".aurora-installing-";
 
@@ -30,6 +33,12 @@ fn is_mod_file(name: &str) -> bool {
 
 fn is_disabled_mod_file(name: &str) -> bool {
     name.strip_suffix(DISABLED_SUFFIX).is_some_and(is_mod_file)
+}
+
+fn is_pak_file(name: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case(TOGGLE_EXTENSION))
 }
 
 pub type InstallDoneCallback = Box<dyn FnOnce(&MainWindow) + Send>;
@@ -65,10 +74,7 @@ pub struct Mod {
     pub version: Option<String>,
     pub author: Option<String>,
     pub support_link: Option<String>,
-    /// `mod.json`'s `"Icon"`: a character name, sometimes written as a file
-    /// name (`"shinku.png"`).
     pub icon: Option<String>,
-    /// `mod.json`'s `"Custom Image URL"` optional. Outranks `icon`.
     pub image_url: Option<String>,
     pub is_enabled: bool,
     pub has_json: bool,
@@ -103,7 +109,7 @@ impl ModManager {
 
         let entries = folder
             .read_dir()
-            .map_err(|e| warn!("[ModManager] could not read '{}': {e}", folder.display()))
+            .map_err(|e| warn!("could not read '{}': {e}", folder.display()))
             .ok()?;
 
         for sub in entries.flatten() {
@@ -126,7 +132,7 @@ impl ModManager {
         let files = read_dir_recursive(folder);
         let is_enabled = files
             .iter()
-            .any(|p| is_mod_file(&p.file_name().to_string_lossy()));
+            .any(|p| is_pak_file(&p.file_name().to_string_lossy()));
 
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
@@ -144,7 +150,7 @@ impl ModManager {
             Ok(raw) => raw,
             Err(e) => {
                 warn!(
-                    "[ModManager] could not read '{}' ({e}); falling back to the folder name",
+                    "could not read '{}' ({e}); falling back to the folder name",
                     json_path.display()
                 );
                 return mod_data;
@@ -156,7 +162,7 @@ impl ModManager {
             Ok(json) => json,
             Err(e) => {
                 warn!(
-                    "[ModManager] '{}' is not valid JSON ({e}); falling back to the folder name",
+                    "'{}' is not valid JSON ({e}); falling back to the folder name",
                     json_path.display()
                 );
                 return mod_data;
@@ -186,8 +192,6 @@ impl ModManager {
         };
 
         let support_link = optional("support link").map(&with_scheme);
-        // Kept separate from the character icon: a mod can declare both, and
-        // the card falls back to the character when the download fails.
         let image_url = optional("custom image url").map(with_scheme);
 
         let icon = json["Icon"]
@@ -231,13 +235,13 @@ impl ModManager {
 
         if !mods_path.exists() {
             info!(
-                "[ModManager] mods folder '{}' does not exist yet",
+                "mods folder '{}' does not exist yet",
                 mods_path.display()
             );
             return Ok(vec![]);
         }
 
-        info!("[ModManager] scanning '{}'", mods_path.display());
+        info!("scanning '{}'", mods_path.display());
 
         let entries = mods_path
             .read_dir()
@@ -252,7 +256,7 @@ impl ModManager {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(e) => {
-                    warn!("[ModManager] skipping unreadable entry: {e}");
+                    warn!("skipping unreadable entry: {e}");
                     continue;
                 }
             };
@@ -262,7 +266,7 @@ impl ModManager {
                 Ok(_) => continue,
                 Err(e) => {
                     warn!(
-                        "[ModManager] skipping '{}': could not read its type: {e}",
+                        "skipping '{}': could not read its type: {e}",
                         entry.path().display()
                     );
                     continue;
@@ -284,7 +288,7 @@ impl ModManager {
                                 Ok(sub) => sub,
                                 Err(e) => {
                                     warn!(
-                                        "[ModManager] skipping unreadable entry in group '{group_name}': {e}"
+                                        "skipping unreadable entry in group '{group_name}': {e}"
                                     );
                                     continue;
                                 }
@@ -297,7 +301,7 @@ impl ModManager {
                         }
                     }
                     Err(e) => warn!(
-                        "[ModManager] could not read group '{}': {e}",
+                        "could not read group '{}': {e}",
                         entry.path().display()
                     ),
                 }
@@ -308,7 +312,7 @@ impl ModManager {
             } else if Self::contains_pak(&entry.path()) {
                 root_group.add_mod(Self::get_mod_data(&entry.path()));
             } else {
-                debug!("[ModManager] skipping '{name}': no mod files inside");
+                debug!("skipping '{name}': no mod files inside");
             }
         }
 
@@ -322,7 +326,7 @@ impl ModManager {
 
         let mod_count: usize = groups.iter().map(|g| g.mods.len()).sum();
         info!(
-            "[ModManager] found {mod_count} mod(s) in {} group(s)",
+            "found {mod_count} mod(s) in {} group(s)",
             groups.len()
         );
 
@@ -338,7 +342,7 @@ impl ModManager {
                 for (old, new) in done.iter().rev() {
                     if let Err(e) = std::fs::rename(new, old) {
                         error!(
-                            "[ModManager] could not roll back '{}': {e}; the mod is now in a mixed state",
+                            "could not roll back '{}': {e}; the mod is now in a mixed state",
                             new.display()
                         );
                     }
@@ -364,7 +368,7 @@ impl ModManager {
         if mod_.is_enabled {
             let targets = files
                 .iter()
-                .filter(|p| is_mod_file(&p.file_name().to_string_lossy()))
+                .filter(|p| is_pak_file(&p.file_name().to_string_lossy()))
                 .map(|pak| {
                     let old = pak.path();
                     let new = old.with_file_name(format!(
@@ -377,7 +381,7 @@ impl ModManager {
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: no mod files found for {}",
+                    "Cannot toggle mod: no .pak files found for {}",
                     mod_.folder_name
                 ));
             }
@@ -439,6 +443,7 @@ struct State {
     selected: HashSet<String>,
     selected_groups: HashSet<String>,
     collapsed: HashSet<String>,
+    restart_required: HashSet<String>,
     pending_edit_group: Option<String>,
     search: String,
     // TODO: Make this an enum
@@ -534,16 +539,6 @@ fn rekey_mod_config(old: &str, new: &str) {
     }
 }
 
-/// The icon shown on a mod's card, in priority order:
-///
-/// 1. `mod.json`'s `"Custom Image URL"`, once it has been downloaded
-/// 2. the character named by `mod.json`'s `"Icon"`
-/// 3. a character name found in the mod's own name (most mods have no
-///    `mod.json` at all)
-/// 4. nothing, which the card draws as the Aurora logo
-///
-/// A custom image that hasn't arrived yet shows the lower-priority icon in the
-/// meantime and swaps itself in when the download finishes.
 fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
     mod_.image_url
         .as_deref()
@@ -573,11 +568,11 @@ pub struct ModManagerHandler;
 
 impl ModManagerHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
-        info!("[ModManager] setup() called");
+        info!("setup() called");
         Self::bind(window);
         Self::setup_file_drop(window);
         Self::reload(window);
-        info!("[ModManager] setup() complete");
+        info!("setup() complete");
     }
 
     #[cfg(target_os = "windows")]
@@ -618,6 +613,29 @@ impl ModManagerHandler {
                 }
                 i_slint_backend_winit::EventResult::Propagate
             });
+    }
+
+    fn note_toggle(id: &str) {
+        if !GAME_RUNNING.load(Ordering::SeqCst) {
+            return;
+        }
+        let mut state = STATE.lock().unwrap();
+        if !state.restart_required.remove(id) {
+            state.restart_required.insert(id.to_string());
+        }
+    }
+
+    pub fn game_closed(w: &MainWindow) {
+        let pending = {
+            let mut state = STATE.lock().unwrap();
+            let pending = !state.restart_required.is_empty();
+            state.restart_required.clear();
+            pending
+        };
+
+        if pending {
+            Self::rebuild(w);
+        }
     }
 
     fn show_toast(w: &MainWindow, kind: &str, text: String) {
@@ -703,11 +721,11 @@ impl ModManagerHandler {
 
                 match Self::install_path(unit, &mut on_progress) {
                     Ok(name) => {
-                        info!("[ModManager] installed '{name}' from '{}'", path.display());
+                        info!("installed '{name}' from '{}'", path.display());
                         installed.push(name);
                     }
                     Err(e) => {
-                        error!("[ModManager] could not install '{}': {e}", path.display());
+                        error!("could not install '{}': {e}", path.display());
                         failed.push(format!(
                             "{}: {e}",
                             path.file_name()
@@ -817,7 +835,7 @@ impl ModManagerHandler {
             Err(e) => {
                 if let Err(cleanup) = std::fs::remove_dir_all(&staging) {
                     warn!(
-                        "[ModManager] could not clean up '{}': {cleanup}",
+                        "could not clean up '{}': {cleanup}",
                         staging.display()
                     );
                 }
@@ -826,9 +844,6 @@ impl ModManagerHandler {
         }
     }
 
-    /// `progress` is called with how far along the archive extraction is
-    /// (0.0 - 1.0). It never fires for folders or bare mod files, which are
-    /// copied in one step.
     fn install_path(unit: &[PathBuf], progress: &mut dyn FnMut(f32)) -> Result<String> {
         let path = unit.first().ok_or_else(|| anyhow!("nothing to install"))?;
         let mods_path =
@@ -905,7 +920,7 @@ impl ModManagerHandler {
             let (groups, error) = match ModManager::scan_mods() {
                 Ok(groups) => (groups, None),
                 Err(e) => {
-                    error!("[ModManager] could not scan the mods folder: {e}");
+                    error!("could not scan the mods folder: {e}");
                     (vec![], Some(format!("{e}")))
                 }
             };
@@ -928,7 +943,7 @@ impl ModManagerHandler {
                     return;
                 }
                 let Some(w) = ww.upgrade() else {
-                    error!("[ModManager] could not load: window handle is dead");
+                    error!("could not load: window handle is dead");
                     return;
                 };
 
@@ -970,6 +985,12 @@ impl ModManagerHandler {
             let mut rows: Vec<(bool, String)> = Vec::new();
             let mut wanted_images: Vec<(String, String)> = Vec::new();
             let searching = !state.search.is_empty();
+
+            // Anything toggled during a session is live again once the game is
+            // gone, whether or not we saw the close event
+            if !GAME_RUNNING.load(Ordering::SeqCst) {
+                state.restart_required.clear();
+            }
 
             let filtering = state.filtering();
 
@@ -1054,6 +1075,7 @@ impl ModManagerHandler {
                         support_link: "".into(),
                         is_group_header: true,
                         collapsed,
+                        restart_required: false,
                     };
                     items.push(header.clone());
                     section.push(header);
@@ -1091,6 +1113,7 @@ impl ModManagerHandler {
                             support_link: m.support_link.clone().unwrap_or_default().into(),
                             is_group_header: false,
                             collapsed: false,
+                            restart_required: state.restart_required.contains(&mod_id(m)),
                         };
                         items.push(item.clone());
                         section.push(item);
@@ -1123,6 +1146,12 @@ impl ModManagerHandler {
 
             let existing: HashSet<String> = displayed.iter().map(mod_id).collect();
             state.selected.retain(|id| existing.contains(id));
+            let installed: HashSet<String> = state
+                .scanned
+                .iter()
+                .flat_map(|g| g.mods.iter().map(mod_id))
+                .collect();
+            state.restart_required.retain(|id| installed.contains(id));
             state.displayed = displayed;
             state.rows = rows;
 
@@ -1365,11 +1394,11 @@ impl ModManagerHandler {
                 let target = target_dir.join(&m.folder_name);
                 if target.exists() {
                     warn!(
-                        "[ModManager] not moving '{}': target already exists",
+                        "not moving '{}': target already exists",
                         m.folder_name
                     );
                 } else if let Err(e) = std::fs::rename(&m.path, &target) {
-                    warn!("[ModManager] could not move '{}': {e}", m.folder_name);
+                    warn!("could not move '{}': {e}", m.folder_name);
                     let ww2 = ww.clone();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = ww2.upgrade() {
@@ -1391,7 +1420,7 @@ impl ModManagerHandler {
                     }
                     drop(state);
                     info!(
-                        "[ModManager] moved '{}' → '{}'",
+                        "moved '{}' → '{}'",
                         m.folder_name,
                         target_dir.display()
                     );
@@ -1411,14 +1440,14 @@ impl ModManagerHandler {
                 let target = mods_path.join(entry.file_name());
                 if target.exists() {
                     warn!(
-                        "[ModManager] not moving '{}' out of group: target exists",
+                        "not moving '{}' out of group: target exists",
                         entry.path().display()
                     );
                     continue;
                 }
                 if let Err(e) = std::fs::rename(entry.path(), &target) {
                     error!(
-                        "[ModManager] could not move '{}' out of group: {e}",
+                        "could not move '{}' out of group: {e}",
                         entry.path().display()
                     );
                 } else {
@@ -1429,11 +1458,11 @@ impl ModManagerHandler {
 
         if let Err(e) = std::fs::remove_dir(group_path) {
             error!(
-                "[ModManager] could not delete group '{}': {e}",
+                "could not delete group '{}': {e}",
                 group_path.display()
             );
         } else {
-            info!("[ModManager] deleted group '{}'", group_path.display());
+            info!("deleted group '{}'", group_path.display());
         }
     }
 
@@ -1485,19 +1514,22 @@ impl ModManagerHandler {
             let ww = ww.clone();
             std::thread::spawn(move || {
                 if let Some(m) = Self::mod_by_id(&id) {
-                    if let Err(e) = ModManager::toggle_mod(&m) {
-                        error!("[ModManager] could not toggle '{}': {e}", m.folder_name);
-                        let ww = ww.clone();
-                        let name = m.folder_name.clone();
-                        let _ = slint::invoke_from_event_loop(move || {
-                            if let Some(win) = ww.upgrade() {
-                                Self::show_toast(
-                                    &win,
-                                    "error",
-                                    format!("Could not toggle {name} - {e}"),
-                                );
-                            }
-                        });
+                    match ModManager::toggle_mod(&m) {
+                        Ok(()) => Self::note_toggle(&id),
+                        Err(e) => {
+                            error!("could not toggle '{}': {e}", m.folder_name);
+                            let ww = ww.clone();
+                            let name = m.folder_name.clone();
+                            let _ = slint::invoke_from_event_loop(move || {
+                                if let Some(win) = ww.upgrade() {
+                                    Self::show_toast(
+                                        &win,
+                                        "error",
+                                        format!("Could not toggle {name} - {e}"),
+                                    );
+                                }
+                            });
+                        }
                     }
                 }
                 Self::reload(&ww);
@@ -1510,8 +1542,11 @@ impl ModManagerHandler {
             std::thread::spawn(move || {
                 let mods = STATE.lock().unwrap().displayed.clone();
                 for m in &mods {
-                    if let Err(e) = ModManager::toggle_mod(m) {
-                        error!("[ModManager] could not toggle '{}': {e}", m.folder_name);
+                    match ModManager::toggle_mod(m) {
+                        Ok(()) => Self::note_toggle(&mod_id(m)),
+                        Err(e) => {
+                            error!("could not toggle '{}': {e}", m.folder_name);
+                        }
                     }
                 }
                 Self::reload(&ww);
@@ -1526,12 +1561,12 @@ impl ModManagerHandler {
                 if let Some(m) = Self::mod_by_id(&id) {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
-                            info!("[ModManager] deleted '{}'", m.path.display());
+                            info!("deleted '{}'", m.path.display());
                             config_map_set(key::MODMNG_NOTES, &id, None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &id, None);
                         }
                         Err(e) => {
-                            error!("[ModManager] could not delete '{}': {e}", m.path.display());
+                            error!("could not delete '{}': {e}", m.path.display());
                         }
                     }
                 }
@@ -1648,8 +1683,11 @@ impl ModManagerHandler {
                         .collect()
                 };
                 for m in &mods {
-                    if let Err(e) = ModManager::toggle_mod(m) {
-                        error!("[ModManager] could not toggle '{}': {e}", m.folder_name);
+                    match ModManager::toggle_mod(m) {
+                        Ok(()) => Self::note_toggle(&mod_id(m)),
+                        Err(e) => {
+                            error!("could not toggle '{}': {e}", m.folder_name);
+                        }
                     }
                 }
                 Self::reload(&ww);
@@ -1672,12 +1710,12 @@ impl ModManagerHandler {
                 for m in &mods {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
-                            info!("[ModManager] deleted '{}'", m.path.display());
+                            info!("deleted '{}'", m.path.display());
                             config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
                         }
                         Err(e) => {
-                            error!("[ModManager] could not delete '{}': {e}", m.path.display());
+                            error!("could not delete '{}': {e}", m.path.display());
                         }
                     }
                 }
@@ -1744,14 +1782,14 @@ impl ModManagerHandler {
                 match Self::group_path(&name) {
                     Some(path) => {
                         if let Err(e) = std::fs::create_dir_all(&path) {
-                            error!("[ModManager] could not create group '{name}': {e}");
+                            error!("could not create group '{name}': {e}");
                         } else {
-                            info!("[ModManager] created group '{name}'");
+                            info!("created group '{name}'");
                             STATE.lock().unwrap().pending_edit_group =
                                 Some(path.to_string_lossy().into_owned());
                         }
                     }
-                    None => error!("[ModManager] could not create group: no mods path"),
+                    None => error!("could not create group: no mods path"),
                 }
                 Self::reload(&ww);
             });
@@ -1764,7 +1802,7 @@ impl ModManagerHandler {
             let name = new_name.trim().to_string();
 
             if name.is_empty() || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
-                warn!("[ModManager] invalid group name '{name}', ignoring");
+                warn!("invalid group name '{name}', ignoring");
                 return;
             }
 
@@ -1776,10 +1814,10 @@ impl ModManagerHandler {
                     return;
                 }
                 if new_path.exists() {
-                    warn!("[ModManager] group '{name}' already exists, ignoring rename");
+                    warn!("group '{name}' already exists, ignoring rename");
                 } else if let Err(e) = std::fs::rename(&old_path, &new_path) {
                     error!(
-                        "[ModManager] could not rename group '{}': {e}",
+                        "could not rename group '{}': {e}",
                         old_path.display()
                     );
                 } else {
@@ -1841,8 +1879,11 @@ impl ModManagerHandler {
                 let all_enabled = !mods.is_empty() && mods.iter().all(|m| m.is_enabled);
                 for m in &mods {
                     if m.is_enabled == all_enabled {
-                        if let Err(e) = ModManager::toggle_mod(m) {
-                            error!("[ModManager] could not toggle '{}': {e}", m.folder_name);
+                        match ModManager::toggle_mod(m) {
+                            Ok(()) => Self::note_toggle(&mod_id(m)),
+                            Err(e) => {
+                                error!("could not toggle '{}': {e}", m.folder_name);
+                            }
                         }
                     }
                 }
@@ -1954,7 +1995,7 @@ impl ModManagerHandler {
             }
 
             if let Err(e) = std::fs::create_dir_all(&path) {
-                error!("[ModManager] could not create group '{name}': {e}");
+                error!("could not create group '{name}': {e}");
                 Self::show_toast(
                     &win,
                     "error",
@@ -1962,7 +2003,7 @@ impl ModManagerHandler {
                 );
                 return;
             }
-            info!("[ModManager] created group '{name}'");
+            info!("created group '{name}'");
 
             Self::move_mods_to_zone(&ww, ids, path.to_string_lossy().into_owned());
         });
@@ -2014,7 +2055,7 @@ impl ModManagerHandler {
                 return;
             }
             if let Err(e) = open::that(&link) {
-                error!("[ModManager] could not open support link '{link}': {e}");
+                error!("could not open support link '{link}': {e}");
             }
         });
 
@@ -2030,7 +2071,7 @@ impl ModManagerHandler {
             let _ = std::fs::create_dir_all(&folder);
             if let Err(e) = open_folder(&folder) {
                 error!(
-                    "[ModManager] could not open mods folder '{}': {e}",
+                    "could not open mods folder '{}': {e}",
                     folder.display()
                 );
             }
@@ -2065,7 +2106,7 @@ impl ModManagerHandler {
             });
         });
 
-        info!("[ModManager] bind() complete");
+        info!("bind() complete");
     }
 
     fn update_row(w: &MainWindow, id: &str, change: impl Fn(&mut ModItem)) {
