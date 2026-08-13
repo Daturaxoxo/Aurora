@@ -24,6 +24,7 @@ pub const NTE_GAME_EXE: &str = "HTGame.exe";
 pub enum Target {
     AsiPlugin,
     AuroraTf,
+    CNAuroraTF,
     Cutils,
 }
 
@@ -32,6 +33,7 @@ impl Target {
         match self {
             Self::AsiPlugin => "Everlight.asi",
             Self::AuroraTf => "AuroraTF.asi",
+            Self::CNAuroraTF => "CNAuroraTF.asi",
             Self::Cutils => "cutils.dll",
         }
     }
