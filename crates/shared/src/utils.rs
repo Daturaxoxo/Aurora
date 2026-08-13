@@ -120,6 +120,10 @@ pub fn get_cache_dir() -> PathBuf {
         .join("Cache")
 }
 
+pub fn get_gamebanana_download_dir() -> PathBuf {
+    std::env::temp_dir().join("Aurora").join("GameBanana")
+}
+
 pub fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
     if std::fs::read(path).is_ok_and(|existing| existing == contents) {
         return Ok(());
