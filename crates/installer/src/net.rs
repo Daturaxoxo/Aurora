@@ -41,6 +41,10 @@ fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
     Ok(manifest)
 }
 
+pub fn file_size_any(urls: &[String]) -> Option<u64> {
+    urls.iter().find_map(|url| file_size(url))
+}
+
 pub fn file_size(url: &str) -> Option<u64> {
     let response = agent().head(url).call().ok()?;
     if let Some(len) = response.body().content_length()
@@ -52,6 +56,26 @@ pub fn file_size(url: &str) -> Option<u64> {
     let headers = response.headers();
     let content_range = headers.get("content-length")?.to_str().ok()?;
     content_range.split('/').next_back()?.parse::<u64>().ok()
+}
+
+pub fn download_from_any(
+    urls: &[String],
+    dest: &Path,
+    progress: &mut impl FnMut(u64, u64),
+) -> Result<(), String> {
+    let mut last_err = String::from("no download sources available");
+    for url in urls {
+        match download(url, dest, &mut *progress) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                let _ = std::fs::remove_file(dest);
+                last_err = e;
+            }
+        }
+    }
+    Err(format!(
+        "all download sources failed (last error: {last_err})"
+    ))
 }
 
 pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {

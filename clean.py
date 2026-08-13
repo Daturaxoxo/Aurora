@@ -74,6 +74,7 @@ def remove_appimage_artifacts(directory: str = ".") -> list[str]:
         dir_path / APPIMAGE_NAME,
         dir_path / "release" / APPIMAGE_NAME,
         dir_path / "release-host" / APPIMAGE_NAME,
+        dir_path / "release-github" / APPIMAGE_NAME,
         dir_path / APPIMAGE_TARGET_DIR,
     ]
 

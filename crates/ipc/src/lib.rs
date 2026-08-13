@@ -5,6 +5,10 @@ pub mod protocol;
 use std::path::PathBuf;
 use std::time::Duration;
 
+pub const DOWNLOAD_BASE_PRIMARY: &str = "https://host.getaurora.moe/files/app/";
+pub const DOWNLOAD_BASE_FALLBACK: &str =
+    "https://github.com/Daturaxoxo/AuroraInstallation/releases/latest/download/";
+
 #[cfg(windows)]
 pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/windows/manifest.json";
 #[cfg(target_os = "linux")]
@@ -12,8 +16,16 @@ pub const MANIFEST_URL_PRIMARY: &str = "https://host.getaurora.moe/files/app/lin
 #[cfg(not(any(windows, target_os = "linux")))]
 compile_error!("unsupported target: no manifest URL");
 
-// TODO: fill in fallback before release
-pub const MANIFEST_URL_FALLBACK: &str = "";
+#[cfg(windows)]
+pub const MANIFEST_URL_FALLBACK: &str = concat!(
+    "https://github.com/Daturaxoxo/AuroraInstallation/releases/latest/download/",
+    "windows__manifest.json"
+);
+#[cfg(target_os = "linux")]
+pub const MANIFEST_URL_FALLBACK: &str = concat!(
+    "https://github.com/Daturaxoxo/AuroraInstallation/releases/latest/download/",
+    "linux__manifest.json"
+);
 
 pub fn manifest_urls() -> impl Iterator<Item = &'static str> {
     [MANIFEST_URL_PRIMARY, MANIFEST_URL_FALLBACK]
