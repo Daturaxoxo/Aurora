@@ -1,7 +1,9 @@
 use crate::{CheckboxItem, MainWindow};
 use backend::handler::{self, EngineCommand};
 use log::*;
-use shared::{classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory};
+use shared::{
+    classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory, utils::open_folder,
+};
 use slint::VecModel;
 
 pub struct ButtonHandler;
@@ -42,7 +44,7 @@ impl ButtonHandler {
         match get_game_directory() {
             Ok(path) => {
                 let mods_path = path.join(CLIENT_PAK_DIR);
-                if let Err(e) = open::that(&mods_path) {
+                if let Err(e) = open_folder(&mods_path) {
                     error!("Failed to open mods folder: {e}");
                 }
             }

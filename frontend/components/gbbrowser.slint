@@ -420,6 +420,7 @@ export component GameBananaBrowser inherits Rectangle {
     callback search-changed(string);
     callback character-selected(int /* index, -1 = cleared */);
     callback nsfw-toggled(bool);
+    callback clear-cache();
     callback load-more();
     callback install(int /* id */);
     callback open-page(int /* id */);
@@ -511,6 +512,35 @@ export component GameBananaBrowser inherits Rectangle {
                     ToggleSwitch {
                         checked <=> root.show-nsfw;
                         toggled => { root.nsfw-toggled(root.show-nsfw); }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: self.preferred-width;
+                    clear-cache-rect := Rectangle {
+                        width: clear-cache-label.preferred-width + 20px;
+                        height: 28px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: clear-cache-ta.has-hover ? #ffffff28 : #ffffff16;
+                        background: clear-cache-ta.has-hover ? #ffffff12 : #ffffff08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        clear-cache-label := Text {
+                            text: Tr.values[TrKey.gb-clear-cache];
+                            color: clear-cache-ta.has-hover ? #ffffffdd : #ffffffcc;
+                            font-size: 11.5px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            animate color { duration: 100ms; }
+                        }
+
+                        clear-cache-ta := TouchArea {
+                            clicked => { root.clear-cache(); }
+                        }
                     }
                 }
 

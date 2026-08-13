@@ -1,6 +1,7 @@
 import { Palette } from "../../../global.slint";
 import { LineEdit, ScrollView } from "std-widgets.slint";
 import { Dropdown } from "../settings.slint";
+import { ChipButton } from "../../chipbutton.slint";
 import { Tr, TrKey } from "../../../translations.slint";
 
 export struct ScreenshotItem {
@@ -177,40 +178,6 @@ component FavoriteButton inherits Rectangle {
 }
 
 // Text chip used in the toolbar (Select / Cancel / Delete / Favorites)
-component ChipButton inherits Rectangle {
-    in property <string> text;
-    in property <bool> active: false;
-    in property <bool> danger: false;
-    in property <bool> enabled: true;
-    callback clicked();
-
-    width: chip-text.preferred-width + 24px;
-    height: 30px;
-    border-radius: 6px;
-    background: root.danger
-        ? (ta.has-hover && root.enabled ? #ee4937 : #ee4937cc)
-        : root.active ? #ffffff20
-        : (ta.has-hover ? #ffffff14 : #ffffff08);
-    border-width: 1px;
-    border-color: root.active ? #ffffff30 : #ffffff18;
-    opacity: root.enabled ? 1.0 : 0.45;
-    animate background { duration: 120ms; }
-
-    chip-text := Text {
-        text: root.text;
-        color: Palette.text-primary;
-        font-size: 12px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    ta := TouchArea {
-        enabled: root.enabled;
-        clicked => { root.clicked(); }
-    }
-}
-
 component ScreenshotCard inherits Rectangle {
     in property <ScreenshotItem> item;
     in property <int> index;

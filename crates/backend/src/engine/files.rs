@@ -68,7 +68,9 @@ impl AuroraEngine {
 
     pub(super) fn asi_source(&self, target: Target) -> PathBuf {
         match target {
-            Target::AuroraTf => self.addons_path.join(CENSORSHIP_DIR).join(target.as_file()),
+            Target::AuroraTf | Target::CNAuroraTF => {
+                self.addons_path.join(CENSORSHIP_DIR).join(target.as_file())
+            }
             Target::AsiPlugin | Target::Cutils => self.bin_path.join(target.as_file()),
         }
     }

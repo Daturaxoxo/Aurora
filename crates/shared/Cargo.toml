@@ -4,8 +4,19 @@ version = "2.0.0"
 edition = "2021"
 
 [features]
-default = ["beta"]
+default = ["extract"]
 beta = []
+extract = [
+    "dep:archive",
+    "dep:unrar",
+    "zip/lzma",
+    "zip/deflate64",
+    "zip/aes-crypto",
+    "zip/bzip2",
+    "zip/ppmd",
+    "zip/xz",
+    "zip/zstd",
+]
 
 [dependencies]
 display-info = "0.5"
@@ -15,21 +26,10 @@ termcolor = "1.4"
 futures = { version = "0.3", default-features = false }
 iana-time-zone = "0.1.65"
 cpu_info = "=0.1.0"
-unrar = { package = "unrar-ng", version = "0.7" }
-zip = { version = "9.0.0-pre2", default-features = false, features = [
-    "lzma",
-    "deflate",
-    "deflate64",
-    "aes-crypto",
-    "bzip2",
-    "ppmd",
-    "xz",
-    "zstd",
-] }
-
+unrar = { package = "unrar-ng", version = "0.7", optional = true }
+zip = { version = "9.0.0-pre2", default-features = false, features = ["deflate"] }
 ipc = { path = "../ipc" }
-
-archive = { workspace = true }
+archive = { workspace = true, optional = true }
 slint = { workspace = true }
 anyhow = { workspace = true }
 rayon = { workspace = true }
@@ -43,6 +43,7 @@ tokio = { workspace = true }
 chrono = { workspace = true }
 sysinfo = { workspace = true }
 md5 = { workspace = true }
+open = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true }

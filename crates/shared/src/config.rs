@@ -69,14 +69,14 @@ pub mod key {
     pub const QUICK_START_CREATED: &str = "quick_start_created";
     pub const DESKTOP_ENTRY: &str = "desktop_entry";
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
-    pub const ERROR_TELEMETRY: &str = "error_telemetry";
+    pub const TELEMETRY_OPT_OUT: &str = "telemetry_opt_out";
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
 }
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::DISCORD_RPC | key::UI_MINIMIZATION | key::ERROR_TELEMETRY => {
+        key::DISCORD_RPC | key::UI_MINIMIZATION => {
             json!(true)
         }
 
@@ -93,6 +93,7 @@ pub fn default_value(k: &str) -> Value {
         | key::QUICK_START_CREATED
         | key::DESKTOP_ENTRY
         | key::DESKTOP_ENTRY_PROMPTED
+        | key::TELEMETRY_OPT_OUT
         | key::IGNORE_CHECKSUM => {
             json!(false)
         }
@@ -284,6 +285,28 @@ pub fn set(k: &str, value: impl Into<Value>) {
 
     modify(|data| {
         data.insert(k.to_string(), value);
+    });
+}
+
+/// Superseded by [`key::TELEMETRY_OPT_OUT`]
+const LEGACY_ERROR_TELEMETRY: &str = "error_telemetry";
+
+/// Moves values stored under renamed keys over to their current names.
+pub fn migrate() {
+    if !get_all_configs().contains_key(LEGACY_ERROR_TELEMETRY) {
+        return;
+    }
+
+    modify(|data| {
+        let Some(legacy) = data.remove(LEGACY_ERROR_TELEMETRY) else {
+            return;
+        };
+
+        let opted_out = !legacy.as_bool().unwrap_or(true);
+        info!("Migrating {LEGACY_ERROR_TELEMETRY}={legacy} to telemetry_opt_out={opted_out}");
+
+        data.entry(key::TELEMETRY_OPT_OUT)
+            .or_insert_with(|| json!(opted_out));
     });
 }
 

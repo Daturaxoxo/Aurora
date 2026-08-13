@@ -1,0 +1,82 @@
+import { Palette } from "../global.slint";
+
+// SLIDER COMPONENT
+// Integer valued track.
+export component Slider inherits Rectangle {
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    in property <int> step: 1;
+    in-out property <int> value: 0;
+
+    callback changed(int);
+
+    width: 160px;
+    height: 24px;
+
+    private property <length> knob-size: 14px;
+    private property <length> travel: root.width - root.knob-size;
+    private property <float> span: max(root.maximum - root.minimum, 1);
+    private property <float> ratio: (clamp(root.value, root.minimum, root.maximum) - root.minimum) / root.span;
+
+    // Turns a pointer position into a snapped, in-range value.
+    function value-at(pos: length) -> int {
+        return clamp(
+            round((clamp((pos - root.knob-size / 2) / root.travel, 0, 1) * root.span) / root.step) * root.step + root.minimum,
+            root.minimum,
+            root.maximum
+        );
+    }
+
+    // TRACK
+    Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: #3f3f46;
+        border-width: 1px;
+        border-color: Palette.glass-border;
+    }
+
+    // FILLED PORTION
+    Rectangle {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: root.knob-size / 2 + root.ratio * root.travel;
+        height: 4px;
+        border-radius: 2px;
+        background: #6db3f2;
+    }
+
+    // KNOB
+    Rectangle {
+        x: root.ratio * root.travel;
+        y: (parent.height - self.height) / 2;
+        width: root.knob-size;
+        height: root.knob-size;
+        border-radius: root.knob-size / 2;
+        background: #ffffff;
+        drop-shadow-color: #00000060;
+        drop-shadow-blur: ta.has-hover || ta.pressed ? 6px : 0px;
+
+        animate drop-shadow-blur { duration: 120ms; }
+    }
+
+    ta := TouchArea {
+        moved => {
+            if (self.pressed) {
+                root.value = value-at(self.mouse-x);
+            }
+        }
+
+        pointer-event(event) => {
+            if (event.button != PointerEventButton.left) {
+                return;
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.value = value-at(self.mouse-x);
+            } else if (event.kind == PointerEventKind.up) {
+                root.changed(root.value);
+            }
+        }
+    }
+}

@@ -1,7 +1,6 @@
 use log::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::Path;
 
 include!(concat!(env!("OUT_DIR"), "/character_icons.rs"));
 
@@ -11,43 +10,45 @@ thread_local! {
 }
 
 const ALIASES: &[(&str, &str)] = &[("zero", "mc")];
-fn words(text: &str) -> Vec<String> {
-    text.to_lowercase()
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(ToString::to_string)
-        .collect()
-}
 
-fn resolve(name: &str) -> Option<&'static str> {
-    let name = ALIASES
-        .iter()
-        .find(|(alias, _)| *alias == name)
-        .map_or(name, |(_, target)| *target);
-
+fn known(slug: &str) -> Option<&'static str> {
     CHARACTER_ICONS
         .iter()
-        .find(|(slug, _)| *slug == name)
-        .map(|(slug, _)| *slug)
+        .find(|(name, _)| *name == slug)
+        .map(|(name, _)| *name)
 }
+
 #[must_use]
-pub fn slug_for(text: &str) -> Option<&'static str> {
-    let text = text.trim();
+pub fn character_for(text: &str) -> Option<&'static str> {
+    let text = text.trim().to_lowercase();
     if text.is_empty() {
         return None;
     }
 
-    let stem = Path::new(text)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or(text)
-        .to_lowercase();
-
-    if let Some(slug) = resolve(&stem) {
+    if let Some(slug) = ALIASES
+        .iter()
+        .find(|(alias, _)| text.contains(alias))
+        .and_then(|(_, target)| known(target))
+    {
         return Some(slug);
     }
 
-    words(text).iter().find_map(|word| resolve(word))
+    CHARACTER_ICONS
+        .iter()
+        .find(|(slug, _)| text.contains(slug))
+        .map(|(slug, _)| *slug)
+}
+
+#[must_use]
+pub fn display_name(slug: &str) -> String {
+    if slug.len() <= 2 {
+        return slug.to_uppercase();
+    }
+
+    let mut chars = slug.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().collect::<String>() + chars.as_str()
+    })
 }
 
 #[must_use]
@@ -67,7 +68,7 @@ pub fn icon(slug: &str) -> Option<slint::Image> {
 
 #[must_use]
 pub fn icon_for(text: &str) -> Option<slint::Image> {
-    icon(slug_for(text)?)
+    icon(character_for(text)?)
 }
 
 fn decode(slug: &str, bytes: &[u8]) -> Option<slint::Image> {
@@ -97,25 +98,33 @@ mod tests {
 
     #[test]
     fn matches_the_shapes_mods_actually_use() {
-        assert_eq!(slug_for("Shinku"), Some("shinku"));
-        assert_eq!(slug_for("shinku.png"), Some("shinku"));
-        assert_eq!(slug_for("Shinku - Summer Dress_P"), Some("shinku"));
-        assert_eq!(slug_for("Nothing In Particular"), None);
-        assert_eq!(slug_for(""), None);
+        assert_eq!(character_for("Shinku"), Some("shinku"));
+        assert_eq!(character_for("shinku.png"), Some("shinku"));
+        assert_eq!(character_for("Shinku - Summer Dress_P"), Some("shinku"));
+        assert_eq!(character_for("MyShinkuRetexture"), Some("shinku"));
+        assert_eq!(character_for("Nothing In Particular"), None);
+        assert_eq!(character_for(""), None);
+    }
+
+    #[test]
+    fn slugs_read_back_as_names() {
+        assert_eq!(display_name("shinku"), "Shinku");
+        assert_eq!(display_name("mc"), "MC");
+        assert_eq!(display_name(""), "");
     }
 
     #[test]
     fn both_zeros_draw_as_the_mc() {
-        assert_eq!(slug_for("Zero (F)"), Some("mc"));
-        assert_eq!(slug_for("Zero (M)"), Some("mc"));
-        assert_eq!(slug_for("zero"), Some("mc"));
-        assert_eq!(slug_for("MC"), Some("mc"));
+        assert_eq!(character_for("Zero (F)"), Some("mc"));
+        assert_eq!(character_for("Zero (M)"), Some("mc"));
+        assert_eq!(character_for("zero"), Some("mc"));
+        assert_eq!(character_for("MC"), Some("mc"));
     }
 
     #[test]
     fn every_gamebanana_character_has_an_icon() {
         for (name, _) in crate::classes::pages::gbbrowser::CHARACTERS {
-            assert!(slug_for(name).is_some(), "no icon matches '{name}'");
+            assert!(character_for(name).is_some(), "no icon matches '{name}'");
         }
     }
 }

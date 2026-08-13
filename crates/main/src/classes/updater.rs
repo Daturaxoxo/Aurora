@@ -18,6 +18,7 @@ use ipc::manifest::hash_file;
 use ipc::manifest::{LocalManifest, Manifest};
 use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
+#[cfg(feature = "beta")]
 use serde::Deserialize;
 
 use crate::bridge::Bridge;
@@ -55,6 +56,7 @@ pub struct UpdateHandler;
 impl UpdateHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         let args: Vec<String> = std::env::args().collect();
+        #[cfg(feature = "beta")]
         let mut skip_beta_phasing = false;
 
         for arg in args {
@@ -65,7 +67,6 @@ impl UpdateHandler {
                     return;
                 }
                 ipc::SKIP_UPDATE_CHECK_ARG => {
-                    // Relaunched by the updater after a failed, rolled-back update.
                     warn!("startup update check skipped");
                     return;
                 }

@@ -5,6 +5,7 @@ use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::info::paths::PICTURE_FOLDER;
 use shared::config::{self, key};
+use shared::utils::open_folder;
 use slint::{Model, VecModel};
 
 use std::cell::RefCell;
@@ -853,7 +854,7 @@ impl ScreenshotHandler {
                 warn!("No screenshot folder to open");
                 return;
             };
-            if let Err(e) = open::that(&folder) {
+            if let Err(e) = open_folder(&folder) {
                 error!("Could not open folder '{}': {e}", folder.display());
             }
         });

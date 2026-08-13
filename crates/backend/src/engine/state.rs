@@ -148,11 +148,19 @@ impl AuroraEngine {
             .pak_dir()
             .ok_or_else(|| anyhow!("Engine could not find paks folder: {}", pak_base.display()))?
             .to_path_buf();
-        let targets = vec![
-            (Target::AsiPlugin, gpaths.asi_plugin.clone()),
-            (Target::AuroraTf, win64.join(Target::AuroraTf.as_file())),
-            (Target::Cutils, win64.join(Target::Cutils.as_file())),
-        ];
+        let targets = if gpaths.version == Version::CN {
+            vec![
+                (Target::AsiPlugin, gpaths.asi_plugin.clone()),
+                (Target::CNAuroraTF, win64.join(Target::CNAuroraTF.as_file())),
+                (Target::Cutils, win64.join(Target::Cutils.as_file())),
+            ]
+        } else {
+            vec![
+                (Target::AsiPlugin, gpaths.asi_plugin.clone()),
+                (Target::AuroraTf, win64.join(Target::AuroraTf.as_file())),
+                (Target::Cutils, win64.join(Target::Cutils.as_file())),
+            ]
+        };
 
         Ok(DerivedPaths {
             win64,

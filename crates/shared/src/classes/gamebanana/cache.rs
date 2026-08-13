@@ -174,6 +174,14 @@ impl CacheManager {
         self.save_cache(&path, wrapper).await;
     }
 
+    pub async fn clear(&self) -> std::io::Result<()> {
+        if !self.base_dir.exists() {
+            return Ok(());
+        }
+        fs::remove_dir_all(&self.base_dir).await?;
+        fs::create_dir_all(&self.base_dir).await
+    }
+
     async fn load_cache(&self, path: &PathBuf) -> Option<Vec<NteMod>> {
         if self.is_valid(path) {
             let data = fs::read_to_string(path).await.ok()?;

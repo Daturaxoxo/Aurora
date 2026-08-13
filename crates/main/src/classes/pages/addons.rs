@@ -4,7 +4,7 @@ use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::classes::gamebanana::api::GameBananaApi;
-use shared::utils::get_config_cache_dir;
+use shared::utils::get_cache_dir;
 use shared::{config, utils};
 
 use anyhow::{Context, Result};
@@ -90,7 +90,7 @@ impl AddonsHandler {
     }
 
     fn image_cache_dir() -> PathBuf {
-        get_config_cache_dir().join("Addons")
+        get_cache_dir().join("Addons")
     }
 
     fn cache_filename(url: &str) -> String {

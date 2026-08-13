@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { Languages } from "../../languages.slint";
 import { Tr, TrKey } from "../../translations.slint";
 import { ScrollingTextInput } from "../textfield.slint";
+import { Slider } from "../slider.slint";
 
 // TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
@@ -130,7 +131,15 @@ component TabButton inherits Rectangle {
     border-radius: 8px;
     background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
 
+    border-width: 1px;
+    border-color: root.active
+        ? Palette.glass-border
+        : (ta.has-hover
+            ? @linear-gradient(135deg, #ffffff1b 0%, #ffffff09 100%)
+            : @linear-gradient(135deg, #ffffff12 0%, #ffffff06 100%));
+
     animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
 
     ta := TouchArea {
         clicked => { root.clicked(); }
@@ -185,6 +194,124 @@ component SettingCard inherits Rectangle {
         VerticalLayout {
             alignment: center;
             @children
+        }
+    }
+}
+
+component CardButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    min-width: 76px;
+    height: 32px;
+    background: card-btn-ta.has-hover ? #ffffff14 : #ffffff08;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #ffffff18;
+
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: Palette.text-primary;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    card-btn-ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component SectionBox inherits Rectangle {
+    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+
+    VerticalLayout {
+        padding: 6px;
+        spacing: 0px;
+        @children
+    }
+}
+
+component RowDivider inherits Rectangle {
+    height: 1px;
+    background: #ffffff0e;
+}
+
+component InfoRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> clickable: false;
+    callback clicked();
+
+    border-radius: 8px;
+    background: (root.clickable && row-ta.has-hover) ? #ffffff0a : transparent;
+
+    animate background { duration: 100ms; }
+
+    row-ta := TouchArea {
+        enabled: root.clickable;
+        mouse-cursor: root.clickable ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 13px;
+        padding-bottom: 13px;
+        spacing: 16px;
+        alignment: space-between;
+
+        VerticalLayout {
+            spacing: 4px;
+            alignment: center;
+
+            Text {
+                text: root.title;
+                color: Palette.text-primary;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            if root.subtitle != "": Text {
+                text: root.subtitle;
+                color: #cbd5e1;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            VerticalLayout {
+                alignment: center;
+                @children
+            }
+
+            if root.clickable: VerticalLayout {
+                alignment: center;
+                Image {
+                    source: @image-url("../../../production/icons/processed/link.png");
+                    width: 14px;
+                    height: 14px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    opacity: row-ta.has-hover ? 1.0 : 0.45;
+                    animate opacity { duration: 100ms; }
+                }
+            }
         }
     }
 }
@@ -246,6 +373,9 @@ export component SettingsPage inherits Rectangle {
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
+    in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
+    // TODO: change this if we ever do scale for Linux
+    in property <bool> show-engine-scale: !root.is-linux;
     in-out property <bool> ignore-checksum: false;
 
     // LINUX
@@ -260,10 +390,20 @@ export component SettingsPage inherits Rectangle {
     in-out property <bool> extensive-logging: false;
     callback export-telemetry();
 
+    // ABOUT
+    in property <string> app-version: "";
+    in property <string> build-timestamp: "";
+    callback open-link(string);
+    callback copy-build-info();
+
+    // PRIVACY
+    in-out property <bool> telemetry-opt-out: false;
+
     // [CALLBACKS]
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
@@ -271,8 +411,9 @@ export component SettingsPage inherits Rectangle {
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
     callback desktop-entry-changed(bool);
+    callback telemetry-opt-out-changed(bool);
 
-    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    background: @linear-gradient(180deg, #111115f8 0%, #16161af5 100%);
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -285,44 +426,74 @@ export component SettingsPage inherits Rectangle {
         spacing: 32px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
-        VerticalLayout {
+        Rectangle {
             width: 180px;
-            spacing: 8px;
-            alignment: start;
 
             VerticalLayout {
-                padding-left: 8px;
-                padding-bottom: 12px;
-                Text {
-                    text: Tr.values[TrKey.settings-panel-title];
-                    color: Palette.text-secondary;
-                    font-size: 11px;
-                    font-weight: 700;
+                spacing: 8px;
+
+                VerticalLayout {
+                    // Without this the header would soak up the free space that is
+                    // meant to push the Privacy tab to the bottom.
+                    vertical-stretch: 0;
+                    padding-left: 8px;
+                    padding-bottom: 12px;
+                    Text {
+                        text: Tr.values[TrKey.settings-panel-title];
+                        color: Palette.text-secondary;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-general];
+                    active: root.active-tab == 0;
+                    clicked => { root.active-tab = 0; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-launcher];
+                    active: root.active-tab == 1;
+                    clicked => { root.active-tab = 1; }
+                }
+
+                if root.is-linux: TabButton {
+                    text: Tr.values[TrKey.settings-tab-linux];
+                    active: root.active-tab == 3;
+                    clicked => { root.active-tab = 3; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-developer];
+                    active: root.active-tab == 2;
+                    clicked => { root.active-tab = 2; }
+                }
+
+                // Pushes About and Privacy down to the bottom of the sidebar
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-about];
+                    active: root.active-tab == 5;
+                    clicked => { root.active-tab = 5; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-privacy];
+                    active: root.active-tab == 4;
+                    clicked => { root.active-tab = 4; }
                 }
             }
 
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-general];
-                active: root.active-tab == 0;
-                clicked => { root.active-tab = 0; }
-            }
-
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-launcher];
-                active: root.active-tab == 1;
-                clicked => { root.active-tab = 1; }
-            }
-
-            if root.is-linux: TabButton {
-                text: Tr.values[TrKey.settings-tab-linux];
-                active: root.active-tab == 3;
-                clicked => { root.active-tab = 3; }
-            }
-
-            TabButton {
-                text: Tr.values[TrKey.settings-tab-developer];
-                active: root.active-tab == 2;
-                clicked => { root.active-tab = 2; }
+            // Separator
+            Rectangle {
+                x: parent.width + 15px;
+                width: 1px;
+                height: 100%;
+                background: Palette.glass-border;
             }
         }
 
@@ -337,7 +508,9 @@ export component SettingsPage inherits Rectangle {
                 Text {
                     text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
                         root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
-                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] : Tr.values[TrKey.settings-tab-developer];
+                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] :
+                        root.active-tab == 4 ? Tr.values[TrKey.settings-tab-privacy] :
+                        root.active-tab == 5 ? Tr.values[TrKey.settings-tab-about] : Tr.values[TrKey.settings-tab-developer];
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -488,6 +661,39 @@ export component SettingsPage inherits Rectangle {
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
+                                }
+
+                                if root.show-engine-scale: SettingCard {
+                                    title: Tr.values[TrKey.settings-engine-scale-title];
+                                    subtitle: Tr.values[TrKey.settings-engine-scale-subtitle];
+
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        alignment: end;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Slider {
+                                                width: 160px;
+                                                minimum: 50;
+                                                maximum: 200;
+                                                step: 5;
+                                                value <=> root.engine-scale;
+                                                changed(value) => { root.engine-scale-changed(value); }
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Text {
+                                                width: 42px;
+                                                text: "\{root.engine-scale}%";
+                                                color: Palette.text-primary;
+                                                font-size: 13px;
+                                                horizontal-alignment: right;
+                                            }
+                                        }
+                                    }
                                 }
 
                                 SettingCard {
@@ -662,7 +868,6 @@ export component SettingsPage inherits Rectangle {
                                     color: Palette.text-secondary;
                                     font-size: 11px;
                                     font-weight: 700;
-
                                 }
 
                                 SettingCard {
@@ -699,6 +904,201 @@ export component SettingsPage inherits Rectangle {
                                         export-ta := TouchArea {
                                             clicked => { root.export-telemetry(); }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TabPage {
+                    active: root.active-tab == 5;
+                    ScrollView {
+                        viewport-height: about-layout.min-height;
+                        about-layout := VerticalLayout {
+                            spacing: 24px;
+                            alignment: start;
+                            padding-right: 16px;
+
+                            // APP + AUTHORS
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-software];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-version-title];
+                                        subtitle: root.build-timestamp == ""
+                                            ? Tr.values[TrKey.settings-about-build-unknown]
+                                            : "\{Tr.values[TrKey.settings-about-build-deployed]} \{root.build-timestamp}";
+
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            alignment: end;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Text {
+                                                    text: root.app-version;
+                                                    color: Palette.text-primary;
+                                                    font-size: 13px;
+                                                    font-weight: 600;
+                                                    horizontal-alignment: right;
+                                                }
+                                            }
+
+                                            CardButton {
+                                                text: Tr.values[TrKey.settings-about-copy-button];
+                                                clicked => { root.copy-build-info(); }
+                                            }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: "Daturaxoxo";
+                                        subtitle: "\{Tr.values[TrKey.settings-about-role-app]} · \{Tr.values[TrKey.settings-about-role-engine]} · \{Tr.values[TrKey.settings-about-role-website]}";
+                                    } // hi hi hi :3 thats me!!! thats mee!!!!!!!!!! -youknowwhoitis!
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: "Alawapr";
+                                        subtitle: Tr.values[TrKey.settings-about-role-app];
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-contributors-title];
+                                        subtitle: Tr.values[TrKey.settings-about-contributors-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("contributors"); }
+                                    }
+                                }
+                            }
+
+                            // LINKS
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-links];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-website-title];
+                                        subtitle: "getaurora.moe";
+                                        clickable: true;
+                                        clicked => { root.open-link("website"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-discord-title];
+                                        subtitle: "discord.gg/565jfeYsbp";
+                                        clickable: true;
+                                        clicked => { root.open-link("discord"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-github-title];
+                                        subtitle: "github.com/Daturaxoxo/Aurora";
+                                        clickable: true;
+                                        clicked => { root.open-link("github"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-docs-title];
+                                        subtitle: "docs.getaurora.moe";
+                                        clickable: true;
+                                        clicked => { root.open-link("docs"); }
+                                    }
+                                }
+                            }
+
+                            // LICENSE
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-license];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-license-title];
+                                        subtitle: Tr.values[TrKey.settings-about-license-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("license"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-terms-title];
+                                        subtitle: Tr.values[TrKey.settings-about-terms-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("terms"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    HorizontalLayout {
+                                        padding: 14px;
+                                        Text {
+                                            text: "© 2026 Aurora";
+                                            color: Palette.text-secondary;
+                                            font-size: 11px;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // PRIVACY SETTINGS
+                TabPage {
+                    active: root.active-tab == 4;
+
+                    ScrollView {
+                        viewport-height: privacy-layout.min-height;
+                        privacy-layout := VerticalLayout {
+                            spacing: 24px;
+                            alignment: start;
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-telemetry];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-telemetry-opt-out-title];
+                                    subtitle: Tr.values[TrKey.settings-telemetry-opt-out-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.telemetry-opt-out;
+                                        toggled => { root.telemetry-opt-out-changed(self.checked); }
                                     }
                                 }
                             }

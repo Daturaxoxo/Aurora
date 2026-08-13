@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
+use anyhow::{anyhow, Result};
 use log::*;
-use anyhow::{Result,anyhow};
+use std::path::{Path, PathBuf};
 
 use jwalk::DirEntry;
 
@@ -13,6 +13,31 @@ const VERSION: &[u8] = include_bytes!("../../../production/VERSION");
 
 pub fn get_local_version() -> String {
     String::from_utf8_lossy(VERSION).trim().to_string()
+}
+
+/// When the running executable was put in place.
+///
+/// Read straight off the exe's own modification time. Archive extraction and
+/// the installer both keep the original stamp, so for a release build this is
+/// when the exe was built.
+///
+/// Formatted as `YYYY-MM-DD HH:MM` in local time so it reads the same in every
+/// language Aurora ships with. Returns `None` if the exe cannot be stat'd.
+pub fn get_build_timestamp() -> Option<String> {
+    let exe = std::env::current_exe()
+        .inspect_err(|e| warn!("Could not locate the running executable: {e}"))
+        .ok()?;
+
+    let modified = std::fs::metadata(&exe)
+        .and_then(|meta| meta.modified())
+        .inspect_err(|e| warn!("Could not read the build time of {}: {e}", exe.display()))
+        .ok()?;
+
+    Some(
+        chrono::DateTime::<chrono::Local>::from(modified)
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
+    )
 }
 
 /// Flattens an error and every one of its sources into a single line.
@@ -89,14 +114,14 @@ pub fn format_bytes(bytes: u64) -> String {
 }
 
 pub fn get_cache_dir() -> PathBuf {
-    ipc::state_root().join("Cache")
-}
-
-pub fn get_config_cache_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| ".".into())
         .join("Aurora")
         .join("Cache")
+}
+
+pub fn get_gamebanana_download_dir() -> PathBuf {
+    std::env::temp_dir().join("Aurora").join("GameBanana")
 }
 
 pub fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
@@ -123,4 +148,35 @@ pub fn remove_if_present(path: &Path) -> Result<()> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
+}
+
+pub fn open_folder(path: &Path) -> Result<()> {
+    if !path.is_dir() {
+        return Err(anyhow!("{} is not a directory", path.display()));
+    }
+
+    if let Err(e) = open::that(path) {
+        warn!("Failed to open folder: {}", e);
+
+        #[cfg(target_os = "windows")]
+        return match std::process::Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|e| anyhow!("Failed to open folder with fallback: {}", e))
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        };
+
+        #[cfg(target_os = "linux")]
+        return match std::process::Command::new("xdg-open")
+            .arg(path)
+            .status()
+            .map_err(|e| anyhow!("Failed to open folder with fallback: {}", e))
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        };
+    }
+    Ok(())
 }

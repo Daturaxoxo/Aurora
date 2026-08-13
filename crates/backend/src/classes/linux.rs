@@ -75,7 +75,11 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
     command_line.extend(opts.trailing_args.iter().map(OsString::from));
 
     let mut command_line = command_line.into_iter();
-    let program = PathBuf::from(command_line.next().expect("the Proton path is always present"));
+    let program = PathBuf::from(
+        command_line
+            .next()
+            .expect("the Proton path is always present"),
+    );
 
     let mut cmd = command_as_real_user(&program);
     cmd.args(command_line);

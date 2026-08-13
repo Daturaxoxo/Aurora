@@ -17,6 +17,28 @@ export struct ModItem {
     support-link: string,
     is-group-header: bool,
     collapsed: bool,
+    restart-required: bool,
+}
+
+component RestartPill inherits Rectangle {
+    in property <bool> compact: false;
+
+    height: root.compact ? 20px : 24px;
+    width: pill-text.preferred-width + (root.compact ? 16px : 22px);
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: #f0b46d;
+    background: root.compact ? #1e1e24ee : #f0b46d1c;
+
+    pill-text := Text {
+        text: Tr.values[TrKey.modmanager-restart-required];
+        color: #ffdcae;
+        font-size: root.compact ? 10px : 11.5px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
 }
 
 export component ToggleSwitch inherits Rectangle {
@@ -108,6 +130,12 @@ export component ModCard inherits Rectangle {
     animate border-color { duration: 120ms; }
     animate opacity { duration: 120ms; }
 
+    restart-measure := Text {
+        visible: false;
+        text: Tr.values[TrKey.modmanager-restart-required];
+        font-size: 11.5px;
+    }
+
     hover-ta := TouchArea {
         moved => {
             if (!root.dragging
@@ -141,8 +169,8 @@ export component ModCard inherits Rectangle {
         VerticalLayout {
             alignment: center;
             select-box := Rectangle {
-                width: 16px;
-                height: 16px;
+                width: 18px;
+                height: 18px;
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
@@ -153,10 +181,10 @@ export component ModCard inherits Rectangle {
                 animate border-color { duration: 120ms; }
 
                 if root.item.selected: Path {
-                    x: 2px;
-                    y: 3px;
-                    width: 12px;
-                    height: 10px;
+                    x: 2.5px;
+                    y: 3.5px;
+                    width: 13px;
+                    height: 11px;
                     viewbox-x: 0;
                     viewbox-y: 0;
                     viewbox-width: 12;
@@ -198,7 +226,8 @@ export component ModCard inherits Rectangle {
             alignment: center;
             spacing: 3px;
             horizontal-stretch: 0;
-            max-width: max(80px, root.width - (root.show-icon ? 218px : 166px));
+            max-width: max(80px, root.width - (root.show-icon ? 218px : 166px)
+                - (root.item.restart-required ? restart-measure.preferred-width + 34px : 0px));
 
             HorizontalLayout {
                 height: 18px;
@@ -399,6 +428,11 @@ export component ModCard inherits Rectangle {
             horizontal-stretch: 1;
         }
 
+        if root.item.restart-required: VerticalLayout {
+            alignment: center;
+            RestartPill { }
+        }
+
         VerticalLayout {
             alignment: center;
             delete-btn := Rectangle {
@@ -460,8 +494,8 @@ export component ModCard inherits Rectangle {
             grid-select-box := Rectangle {
                 x: 6px;
                 y: 6px;
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
                 border-radius: 4px;
                 border-width: 1px;
                 opacity: (grid-root.tile-hovered || root.item.selected) ? 1 : 0;
@@ -474,10 +508,10 @@ export component ModCard inherits Rectangle {
                 animate border-color { duration: 120ms; }
 
                 if root.item.selected: Path {
-                    x: 3px;
-                    y: 4px;
-                    width: 12px;
-                    height: 10px;
+                    x: 3.5px;
+                    y: 4.5px;
+                    width: 13px;
+                    height: 11px;
                     viewbox-x: 0;
                     viewbox-y: 0;
                     viewbox-width: 12;
@@ -517,6 +551,12 @@ export component ModCard inherits Rectangle {
                 grid-delete-ta := TouchArea {
                     clicked => { root.request-delete(root.item.id, root.item.name); }
                 }
+            }
+
+            if root.item.restart-required: RestartPill {
+                compact: true;
+                x: max(6px, grid-delete-btn.x - self.width - 6px);
+                y: 8px;
             }
         }
 

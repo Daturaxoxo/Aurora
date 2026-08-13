@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::gamebanana::types::{NteMod, NteModFile};
 use shared::config::{self, key};
-use shared::utils::{format_bytes, get_local_version};
+use shared::utils::{format_bytes, get_gamebanana_download_dir, get_local_version};
 use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
@@ -494,7 +494,7 @@ impl GbBrowserHandler {
                     .await?
                     .error_for_status()?;
                 let total = resp.content_length().unwrap_or(file.size);
-                let dir = std::env::temp_dir().join("Aurora/GameBanana");
+                let dir = get_gamebanana_download_dir();
                 tokio::fs::create_dir_all(&dir).await?;
                 let path = dir.join(&safe_name);
                 let mut out = tokio::io::BufWriter::with_capacity(
@@ -702,6 +702,46 @@ impl GbBrowserHandler {
             let Some(win) = ww.upgrade() else { return };
             config::set(key::GB_NSFW, enabled);
             Self::rebuild_model(&win);
+        });
+
+        let ww = window.clone();
+        w.on_gb_clear_cache(move || {
+            let ww = ww.clone();
+            RUNTIME.spawn(async move {
+                let mut failure = match API.clear_cache().await {
+                    Ok(()) => None,
+                    Err(e) => {
+                        error!("[GbBrowser] could not clear the page cache: {e}");
+                        Some(e.to_string())
+                    }
+                };
+
+                let dir = get_gamebanana_download_dir();
+                match tokio::fs::remove_dir_all(&dir).await {
+                    Ok(()) => {}
+                    // Nothing has been downloaded yet, so there is nothing to clear
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => {
+                        error!(
+                            "[GbBrowser] could not clear the downloads in '{}': {e}",
+                            dir.display()
+                        );
+                        failure.get_or_insert_with(|| e.to_string());
+                    }
+                }
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(win) = ww.upgrade() else { return };
+                    if let Some(e) = failure {
+                        show_toast(&win, "error", format!("Could not clear cache - {e}"));
+                    } else {
+                        info!("[GbBrowser] cache cleared");
+                        show_toast(&win, "success", "Cache cleared".into());
+                    }
+                    // Refetch the active feed, search or category from the API
+                    Self::load(&ww, true);
+                });
+            });
         });
 
         let ww = window.clone();
