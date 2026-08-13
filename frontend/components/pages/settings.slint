@@ -198,6 +198,124 @@ component SettingCard inherits Rectangle {
     }
 }
 
+component CardButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    min-width: 76px;
+    height: 32px;
+    background: card-btn-ta.has-hover ? #ffffff14 : #ffffff08;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #ffffff18;
+
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: Palette.text-primary;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    card-btn-ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component SectionBox inherits Rectangle {
+    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Palette.glass-border;
+
+    VerticalLayout {
+        padding: 6px;
+        spacing: 0px;
+        @children
+    }
+}
+
+component RowDivider inherits Rectangle {
+    height: 1px;
+    background: #ffffff0e;
+}
+
+component InfoRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> clickable: false;
+    callback clicked();
+
+    border-radius: 8px;
+    background: (root.clickable && row-ta.has-hover) ? #ffffff0a : transparent;
+
+    animate background { duration: 100ms; }
+
+    row-ta := TouchArea {
+        enabled: root.clickable;
+        mouse-cursor: root.clickable ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 13px;
+        padding-bottom: 13px;
+        spacing: 16px;
+        alignment: space-between;
+
+        VerticalLayout {
+            spacing: 4px;
+            alignment: center;
+
+            Text {
+                text: root.title;
+                color: Palette.text-primary;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            if root.subtitle != "": Text {
+                text: root.subtitle;
+                color: #cbd5e1;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+
+            VerticalLayout {
+                alignment: center;
+                @children
+            }
+
+            if root.clickable: VerticalLayout {
+                alignment: center;
+                Image {
+                    source: @image-url("../../../production/icons/processed/link.png");
+                    width: 14px;
+                    height: 14px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    opacity: row-ta.has-hover ? 1.0 : 0.45;
+                    animate opacity { duration: 100ms; }
+                }
+            }
+        }
+    }
+}
+
 component TabPage inherits Rectangle {
     in property <bool> active;
 
@@ -271,6 +389,12 @@ export component SettingsPage inherits Rectangle {
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     callback export-telemetry();
+
+    // ABOUT
+    in property <string> app-version: "";
+    in property <string> build-timestamp: "";
+    callback open-link(string);
+    callback copy-build-info();
 
     // PRIVACY
     in-out property <bool> telemetry-opt-out: false;
@@ -346,9 +470,15 @@ export component SettingsPage inherits Rectangle {
                     clicked => { root.active-tab = 2; }
                 }
 
-                // Pushes Privacy down to the bottom of the sidebar
+                // Pushes About and Privacy down to the bottom of the sidebar
                 Rectangle {
                     vertical-stretch: 1;
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-about];
+                    active: root.active-tab == 5;
+                    clicked => { root.active-tab = 5; }
                 }
 
                 TabButton {
@@ -379,7 +509,8 @@ export component SettingsPage inherits Rectangle {
                     text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
                         root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
                         root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] :
-                        root.active-tab == 4 ? Tr.values[TrKey.settings-tab-privacy] : Tr.values[TrKey.settings-tab-developer];
+                        root.active-tab == 4 ? Tr.values[TrKey.settings-tab-privacy] :
+                        root.active-tab == 5 ? Tr.values[TrKey.settings-tab-about] : Tr.values[TrKey.settings-tab-developer];
                     color: Palette.text-primary;
                     font-size: 22px;
                     font-weight: 700;
@@ -780,7 +911,170 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
 
-                // TAB 4: PRIVACY SETTINGS CONTENT
+                TabPage {
+                    active: root.active-tab == 5;
+                    ScrollView {
+                        viewport-height: about-layout.min-height;
+                        about-layout := VerticalLayout {
+                            spacing: 24px;
+                            alignment: start;
+                            padding-right: 16px;
+
+                            // APP + AUTHORS
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-software];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-version-title];
+                                        subtitle: root.build-timestamp == ""
+                                            ? Tr.values[TrKey.settings-about-build-unknown]
+                                            : "\{Tr.values[TrKey.settings-about-build-deployed]} \{root.build-timestamp}";
+
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            alignment: end;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Text {
+                                                    text: root.app-version;
+                                                    color: Palette.text-primary;
+                                                    font-size: 13px;
+                                                    font-weight: 600;
+                                                    horizontal-alignment: right;
+                                                }
+                                            }
+
+                                            CardButton {
+                                                text: Tr.values[TrKey.settings-about-copy-button];
+                                                clicked => { root.copy-build-info(); }
+                                            }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: "Daturaxoxo";
+                                        subtitle: "\{Tr.values[TrKey.settings-about-role-app]} · \{Tr.values[TrKey.settings-about-role-engine]} · \{Tr.values[TrKey.settings-about-role-website]}";
+                                    } // hi hi hi :3 thats me!!! thats mee!!!!!!!!!! -youknowwhoitis!
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: "Alawapr";
+                                        subtitle: Tr.values[TrKey.settings-about-role-app];
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-contributors-title];
+                                        subtitle: Tr.values[TrKey.settings-about-contributors-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("contributors"); }
+                                    }
+                                }
+                            }
+
+                            // LINKS
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-links];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-website-title];
+                                        subtitle: "getaurora.moe";
+                                        clickable: true;
+                                        clicked => { root.open-link("website"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-discord-title];
+                                        subtitle: "discord.gg/565jfeYsbp";
+                                        clickable: true;
+                                        clicked => { root.open-link("discord"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-github-title];
+                                        subtitle: "github.com/Daturaxoxo/Aurora";
+                                        clickable: true;
+                                        clicked => { root.open-link("github"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-docs-title];
+                                        subtitle: "docs.getaurora.moe";
+                                        clickable: true;
+                                        clicked => { root.open-link("docs"); }
+                                    }
+                                }
+                            }
+
+                            // LICENSE
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-license];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SectionBox {
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-license-title];
+                                        subtitle: Tr.values[TrKey.settings-about-license-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("license"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    InfoRow {
+                                        title: Tr.values[TrKey.settings-about-terms-title];
+                                        subtitle: Tr.values[TrKey.settings-about-terms-subtitle];
+                                        clickable: true;
+                                        clicked => { root.open-link("terms"); }
+                                    }
+
+                                    RowDivider { }
+
+                                    HorizontalLayout {
+                                        padding: 14px;
+                                        Text {
+                                            text: "© 2026 Aurora";
+                                            color: Palette.text-secondary;
+                                            font-size: 11px;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // PRIVACY SETTINGS
                 TabPage {
                     active: root.active-tab == 4;
 

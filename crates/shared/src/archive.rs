@@ -1,23 +1,33 @@
 use std::io::{Read, Write};
-use std::path::{Component, Path};
+use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
-use archive::{ArchiveExtractor, ArchiveFormat};
+use anyhow::{Context, Result};
 use jwalk::WalkDir;
-use unrar::{Archive as RarArchive, ExtractEvent};
 use zip::write::SimpleFileOptions;
-use zip::{CompressionMethod, ZipArchive, ZipWriter};
+use zip::{CompressionMethod, ZipWriter};
 
+#[cfg(feature = "extract")]
+use {
+    anyhow::anyhow,
+    archive::{ArchiveExtractor, ArchiveFormat},
+    std::path::Component,
+    unrar::{Archive as RarArchive, ExtractEvent},
+    zip::ZipArchive,
+};
+
+#[cfg(feature = "extract")]
 pub const ARCHIVE_EXTENSIONS: [&str; 9] =
     ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4"];
 
-/// How often the progress callback fires while a single entry is unpacked.
+#[cfg(feature = "extract")]
 const EXTRACT_CHUNK: usize = 1024 * 1024;
 
+#[cfg(feature = "extract")]
 pub fn extract_archive<P: AsRef<Path>>(src: P, dest: P) -> Result<()> {
     extract_archive_with_progress(src, dest, &mut |_, _| {})
 }
 
+#[cfg(feature = "extract")]
 pub fn extract_archive_with_progress<P: AsRef<Path>>(
     src: P,
     dest: P,

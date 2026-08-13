@@ -60,7 +60,7 @@ def copy_file(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        print(f"[COPY FILE]: File not found: {src}")
+        print(f"File not found: {src}")
         return
 
     # Ensure parent folder for destination exists
@@ -77,11 +77,11 @@ def copy_folder(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        print(f"[COPY FOLDER]: Source folder not found: {src}")
+        print(f"Source folder not found: {src}")
         return
 
     if not os.path.isdir(src_path):
-        print(f"[COPY FOLDER]: Source path is not a directory: {src}")
+        print(f"Source path is not a directory: {src}")
         return
 
     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
@@ -190,16 +190,33 @@ def build_linux_manifest(version, appimage_path, output_path, base_url=BASE_URL)
     return output_data
 
 
+def uninstaller_path():
+    slim = "./target/x86_64-pc-windows-msvc/release/AuroraUninstaller.exe"
+    plain = "./target/release/AuroraUninstaller.exe"
+
+    if os.path.exists(slim):
+        return slim
+    if os.path.exists(plain):
+        print(
+            "RELEASE: warning: using {} -- run ./build-installer.ps1 for the "
+            "smaller build".format(plain)
+        )
+        return plain
+
+    print("RELEASE: AuroraUninstaller.exe not found; run ./build-installer.ps1")
+    sys.exit(1)
+
+
 def release_windows(version):
     if folder_exists("./release"):
         shutil.rmtree("./release")
     os.mkdir("./release")
 
+    uninstaller = uninstaller_path()
+
     copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release/updater.exe")
-    copy_file(
-        "./target/release/AuroraUninstaller.exe", "./release/AuroraUninstaller.exe"
-    )
+    copy_file(uninstaller, "./release/AuroraUninstaller.exe")
 
     copy_folder("./Bin", "./release/Bin")
     build_manifest(version, "./release", "manifest.json", BASE_URL)
@@ -213,10 +230,7 @@ def release_windows(version):
     os.mkdir("./release-host")
     copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release-host/updater.exe")
-    copy_file(
-        "./target/release/AuroraUninstaller.exe",
-        "./release-host/AuroraUninstaller.exe",
-    )
+    copy_file(uninstaller, "./release-host/AuroraUninstaller.exe")
 
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 

@@ -109,6 +109,11 @@ export component MainWindow inherits Window {
     // App Version Property
     in-out property <string> app-version: "";
 
+    // About Page Properties
+    in-out property <string> build-timestamp: "";
+    callback open-about-link(string);
+    callback copy-build-info();
+
     // Launch Button Properties
     in-out property <LaunchState> launch-state: LaunchState.launch;
     in-out property <bool> launch-disabled: false;
@@ -1180,8 +1185,12 @@ export component MainWindow inherits Window {
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
             telemetry-opt-out <=> root.telemetry-opt-out;
+            app-version: root.app-version;
+            build-timestamp: root.build-timestamp;
 
             browse-game-directory => { root.browse-game-directory(); }
+            open-link(id) => { root.open-about-link(id); }
+            copy-build-info => { root.copy-build-info(); }
             export-telemetry => { root.export-telemetry(); }
             language-index-changed(i) => { root.language-index-changed(i); }
             interface-minimization-changed(v) => { root.interface-minimization-changed(v); }

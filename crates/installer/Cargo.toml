@@ -12,7 +12,7 @@ name = "AuroraUninstaller"
 path = "src/uninstall/main.rs"
 
 [dependencies]
-shared = { path = "../shared" }
+shared = { path = "../shared", default-features = false }
 ipc = { path = "../ipc" }
 
 slint = { workspace = true }
@@ -36,7 +36,6 @@ windows-sys = { workspace = true }
 
 [build-dependencies]
 slint-build = { workspace = true }
-image = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winresource = { workspace = true }

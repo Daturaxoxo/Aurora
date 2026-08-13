@@ -15,6 +15,31 @@ pub fn get_local_version() -> String {
     String::from_utf8_lossy(VERSION).trim().to_string()
 }
 
+/// When the running executable was put in place.
+///
+/// Read straight off the exe's own modification time. Archive extraction and
+/// the installer both keep the original stamp, so for a release build this is
+/// when the exe was built.
+///
+/// Formatted as `YYYY-MM-DD HH:MM` in local time so it reads the same in every
+/// language Aurora ships with. Returns `None` if the exe cannot be stat'd.
+pub fn get_build_timestamp() -> Option<String> {
+    let exe = std::env::current_exe()
+        .inspect_err(|e| warn!("Could not locate the running executable: {e}"))
+        .ok()?;
+
+    let modified = std::fs::metadata(&exe)
+        .and_then(|meta| meta.modified())
+        .inspect_err(|e| warn!("Could not read the build time of {}: {e}", exe.display()))
+        .ok()?;
+
+    Some(
+        chrono::DateTime::<chrono::Local>::from(modified)
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
+    )
+}
+
 /// Flattens an error and every one of its sources into a single line.
 pub fn error_chain(error: &dyn std::error::Error) -> String {
     let mut out = error.to_string();
