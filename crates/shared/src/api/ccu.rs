@@ -12,7 +12,7 @@ use crate::utils::get_local_version;
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
-const HEARTBEAT: Duration = Duration::from_mins(10);
+const HEARTBEAT: Duration = Duration::from_mins(2);
 const JITTER: f64 = 0.10;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -97,7 +97,6 @@ fn send(event: &str, version: &str) -> Result<()> {
 
 pub fn spawn() {
     if !enabled() {
-        info!("Telemetry is disabled; not starting the session heartbeat");
         return;
     }
 
@@ -107,17 +106,10 @@ pub fn spawn() {
             let version = get_local_version().trim().to_string();
             let period = interval();
 
-            debug!(
-                "Session {} heartbeating every {}s",
-                session_id(),
-                period.as_secs()
-            );
-
             let mut event = "start";
             loop {
-                match send(event, &version) {
-                    Ok(()) => trace!("ccu {event} accepted"),
-                    Err(e) => debug!("ccu {event} failed: {e:#}"),
+                if let Err(e) = send(event, &version) {
+                    debug!("ccu {event} failed: {e:#}");
                 }
 
                 event = "beat";
@@ -151,9 +143,8 @@ pub fn stop() {
         os: std::env::consts::OS,
     };
 
-    match client.post(super::url(PATH)).json(&payload).send() {
-        Ok(_) => debug!("ccu stop sent"),
-        Err(e) => debug!("ccu stop failed: {e}"),
+    if let Err(e) = client.post(super::url(PATH)).json(&payload).send() {
+        debug!("ccu stop failed: {e}");
     }
 }
 
