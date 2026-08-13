@@ -29,6 +29,9 @@ fn main() {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("../../production/icons/logo.ico");
         res.set_manifest_file("main.manifest");
+        res.set("FileDescription", "Aurora");
+        res.set("ProductName", "Aurora");
+        res.set("OriginalFilename", "Aurora.exe");
         res.compile().unwrap();
     }
 }

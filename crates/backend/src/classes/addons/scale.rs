@@ -7,23 +7,35 @@ pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
 
 #[cfg(target_os = "windows")]
-fn get_windows_ini_path() -> PathBuf {
+fn get_windows_ini_paths() -> Option<Vec<PathBuf>> {
     use std::env;
 
     let local_app_data = env::var("LOCALAPPDATA").unwrap_or_default();
-    PathBuf::from(local_app_data).join("HT/Saved_Global/Config/Windows/Engine.ini")
+    let ht_path = PathBuf::from(local_app_data).join("HT/");
+    let mut result = Vec::new();
+    for dir in ht_path.read_dir().ok()?.flatten() {
+        if dir.file_name().to_string_lossy().contains("Saved_Global") {
+            result.push(dir.path().join("Config/Windows/Engine.ini"));
+        }
+    }
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 #[cfg(unix)]
-fn get_unix_ini_path() -> PathBuf {
+fn get_unix_ini_paths() -> Option<Vec<PathBuf>> {
     error!("Linux/Proton path for Engine.ini is not yet implemented");
-    PathBuf::new()
+    None
 }
 
-pub fn get_ini_path() -> PathBuf {
+pub fn get_ini_paths() -> Option<Vec<PathBuf>> {
     cfg_select! {
-        windows => get_windows_ini_path(),
-        unix => get_unix_ini_path(),
+        windows => get_windows_ini_paths(),
+        unix => get_unix_ini_paths(),
     }
 }
 
@@ -76,16 +88,7 @@ pub fn strip_section(text: &str) -> String {
     out.trim_end_matches('\n').to_string()
 }
 
-pub fn get_current_scale() -> f64 {
-    let path = get_ini_path();
-    if !path.exists() {
-        return 1.0;
-    }
-
-    let Ok(text) = fs::read_to_string(&path) else {
-        return 1.0;
-    };
-
+fn scale_in(text: &str) -> Option<f64> {
     let mut in_section = false;
     for line in text.lines() {
         let trimmed = line.trim();
@@ -99,29 +102,55 @@ pub fn get_current_scale() -> f64 {
             }
             if let Some((k, v)) = trimmed.split_once('=') {
                 if k.trim().eq_ignore_ascii_case(KEY) {
-                    return v.trim().parse().unwrap_or(1.0);
+                    return v.trim().parse().ok();
                 }
             }
         }
     }
 
-    1.0
+    None
+}
+
+pub fn get_current_scale() -> f64 {
+    get_ini_paths()
+        .unwrap_or_default()
+        .iter()
+        .find_map(|path| {
+            let text = fs::read_to_string(path).ok()?;
+            scale_in(&text)
+        })
+        .unwrap_or(1.0)
 }
 
 pub fn apply_scale(scale: f64) -> bool {
     let scale = scale.clamp(0.5, 2.0);
     let scale = (scale * 100.0).round() / 100.0;
-    let path = get_ini_path();
 
+    let Some(paths) = get_ini_paths() else {
+        error!("engine_ini.apply_scale found no Engine.ini to write");
+        return false;
+    };
+
+    let mut all_written = true;
+    for path in &paths {
+        if !apply_scale_to(path, scale) {
+            all_written = false;
+        }
+    }
+
+    all_written
+}
+
+fn apply_scale_to(path: &Path, scale: f64) -> bool {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
 
     if path.exists() {
-        set_readonly(&path, false);
+        set_readonly(path, false);
     }
 
-    let existing = fs::read_to_string(&path).unwrap_or_default();
+    let existing = fs::read_to_string(path).unwrap_or_default();
     let base = strip_section(&existing);
 
     // Avoid leading blank lines when writing into a fresh/empty file.
@@ -147,28 +176,42 @@ pub fn apply_scale(scale: f64) -> bool {
         }
     }
 
-    if let Err(e) = fs::rename(&tmp, &path) {
+    if let Err(e) = fs::rename(&tmp, path) {
         error!("engine_ini.apply_scale failed: {e}");
         let _ = fs::remove_file(&tmp);
         return false;
     }
 
-    set_readonly(&path, true);
+    set_readonly(path, true);
     true
 }
 
 pub fn remove_scale() -> bool {
-    let path = get_ini_path();
+    let Some(paths) = get_ini_paths() else {
+        return true;
+    };
+
+    let mut all_cleaned = true;
+    for path in &paths {
+        if !remove_scale_from(path) {
+            all_cleaned = false;
+        }
+    }
+
+    all_cleaned
+}
+
+fn remove_scale_from(path: &Path) -> bool {
     if !path.exists() {
         return true;
     }
 
-    if is_readonly(&path) {
-        set_readonly(&path, false);
+    if is_readonly(path) {
+        set_readonly(path, false);
     }
 
-    fs::read_to_string(&path).is_ok_and(|existing| {
+    fs::read_to_string(path).is_ok_and(|existing| {
         let cleaned = strip_section(&existing);
-        fs::write(&path, format!("{cleaned}\n")).is_ok()
+        fs::write(path, format!("{cleaned}\n")).is_ok()
     })
 }

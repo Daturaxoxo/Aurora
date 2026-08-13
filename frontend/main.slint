@@ -8,12 +8,29 @@ import { ProgressOverlay } from "components/progressoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
-import { LuaScriptsPage, LuaScriptsAdapter } from "components/pages/menus/lua.slint";
+import {
+    LuaScriptsPage,
+    LuaScriptsAdapter,
+} from "components/pages/menus/lua.slint";
 export { LuaScriptsAdapter }
-import { ModManagerPage, ModItem } from "components/pages/modmanager.slint";
-import {GameBananaBrowser, GbModItem, GbFileItem, GbCharacter} from "components/gbbrowser.slint";
-import {ScreenshotsPage, ScreenshotItem} from "components/pages/menus/screenshots.slint";
-export { LogWindow, LogLine } from "components/logwindow.slint";
+import {
+    ModManagerPage,
+    ModItem,
+    GroupOption,
+    FilterOption,
+    ModFilters,
+} from "components/pages/modmanager.slint";
+import {
+    GameBananaBrowser,
+    GbModItem,
+    GbFileItem,
+    GbCharacter,
+} from "components/gbbrowser.slint";
+import {
+    ScreenshotsPage,
+    ScreenshotItem,
+} from "components/pages/menus/screenshots.slint";
+export { LogWindow, LogLine }from "components/logwindow.slint";
 
 // The launch button label is driven by the backend, so it travels as a state
 // rather than a string: the UI picks the translated text itself and re-picks it
@@ -118,6 +135,7 @@ export component MainWindow inherits Window {
     in-out property <bool> discord-rpc: true;
     in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;
+    in-out property <int> engine-scale: 100;
     in-out property <bool> ignore-checksum: false;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
@@ -126,18 +144,21 @@ export component MainWindow inherits Window {
     in-out property <bool> desktop-entry: false;
     in-out property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;
+    in-out property <bool> telemetry-opt-out: false;
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
     callback desktop-entry-changed(bool);
+    callback telemetry-opt-out-changed(bool);
 
     // Progress Overlay Properties (shared by the updater and GameBanana installs)
     in-out property <bool> progress-overlay-active: false;
@@ -171,6 +192,8 @@ export component MainWindow inherits Window {
     callback mods-view-changed(bool);
     in-out property <bool> mods-all-selected: false;
     in-out property <int> mods-selected-count: 0;
+    in-out property <int> mods-selected-group-count: 0;
+    callback mods-delete-selected-groups();
     callback mod-toggle(string);
     callback mod-delete(string);
     callback mod-rename(string, string);
@@ -178,16 +201,27 @@ export component MainWindow inherits Window {
     callback mod-set-notes(string, string);
     callback mod-open-link(string);
     callback mod-move-to-group(string, string);
+    in-out property <[GroupOption]> mods-groups: [];
+    callback mods-move-selected-to-group(string);
+    callback mods-create-group-with-selected(string);
     callback mod-drop-on-zone(string, string);
     callback mod-drag-moved(string, length);
     callback mod-drag-dropped(string, length);
     in-out property <string> mods-drag-target: "";
+    in-out property <string> mods-editing-group-id: "";
     callback mods-select-all();
     callback mods-toggle-all();
     callback mods-toggle-selected();
     callback mods-delete-selected();
     callback mods-search-changed(string);
-    callback mods-filter-changed(int);
+    in-out property <ModFilters> mods-filters: { status: 0, group-id: "" };
+    in-out property <[FilterOption]> mods-filter-characters: [];
+    in-out property <[FilterOption]> mods-filter-authors: [];
+    in-out property <[FilterOption]> mods-filter-groups: [];
+    in-out property <string> mods-filter-group-label: "";
+    in-out property <int> mods-active-filter-count: 0;
+    callback mods-filters-changed(ModFilters);
+    callback mods-clear-filters();
     callback mods-refresh();
     callback open-mods-folder();
     callback mod-group-create();
@@ -250,6 +284,9 @@ export component MainWindow inherits Window {
     in-out property <[ScreenshotItem]> screenshots: [];
     in-out property <int> screenshot-selected-count: 0;
     in-out property <image> screenshot-preview-image;
+    // Copy feedback: 0 = idle, 1 = copying, 2 = copied, 3 = failed
+    in-out property <int> screenshot-copy-state: 0;
+    in-out property <int> screenshot-copy-index: -1;
     callback screenshot-favorite(int);
     callback screenshot-delete(int);
     callback screenshot-open(int);
@@ -443,7 +480,9 @@ export component MainWindow inherits Window {
                                 root.popup-title = Tr.values[TrKey.popup-discord-title];
                                 root.popup-message = Tr.values[TrKey.popup-discord-message];
                                 root.popup-required-count = 1;
-                                root.popup-checkboxes = [{ label: Tr.values[TrKey.popup-discord-agree-checkbox], required: true, checked: false }];
+                                root.popup-checkboxes = [
+                                    { label: Tr.values[TrKey.popup-discord-agree-checkbox], required: true, checked: false }
+                                ];
                                 root.popup-active = true;
                             }
                         }
@@ -970,6 +1009,8 @@ export component MainWindow inherits Window {
             screenshots: root.screenshots;
             selected-count: root.screenshot-selected-count;
             preview-image: root.screenshot-preview-image;
+            copy-state <=> root.screenshot-copy-state;
+            copy-index <=> root.screenshot-copy-index;
             close-screenshots => { root.show-screenshots = false; }
             screenshot-favorite(i) => { root.screenshot-favorite(i); }
             screenshot-delete(i) => { root.screenshot-delete(i); }
@@ -1020,6 +1061,8 @@ export component MainWindow inherits Window {
             view-changed(grid) => { root.mods-view-changed(grid); }
             all-selected: root.mods-all-selected;
             selected-count: root.mods-selected-count;
+            selected-group-count: root.mods-selected-group-count;
+            delete-selected-groups => { root.mods-delete-selected-groups(); }
             file-hover: root.mods-file-hover;
             install-from-archive => { root.mods-install-archive(); }
             install-from-folder => { root.mods-install-folder(); }
@@ -1039,7 +1082,14 @@ export component MainWindow inherits Window {
             toggle-selected => { root.mods-toggle-selected(); }
             delete-selected => { root.mods-delete-selected(); }
             search-changed(text) => { root.mods-search-changed(text); }
-            filter-changed(idx) => { root.mods-filter-changed(idx); }
+            filters <=> root.mods-filters;
+            filter-characters <=> root.mods-filter-characters;
+            filter-authors <=> root.mods-filter-authors;
+            filter-groups: root.mods-filter-groups;
+            filter-group-label: root.mods-filter-group-label;
+            active-filter-count: root.mods-active-filter-count;
+            filters-changed(filters) => { root.mods-filters-changed(filters); }
+            clear-filters => { root.mods-clear-filters(); }
             create-group => { root.mod-group-create(); }
             rename-group(id, name) => { root.mod-group-rename(id, name); }
             delete-group(id) => { root.mod-group-delete(id); }
@@ -1047,8 +1097,12 @@ export component MainWindow inherits Window {
             collapse-group(id) => { root.mod-group-collapse(id); }
             select-group(id) => { root.mod-group-select(id); }
             move-mod-to-group(id, group) => { root.mod-move-to-group(id, group); }
+            groups: root.mods-groups;
+            move-selected-to-group(group) => { root.mods-move-selected-to-group(group); }
+            create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
+            editing-group-id <=> root.mods-editing-group-id;
             mod-drag-moved(id, y) => { root.mod-drag-moved(id, y); }
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
             refresh => { root.mods-refresh(); }
@@ -1116,6 +1170,7 @@ export component MainWindow inherits Window {
             discord-rpc <=> root.discord-rpc;
             game-directory <=> root.game-directory;
             engine-method-index <=> root.engine-method-index;
+            engine-scale <=> root.engine-scale;
             ignore-checksum <=> root.ignore-checksum;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
@@ -1124,6 +1179,7 @@ export component MainWindow inherits Window {
             desktop-entry <=> root.desktop-entry;
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
+            telemetry-opt-out <=> root.telemetry-opt-out;
 
             browse-game-directory => { root.browse-game-directory(); }
             export-telemetry => { root.export-telemetry(); }
@@ -1131,12 +1187,14 @@ export component MainWindow inherits Window {
             interface-minimization-changed(v) => { root.interface-minimization-changed(v); }
             discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
+            engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
             proton-version-index-changed(i) => { root.proton-version-index-changed(i); }
             desktop-entry-changed(v) => { root.desktop-entry-changed(v); }
+            telemetry-opt-out-changed(v) => { root.telemetry-opt-out-changed(v); }
         }
 
         toast-widget := WindowToast {

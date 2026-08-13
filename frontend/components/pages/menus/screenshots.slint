@@ -1,6 +1,7 @@
 import { Palette } from "../../../global.slint";
-import { LineEdit } from "std-widgets.slint";
+import { LineEdit, ScrollView } from "std-widgets.slint";
 import { Dropdown } from "../settings.slint";
+import { ChipButton } from "../../chipbutton.slint";
 import { Tr, TrKey } from "../../../translations.slint";
 
 export struct ScreenshotItem {
@@ -42,20 +43,51 @@ component OverlayButton inherits Rectangle {
     }
 }
 
-// Copy-to-clipboard button
 component CopyButton inherits Rectangle {
+    in property <int> state: 0; // 0 = idle, 1 = copying, 2 = copied, 3 = failed
     out property <bool> hovering: ta.has-hover;
     callback clicked();
+
+    property <bool> busy: root.state == 1;
+    property <bool> done: root.state == 2;
+    property <bool> failed: root.state == 3;
 
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: ta.has-hover ? #000000dd : #00000099;
+    background: root.done ? #22c55edd
+        : root.failed ? #ef4444dd
+        : (ta.pressed ? #000000ff : (ta.has-hover ? #000000dd : #00000099));
     border-width: 1px;
-    border-color: #ffffff20;
-    animate background { duration: 120ms; }
+    border-color: root.done ? #22c55e : (root.failed ? #ef4444 : #ffffff20);
+    animate background, border-color { duration: 140ms; }
 
-    Path {
+    property <bool> pulse: false;
+    Timer {
+        interval: 350ms;
+        running: root.busy;
+        triggered => { root.pulse = !root.pulse; }
+    }
+
+    property <bool> pop: false;
+    property <bool> arm-pop: false;
+
+    changed state => {
+        root.pop = false;
+        root.arm-pop = root.state >= 2;
+    }
+
+    Timer {
+        interval: 16ms;
+        running: root.arm-pop;
+        triggered => {
+            root.arm-pop = false;
+            root.pop = true;
+        }
+    }
+
+    // Clipboard (idle / copying)
+    if root.state <= 1: Path {
         width: 15px;
         height: 15px;
         x: (parent.width - self.width) / 2;
@@ -68,6 +100,42 @@ component CopyButton inherits Rectangle {
         stroke: ta.has-hover ? #ffffff : #ffffffcc;
         stroke-width: 2px;
         fill: transparent;
+        opacity: (root.busy && root.pulse) ? 0.3 : 1.0;
+        animate opacity { duration: 350ms; easing: ease-in-out; }
+    }
+
+    // Checkmark (copied)
+    if root.done: Path {
+        width: root.pop ? 15px : 3px;
+        height: self.width * 12 / 15;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: 15;
+        viewbox-height: 12;
+        commands: "M1 6 L5.5 10.5 L14 1.5";
+        stroke: #ffffff;
+        stroke-width: 2px;
+        fill: transparent;
+        animate width { duration: 260ms; easing: ease-out-back; }
+    }
+
+    // Cross (failed)
+    if root.failed: Path {
+        width: root.pop ? 13px : 3px;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: 14;
+        viewbox-height: 14;
+        commands: "M2 2 L12 12 M12 2 L2 12";
+        stroke: #ffffff;
+        stroke-width: 2px;
+        fill: transparent;
+        animate width { duration: 260ms; easing: ease-out-back; }
     }
 
     ta := TouchArea {
@@ -110,44 +178,12 @@ component FavoriteButton inherits Rectangle {
 }
 
 // Text chip used in the toolbar (Select / Cancel / Delete / Favorites)
-component ChipButton inherits Rectangle {
-    in property <string> text;
-    in property <bool> active: false;
-    in property <bool> danger: false;
-    in property <bool> enabled: true;
-    callback clicked();
-
-    width: chip-text.preferred-width + 24px;
-    height: 30px;
-    border-radius: 6px;
-    background: root.danger
-        ? (ta.has-hover && root.enabled ? #ee4937 : #ee4937cc)
-        : root.active ? #ffffff20
-        : (ta.has-hover ? #ffffff14 : #ffffff08);
-    border-width: 1px;
-    border-color: root.active ? #ffffff30 : #ffffff18;
-    opacity: root.enabled ? 1.0 : 0.45;
-    animate background { duration: 120ms; }
-
-    chip-text := Text {
-        text: root.text;
-        color: Palette.text-primary;
-        font-size: 12px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    ta := TouchArea {
-        enabled: root.enabled;
-        clicked => { root.clicked(); }
-    }
-}
-
 component ScreenshotCard inherits Rectangle {
     in property <ScreenshotItem> item;
     in property <int> index;
     in property <bool> select-mode: false;
+    // 0 = idle, 1 = copying, 2 = copied, 3 = failed
+    in property <int> copy-state: 0;
 
     callback toggle-favorite(int);
     callback request-delete(int);
@@ -253,7 +289,7 @@ component ScreenshotCard inherits Rectangle {
             x: parent.width - self.preferred-width - 8px;
             y: 8px;
             spacing: 6px;
-            opacity: (root.hovered && !root.select-mode) ? 1.0 : 0.0;
+            opacity: ((root.hovered || root.copy-state != 0) && !root.select-mode) ? 1.0 : 0.0;
             animate opacity { duration: 120ms; }
 
             fav-btn := FavoriteButton {
@@ -262,6 +298,7 @@ component ScreenshotCard inherits Rectangle {
             }
 
             copy-btn := CopyButton {
+                state: root.copy-state;
                 clicked => { root.request-copy(root.index); }
             }
 
@@ -351,6 +388,30 @@ export component ScreenshotsPage inherits Rectangle {
 
     // -1 = rename dialog closed
     in-out property <int> renaming-index: -1;
+
+    // 0 = idle, 1 = copying, 2 = copied, 3 = failed
+    in-out property <int> copy-state: 0;
+    in-out property <int> copy-index: -1;
+
+    init => {
+        root.copy-state = 0;
+        root.copy-index = -1;
+    }
+
+    function start-copy(index: int) {
+        root.copy-index = index;
+        root.copy-state = 1;
+        root.screenshot-copy(index);
+    }
+
+    Timer {
+        interval: root.copy-state == 3 ? 3000ms : 1200ms;
+        running: root.copy-state >= 2;
+        triggered => {
+            root.copy-state = 0;
+            root.copy-index = -1;
+        }
+    }
 
     property <int> columns: 3;
     property <length> gap: 16px;
@@ -620,9 +681,6 @@ export component ScreenshotsPage inherits Rectangle {
             vertical-stretch: 1;
             clip: true;
 
-            property <length> cell-w: (self.width - root.gap * (root.columns - 1)) / root.columns;
-            property <length> cell-h: self.cell-w * 9 / 16 + 44px;
-
             if root.screenshots.length == 0: VerticalLayout {
                 alignment: center;
                 spacing: 12px;
@@ -650,24 +708,30 @@ export component ScreenshotsPage inherits Rectangle {
                 }
             }
 
-            if root.screenshots.length > 0: Flickable {
+            if root.screenshots.length > 0: grid-scroll := ScrollView {
                 width: 100%;
                 height: 100%;
+
+                property <length> gutter: 12px;
+                property <length> cell-w: Math.floor(((self.width - self.gutter - root.gap * (root.columns - 1)) / root.columns) / 1px) * 1px;
+                property <length> cell-h: Math.round((self.cell-w * 9 / 16) / 1px) * 1px + 44px;
+
                 viewport-width: self.width;
-                viewport-height: Math.ceil(root.screenshots.length / root.columns) * (grid-area.cell-h + root.gap) - root.gap + 8px;
+                viewport-height: Math.ceil(root.screenshots.length / root.columns) * (self.cell-h + root.gap) - root.gap + 8px;
 
                 for item[i] in root.screenshots: ScreenshotCard {
-                    x: Math.mod(i, root.columns) * (grid-area.cell-w + root.gap);
-                    y: Math.floor(i / root.columns) * (grid-area.cell-h + root.gap);
-                    width: grid-area.cell-w;
-                    height: grid-area.cell-h;
+                    x: Math.mod(i, root.columns) * (grid-scroll.cell-w + root.gap);
+                    y: Math.floor(i / root.columns) * (grid-scroll.cell-h + root.gap);
+                    width: grid-scroll.cell-w;
+                    height: grid-scroll.cell-h;
                     item: item;
                     index: i;
                     select-mode: root.select-mode;
                     toggle-favorite(idx) => { root.screenshot-favorite(idx); }
                     request-delete(idx) => { root.screenshot-delete(idx); }
                     request-rename(idx) => { root.renaming-index = idx; }
-                    request-copy(idx) => { root.screenshot-copy(idx); }
+                    copy-state: root.copy-index == i ? root.copy-state : 0;
+                    request-copy(idx) => { root.start-copy(idx); }
                     toggle-select(idx) => { root.screenshot-toggle-select(idx); }
                     open-preview(idx) => { root.open-preview-at(idx); }
                 }
@@ -830,7 +894,8 @@ export component ScreenshotsPage inherits Rectangle {
                 }
 
                 CopyButton {
-                    clicked => { root.screenshot-copy(root.preview-index); }
+                    state: root.copy-index == root.preview-index ? root.copy-state : 0;
+                    clicked => { root.start-copy(root.preview-index); }
                 }
 
                 OverlayButton {
@@ -920,6 +985,108 @@ export component ScreenshotsPage inherits Rectangle {
                             root.renaming-index = -1;
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // Copy toast
+    copy-toast := Rectangle {
+        property <bool> shown: root.copy-state != 0;
+        property <bool> blink: false;
+
+        width: toast-row.preferred-width + 32px;
+        height: 38px;
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - (self.shown ? 24px : 4px);
+        opacity: self.shown ? 1.0 : 0.0;
+        visible: self.opacity > 0.001;
+
+        border-radius: 19px;
+        background: root.copy-state == 3 ? #ef4444ee : #1e1e24f2;
+        border-width: 1px;
+        border-color: root.copy-state == 2
+            ? #22c55e66
+            : (root.copy-state == 3 ? #ffffff44 : Palette.glass-border);
+        drop-shadow-color: #00000099;
+        drop-shadow-blur: 24px;
+        drop-shadow-offset-y: 6px;
+
+        animate y { duration: 220ms; easing: ease-out-quad; }
+        animate opacity { duration: 180ms; easing: ease-in-out; }
+        animate background, border-color { duration: 160ms; }
+
+        Timer {
+            interval: 350ms;
+            running: root.copy-state == 1;
+            triggered => { copy-toast.blink = !copy-toast.blink; }
+        }
+
+        toast-row := HorizontalLayout {
+            x: 16px;
+            y: 0;
+            width: self.preferred-width;
+            height: parent.height;
+            spacing: 9px;
+
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 16px;
+                    height: 16px;
+
+                    if root.copy-state == 1: Rectangle {
+                        width: 9px;
+                        height: 9px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 4.5px;
+                        background: #ffffff;
+                        opacity: copy-toast.blink ? 0.25 : 1.0;
+                        animate opacity { duration: 350ms; easing: ease-in-out; }
+                    }
+
+                    if root.copy-state == 2: Path {
+                        width: 16px;
+                        height: 13px;
+                        y: (parent.height - self.height) / 2;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 15;
+                        viewbox-height: 12;
+                        commands: "M1 6 L5.5 10.5 L14 1.5";
+                        stroke: #22c55e;
+                        stroke-width: 2px;
+                        fill: transparent;
+                    }
+
+                    if root.copy-state == 3: Path {
+                        width: 14px;
+                        height: 14px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 14;
+                        viewbox-height: 14;
+                        commands: "M2 2 L12 12 M12 2 L2 12";
+                        stroke: #ffffff;
+                        stroke-width: 2px;
+                        fill: transparent;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.copy-state == 1 ? Tr.values[TrKey.screenshots-copying]
+                        : (root.copy-state == 3 ? Tr.values[TrKey.screenshots-copy-failed]
+                        : Tr.values[TrKey.screenshots-copied]);
+                    color: Palette.text-primary;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
                 }
             }
         }

@@ -91,7 +91,7 @@ pub fn export_telemetry() -> Result<()> {
     writeln!(
         file,
         "Timezone:            {}",
-        iana_time_zone::get_timezone()?
+        iana_time_zone::get_timezone().unwrap_or_else(|s| format!("Unknown ({s})"))
     )?;
 
     writeln!(file, "CPU:                 {}", CpuInfo::new().model)?;
@@ -122,7 +122,7 @@ pub fn export_telemetry() -> Result<()> {
 
     writeln!(file, "=== Game Information ===")?;
 
-    let game_path = get_game_directory()?;
+    let game_path = get_game_directory().with_context(|| "Failed to get game directory")?;
     writeln!(file, "Game Path:       {}", game_path.display())?;
 
     let version = detect_version(game_path.as_path()).unwrap_or_default();
@@ -156,10 +156,13 @@ pub fn export_telemetry() -> Result<()> {
         file_count += 1;
         cfg_select! {
             windows => {
-                total_size += entry.metadata()?.file_size();
+                total_size += entry.metadata().map_or(0, |metadata| metadata.file_size());
             }
             unix => {
-                total_size += entry.metadata()?.size();
+                total_size += match entry.metadata() {
+                    Ok(metadata) => metadata.size(),
+                    Err(_) => 0,
+                };
             }
         };
     }
@@ -240,10 +243,10 @@ pub fn export_telemetry() -> Result<()> {
     match std::fs::read_dir(&addon_dir) {
         Ok(entries) => {
             for entry in entries {
-                let entry = entry?;
+                let Ok(entry) = entry else { continue };
                 if entry.file_type()?.is_dir() {
                     for entry in std::fs::read_dir(entry.path())? {
-                        let entry = entry?;
+                        let Ok(entry) = entry else { continue };
                         if entry.file_type()?.is_file() {
                             let name = entry.file_name().into_string().unwrap_or_default();
                             if std::path::Path::new(&name)
@@ -361,9 +364,9 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                 .unwrap_or_else(|| "Unknown".to_string());
 
             while let Ok(event) = rx.recv() {
-                if !config::get(config::key::ERROR_TELEMETRY)
+                if config::get(config::key::TELEMETRY_OPT_OUT)
                     .as_bool()
-                    .unwrap_or(true)
+                    .unwrap_or(false)
                 {
                     continue;
                 }

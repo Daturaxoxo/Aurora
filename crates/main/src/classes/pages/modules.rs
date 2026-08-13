@@ -123,6 +123,7 @@ impl ModulesHandler {
             return;
         }
         *synced = generation;
+        drop(synced);
 
         let paths: Vec<Value> = modules
             .iter()

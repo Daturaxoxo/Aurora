@@ -9,7 +9,7 @@ default = ["beta"]
 beta = []
 
 [dependencies]
-i-slint-backend-winit = { version = "1.17", default-features = false }
+i-slint-backend-winit = { version = "1.17.1", default-features = false }
 rfd = { version = "0.17", default-features = false, features = [
     "xdg-portal",
     "wayland",
@@ -18,6 +18,7 @@ image = { version = "0.25", default-features = false, features = [
     "png",
     "jpeg",
     "webp",
+    "bmp",
 ] }
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 
@@ -52,8 +53,10 @@ winresource = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-mslnk = { workspace = true }
 tray-icon = { version = "0.24.2", default-features = false }
+# Lets a screenshot's own PNG bytes go on the clipboard untouched; arboard's
+# set_image re-encodes the pixels, which costs ~2s for a full-size screenshot
+clipboard-win = "5.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = { workspace = true }

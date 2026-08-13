@@ -19,146 +19,173 @@ export global TrKey {
     out property <int> settings-game-directory-title: 14;
     out property <int> settings-game-directory-browse: 15;
     out property <int> settings-section-engine: 16;
-    out property <int> settings-engine-method-title: 17;
-    out property <int> settings-engine-method-subtitle: 18;
-    out property <int> settings-engine-method-default: 19;
-    out property <int> settings-engine-method-alternate: 20;
-    out property <int> settings-ignore-checksum-title: 21;
-    out property <int> settings-ignore-checksum-subtitle: 22;
-    out property <int> settings-section-debug: 23;
-    out property <int> settings-developer-mode-title: 24;
-    out property <int> settings-developer-mode-subtitle: 25;
-    out property <int> settings-export-telemetry-title: 26;
-    out property <int> settings-export-telemetry-subtitle: 27;
-    out property <int> settings-export-telemetry-button: 28;
-    out property <int> popup-discord-title: 29;
-    out property <int> popup-discord-message: 30;
-    out property <int> popup-discord-agree-checkbox: 31;
-    out property <int> popup-gamebanana-title: 32;
-    out property <int> popup-gamebanana-message: 33;
-    out property <int> popup-ignore-checksum-title: 34;
-    out property <int> popup-ignore-checksum-message: 35;
-    out property <int> main-launch-button-launch: 36;
-    out property <int> main-launch-button-launching: 37;
-    out property <int> main-launch-button-running: 38;
-    out property <int> main-launch-button-updating: 39;
-    out property <int> main-launch-menu-option-repair: 40;
-    out property <int> main-launch-menu-option-updates: 41;
-    out property <int> main-launch-menu-option-shortcut: 42;
-    out property <int> main-launch-menu-option-folder: 43;
-    out property <int> main-launch-menu-option-kill: 44;
-    out property <int> main-button-row-mod-manager: 45;
-    out property <int> global-popup-confirm-button: 46;
-    out property <int> global-popup-cancel-button: 47;
-    out property <int> global-button-save: 48;
-    out property <int> global-button-install: 49;
-    out property <int> global-button-rename: 50;
-    out property <int> global-button-delete: 51;
-    out property <int> global-button-toggle: 52;
-    out property <int> global-label-by: 53;
-    out property <int> global-filter-all: 54;
-    out property <int> global-search-mods-placeholder: 55;
-    out property <int> menu-title: 56;
-    out property <int> menu-item-screenshots: 57;
-    out property <int> menu-item-movies: 58;
-    out property <int> menu-item-lua: 59;
-    out property <int> menu-item-modules: 60;
-    out property <int> menu-item-addons: 61;
-    out property <int> logwindow-title: 62;
-    out property <int> logwindow-copy: 63;
-    out property <int> logwindow-filter-error: 64;
-    out property <int> logwindow-filter-warn: 65;
-    out property <int> logwindow-filter-info: 66;
-    out property <int> logwindow-filter-debug: 67;
-    out property <int> logwindow-filter-trace: 68;
-    out property <int> modcard-notes-placeholder: 69;
-    out property <int> addons-title: 70;
-    out property <int> addons-count-suffix: 71;
-    out property <int> addons-action-installing: 72;
-    out property <int> addons-action-update: 73;
-    out property <int> addons-action-install: 74;
-    out property <int> addons-action-disable: 75;
-    out property <int> addons-action-enable: 76;
-    out property <int> addons-empty-title: 77;
-    out property <int> addons-empty-subtitle: 78;
-    out property <int> modules-add-modules: 79;
-    out property <int> modules-search-placeholder: 80;
-    out property <int> modules-enable-feature: 81;
-    out property <int> modules-empty: 82;
-    out property <int> modules-empty-search: 83;
-    out property <int> modules-delete-title: 84;
-    out property <int> modules-delete-message-prefix: 85;
-    out property <int> modules-delete-message-suffix: 86;
-    out property <int> modules-delete-selected-title: 87;
-    out property <int> modules-delete-selected-message-prefix: 88;
-    out property <int> modules-delete-selected-message-suffix: 89;
-    out property <int> lua-install-title: 90;
-    out property <int> lua-install-description: 91;
-    out property <int> lua-install-download-size: 92;
-    out property <int> lua-install-location: 93;
-    out property <int> lua-new-script: 94;
-    out property <int> lua-debugging: 95;
-    out property <int> lua-script-count-singular: 96;
-    out property <int> lua-script-count-plural: 97;
-    out property <int> lua-empty: 98;
-    out property <int> screenshots-count-suffix: 99;
-    out property <int> screenshots-open-folder: 100;
-    out property <int> screenshots-sort-newest: 101;
-    out property <int> screenshots-sort-oldest: 102;
-    out property <int> screenshots-sort-name: 103;
-    out property <int> screenshots-favorites: 104;
-    out property <int> screenshots-select: 105;
-    out property <int> screenshots-empty-title: 106;
-    out property <int> screenshots-empty-subtitle: 107;
-    out property <int> screenshots-empty-favorites-title: 108;
-    out property <int> screenshots-empty-favorites-subtitle: 109;
-    out property <int> screenshots-rename-title: 110;
-    out property <int> gb-title: 111;
-    out property <int> gb-nsfw: 112;
-    out property <int> gb-all-characters: 113;
-    out property <int> gb-no-mods: 114;
-    out property <int> gb-loading: 115;
-    out property <int> gb-files-title: 116;
-    out property <int> gb-files-downloads-suffix: 117;
-    out property <int> gb-preview-loading: 118;
-    out property <int> modmanager-add-mods: 119;
-    out property <int> modmanager-install-archive: 120;
-    out property <int> modmanager-install-folder: 121;
-    out property <int> modmanager-create-group: 122;
-    out property <int> modmanager-filter-enabled: 123;
-    out property <int> modmanager-filter-disabled: 124;
-    out property <int> modmanager-toggle-all: 125;
-    out property <int> modmanager-empty: 126;
-    out property <int> modmanager-empty-search: 127;
-    out property <int> modmanager-empty-filter: 128;
-    out property <int> modmanager-drag-mods-suffix: 129;
-    out property <int> modmanager-drop-out-of-group: 130;
-    out property <int> modmanager-drop-install-title: 131;
-    out property <int> modmanager-drop-install-subtitle: 132;
-    out property <int> modmanager-delete-group-title: 133;
-    out property <int> modmanager-delete-group-message: 134;
-    out property <int> modmanager-delete-mod-title: 135;
-    out property <int> modmanager-delete-mod-message: 136;
-    out property <int> modmanager-delete-selected-title: 137;
-    out property <int> modmanager-delete-selected-message-prefix: 138;
-    out property <int> modmanager-delete-selected-message-suffix: 139;
-    out property <int> settings-game-directory-none: 140;
-    out property <int> settings-section-launch-options: 141;
-    out property <int> settings-linux-args-title: 142;
-    out property <int> settings-linux-args-subtitle: 143;
-    out property <int> settings-linux-args-saved: 144;
-    out property <int> settings-linux-args-placeholder: 145;
-    out property <int> settings-section-desktop-integration: 146;
-    out property <int> settings-desktop-entry-title: 147;
-    out property <int> settings-desktop-entry-subtitle: 148;
-    out property <int> popup-desktop-entry-title: 149;
-    out property <int> popup-desktop-entry-message: 150;
-    out property <int> toast-launcher-opened: 151;
-    out property <int> progress-updating-aurora-title: 152;
-    out property <int> progress-updating-aurora-preparing: 153;
-    out property <int> settings-proton-version-title: 154;
-    out property <int> settings-proton-version-subtitle: 155;
-    out property <int> settings-proton-version-automatic: 156;
+    out property <int> settings-engine-scale-title: 17;
+    out property <int> settings-engine-scale-subtitle: 18;
+    out property <int> settings-engine-method-title: 19;
+    out property <int> settings-engine-method-subtitle: 20;
+    out property <int> settings-engine-method-default: 21;
+    out property <int> settings-engine-method-alternate: 22;
+    out property <int> settings-ignore-checksum-title: 23;
+    out property <int> settings-ignore-checksum-subtitle: 24;
+    out property <int> settings-section-debug: 25;
+    out property <int> settings-developer-mode-title: 26;
+    out property <int> settings-developer-mode-subtitle: 27;
+    out property <int> settings-export-telemetry-title: 28;
+    out property <int> settings-export-telemetry-subtitle: 29;
+    out property <int> settings-export-telemetry-button: 30;
+    out property <int> popup-discord-title: 31;
+    out property <int> popup-discord-message: 32;
+    out property <int> popup-discord-agree-checkbox: 33;
+    out property <int> popup-gamebanana-title: 34;
+    out property <int> popup-gamebanana-message: 35;
+    out property <int> popup-ignore-checksum-title: 36;
+    out property <int> popup-ignore-checksum-message: 37;
+    out property <int> main-launch-button-launch: 38;
+    out property <int> main-launch-button-launching: 39;
+    out property <int> main-launch-button-running: 40;
+    out property <int> main-launch-button-updating: 41;
+    out property <int> main-launch-menu-option-repair: 42;
+    out property <int> main-launch-menu-option-updates: 43;
+    out property <int> main-launch-menu-option-shortcut: 44;
+    out property <int> main-launch-menu-option-folder: 45;
+    out property <int> main-launch-menu-option-kill: 46;
+    out property <int> main-button-row-mod-manager: 47;
+    out property <int> global-popup-confirm-button: 48;
+    out property <int> global-popup-cancel-button: 49;
+    out property <int> global-button-save: 50;
+    out property <int> global-button-install: 51;
+    out property <int> global-button-rename: 52;
+    out property <int> global-button-delete: 53;
+    out property <int> global-button-toggle: 54;
+    out property <int> global-label-by: 55;
+    out property <int> global-filter-all: 56;
+    out property <int> global-search-mods-placeholder: 57;
+    out property <int> menu-title: 58;
+    out property <int> menu-item-screenshots: 59;
+    out property <int> menu-item-movies: 60;
+    out property <int> menu-item-lua: 61;
+    out property <int> menu-item-modules: 62;
+    out property <int> menu-item-addons: 63;
+    out property <int> logwindow-title: 64;
+    out property <int> logwindow-copy: 65;
+    out property <int> logwindow-filter-error: 66;
+    out property <int> logwindow-filter-warn: 67;
+    out property <int> logwindow-filter-info: 68;
+    out property <int> logwindow-filter-debug: 69;
+    out property <int> logwindow-filter-trace: 70;
+    out property <int> modcard-notes-placeholder: 71;
+    out property <int> addons-title: 72;
+    out property <int> addons-count-suffix: 73;
+    out property <int> addons-action-installing: 74;
+    out property <int> addons-action-update: 75;
+    out property <int> addons-action-install: 76;
+    out property <int> addons-action-disable: 77;
+    out property <int> addons-action-enable: 78;
+    out property <int> addons-empty-title: 79;
+    out property <int> addons-empty-subtitle: 80;
+    out property <int> modules-add-modules: 81;
+    out property <int> modules-search-placeholder: 82;
+    out property <int> modules-enable-feature: 83;
+    out property <int> modules-empty: 84;
+    out property <int> modules-empty-search: 85;
+    out property <int> modules-delete-title: 86;
+    out property <int> modules-delete-message-prefix: 87;
+    out property <int> modules-delete-message-suffix: 88;
+    out property <int> modules-delete-selected-title: 89;
+    out property <int> modules-delete-selected-message-prefix: 90;
+    out property <int> modules-delete-selected-message-suffix: 91;
+    out property <int> lua-install-title: 92;
+    out property <int> lua-install-description: 93;
+    out property <int> lua-install-download-size: 94;
+    out property <int> lua-install-location: 95;
+    out property <int> lua-new-script: 96;
+    out property <int> lua-debugging: 97;
+    out property <int> lua-script-count-singular: 98;
+    out property <int> lua-script-count-plural: 99;
+    out property <int> lua-empty: 100;
+    out property <int> screenshots-count-suffix: 101;
+    out property <int> screenshots-open-folder: 102;
+    out property <int> screenshots-sort-newest: 103;
+    out property <int> screenshots-sort-oldest: 104;
+    out property <int> screenshots-sort-name: 105;
+    out property <int> screenshots-favorites: 106;
+    out property <int> screenshots-select: 107;
+    out property <int> screenshots-empty-title: 108;
+    out property <int> screenshots-empty-subtitle: 109;
+    out property <int> screenshots-empty-favorites-title: 110;
+    out property <int> screenshots-empty-favorites-subtitle: 111;
+    out property <int> screenshots-rename-title: 112;
+    out property <int> gb-title: 113;
+    out property <int> gb-nsfw: 114;
+    out property <int> gb-all-characters: 115;
+    out property <int> gb-no-mods: 116;
+    out property <int> gb-loading: 117;
+    out property <int> gb-files-title: 118;
+    out property <int> gb-files-downloads-suffix: 119;
+    out property <int> gb-preview-loading: 120;
+    out property <int> modmanager-add-mods: 121;
+    out property <int> modmanager-install-archive: 122;
+    out property <int> modmanager-install-folder: 123;
+    out property <int> modmanager-create-group: 124;
+    out property <int> modmanager-filter-enabled: 125;
+    out property <int> modmanager-filter-disabled: 126;
+    out property <int> modmanager-filter-button: 127;
+    out property <int> modmanager-filter-title: 128;
+    out property <int> modmanager-filter-status: 129;
+    out property <int> modmanager-filter-characters: 130;
+    out property <int> modmanager-filter-authors: 131;
+    out property <int> modmanager-filter-group: 132;
+    out property <int> modmanager-filter-ungrouped: 133;
+    out property <int> modmanager-filter-clear: 134;
+    out property <int> modmanager-toggle-all: 135;
+    out property <int> modmanager-empty: 136;
+    out property <int> modmanager-empty-search: 137;
+    out property <int> modmanager-empty-filter: 138;
+    out property <int> modmanager-drag-mods-suffix: 139;
+    out property <int> modmanager-drop-out-of-group: 140;
+    out property <int> modmanager-drop-install-title: 141;
+    out property <int> modmanager-drop-install-subtitle: 142;
+    out property <int> modmanager-delete-group-title: 143;
+    out property <int> modmanager-delete-group-message: 144;
+    out property <int> modmanager-delete-mod-title: 145;
+    out property <int> modmanager-delete-mod-message: 146;
+    out property <int> modmanager-delete-selected-title: 147;
+    out property <int> modmanager-delete-selected-message-prefix: 148;
+    out property <int> modmanager-delete-selected-message-suffix: 149;
+    out property <int> settings-game-directory-none: 150;
+    out property <int> settings-section-launch-options: 151;
+    out property <int> settings-linux-args-title: 152;
+    out property <int> settings-linux-args-subtitle: 153;
+    out property <int> settings-linux-args-saved: 154;
+    out property <int> settings-linux-args-placeholder: 155;
+    out property <int> settings-section-desktop-integration: 156;
+    out property <int> settings-desktop-entry-title: 157;
+    out property <int> settings-desktop-entry-subtitle: 158;
+    out property <int> popup-desktop-entry-title: 159;
+    out property <int> popup-desktop-entry-message: 160;
+    out property <int> toast-launcher-opened: 161;
+    out property <int> progress-updating-aurora-title: 162;
+    out property <int> progress-updating-aurora-preparing: 163;
+    out property <int> settings-proton-version-title: 164;
+    out property <int> settings-proton-version-subtitle: 165;
+    out property <int> settings-proton-version-automatic: 166;
+    out property <int> screenshots-copying: 167;
+    out property <int> screenshots-copied: 168;
+    out property <int> screenshots-copy-failed: 169;
+    out property <int> modmanager-move-to-group: 170;
+    out property <int> modmanager-move-no-group: 171;
+    out property <int> modmanager-move-new-group: 172;
+    out property <int> modmanager-new-group-title: 173;
+    out property <int> modmanager-new-group-placeholder: 174;
+    out property <int> global-button-create: 175;
+    out property <int> modmanager-delete-groups-button: 176;
+    out property <int> modmanager-delete-selected-groups-title: 177;
+    out property <int> modmanager-delete-selected-groups-message-prefix: 178;
+    out property <int> modmanager-delete-selected-groups-message-suffix: 179;
+    out property <int> settings-tab-privacy: 180;
+    out property <int> settings-section-telemetry: 181;
+    out property <int> settings-telemetry-opt-out-title: 182;
+    out property <int> settings-telemetry-opt-out-subtitle: 183;
 }
 
 export global Tr {
@@ -180,6 +207,8 @@ in property <[string]> values: [
         "Game Directory",
         "Browse",
         "ENGINE",
+        "Game Scale",
+        "Set the size of the game's interface. Takes effect the next time the game starts.",
         "Engine Method",
         "Choose what method the engine uses for loading mods.",
         "Default",
@@ -288,6 +317,14 @@ in property <[string]> values: [
         "Create Group",
         "Enabled",
         "Disabled",
+        "Filter",
+        "Filters",
+        "Status",
+        "Character",
+        "Author",
+        "Group",
+        "Ungrouped",
+        "Clear all filters",
         "Toggle All",
         "No mods installed",
         "No mods match your search",
@@ -306,9 +343,9 @@ in property <[string]> values: [
         "No directory selected",
         "LAUNCH OPTIONS",
         "Launch Arguments",
-        "Passed through Proton the same way as Steam launch options, e.g. PROTON_LOG=1 -windowed. Saves automatically.",
+        "Passed through Proton the same way as Steam launch options, e.g. KEY=VALUE mangohud %command%. Saves automatically.",
         "Saved ✓",
-        "ex: PROTON_LOG=1 -windowed",
+        "ex: KEY=VALUE mangohud %command%",
         "DESKTOP INTEGRATION",
         "Desktop Entry",
         "Adds Aurora to your application menu so it shows up alongside your other apps.",
@@ -320,5 +357,22 @@ in property <[string]> values: [
         "Proton Version",
         "Which installed DW-Proton build the game runs with. Automatic picks the recommended one.",
         "Automatic",
+        "Copying…",
+        "Copied to clipboard",
+        "Couldn't copy to clipboard",
+        "Move to Group",
+        "No Group",
+        "New Group…",
+        "New Group",
+        "Group name",
+        "Create",
+        "Delete Groups",
+        "Delete Selected Groups?",
+        "Are you sure you want to delete the ",
+        " selected group(s)?",
+        "Privacy",
+        "TELEMETRY",
+        "Opt-out from telemetry tracking",
+        "Stops Aurora from sending anonymous telemetry with the objective of improving the user experience.",
 ];
 }

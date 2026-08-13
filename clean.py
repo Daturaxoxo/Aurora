@@ -47,15 +47,6 @@ def clean_addons(target_path: Path):
     print(f"Files preserved (.auadd): {kept_count}")
 
 def remove_aurora_zip_files(directory: str = ".") -> list[str]:
-    """Removes files matching any of the following patterns:
-
-      - aurora-{STAPLE.MAJOR.MINOR}-{WINDOWS,LINUX}.zip
-      - aurora-{STAPLE.MAJOR.MINOR}-{JUNK}-{WINDOWS,LINUX}.zip
-      - aurora-host-{STAPLE.MAJOR.MINOR}-{WINDOWS,LINUX}.zip
-      - aurora-host-{STAPLE.MAJOR.MINOR}-{JUNK}-{WINDOWS,LINUX}.zip
-
-    Returns a list of deleted filenames.
-    """
     pattern = re.compile(
         r"^aurora-(?:host-)?\d+\.\d+\.\d+(?:-.+?)?-(?:WINDOWS|LINUX)\.zip$",
         re.IGNORECASE,
@@ -129,7 +120,6 @@ def remove_release_folders():
 
 if __name__ == "__main__":
     target_folder = Path("./Bin/Addons")
-
     absolute_target = target_folder.resolve()
 
     confirm = input(f"Are you sure you want to delete all files (except .auadd) in:\n'{absolute_target}'? (y/N): ")
@@ -145,7 +135,7 @@ if __name__ == "__main__":
     else:
         print("Operation cancelled.")
 
-    confirm = input("Do you want to remove the release-* folders? (y/N): ")
+    confirm = input("Do you want to remove the release-* folders? (y/n): ")
     if confirm.lower() in ['y', 'yes']:
         remove_release_folders()
         print("Release folders removed.")
@@ -153,14 +143,14 @@ if __name__ == "__main__":
         print("Operation cancelled.")
 
     if get_os() == "linux":
-        confirm = input(f"Do you want to remove the AppImage build artifacts ({APPIMAGE_NAME}, {APPIMAGE_TARGET_DIR}/)? (y/N): ")
+        confirm = input(f"Do you want to remove the AppImage build artifacts ({APPIMAGE_NAME}, {APPIMAGE_TARGET_DIR}/)? (y/n): ")
         if confirm.lower() in ['y', 'yes']:
             remove_appimage_artifacts()
             print("AppImage artifacts removed.")
         else:
             print("Operation cancelled.")
 
-        confirm = input(f"Do you want to remove the '{APPIMAGE_IMAGE}' podman image too? (y/N): ")
+        confirm = input(f"Do you want to remove the '{APPIMAGE_IMAGE}' podman image too? (y/n): ")
         if confirm.lower() in ['y', 'yes']:
             remove_appimage_build_image()
         else:

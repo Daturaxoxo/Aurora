@@ -1,9 +1,9 @@
 use crate::{CheckboxItem, MainWindow};
 use backend::handler::{self, EngineCommand};
 use log::*;
-#[cfg(target_os = "windows")]
-use mslnk::ShellLink;
-use shared::{classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory};
+use shared::{
+    classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory, utils::open_folder,
+};
 use slint::VecModel;
 
 pub struct ButtonHandler;
@@ -44,7 +44,7 @@ impl ButtonHandler {
         match get_game_directory() {
             Ok(path) => {
                 let mods_path = path.join(CLIENT_PAK_DIR);
-                if let Err(e) = open::that(&mods_path) {
+                if let Err(e) = open_folder(&mods_path) {
                     error!("Failed to open mods folder: {e}");
                 }
             }
@@ -97,25 +97,9 @@ impl ButtonHandler {
     fn add_desktop_shortcut(window: &slint::Weak<MainWindow>) {
         #[cfg(target_os = "windows")]
         {
-            let result = (|| -> anyhow::Result<()> {
-                let exe = std::env::current_exe()?;
-
-                let desktop = dirs::desktop_dir()
-                    .ok_or_else(|| anyhow::anyhow!("Could not find desktop directory"))?;
-
-                let shortcut = desktop.join("Aurora.lnk");
-
-                let mut link = ShellLink::new(&exe)?;
-                link.set_name(Some("Aurora".to_string()));
-                link.set_working_dir(
-                    exe.parent()
-                        .and_then(|p| p.to_str())
-                        .map(std::string::ToString::to_string),
-                );
-                link.create_lnk(&shortcut)?;
-
-                Ok(())
-            })();
+            let result = std::env::current_exe()
+                .map_err(anyhow::Error::from)
+                .and_then(|exe| shared::desktop_entry::create_desktop_shortcut(&exe));
 
             if let Some(w) = window.upgrade() {
                 match result {

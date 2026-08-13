@@ -2,12 +2,14 @@ use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
+use backend::classes::addons::scale;
 use backend::classes::rpc::RPC;
 use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
 use shared::pathfind::resolve_selected_game_root;
+use shared::utils::open_folder;
 use slint::{ComponentHandle as _, Model as _};
 use std::sync::atomic::Ordering;
 
@@ -81,6 +83,11 @@ impl SettingsHandler {
         debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
+        let current_scale = scale::get_current_scale();
+        let engine_scale = Self::scale_to_percent(current_scale);
+        debug!("[Settings] engine_scale: Engine.ini={current_scale} → {engine_scale}%");
+        w.set_engine_scale(engine_scale);
+
         let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
         debug!("[Settings] ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
@@ -112,51 +119,57 @@ impl SettingsHandler {
             logwindow::set_visible(true, window);
         }
 
+        // Privacy
+        let raw_opt_out = config::get(key::TELEMETRY_OPT_OUT);
+        let telemetry_opt_out = raw_opt_out.as_bool().unwrap_or(false);
+        debug!("[Settings] telemetry_opt_out: raw={raw_opt_out:?} → {telemetry_opt_out}");
+        w.set_telemetry_opt_out(telemetry_opt_out);
+
         info!("[Settings] load() complete shortcut all config values applied to UI");
     }
 
-    fn load_proton_versions(w: &MainWindow) {
-        #[cfg(target_os = "linux")]
-        {
-            let builds = backend::classes::linux::installed_dwproton_builds();
-            debug!("[Settings] installed DW-Proton builds: {builds:?}");
-
-            let raw_version = config::get(key::PROTON_VERSION);
-            let saved = raw_version.as_str().unwrap_or("").trim().to_string();
-
-            // Entry 0 is "Automatic", so an installed build sits one slot later.
-            let index = if saved.is_empty() {
-                0
-            } else {
-                builds
-                    .iter()
-                    .position(|build| *build == saved)
-                    .and_then(|i| i32::try_from(i).ok())
-                    .map_or_else(
-                        || {
-                            warn!(
-                                "[Settings] saved proton_version {saved:?} is not installed any \
-                                 more, showing Automatic instead"
-                            );
-                            0
-                        },
-                        |i| i + 1,
-                    )
-            };
-            debug!("[Settings] proton_version: raw={raw_version:?} → index={index}");
-
-            let mut options = Vec::with_capacity(builds.len() + 1);
-            options.push(slint::SharedString::from(crate::translations::tr(
-                "settings.proton-version.automatic",
-            )));
-            options.extend(builds.iter().map(slint::SharedString::from));
-
-            w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
-            w.set_proton_version_index(index);
-        }
-
-        #[cfg(not(target_os = "linux"))]
+    #[cfg(not(target_os = "linux"))]
+    const fn load_proton_versions(w: &MainWindow) {
         let _ = w;
+    }
+
+    #[cfg(target_os = "linux")]
+    fn load_proton_versions(w: &MainWindow) {
+        let builds = backend::classes::linux::installed_dwproton_builds();
+        debug!("[Settings] installed DW-Proton builds: {builds:?}");
+
+        let raw_version = config::get(key::PROTON_VERSION);
+        let saved = raw_version.as_str().unwrap_or("").trim().to_string();
+
+        // Entry 0 is "Automatic", so an installed build sits one slot later.
+        let index = if saved.is_empty() {
+            0
+        } else {
+            builds
+                .iter()
+                .position(|build| *build == saved)
+                .and_then(|i| i32::try_from(i).ok())
+                .map_or_else(
+                    || {
+                        warn!(
+                            "[Settings] saved proton_version {saved:?} is not installed any \
+                                 more, showing Automatic instead"
+                        );
+                        0
+                    },
+                    |i| i + 1,
+                )
+        };
+        debug!("[Settings] proton_version: raw={raw_version:?} → index={index}");
+
+        let mut options = Vec::with_capacity(builds.len() + 1);
+        options.push(slint::SharedString::from(crate::translations::tr(
+            "settings.proton-version.automatic",
+        )));
+        options.extend(builds.iter().map(slint::SharedString::from));
+
+        w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
+        w.set_proton_version_index(index);
     }
 
     fn bind(window: &slint::Weak<MainWindow>) {
@@ -313,6 +326,27 @@ impl SettingsHandler {
             }
         });
 
+        let ww = window.clone();
+        w.on_engine_scale_changed(move |percent| {
+            info!("[Settings] engine_scale changed -> {percent}%");
+
+            if scale::apply_scale(f64::from(percent) / 100.0) {
+                debug!("[Settings] engine_scale written to Engine.ini");
+                return;
+            }
+
+            error!("[Settings] engine_scale could not be written to Engine.ini");
+            ToastHandler::show(&ww, "Failed to save the application scale.", "error");
+
+            // The write failed, so put the slider back on what the file still says.
+            let actual = Self::scale_to_percent(scale::get_current_scale());
+            if let Some(w) = ww.upgrade() {
+                w.set_engine_scale(actual);
+            } else {
+                error!("[Settings] window handle dead when reverting engine_scale");
+            }
+        });
+
         // [LINUX]
 
         w.on_proton_launch_args_changed(move |args| {
@@ -383,7 +417,7 @@ impl SettingsHandler {
                             );
 
                             let logs_dir = shared::logger::logs_directory();
-                            if let Err(e) = open::that(&logs_dir) {
+                            if let Err(e) = open_folder(&logs_dir) {
                                 error!("[Settings] failed to open Logs directory: {e}");
                                 ToastHandler::show(&ww, "Failed to open logs folder.", "error");
                             }
@@ -401,7 +435,21 @@ impl SettingsHandler {
             }
         });
 
+        // [PRIVACY]
+
+        w.on_telemetry_opt_out_changed(move |opted_out| {
+            info!("[Settings] telemetry_opt_out changed → {opted_out}");
+            config::set(key::TELEMETRY_OPT_OUT, opted_out);
+            debug!("[Settings] telemetry_opt_out saved to config");
+        });
+
         info!("[Settings] bind() complete shortcut all callbacks registered");
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn scale_to_percent(scale: f64) -> i32 {
+        let stepped = (scale * 20.0).round() * 5.0;
+        stepped.clamp(50.0, 200.0) as i32
     }
 
     fn translation(w: &MainWindow, index: i32) -> slint::SharedString {
