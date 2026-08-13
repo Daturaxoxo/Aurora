@@ -3126,5 +3126,22 @@
         "ko": "사용자 경험 개선을 목적으로 하는 익명 텔레메트리를 Aurora가 보내지 않도록 합니다.",
         "pt": "Impede que o Aurora envie telemetria anónima destinada a melhorar a experiência do utilizador.",
         "pt-BR": "Impede que o Aurora envie telemetria anônima destinada a melhorar a experiência do usuário."
+    },
+    {
+        "key": "modmanager.restart-required",
+        "en": "Restart Required",
+        "tr": "Yeniden Başlatma Gerekli",
+        "zh": "需要重启",
+        "es": "Requiere reinicio",
+        "de": "Neustart erforderlich",
+        "nl": "Herstart vereist",
+        "fr": "Redémarrage requis",
+        "it": "Riavvio necessario",
+        "ru": "Требуется перезапуск",
+        "vi": "Cần khởi động lại",
+        "jp": "再起動が必要",
+        "ko": "재시작 필요",
+        "pt": "Requer reinício",
+        "pt-BR": "Requer reinício"
     }
 ]

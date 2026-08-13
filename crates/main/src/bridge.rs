@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::{classes::updater, LaunchState, MainWindow};
 use anyhow::{anyhow, Result};
 use backend::handler::{EngineCommand, EngineEvent, EngineHandler};
@@ -180,14 +181,14 @@ impl Bridge {
                         crate::classes::tray::deactivate(&w);
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
+                            let Some(w) = w_ui.upgrade() else { return };
+                            ModManagerHandler::game_closed(&w);
                             if updater::UpdateHandler::ui_locked() {
                                 info!("Game closed while an update holds the UI lock");
                                 return;
                             }
-                            if let Some(w) = w_ui.upgrade() {
-                                w.set_launch_state(LaunchState::Launch);
-                                w.set_launch_disabled(false);
-                            }
+                            w.set_launch_state(LaunchState::Launch);
+                            w.set_launch_disabled(false);
                         })
                         .ok();
                         Self::show_toast(&w, "Game closed.", "success");
