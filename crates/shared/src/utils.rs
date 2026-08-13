@@ -129,7 +129,18 @@ pub fn open_folder(path: &Path) -> Result<()> {
     if let Err(e) = open::that(path) {
         warn!("Failed to open folder: {}", e);
 
+        #[cfg(target_os = "windows")]
         return match std::process::Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|e| anyhow!("Failed to open folder with fallback: {}", e))
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        };
+
+        #[cfg(target_os = "linux")]
+        return match std::process::Command::new("xdg-open")
             .arg(path)
             .status()
             .map_err(|e| anyhow!("Failed to open folder with fallback: {}", e))
