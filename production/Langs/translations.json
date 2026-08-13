@@ -1955,6 +1955,23 @@
         "pt-BR": "NSFW"
     },
     {
+        "key": "gb.clear-cache",
+        "en": "Clear Cache",
+        "tr": "Önbelleği Temizle",
+        "zh": "清除缓存",
+        "es": "Vaciar caché",
+        "de": "Cache leeren",
+        "nl": "Cache wissen",
+        "fr": "Vider le cache",
+        "it": "Svuota cache",
+        "ru": "Очистить кэш",
+        "vi": "Xóa bộ nhớ đệm",
+        "jp": "キャッシュを削除",
+        "ko": "캐시 지우기",
+        "pt": "Limpar cache",
+        "pt-BR": "Limpar cache"
+    },
+    {
         "key": "gb.all-characters",
         "en": "All Characters",
         "tr": "Tüm Karakterler",

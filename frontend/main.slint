@@ -257,6 +257,7 @@ export component MainWindow inherits Window {
     callback gb-search-changed(string);
     callback gb-character-selected(int);
     callback gb-nsfw-toggled(bool);
+    callback gb-clear-cache();
     callback gb-load-more();
     callback gb-install(int);
     callback gb-open-page(int);
@@ -1141,6 +1142,7 @@ export component MainWindow inherits Window {
             search-changed(text) => { root.gb-search-changed(text); }
             character-selected(i) => { root.gb-character-selected(i); }
             nsfw-toggled(v) => { root.gb-nsfw-toggled(v); }
+            clear-cache => { root.gb-clear-cache(); }
             load-more => { root.gb-load-more(); }
             install(id) => { root.gb-install(id); }
             open-page(id) => { root.gb-open-page(id); }

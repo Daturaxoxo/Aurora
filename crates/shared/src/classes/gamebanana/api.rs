@@ -50,6 +50,10 @@ impl GameBananaApi {
         }
     }
 
+    pub async fn clear_cache(&self) -> std::io::Result<()> {
+        self.cache.clear().await
+    }
+
     /// Whether the request never reached `GameBanana`, so sending it again is safe.
     fn is_transient(error: &reqwest::Error) -> bool {
         error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
