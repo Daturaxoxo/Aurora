@@ -20,13 +20,13 @@ Lightweight modding platform for anime games.
     </a>
   </object>
   <object data="https://virustotal.com" type="text/html">
-    <a href="https://www.virustotal.com/">
+    <a href="https://www.virustotal.com/gui/file/986ed7edeb926e42eecb4bc88cf9df8c46ece3b9a6bc0ace966eb3cf8ef52028?nocache=1">
       <img src="https://img.shields.io/badge/Antivirus-Scan-2EC7FF?logo=virustotal&logoColor=white" alt="VirusTotal Scan" />
     </a>
   </object>
 </p>
 <p align="center">
-  <a href="https://github.com/Daturaxoxo/Aurora/blob/rewrite/README.md">English</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/rewrite/README.cn.md">中文</a> | <strong>日本語</strong> | <a href="https://github.com/unchihugo/FluentFlyout/blob/master/README.tr.md">Türkçe</a> | <a href="https://github.com/unchihugo/FluentFlyout/blob/master/README.es.md">Español</a>
+  <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.md">English</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <strong>日本語</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
 </p>
 <br></br>
 Aurora is a lightweight modding platform for Unreal Engine anime games allowing you to freely load Unreal Engine 5 PAK mods, Lua scripts and blueprints.
