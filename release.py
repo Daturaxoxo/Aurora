@@ -138,6 +138,21 @@ def get_all_files(folder_path, relative=False):
     return file_paths
 
 
+def check_flat_names(files_list):
+    """The host serves one flat folder, so filenames have to be unique."""
+    seen = {}
+    for entry in files_list:
+        name = path_to_filename(entry["path"])
+        if name in seen:
+            print(
+                f"RELEASE: '{entry['path']}' and '{seen[name]}' are both named "
+                f"'{name}', but the host serves every file from one folder. "
+                "Rename one of them."
+            )
+            sys.exit(1)
+        seen[name] = entry["path"]
+
+
 def build_manifest(
     version, base_dir=".", output_filename="manifest.json", base_url=BASE_URL
 ):
@@ -158,12 +173,13 @@ def build_manifest(
             file_hash = calculate_sha256(filepath)
 
             if file_hash:
-                check_encodable(rel_path)
-                file_url = base_url + quote(encode_path(rel_path))
+                file_url = base_url + quote(path_to_filename(rel_path))
 
                 files_list.append(
                     {"path": rel_path, "sha256": file_hash, "url": file_url}
                 )
+
+    check_flat_names(files_list)
 
     os_name = get_os()
     updater_name = "updater.exe" if os_name == "windows" else "updater"
@@ -209,6 +225,19 @@ def build_linux_manifest(version, appimage_path, output_path, base_url=BASE_URL)
     return output_data
 
 
+def encode_manifest(manifest, base_url=BASE_URL):
+    """GitHub assets are flat, so its manifest points at the encoded names."""
+    if "appimage" in manifest:
+        return manifest
+
+    encoded = dict(manifest)
+    encoded["files"] = [
+        {**entry, "url": base_url + quote(encode_path(entry["path"]))}
+        for entry in manifest["files"]
+    ]
+    return encoded
+
+
 def build_github_release(os_name, source_dir, manifest, version):
     out_dir = "./release-github"
     if folder_exists(out_dir):
@@ -230,7 +259,7 @@ def build_github_release(os_name, source_dir, manifest, version):
     manifest_name = encode_path(f"{os_name}/manifest.json")
     manifest_path = os.path.join(out_dir, manifest_name)
     with open(manifest_path, "w", encoding="utf-8") as json_file:
-        json.dump(manifest, json_file, indent=2)
+        json.dump(encode_manifest(manifest), json_file, indent=2)
     print(f"Wrote {manifest_path}")
 
     archive_name = f"aurora-github-{version}-{os_name}"
@@ -289,9 +318,7 @@ def release_windows(version):
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
-        rel_path = f"Bin/{file}"
-        check_encodable(rel_path)
-        copy_file(f"./release/Bin/{file}", f"./release-host/{encode_path(rel_path)}")
+        copy_file(f"./release/Bin/{file}", f"./release-host/{path_to_filename(file)}")
 
     shutil.make_archive(
         base_name=f"aurora-host-{version}-WINDOWS",
