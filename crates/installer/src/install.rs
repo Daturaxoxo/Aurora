@@ -11,13 +11,12 @@ use shared::utils::format_bytes;
 use slint::{Model, ModelRc, SharedString, VecModel, Weak};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
+use crate::registry::{self, Value};
 use crate::{ComponentItem, InstallerWindow, backend, net};
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 const UNINSTALLER_EXE: &str = "AuroraUninstaller.exe";
-
-const ARP_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora";
 
 #[derive(Clone)]
 struct Plan {
@@ -360,49 +359,32 @@ fn aurora_is_running() -> bool {
 }
 
 fn register_uninstall_entry(install_dir: &Path, version: &str, size_kb: u64) -> Result<(), String> {
-    let values: [(&str, &str, String); 9] = [
-        ("DisplayName", "REG_SZ", "Aurora".to_owned()),
-        ("DisplayVersion", "REG_SZ", version.to_owned()),
-        ("Publisher", "REG_SZ", "Aurora".to_owned()),
+    let values = [
+        ("DisplayName", Value::Str("Aurora".to_owned())),
+        ("DisplayVersion", Value::Str(version.to_owned())),
+        ("Publisher", Value::Str("Aurora".to_owned())),
         (
             "InstallLocation",
-            "REG_SZ",
-            install_dir.display().to_string(),
+            Value::Str(install_dir.display().to_string()),
         ),
         (
             "DisplayIcon",
-            "REG_SZ",
-            install_dir.join(ipc::AURORA_EXE).display().to_string(),
+            Value::Str(install_dir.join(ipc::AURORA_EXE).display().to_string()),
         ),
         (
             "UninstallString",
-            "REG_SZ",
-            format!("\"{}\"", install_dir.join(UNINSTALLER_EXE).display()),
+            Value::Str(format!(
+                "\"{}\"",
+                install_dir.join(UNINSTALLER_EXE).display()
+            )),
         ),
-        ("EstimatedSize", "REG_DWORD", size_kb.to_string()),
-        ("NoModify", "REG_DWORD", "1".to_owned()),
-        ("NoRepair", "REG_DWORD", "1".to_owned()),
+        (
+            "EstimatedSize",
+            Value::Dword(u32::try_from(size_kb).unwrap_or(u32::MAX)),
+        ),
+        ("NoModify", Value::Dword(1)),
+        ("NoRepair", Value::Dword(1)),
     ];
 
-    for (name, kind, data) in &values {
-        reg(&["add", ARP_KEY, "/v", name, "/t", kind, "/d", data, "/f"])?;
-    }
-    Ok(())
-}
-
-fn reg(args: &[&str]) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    let status = std::process::Command::new("reg.exe")
-        .args(args)
-        .creation_flags(CREATE_NO_WINDOW)
-        .status()
-        .map_err(|e| format!("failed to run reg.exe: {e}"))?;
-
-    if !status.success() {
-        return Err(format!("reg.exe exited with {status}"));
-    }
-    Ok(())
+    registry::write_entry(&values)
 }

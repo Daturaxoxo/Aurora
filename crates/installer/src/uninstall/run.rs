@@ -231,21 +231,7 @@ fn backup_path(base: &Path) -> PathBuf {
 }
 
 fn unregister_uninstall_entry() -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-
-    const ARP_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora";
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    let status = std::process::Command::new("reg.exe")
-        .args(["delete", ARP_KEY, "/f"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .status()
-        .map_err(|e| format!("failed to run reg.exe: {e}"))?;
-
-    if !status.success() {
-        return Err(format!("reg.exe exited with {status}"));
-    }
-    Ok(())
+    crate::registry::delete_entry()
 }
 
 fn aurora_is_running() -> bool {

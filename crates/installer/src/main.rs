@@ -9,6 +9,8 @@ mod backend;
 mod install;
 #[cfg(target_os = "windows")]
 mod net;
+#[cfg(target_os = "windows")]
+mod registry;
 
 #[cfg(target_os = "windows")]
 use shared::display::{center_window, on_drag};
