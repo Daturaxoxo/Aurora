@@ -475,15 +475,15 @@ export component SettingsPage inherits Rectangle {
                 }
 
                 TabButton {
-                    text: Tr.values[TrKey.settings-tab-about];
-                    active: root.active-tab == 5;
-                    clicked => { root.active-tab = 5; }
-                }
-
-                TabButton {
                     text: Tr.values[TrKey.settings-tab-privacy];
                     active: root.active-tab == 4;
                     clicked => { root.active-tab = 4; }
+                }
+
+                TabButton {
+                    text: Tr.values[TrKey.settings-tab-about];
+                    active: root.active-tab == 5;
+                    clicked => { root.active-tab = 5; }
                 }
             }
 
