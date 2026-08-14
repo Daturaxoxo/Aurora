@@ -22,8 +22,31 @@ fn current_plan() -> Plan {
     }
 }
 
+fn app_dir_error(plan: &Plan) -> String {
+    plan.app_dir_error.clone().unwrap_or_else(|| {
+        "Could not locate the Aurora application folder. Nothing was removed.".to_owned()
+    })
+}
+
+fn show_app_dir(ui: &UninstallerWindow, plan: &Plan) {
+    ui.set_app_path(
+        plan.app_dir
+            .as_ref()
+            .map_or_else(|| "Not found".to_string(), |p| p.display().to_string())
+            .into(),
+    );
+    ui.set_app_found(plan.app_dir.is_some());
+    ui.set_app_error(app_dir_error(plan).into());
+}
+
 fn start(ui: &UninstallerWindow, options: Options) {
     let plan = current_plan();
+
+    let Some(app_dir) = plan.app_dir.clone() else {
+        ui.set_current_step(1);
+        run::fail(&ui.as_weak(), app_dir_error(&plan));
+        return;
+    };
 
     if !elevate::is_relaunch() && elevate::needed(&plan, options) {
         match elevate::relaunch(&plan, options) {
@@ -40,10 +63,15 @@ fn start(ui: &UninstallerWindow, options: Options) {
     }
 
     ui.set_current_step(1);
-    run::run(ui.as_weak(), plan, options);
+    run::run(ui.as_weak(), plan, app_dir, options);
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    if let Some(dir) = run::cleanup_target() {
+        run::run_cleanup(&dir);
+        return Ok(());
+    }
+
     let ui = UninstallerWindow::new()?;
 
     let window = ui.window();
@@ -54,23 +82,8 @@ fn main() -> Result<(), slint::PlatformError> {
         Err(e) => eprintln!("Failed to center window: {e}"),
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        if let Err(e) = slint::BackendSelector::new().select() {
-            eprintln!("Could not select the Slint backend: {e}");
-        }
-        if let Err(e) = slint::set_xdg_app_id(shared::desktop_entry::APP_ID) {
-            eprintln!("Could not set the XDG app id: {e}");
-        }
-    }
-
     let plan = current_plan();
-    ui.set_app_path(
-        plan.app_dir
-            .as_ref()
-            .map_or_else(|| "Not found".to_string(), |p| p.display().to_string())
-            .into(),
-    );
+    show_app_dir(&ui, &plan);
     ui.set_mods_path(
         plan.mods_dir
             .as_ref()
@@ -79,7 +92,6 @@ fn main() -> Result<(), slint::PlatformError> {
             .into(),
     );
     ui.set_mods_available(plan.mods_dir.is_some());
-    ui.set_dev_build(plan.dev_build);
 
     ui.set_uninstall_log(ModelRc::from(Rc::new(VecModel::<SharedString>::default())));
 
@@ -126,6 +138,26 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = w.hide();
         }
         let _ = slint::quit_event_loop();
+    });
+
+    let ui_weak = ui.as_weak();
+    ui.on_browse_clicked(move || {
+        let ui_weak = ui_weak.clone();
+        std::thread::spawn(move || {
+            let Some(picked) = rfd::FileDialog::new()
+                .set_title("Select the Aurora Application Folder")
+                .pick_folder()
+            else {
+                return;
+            };
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = ui_weak.upgrade() {
+                    plan::set_app_dir_override(picked);
+                    show_app_dir(&w, &current_plan());
+                }
+            });
+        });
     });
 
     let ui_weak = ui.as_weak();
