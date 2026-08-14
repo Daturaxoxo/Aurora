@@ -32,6 +32,25 @@ BLACKLISTED_EXTENSIONS = (
 )
 
 
+PATH_SEPARATOR_ENCODING = "__"
+
+
+def encode_path(rel_path):
+    return rel_path.replace("\\", "/").replace("/", PATH_SEPARATOR_ENCODING)
+
+
+def check_encodable(rel_path):
+    """Reject paths that contain reserved encoding characters."""
+    for component in rel_path.replace("\\", "/").split("/"):
+        if PATH_SEPARATOR_ENCODING in component:
+            print(
+                f"RELEASE: path component '{component}' in '{rel_path}' contains "
+                f"'{PATH_SEPARATOR_ENCODING}', which is reserved for encoding "
+                "path separators. Rename the file."
+            )
+            sys.exit(1)
+
+
 def get_os():
     os_name = platform.system().lower()
 
@@ -60,7 +79,7 @@ def copy_file(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        print(f"[COPY FILE]: File not found: {src}")
+        print(f"File not found: {src}")
         return
 
     # Ensure parent folder for destination exists
@@ -77,11 +96,11 @@ def copy_folder(src, dst):
     dst_path = os.path.abspath(dst)
 
     if not os.path.exists(src_path):
-        print(f"[COPY FOLDER]: Source folder not found: {src}")
+        print(f"Source folder not found: {src}")
         return
 
     if not os.path.isdir(src_path):
-        print(f"[COPY FOLDER]: Source path is not a directory: {src}")
+        print(f"Source path is not a directory: {src}")
         return
 
     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
@@ -119,6 +138,21 @@ def get_all_files(folder_path, relative=False):
     return file_paths
 
 
+def check_flat_names(files_list):
+    """The host serves one flat folder, so filenames have to be unique."""
+    seen = {}
+    for entry in files_list:
+        name = path_to_filename(entry["path"])
+        if name in seen:
+            print(
+                f"RELEASE: '{entry['path']}' and '{seen[name]}' are both named "
+                f"'{name}', but the host serves every file from one folder. "
+                "Rename one of them."
+            )
+            sys.exit(1)
+        seen[name] = entry["path"]
+
+
 def build_manifest(
     version, base_dir=".", output_filename="manifest.json", base_url=BASE_URL
 ):
@@ -139,12 +173,13 @@ def build_manifest(
             file_hash = calculate_sha256(filepath)
 
             if file_hash:
-                file_name = os.path.basename(rel_path)
-                file_url = base_url + quote(file_name)
+                file_url = base_url + quote(path_to_filename(rel_path))
 
                 files_list.append(
                     {"path": rel_path, "sha256": file_hash, "url": file_url}
                 )
+
+    check_flat_names(files_list)
 
     os_name = get_os()
     updater_name = "updater.exe" if os_name == "windows" else "updater"
@@ -190,19 +225,84 @@ def build_linux_manifest(version, appimage_path, output_path, base_url=BASE_URL)
     return output_data
 
 
+def encode_manifest(manifest, base_url=BASE_URL):
+    """GitHub assets are flat, so its manifest points at the encoded names."""
+    if "appimage" in manifest:
+        return manifest
+
+    encoded = dict(manifest)
+    encoded["files"] = [
+        {**entry, "url": base_url + quote(encode_path(entry["path"]))}
+        for entry in manifest["files"]
+    ]
+    return encoded
+
+
+def build_github_release(os_name, source_dir, manifest, version):
+    out_dir = "./release-github"
+    if folder_exists(out_dir):
+        shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if "appimage" in manifest:
+        rel_paths = [APPIMAGE_NAME]
+    else:
+        rel_paths = [entry["path"] for entry in manifest["files"]]
+
+    for rel_path in rel_paths:
+        check_encodable(rel_path)
+        copy_file(
+            os.path.join(source_dir, rel_path),
+            os.path.join(out_dir, encode_path(rel_path)),
+        )
+
+    manifest_name = encode_path(f"{os_name}/manifest.json")
+    manifest_path = os.path.join(out_dir, manifest_name)
+    with open(manifest_path, "w", encoding="utf-8") as json_file:
+        json.dump(encode_manifest(manifest), json_file, indent=2)
+    print(f"Wrote {manifest_path}")
+
+    archive_name = f"aurora-github-{version}-{os_name}"
+    archive_path = os.path.join(out_dir, archive_name)
+    shutil.make_archive(base_name=archive_name, format="zip", base_dir=out_dir)
+    print(f"Wrote {archive_path}")
+
+    print(
+        f"GITHUB: {len(rel_paths)} asset(s) + {manifest_name} ready in {out_dir}; "
+        f"upload them to the {version} release."
+    )
+
+
+def uninstaller_path():
+    slim = "./target/x86_64-pc-windows-msvc/release/AuroraUninstaller.exe"
+    plain = "./target/release/AuroraUninstaller.exe"
+
+    if os.path.exists(slim):
+        return slim
+    if os.path.exists(plain):
+        print(
+            "RELEASE: warning: using {} -- run ./build-installer.ps1 for the "
+            "smaller build".format(plain)
+        )
+        return plain
+
+    print("RELEASE: AuroraUninstaller.exe not found; run ./build-installer.ps1")
+    sys.exit(1)
+
+
 def release_windows(version):
     if folder_exists("./release"):
         shutil.rmtree("./release")
     os.mkdir("./release")
 
+    uninstaller = uninstaller_path()
+
     copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release/updater.exe")
-    copy_file(
-        "./target/release/AuroraUninstaller.exe", "./release/AuroraUninstaller.exe"
-    )
+    copy_file(uninstaller, "./release/AuroraUninstaller.exe")
 
     copy_folder("./Bin", "./release/Bin")
-    build_manifest(version, "./release", "manifest.json", BASE_URL)
+    manifest = build_manifest(version, "./release", "manifest.json", BASE_URL)
     copy_file("./steam_appid.txt", "./release/steam_appid.txt")
     shutil.make_archive(
         base_name=f"aurora-{version}-WINDOWS", format="zip", base_dir="./release"
@@ -213,22 +313,20 @@ def release_windows(version):
     os.mkdir("./release-host")
     copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release-host/updater.exe")
-    copy_file(
-        "./target/release/AuroraUninstaller.exe",
-        "./release-host/AuroraUninstaller.exe",
-    )
+    copy_file(uninstaller, "./release-host/AuroraUninstaller.exe")
 
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")
 
     for file in get_all_files("./release/Bin", relative=True) or []:
-        filename = path_to_filename(file)
-        copy_file(f"./release/Bin/{file}", f"./release-host/{filename}")
+        copy_file(f"./release/Bin/{file}", f"./release-host/{path_to_filename(file)}")
 
     shutil.make_archive(
         base_name=f"aurora-host-{version}-WINDOWS",
         format="zip",
         base_dir="./release-host",
     )
+
+    build_github_release("windows", "./release", manifest, version)
 
 
 def release_linux(version):
@@ -249,12 +347,16 @@ def release_linux(version):
         shutil.rmtree("./release-host")
     os.mkdir("./release-host")
     copy_file(APPIMAGE_NAME, f"./release-host/{APPIMAGE_NAME}")
-    build_linux_manifest(version, APPIMAGE_NAME, "./release-host/linux/manifest.json")
+    manifest = build_linux_manifest(
+        version, APPIMAGE_NAME, "./release-host/linux/manifest.json"
+    )
     shutil.make_archive(
         base_name=f"aurora-host-{version}-LINUX",
         format="zip",
         base_dir="./release-host",
     )
+
+    build_github_release("linux", "./release", manifest, version)
 
 
 def main():

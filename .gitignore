@@ -5,7 +5,8 @@ cargo-home/
 .aurora_manifest.json
 /release
 /release-host
-
+/release-github
+/frontend/translations.slint
 .slint-cache/
 
 /production/assets/processed/

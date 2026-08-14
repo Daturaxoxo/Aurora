@@ -46,6 +46,32 @@ fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
     Ok(manifest)
 }
 
+pub fn download_from_any(
+    urls: &[String],
+    dest: &Path,
+    progress: &mut impl FnMut(u64, u64),
+) -> Result<(), String> {
+    let mut last_err = String::from("no download sources available");
+    for (i, url) in urls.iter().enumerate() {
+        match download(url, dest, &mut *progress) {
+            Ok(()) => {
+                if i > 0 {
+                    log(&format!("fell back to {url}"));
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                log(&format!("download failed from {url}: {e}"));
+                let _ = std::fs::remove_file(dest);
+                last_err = e;
+            }
+        }
+    }
+    Err(format!(
+        "all download sources failed (last error: {last_err})"
+    ))
+}
+
 pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {
     let response = agent()
         .get(url)

@@ -29,21 +29,37 @@ static LANGUAGES: Lazy<Vec<LangEntry>> = Lazy::new(|| {
 
 pub const IGNORE_CHECKSUM_POPUP_ID: &str = "ignore-checksum";
 
+const ABOUT_LINKS: &[(&str, &str)] = &[
+    ("website", "https://getaurora.moe/"),
+    ("discord", "https://discord.gg/565jfeYsbp"),
+    ("github", "https://github.com/Daturaxoxo/Aurora"),
+    ("docs", "https://docs.getaurora.moe"),
+    (
+        "contributors",
+        "https://github.com/Daturaxoxo/Aurora/graphs/contributors",
+    ),
+    (
+        "license",
+        "https://github.com/Daturaxoxo/Aurora/blob/main/LICENSE",
+    ),
+    ("terms", "https://getaurora.moe/terms"),
+];
+
 pub struct SettingsHandler;
 
 impl SettingsHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
-        info!("[Settings] setup() called");
+        info!("setup() called");
         Self::load(window);
         Self::bind(window);
-        info!("[Settings] setup() complete");
+        info!("setup() complete");
     }
 
     fn load(window: &slint::Weak<MainWindow>) {
-        info!("[Settings] load() started - reading config values");
+        info!("load() started - reading config values");
 
         let Some(w) = window.upgrade() else {
-            error!("[Settings] load() failed - window handle is dead, cannot apply config to UI");
+            error!("load() failed - window handle is dead, cannot apply config to UI");
             return;
         };
 
@@ -51,46 +67,46 @@ impl SettingsHandler {
         let raw_lang = config::get(key::LANGUAGE);
         let lang_code = raw_lang.as_str().unwrap_or("en").to_string();
         let lang_index = Self::code_to_index(&lang_code).unwrap_or(0);
-        debug!("[Settings] language: raw={raw_lang:?} → code={lang_code:?} → index={lang_index}");
+        debug!("language: raw={raw_lang:?} → code={lang_code:?} → index={lang_index}");
         w.set_language_index(lang_index);
 
         let raw_minimization = config::get(key::UI_MINIMIZATION);
         let minimization = raw_minimization.as_bool().unwrap_or(true);
-        debug!("[Settings] interface_minimization: raw={raw_minimization:?} → {minimization}");
+        debug!("interface_minimization: raw={raw_minimization:?} → {minimization}");
         w.set_interface_minimization(minimization);
 
         let raw_rpc = config::get(key::DISCORD_RPC);
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
-        debug!("[Settings] discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
+        debug!("discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
         if discord_rpc {
             if let Err(e) = RPC.set_idle() {
-                error!("[Settings] could not set Discord RPC to idle: {e}");
+                error!("could not set Discord RPC to idle: {e}");
             }
         }
 
         // Launcher
         let raw_path = config::get(key::GAME_PATH);
         let game_path = raw_path.as_str().unwrap_or("").to_string();
-        debug!("[Settings] game_path: raw={raw_path:?} → {game_path:?}");
+        debug!("game_path: raw={raw_path:?} → {game_path:?}");
         if game_path.is_empty() {
-            warn!("[Settings] game_path is empty - user has not set a game directory yet");
+            warn!("game_path is empty - user has not set a game directory yet");
         }
         w.set_game_directory(game_path.into());
 
         let raw_engine = config::get(key::ENGINE_METHOD);
         let engine_method = raw_engine.as_i64().unwrap_or(0).try_into().unwrap_or(0);
-        debug!("[Settings] engine_method: raw={raw_engine:?} → {engine_method}");
+        debug!("engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
         let current_scale = scale::get_current_scale();
         let engine_scale = Self::scale_to_percent(current_scale);
-        debug!("[Settings] engine_scale: Engine.ini={current_scale} → {engine_scale}%");
+        debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
         w.set_engine_scale(engine_scale);
 
         let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
-        debug!("[Settings] ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
+        debug!("ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
         w.set_ignore_checksum(ignore_checksum);
 
         // Linux only
@@ -98,34 +114,39 @@ impl SettingsHandler {
         if cfg!(target_os = "linux") {
             let raw_proton = config::get(key::PROTON_ARGS);
             let proton_args = raw_proton.as_str().unwrap_or("").to_string();
-            debug!("[Settings] proton_args: raw={raw_proton:?} → {proton_args:?}");
+            debug!("proton_args: raw={raw_proton:?} → {proton_args:?}");
             w.set_proton_launch_args(proton_args.into());
 
             Self::load_proton_versions(&w);
 
             let raw_entry = config::get(key::DESKTOP_ENTRY);
             let desktop_entry = raw_entry.as_bool().unwrap_or(false);
-            debug!("[Settings] desktop_entry: raw={raw_entry:?} → {desktop_entry}");
+            debug!("desktop_entry: raw={raw_entry:?} → {desktop_entry}");
             w.set_desktop_entry(desktop_entry);
         }
 
         // Developer
         let raw_dev = config::get(key::DEV_MODE);
         let dev_mode = raw_dev.as_bool().unwrap_or(false);
-        debug!("[Settings] developer_mode: raw={raw_dev:?} → {dev_mode}");
+        debug!("developer_mode: raw={raw_dev:?} → {dev_mode}");
         w.set_developer_mode(dev_mode);
         if dev_mode {
-            debug!("[Settings] developer_mode was left on, reopening the log window");
+            debug!("developer_mode was left on, reopening the log window");
             logwindow::set_visible(true, window);
         }
+
+        // About
+        let build_timestamp = shared::utils::get_build_timestamp().unwrap_or_default();
+        debug!("build_timestamp: {build_timestamp:?}");
+        w.set_build_timestamp(build_timestamp.into());
 
         // Privacy
         let raw_opt_out = config::get(key::TELEMETRY_OPT_OUT);
         let telemetry_opt_out = raw_opt_out.as_bool().unwrap_or(false);
-        debug!("[Settings] telemetry_opt_out: raw={raw_opt_out:?} → {telemetry_opt_out}");
+        debug!("telemetry_opt_out: raw={raw_opt_out:?} → {telemetry_opt_out}");
         w.set_telemetry_opt_out(telemetry_opt_out);
 
-        info!("[Settings] load() complete shortcut all config values applied to UI");
+        info!("load() complete shortcut all config values applied to UI");
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -136,12 +157,9 @@ impl SettingsHandler {
     #[cfg(target_os = "linux")]
     fn load_proton_versions(w: &MainWindow) {
         let builds = backend::classes::linux::installed_dwproton_builds();
-        debug!("[Settings] installed DW-Proton builds: {builds:?}");
-
+        debug!("installed DW-Proton builds: {builds:?}");
         let raw_version = config::get(key::PROTON_VERSION);
         let saved = raw_version.as_str().unwrap_or("").trim().to_string();
-
-        // Entry 0 is "Automatic", so an installed build sits one slot later.
         let index = if saved.is_empty() {
             0
         } else {
@@ -152,7 +170,7 @@ impl SettingsHandler {
                 .map_or_else(
                     || {
                         warn!(
-                            "[Settings] saved proton_version {saved:?} is not installed any \
+                            "saved proton_version {saved:?} is not installed any \
                                  more, showing Automatic instead"
                         );
                         0
@@ -160,7 +178,7 @@ impl SettingsHandler {
                     |i| i + 1,
                 )
         };
-        debug!("[Settings] proton_version: raw={raw_version:?} → index={index}");
+        debug!("proton_version: raw={raw_version:?} → index={index}");
 
         let mut options = Vec::with_capacity(builds.len() + 1);
         options.push(slint::SharedString::from(crate::translations::tr(
@@ -173,32 +191,31 @@ impl SettingsHandler {
     }
 
     fn bind(window: &slint::Weak<MainWindow>) {
-        info!("[Settings] bind() started shortcut registering UI callbacks");
+        info!("bind() started shortcut registering UI callbacks");
         let w = window.unwrap();
 
         // [GENERAL]
-
         let ww = window.clone();
         w.on_language_index_changed(move |index| {
             let code = Self::index_to_code(index);
-            info!("[Settings] language changed → index={index}, code={code:?}");
+            info!("language changed → index={index}, code={code:?}");
             config::set(key::LANGUAGE, code);
-            debug!("[Settings] language saved to config");
+            debug!("language saved to config");
 
             if let Some(w) = ww.upgrade() {
                 crate::translations::apply_language(&w, code);
                 Self::load_proton_versions(&w);
             } else {
-                error!("[Settings] window handle dead when applying language change");
+                error!("window handle dead when applying language change");
             }
             crate::classes::logwindow::apply_language(code);
         });
 
         let ww = window.clone();
         w.on_interface_minimization_changed(move |enabled| {
-            info!("[Settings] interface_minimization changed → {enabled}");
+            info!("interface_minimization changed → {enabled}");
             config::set(key::UI_MINIMIZATION, enabled);
-            debug!("[Settings] interface_minimization saved to config");
+            debug!("interface_minimization saved to config");
             if enabled {
                 if GAME_RUNNING.load(Ordering::Relaxed) {
                     crate::classes::tray::activate(&ww, false);
@@ -209,42 +226,41 @@ impl SettingsHandler {
         });
 
         w.on_discord_rpc_changed(move |enabled| {
-            info!("[Settings] discord_rpc changed → {enabled}");
+            info!("discord_rpc changed → {enabled}");
             config::set(key::DISCORD_RPC, enabled);
             let res = if enabled { RPC.set_idle() } else { RPC.stop() };
             if let Err(e) = res {
-                error!("[Settings] could not update Discord RPC state: {e}");
+                error!("could not update Discord RPC state: {e}");
             }
-            debug!("[Settings] discord_rpc saved to config");
+            debug!("discord_rpc saved to config");
         });
 
         // [LAUNCHER]
-
         let ww = window.clone();
         w.on_browse_game_directory(move || {
-            info!("[Settings] browse_game_directory triggered shortcut opening folder picker");
+            info!("browse_game_directory triggered shortcut opening folder picker");
             let ww = ww.clone();
             std::thread::spawn(move || {
-                debug!("[Settings] file dialog thread spawned");
+                debug!("file dialog thread spawned");
                 let picked = rfd::FileDialog::new()
                     .set_title("Select Game Installation")
                     .pick_folder();
 
                 match picked {
                     Some(path) => {
-                        info!("[Settings] game directory selected -> {:?}", path.display());
+                        info!("game directory selected -> {:?}", path.display());
 
                         let path = if let Some(root) = resolve_selected_game_root(&path) {
                             if root != path {
                                 info!(
-                                    "[Settings] resolved selection to install root -> {:?}",
+                                    "resolved selection to install root -> {:?}",
                                     root.display()
                                 );
                             }
                             root
                         } else {
                             warn!(
-                                "[Settings] {:?} does not look like a game install (no launcher \
+                                "{:?} does not look like a game install (no launcher \
                                  or game files found); saving it anyway",
                                 path.display()
                             );
@@ -253,15 +269,15 @@ impl SettingsHandler {
 
                         let path_str: String = path.to_string_lossy().into_owned();
                         config::set(key::GAME_PATH, path_str.clone());
-                        debug!("[Settings] game_path saved to config");
+                        debug!("game_path saved to config");
 
                         match get_tx() {
                             Ok(tx) => {
                                 if let Err(e) = tx.send(EngineCommand::Update) {
-                                    error!("[Settings] failed to notify engine of game_path change: {e}");
+                                    error!("failed to notify engine of game_path change: {e}");
                                 }
                             }
-                            Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
+                            Err(e) => warn!("engine not started yet, skipping live update: {e}"),
                         }
 
                         ModManagerHandler::reload(&ww);
@@ -269,14 +285,14 @@ impl SettingsHandler {
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(w) = ww.upgrade() {
                                 w.set_game_directory(path_str.into());
-                                debug!("[Settings] game_directory UI property updated");
+                                debug!("game_directory UI property updated");
                             } else {
-                                error!("[Settings] window handle dead when trying to update game_directory UI");
+                                error!("window handle dead when trying to update game_directory UI");
                             }
                         });
                     }
                     None => {
-                        info!("[Settings] browse_game_directory cancelled shortcut no folder selected");
+                        info!("browse_game_directory cancelled shortcut no folder selected");
                     }
                 }
             });
@@ -284,17 +300,16 @@ impl SettingsHandler {
 
         let ww = window.clone();
         w.on_ignore_checksum_changed(move |enabled| {
-            info!("[Settings] ignore_checksum toggled → {enabled}");
+            info!("ignore_checksum toggled → {enabled}");
 
             if !enabled {
                 config::set(key::IGNORE_CHECKSUM, false);
-                debug!("[Settings] ignore_checksum saved to config");
+                debug!("ignore_checksum saved to config");
                 return;
             }
 
-            // Turning it on is only committed once the warning popup is confirmed.
             let Some(w) = ww.upgrade() else {
-                error!("[Settings] window handle dead when opening the ignore_checksum warning");
+                error!("window handle dead when opening the ignore_checksum warning");
                 return;
             };
 
@@ -312,47 +327,45 @@ impl SettingsHandler {
         });
 
         w.on_engine_method_index_changed(move |index| {
-            info!("[Settings] engine_method changed -> {index}");
+            info!("engine_method changed -> {index}");
             config::set(key::ENGINE_METHOD, index);
-            debug!("[Settings] engine_method saved to config");
+            debug!("engine_method saved to config");
 
             match get_tx() {
                 Ok(tx) => {
                     if let Err(e) = tx.send(EngineCommand::Update) {
-                        error!("[Settings] failed to notify engine of engine_method change: {e}");
+                        error!("failed to notify engine of engine_method change: {e}");
                     }
                 }
-                Err(e) => warn!("[Settings] engine not started yet, skipping live update: {e}"),
+                Err(e) => warn!("engine not started yet, skipping live update: {e}"),
             }
         });
 
         let ww = window.clone();
         w.on_engine_scale_changed(move |percent| {
-            info!("[Settings] engine_scale changed -> {percent}%");
+            info!("engine_scale changed -> {percent}%");
 
             if scale::apply_scale(f64::from(percent) / 100.0) {
-                debug!("[Settings] engine_scale written to Engine.ini");
+                debug!("engine_scale written to Engine.ini");
                 return;
             }
 
-            error!("[Settings] engine_scale could not be written to Engine.ini");
+            error!("engine_scale could not be written to Engine.ini");
             ToastHandler::show(&ww, "Failed to save the application scale.", "error");
 
-            // The write failed, so put the slider back on what the file still says.
             let actual = Self::scale_to_percent(scale::get_current_scale());
             if let Some(w) = ww.upgrade() {
                 w.set_engine_scale(actual);
             } else {
-                error!("[Settings] window handle dead when reverting engine_scale");
+                error!("window handle dead when reverting engine_scale");
             }
         });
 
         // [LINUX]
-
         w.on_proton_launch_args_changed(move |args| {
-            info!("[Settings] proton_launch_args changed → {args:?}");
+            info!("proton_launch_args changed → {args:?}");
             config::set(key::PROTON_ARGS, args.as_str());
-            debug!("[Settings] proton_args saved to config");
+            debug!("proton_args saved to config");
         });
 
         let ww = window.clone();
@@ -370,13 +383,13 @@ impl SettingsHandler {
                     .unwrap_or_default()
             };
 
-            info!("[Settings] proton_version changed → index={index}, build={name:?}");
+            info!("proton_version changed → index={index}, build={name:?}");
             config::set(key::PROTON_VERSION, name);
-            debug!("[Settings] proton_version saved to config");
+            debug!("proton_version saved to config");
         });
 
         w.on_desktop_entry_changed(move |enabled| {
-            info!("[Settings] desktop_entry changed → {enabled}");
+            info!("desktop_entry changed → {enabled}");
 
             #[cfg(target_os = "linux")]
             {
@@ -387,29 +400,29 @@ impl SettingsHandler {
             #[cfg(not(target_os = "linux"))]
             config::set(key::DESKTOP_ENTRY, enabled);
 
-            debug!("[Settings] desktop_entry saved to config");
+            debug!("desktop_entry saved to config");
         });
 
         // [DEVELOPER]
 
         let ww = window.clone();
         w.on_developer_mode_changed(move |enabled| {
-            info!("[Settings] developer_mode changed → {enabled}");
+            info!("developer_mode changed → {enabled}");
             config::set(key::DEV_MODE, enabled);
-            debug!("[Settings] developer_mode saved to config");
+            debug!("developer_mode saved to config");
             logwindow::set_visible(enabled, &ww);
         });
 
         w.on_export_telemetry({
             let ww = window.clone();
             move || {
-                info!("[Settings] export_telemetry triggered");
+                info!("export_telemetry triggered");
                 let ww = ww.clone();
                 std::thread::spawn(move || {
-                    debug!("[Settings] telemetry export thread spawned");
+                    debug!("telemetry export thread spawned");
                     match shared::telemetry::export_telemetry() {
                         Ok(()) => {
-                            info!("[Settings] telemetry export complete");
+                            info!("telemetry export complete");
                             ToastHandler::show(
                                 &ww,
                                 "Exported debugging logs to the logs folder.",
@@ -418,12 +431,12 @@ impl SettingsHandler {
 
                             let logs_dir = shared::logger::logs_directory();
                             if let Err(e) = open_folder(&logs_dir) {
-                                error!("[Settings] failed to open Logs directory: {e}");
+                                error!("failed to open Logs directory: {e}");
                                 ToastHandler::show(&ww, "Failed to open logs folder.", "error");
                             }
                         }
                         Err(e) => {
-                            error!("[Settings] telemetry export failed: {e}");
+                            error!("telemetry export failed: {e}");
                             ToastHandler::show(
                                 &ww,
                                 format!("Telemetry export failed: {e}"),
@@ -435,15 +448,66 @@ impl SettingsHandler {
             }
         });
 
-        // [PRIVACY]
+        // [ABOUT]
+        w.on_open_about_link(move |id| {
+            let Some((_, url)) = ABOUT_LINKS.iter().find(|(name, _)| *name == id.as_str()) else {
+                error!("about link {id:?} has no URL mapped to it");
+                return;
+            };
 
-        w.on_telemetry_opt_out_changed(move |opted_out| {
-            info!("[Settings] telemetry_opt_out changed → {opted_out}");
-            config::set(key::TELEMETRY_OPT_OUT, opted_out);
-            debug!("[Settings] telemetry_opt_out saved to config");
+            info!("opening about link {id:?} -> {url}");
+            if let Err(e) = open::that(url) {
+                error!("could not open {url}: {e}");
+            }
         });
 
-        info!("[Settings] bind() complete shortcut all callbacks registered");
+        let ww = window.clone();
+        w.on_copy_build_info(move || {
+            let info = Self::build_info();
+            info!("copying build info to the clipboard");
+            debug!("build info:\n{info}");
+
+            match arboard::Clipboard::new().and_then(|mut c| c.set_text(info)) {
+                Ok(()) => ToastHandler::show(
+                    &ww,
+                    crate::translations::tr("settings.about-copied"),
+                    "success",
+                ),
+                Err(e) => {
+                    error!("could not copy build info to clipboard: {e}");
+                    ToastHandler::show(
+                        &ww,
+                        crate::translations::tr("settings.about-copy-failed"),
+                        "error",
+                    );
+                }
+            }
+        });
+
+        // [PRIVACY]
+        w.on_telemetry_opt_out_changed(move |opted_out| {
+            info!("telemetry_opt_out changed → {opted_out}");
+            config::set(key::TELEMETRY_OPT_OUT, opted_out);
+            debug!("telemetry_opt_out saved to config");
+        });
+
+        info!("bind() complete shortcut all callbacks registered");
+    }
+
+    fn build_info() -> String {
+        use sysinfo::System;
+
+        let build = shared::utils::get_build_timestamp().unwrap_or_else(|| "Unknown".to_string());
+        let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
+        let os_version = System::os_version()
+            .or_else(System::kernel_version)
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        format!(
+            "Aurora v{}\nBuild deployed at: {build}\nOS: {os_name} ({os_version})\nArchitecture: {}",
+            shared::utils::get_local_version(),
+            System::cpu_arch(),
+        )
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -459,21 +523,18 @@ impl SettingsHandler {
             .unwrap_or_default()
     }
 
-    /// The user accepted the warning, so "Ignore Checksum Matching" stays on.
     pub fn confirm_ignore_checksum() {
-        info!("[Settings] ignore_checksum warning confirmed");
+        info!("ignore_checksum warning confirmed");
         config::set(key::IGNORE_CHECKSUM, true);
-        debug!("[Settings] ignore_checksum saved to config");
+        debug!("ignore_checksum saved to config");
     }
 
-    /// The user backed out of the warning, so flip the switch back off without
-    /// touching the config.
     pub fn cancel_ignore_checksum(window: &slint::Weak<MainWindow>) {
-        info!("[Settings] ignore_checksum warning cancelled, reverting the toggle");
+        info!("ignore_checksum warning cancelled, reverting the toggle");
         if let Some(w) = window.upgrade() {
             w.set_ignore_checksum(false);
         } else {
-            error!("[Settings] window handle dead when reverting ignore_checksum");
+            error!("window handle dead when reverting ignore_checksum");
         }
     }
 
@@ -483,7 +544,7 @@ impl SettingsHandler {
             .map_or("en", |l| l.code.as_str());
 
         if result == "en" && index != 0 {
-            warn!("[Settings] index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
+            warn!("index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
         }
 
         result
@@ -496,7 +557,7 @@ impl SettingsHandler {
             .map(|i| i.try_into().unwrap_or(0));
 
         if result.is_none() {
-            warn!("[Settings] code_to_index: unknown language code {code:?} shortcut will default to index 0");
+            warn!("code_to_index: unknown language code {code:?} shortcut will default to index 0");
         }
 
         result
