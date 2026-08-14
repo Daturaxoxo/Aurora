@@ -20,7 +20,7 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
     "bmp",
 ] }
-arboard = { version = "3", default-features = false, features = ["image-data"] }
+arboard = { version = "3", default-features = false, features = ["image-data", "wayland-data-control"] }
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 ipc = { path = "../ipc" }

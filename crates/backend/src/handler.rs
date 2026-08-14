@@ -49,7 +49,7 @@ pub struct EngineHandler {
     pub evt_rx: mpsc::Receiver<EngineEvent>,
 }
 
-/// Restores any file the release manifest lists that has gone missing
+#[cfg(target_os = "windows")]
 fn repair_install(evt_tx: &mpsc::Sender<EngineEvent>) {
     let report = shared::repair::restore_missing_files();
 
@@ -136,6 +136,10 @@ impl EngineHandler {
                             continue;
                         }
                         std::thread::spawn(move || {
+                            // TODO: Repairing is only possible on Windows because
+                            // Linux's manifest doesn't include anything from Bin/,
+                            // it's only the AppImage
+                            #[cfg(target_os = "windows")]
                             repair_install(&evt_tx);
 
                             let mut attempts = 0;
@@ -249,6 +253,10 @@ impl EngineHandler {
                     }
                     EngineCommand::Validate => {
                         std::thread::spawn(move || {
+                            // TODO: Repairing is only possible on Windows because
+                            // Linux's manifest doesn't include anything from Bin/,
+                            // it's only the AppImage
+                            #[cfg(target_os = "windows")]
                             repair_install(&evt_tx);
 
                             if let Some(e) = engine
