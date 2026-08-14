@@ -6,10 +6,13 @@ use std::time::Duration;
 use ipc::manifest::Manifest;
 use ipc::manifest_urls;
 
+use shared::utils;
+
 use crate::logfile::log;
 
 fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
         .timeout_connect(Some(Duration::from_secs(10)))
         .build()
         .into()
@@ -96,7 +99,7 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
         done += n as u64;
         progress(done, total);
     }
-    
+
     file.sync_all()
         .map_err(|e| format!("failed to flush {}: {e}", dest.display()))?;
     drop(file);

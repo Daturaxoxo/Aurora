@@ -612,6 +612,7 @@ impl AddonsHandler {
 
     fn remote_etag(url: &str) -> String {
         let etag = reqwest::blocking::Client::builder()
+            .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .and_then(|c| c.head(url).send())

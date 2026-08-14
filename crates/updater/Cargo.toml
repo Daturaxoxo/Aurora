@@ -9,6 +9,7 @@ ureq = { version = "3", default-features = false, features = [
     "rustls",
     "gzip",
 ] }
+shared = { path = "../shared" }
 
 serde_json = { workspace = true }
 

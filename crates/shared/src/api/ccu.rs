@@ -7,8 +7,8 @@ use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::config;
 use crate::utils::get_local_version;
+use crate::{config, utils};
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
@@ -128,6 +128,7 @@ pub fn stop() {
     };
 
     let Ok(client) = reqwest::blocking::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
         .connect_timeout(SHUTDOWN_TIMEOUT)
         .timeout(SHUTDOWN_TIMEOUT)
         .build()

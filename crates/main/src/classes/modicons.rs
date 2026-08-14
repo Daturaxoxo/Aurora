@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use log::*;
 use once_cell::sync::Lazy;
-use shared::utils::get_cache_dir;
+use shared::utils::{self, get_cache_dir};
 
 use crate::MainWindow;
 
@@ -97,6 +97,7 @@ fn fetch(url: &str) -> Option<Vec<u8>> {
     debug!("[ModIcons] downloading {url}");
 
     let response = reqwest::blocking::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
         .timeout(TIMEOUT)
         .build()
         .map_err(|e| warn!("[ModIcons] could not build the http client: {e}"))
