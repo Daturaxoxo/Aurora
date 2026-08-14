@@ -18,6 +18,7 @@ use super::AuroraEngine;
 const LAUNCHER_GRACE_SECS: u32 = 10;
 
 // TODO: Probably want to consider decreasing these at some point
+// Is it worth decreasing tho? -Datura
 const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(5);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
 const LAUNCHER_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
@@ -34,13 +35,16 @@ impl AuroraEngine {
             return Ok(());
         }
 
-        // The game is running: watch the Everlight engine log for the session.
         let watcher_stop = Arc::new(AtomicBool::new(false));
         let watcher = {
             let win64 = self.win64.clone();
+            let game_path = self.game_path.clone();
+            let version = self.version;
             let game_process = self.gpaths.game_process;
             let stop = watcher_stop.clone();
-            thread::spawn(move || everlight::watch(&win64, game_process, &evt_tx, &stop))
+            thread::spawn(move || {
+                everlight::watch(&win64, &game_path, version, game_process, &evt_tx, &stop);
+            })
         };
 
         let exit_result = self.wait_for_game_exit();

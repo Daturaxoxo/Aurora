@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use log::*;
+use shared::classes::info::{patcher, version::Version};
 
 use crate::handler::EngineEvent;
 
@@ -106,7 +107,13 @@ fn kill_game(game_process: &str) {
     }
 }
 
-fn watch_checksum(win64: &Path, evt_tx: &mpsc::Sender<EngineEvent>, stop: &AtomicBool) {
+fn watch_checksum(
+    win64: &Path,
+    game_path: &Path,
+    version: Version,
+    evt_tx: &mpsc::Sender<EngineEvent>,
+    stop: &AtomicBool,
+) {
     if checksum_ignored() {
         info!("'Ignore Checksum Matching' is enabled, not watching for the CHKSUM marker");
         return;
@@ -126,13 +133,23 @@ fn watch_checksum(win64: &Path, evt_tx: &mpsc::Sender<EngineEvent>, stop: &Atomi
 
             if !warned {
                 warned = true;
+                let res_version = patcher::res_version(game_path, version);
                 error!(
-                    "Game version mismatch, CHKSUM marker found in {}",
+                    "Game version mismatch on ResVersion {}, CHKSUM marker found in {}",
+                    res_version.as_deref().unwrap_or("<unknown>"),
                     win64.display()
+                );
+                let text = res_version.as_deref().map_or_else(
+                    || "Game version mismatch, wait for Aurora to update".to_string(),
+                    |res_version| {
+                        format!(
+                            "Game version mismatch (game is on {res_version}), wait for Aurora to update"
+                        )
+                    },
                 );
                 evt_tx
                     .send(EngineEvent::Toast {
-                        text: "Game version mismatch, wait for Aurora to update".to_string(),
+                        text,
                         kind: "error".to_string(),
                     })
                     .ok();
@@ -150,13 +167,15 @@ fn watch_checksum(win64: &Path, evt_tx: &mpsc::Sender<EngineEvent>, stop: &Atomi
 
 pub(super) fn watch(
     win64: &Path,
+    game_path: &Path,
+    version: Version,
     game_process: &'static str,
     evt_tx: &mpsc::Sender<EngineEvent>,
     stop: &AtomicBool,
 ) {
     thread::scope(|scope| {
         let chksum_tx = evt_tx.clone();
-        scope.spawn(move || watch_checksum(win64, &chksum_tx, stop));
+        scope.spawn(move || watch_checksum(win64, game_path, version, &chksum_tx, stop));
         watch_log(win64, game_process, evt_tx, stop);
     });
 }

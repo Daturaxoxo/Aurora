@@ -1,5 +1,6 @@
 //! Constants, functions and structs related to NTE's files, versions, and directories.
 
+pub mod patcher;
 pub mod paths;
 pub mod version;
 
