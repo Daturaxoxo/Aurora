@@ -9,6 +9,7 @@ pub mod desktop_entry;
 pub mod display;
 pub mod logger;
 pub mod pathfind;
+pub mod repair;
 pub mod telemetry;
 pub mod utils;
 pub mod classes {

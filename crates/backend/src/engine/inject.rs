@@ -18,6 +18,8 @@ impl AuroraEngine {
         info!("Bin path:   {}", self.bin_path.display());
         info!("Mods path:  {}", self.pak_base.display());
 
+        self.repair_censorship_files();
+
         let files = self.managed_files();
         Self::check_required(&files)?;
 
@@ -48,10 +50,8 @@ impl AuroraEngine {
     fn check_required(files: &[ManagedFile]) -> Result<()> {
         for f in files.iter().filter(|f| f.required) {
             if !f.source.exists() {
-                // TODO: Maybe we could instead try to redownload any missing files?
-                // maybe -daturas
                 error!(
-                    "Missing required Bin file, the following file is required for Aurora to function properly: {}",
+                    "Missing required Bin file, the following file is required for Aurora to function properly and could not be restored: {}",
                     f.source.display()
                 );
                 return Err(anyhow!("Missing required Bin file"));

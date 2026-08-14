@@ -1,11 +1,26 @@
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
+
 use anyhow::Result;
 use log::*;
 use shared::{classes::info::Target, config};
 
+use crate::classes::addons::{repair_file, CENSORSHIP_DIR};
 use crate::classes::validate::validate_files;
 
 use super::files::FileGroup;
 use super::AuroraEngine;
+
+/// Files we have already tried to fetch this session
+static ATTEMPTED: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+fn first_attempt(path: &Path) -> bool {
+    ATTEMPTED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(path.to_path_buf())
+}
 
 impl AuroraEngine {
     pub fn validate(&self) -> Result<Vec<String>> {
@@ -39,6 +54,8 @@ impl AuroraEngine {
             }
         }
 
+        self.repair_censorship_files();
+
         let crr = config::get(config::key::CENSORSHIP_REMOVE)
             .as_bool()
             .unwrap_or(false);
@@ -53,5 +70,34 @@ impl AuroraEngine {
         }
 
         Ok(missing)
+    }
+
+    pub(super) fn repair_censorship_files(&self) {
+        let enabled = config::get(config::key::CENSORSHIP_REMOVE)
+            .as_bool()
+            .unwrap_or(false);
+        if !enabled {
+            return;
+        }
+
+        let folder = self.addons_path.join(CENSORSHIP_DIR);
+        for (target, _) in self
+            .targets
+            .iter()
+            .filter(|(t, _)| matches!(t, Target::AuroraTf | Target::CNAuroraTF))
+        {
+            let source = self.asi_source(*target);
+            if source.exists() || !first_attempt(&source) {
+                continue;
+            }
+
+            match repair_file(&folder, target.as_file()) {
+                Ok(()) => info!("Addon repair: restored '{}'", source.display()),
+                Err(e) => warn!(
+                    "Addon repair: could not restore '{}': {e}",
+                    source.display()
+                ),
+            }
+        }
     }
 }

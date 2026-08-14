@@ -49,6 +49,38 @@ pub struct EngineHandler {
     pub evt_rx: mpsc::Receiver<EngineEvent>,
 }
 
+/// Restores any file the release manifest lists that has gone missing
+fn repair_install(evt_tx: &mpsc::Sender<EngineEvent>) {
+    let report = shared::repair::restore_missing_files();
+
+    if !report.restored.is_empty() {
+        info!("Repaired {} missing file(s)", report.restored.len());
+        evt_tx
+            .send(EngineEvent::Toast {
+                text: format!("Restored {} missing Aurora file(s).", report.restored.len()),
+                kind: "success".to_string(),
+            })
+            .ok();
+    }
+
+    if !report.failed.is_empty() {
+        error!(
+            "Could not repair {} missing file(s): {}",
+            report.failed.len(),
+            report.failed.join(", ")
+        );
+        evt_tx
+            .send(EngineEvent::Toast {
+                text: format!(
+                    "Could not restore {} missing Aurora file(s). Check your connection and antivirus.",
+                    report.failed.len()
+                ),
+                kind: "error".to_string(),
+            })
+            .ok();
+    }
+}
+
 impl EngineHandler {
     pub fn start() -> Result<Self> {
         let (cmd_tx, cmd_rx) = mpsc::channel::<EngineCommand>();
@@ -104,6 +136,8 @@ impl EngineHandler {
                             continue;
                         }
                         std::thread::spawn(move || {
+                            repair_install(&evt_tx);
+
                             let mut attempts = 0;
                             let result = loop {
                                 {
@@ -215,6 +249,8 @@ impl EngineHandler {
                     }
                     EngineCommand::Validate => {
                         std::thread::spawn(move || {
+                            repair_install(&evt_tx);
+
                             if let Some(e) = engine
                                 .lock()
                                 .unwrap_or_else(PoisonError::into_inner)

@@ -1,5 +1,8 @@
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
+use anyhow::{anyhow, Result};
+use log::*;
 use shared::utils::get_bin_path;
 
 pub mod pak;
@@ -23,6 +26,59 @@ pub fn get_all_addon_paths() -> Option<Vec<PathBuf>> {
     }
 
     Some(addons)
+}
+
+pub fn manifest_path(folder: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(folder).ok().and_then(|entries| {
+        entries.flatten().map(|e| e.path()).find(|p| {
+            p.is_file()
+                && p.extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("auadd"))
+        })
+    })
+}
+
+fn manifest_urls(folder: &Path) -> Vec<String> {
+    let Some(manifest) = manifest_path(folder) else {
+        return Vec::new();
+    };
+
+    let Ok(contents) = std::fs::read_to_string(&manifest) else {
+        warn!("Addon repair: could not read '{}'", manifest.display());
+        return Vec::new();
+    };
+
+    contents
+        .lines()
+        .filter_map(|line| line.split_once('|'))
+        .filter(|(key, _)| key.trim() == "FILE")
+        .map(|(_, value)| value.trim().to_string())
+        .collect()
+}
+
+/// Re-downloads `file_name` into `folder` using the addon manifest's `FILE` urls.
+pub fn repair_file(folder: &Path, file_name: &str) -> Result<()> {
+    if Path::new(file_name).file_name() != Some(OsStr::new(file_name)) {
+        return Err(anyhow!("refusing to repair unsafe file name '{file_name}'"));
+    }
+
+    let url = manifest_urls(folder)
+        .into_iter()
+        .find(|url| {
+            url.rsplit('/')
+                .next()
+                .and_then(|last| last.split(['?', '#']).next())
+                .is_some_and(|name| name.eq_ignore_ascii_case(file_name))
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "'{file_name}' is not listed in the manifest in '{}'",
+                folder.display()
+            )
+        })?;
+
+    info!("Addon repair: downloading missing '{file_name}' from {url}");
+    shared::api::download_to(&url, &folder.join(file_name))
 }
 
 /// All files inside an addon folder except blacklisted extensions
