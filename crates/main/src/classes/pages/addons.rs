@@ -739,6 +739,7 @@ impl AddonsHandler {
             .with_context(|| format!("refusing to download to unsafe file name '{file_name}'"))?;
 
         let client = reqwest::blocking::Client::builder()
+            .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
 
