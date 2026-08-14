@@ -8,7 +8,7 @@ import sys
 from urllib.parse import quote
 
 APPIMAGE_NAME = "Aurora-x86_64.AppImage"
-
+PATH_SEPARATOR_ENCODING = "__"
 BASE_URL = "https://host.getaurora.moe/files/app/"
 # BASE_URL = "https://github.com/Alawapr/aurora-test/releases/latest/download/"
 BLACKLISTED_EXTENSIONS = (
@@ -31,16 +31,10 @@ BLACKLISTED_EXTENSIONS = (
     "disabled",
 )
 
-
-PATH_SEPARATOR_ENCODING = "__"
-
-
 def encode_path(rel_path):
     return rel_path.replace("\\", "/").replace("/", PATH_SEPARATOR_ENCODING)
 
-
 def check_encodable(rel_path):
-    """Reject paths that contain reserved encoding characters."""
     for component in rel_path.replace("\\", "/").split("/"):
         if PATH_SEPARATOR_ENCODING in component:
             print(
@@ -139,7 +133,6 @@ def get_all_files(folder_path, relative=False):
 
 
 def check_flat_names(files_list):
-    """The host serves one flat folder, so filenames have to be unique."""
     seen = {}
     for entry in files_list:
         name = path_to_filename(entry["path"])
@@ -226,7 +219,6 @@ def build_linux_manifest(version, appimage_path, output_path, base_url=BASE_URL)
 
 
 def encode_manifest(manifest, base_url=BASE_URL):
-    """GitHub assets are flat, so its manifest points at the encoded names."""
     if "appimage" in manifest:
         return manifest
 
@@ -305,7 +297,7 @@ def release_windows(version):
     manifest = build_manifest(version, "./release", "manifest.json", BASE_URL)
     copy_file("./steam_appid.txt", "./release/steam_appid.txt")
     shutil.make_archive(
-        base_name=f"aurora-{version}-WINDOWS", format="zip", base_dir="./release"
+        base_name=f"aurora-{version}-WINDOWS", format="zip", root_dir="./release"
     )
 
     if folder_exists("./release-host"):
@@ -323,7 +315,7 @@ def release_windows(version):
     shutil.make_archive(
         base_name=f"aurora-host-{version}-WINDOWS",
         format="zip",
-        base_dir="./release-host",
+        root_dir="./release-host",
     )
 
     build_github_release("windows", "./release", manifest, version)
@@ -353,7 +345,7 @@ def release_linux(version):
     shutil.make_archive(
         base_name=f"aurora-host-{version}-LINUX",
         format="zip",
-        base_dir="./release-host",
+        root_dir="./release-host",
     )
 
     build_github_release("linux", "./release", manifest, version)
