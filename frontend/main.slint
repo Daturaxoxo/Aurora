@@ -141,6 +141,7 @@ export component MainWindow inherits Window {
     in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;
     in-out property <int> engine-scale: 100;
+    in-out property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
@@ -1178,6 +1179,7 @@ export component MainWindow inherits Window {
             game-directory <=> root.game-directory;
             engine-method-index <=> root.engine-method-index;
             engine-scale <=> root.engine-scale;
+            show-engine-scale: root.show-engine-scale;
             ignore-checksum <=> root.ignore-checksum;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;

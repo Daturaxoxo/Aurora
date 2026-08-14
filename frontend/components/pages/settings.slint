@@ -374,8 +374,7 @@ export component SettingsPage inherits Rectangle {
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
     in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
-    // TODO: change this if we ever do scale for Linux
-    in property <bool> show-engine-scale: !root.is-linux;
+    in property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
 
     // LINUX

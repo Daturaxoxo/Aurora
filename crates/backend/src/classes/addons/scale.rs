@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
 
+/// Whether application scaling is available on this platform.
+pub const SUPPORTED: bool = cfg!(target_os = "windows");
+
 #[cfg(target_os = "windows")]
 fn get_windows_ini_paths() -> Option<Vec<PathBuf>> {
     use std::env;
@@ -33,6 +36,10 @@ fn get_unix_ini_paths() -> Option<Vec<PathBuf>> {
 }
 
 pub fn get_ini_paths() -> Option<Vec<PathBuf>> {
+    if !SUPPORTED {
+        return None;
+    }
+
     cfg_select! {
         windows => get_windows_ini_paths(),
         unix => get_unix_ini_paths(),

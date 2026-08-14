@@ -99,10 +99,15 @@ impl SettingsHandler {
         debug!("engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
-        let current_scale = scale::get_current_scale();
-        let engine_scale = Self::scale_to_percent(current_scale);
-        debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
-        w.set_engine_scale(engine_scale);
+        w.set_show_engine_scale(scale::SUPPORTED);
+        if scale::SUPPORTED {
+            let current_scale = scale::get_current_scale();
+            let engine_scale = Self::scale_to_percent(current_scale);
+            debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
+            w.set_engine_scale(engine_scale);
+        } else {
+            debug!("engine_scale: not supported on this platform, slider hidden");
+        }
 
         let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
@@ -344,6 +349,11 @@ impl SettingsHandler {
         let ww = window.clone();
         w.on_engine_scale_changed(move |percent| {
             info!("engine_scale changed -> {percent}%");
+
+            if !scale::SUPPORTED {
+                warn!("engine_scale is not supported on this platform, ignoring");
+                return;
+            }
 
             if scale::apply_scale(f64::from(percent) / 100.0) {
                 debug!("engine_scale written to Engine.ini");
