@@ -233,6 +233,11 @@ def build_github_release(os_name, source_dir, manifest, version):
         json.dump(manifest, json_file, indent=2)
     print(f"Wrote {manifest_path}")
 
+    archive_name = f"aurora-github-{version}-{os_name}"
+    archive_path = os.path.join(out_dir, archive_name)
+    shutil.make_archive(base_name=archive_name, format="zip", base_dir=out_dir)
+    print(f"Wrote {archive_path}")
+
     print(
         f"GITHUB: {len(rel_paths)} asset(s) + {manifest_name} ready in {out_dir}; "
         f"upload them to the {version} release."
