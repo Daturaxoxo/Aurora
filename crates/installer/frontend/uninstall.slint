@@ -70,12 +70,14 @@ export component UninstallerWindow inherits Window {
     in-out property <int> current-step: 0;
     callback next-clicked();
     callback cancel-clicked();
+    callback browse-clicked();
 
     // Welcome Properties
     in property <string> app-path: "";
+    in property <bool> app-found: false;
+    in property <string> app-error: "";
     in property <string> mods-path: "";
     in property <bool> mods-available: false;
-    in property <bool> dev-build: false;
     in-out property <bool> option-delete-config: true;
     in-out property <bool> option-delete-mods: false;
     in-out property <bool> option-preserve-mods: true;
@@ -92,7 +94,8 @@ export component UninstallerWindow inherits Window {
     in property <string> backup-path: "";
 
     property <bool> confirm-visible: false;
-    property <bool> next-enabled: root.current-step != 1 || root.uninstall-done;
+    property <bool> next-enabled: root.current-step == 0 ? root.app-found
+        : root.current-step != 1 || root.uninstall-done;
     property <string> next-label: root.current-step == 0 ? "Uninstall"
         : root.current-step == 2 ? "Finish"
         : "Next";
@@ -198,12 +201,14 @@ export component UninstallerWindow inherits Window {
                                 y: 28px;
                                 width: parent.width - 56px;
                                 app-path: root.app-path;
+                                app-found: root.app-found;
+                                app-error: root.app-error;
                                 mods-path: root.mods-path;
                                 mods-available: root.mods-available;
-                                dev-build: root.dev-build;
                                 option-delete-config <=> root.option-delete-config;
                                 option-delete-mods <=> root.option-delete-mods;
                                 option-preserve-mods <=> root.option-preserve-mods;
+                                browse-clicked => { root.browse-clicked(); }
                             }
                         }
 
@@ -316,9 +321,7 @@ export component UninstallerWindow inherits Window {
                             }
 
                             Text {
-                                text: root.dev-build
-                                    ? "The selected data will be removed. This cannot be undone."
-                                    : "Aurora and the selected data will be removed. This cannot be undone.";
+                                text: "Aurora and the selected data will be removed. This cannot be undone.";
                                 font-size: 13px;
                                 color: Palette.text-secondary;
                                 wrap: word-wrap;

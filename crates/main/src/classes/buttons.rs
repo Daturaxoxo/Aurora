@@ -1,3 +1,4 @@
+use crate::classes::toast::ToastHandler;
 use crate::{CheckboxItem, MainWindow};
 use backend::handler::{self, EngineCommand};
 use log::*;
@@ -33,22 +34,36 @@ impl ButtonHandler {
                 0 => Self::repair_aurora(&w),
                 1 => Self::check_for_updates(&w),
                 2 => Self::add_desktop_shortcut(&w),
-                4 => Self::open_mods_folder(),
+                4 => Self::open_mods_folder(&w),
                 5 => Self::kill_game(),
                 _ => {}
             }
         });
     }
 
-    fn open_mods_folder() {
-        match get_game_directory() {
-            Ok(path) => {
-                let mods_path = path.join(CLIENT_PAK_DIR);
-                if let Err(e) = open_folder(&mods_path) {
-                    error!("Failed to open mods folder: {e}");
-                }
+    fn open_mods_folder(window: &slint::Weak<MainWindow>) {
+        let path = match get_game_directory() {
+            Ok(path) => path,
+            Err(e) => {
+                error!("Could not find game directory: {e}");
+                ToastHandler::show(window, "Could not find the game directory.", "error");
+                return;
             }
-            Err(e) => error!("Could not find game directory: {e}"),
+        };
+
+        let mods_path = path.join(CLIENT_PAK_DIR);
+        if let Err(e) = std::fs::create_dir_all(&mods_path) {
+            error!(
+                "Failed to create mods folder {}: {e}",
+                mods_path.display()
+            );
+            ToastHandler::show(window, "Failed to create the mods folder.", "error");
+            return;
+        }
+
+        if let Err(e) = open_folder(&mods_path) {
+            error!("Failed to open mods folder: {e}");
+            ToastHandler::show(window, "Failed to open the mods folder.", "error");
         }
     }
 

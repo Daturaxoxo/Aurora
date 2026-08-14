@@ -1,6 +1,5 @@
 use crate::UninstallerWindow;
 use crate::plan::Plan;
-use ipc::manifest::LocalManifest;
 use shared::utils::format_bytes;
 use slint::{Model, SharedString, VecModel, Weak};
 use std::fs;
@@ -9,6 +8,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+pub const CLEANUP_ARG: &str = "--cleanup";
+const CLEANUP_RETRY_INTERVAL: Duration = Duration::from_millis(200);
+const CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
 static PENDING_CLEANUP: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Clone, Copy)]
@@ -18,9 +20,9 @@ pub struct Options {
     pub preserve_mods: bool,
 }
 
-pub fn run(ui: Weak<UninstallerWindow>, plan: Plan, options: Options) {
+pub fn run(ui: Weak<UninstallerWindow>, plan: Plan, app_dir: PathBuf, options: Options) {
     std::thread::spawn(move || {
-        let result = run_inner(&ui, &plan, options);
+        let result = run_inner(&ui, &plan, &app_dir, options);
         let (backup, error) = match result {
             Ok(backup) => (backup.unwrap_or_default(), String::new()),
             Err(e) => {
@@ -56,6 +58,7 @@ pub fn fail(ui: &Weak<UninstallerWindow>, error: String) {
 fn run_inner(
     ui: &Weak<UninstallerWindow>,
     plan: &Plan,
+    app_dir: &Path,
     options: Options,
 ) -> Result<Option<String>, String> {
     log_line(ui, "Preparing uninstallation...".into());
@@ -69,12 +72,11 @@ fn run_inner(
         .then_some(plan.mods_dir.as_deref())
         .flatten();
     let backup_wanted = options.preserve_mods && mods_dir.is_some();
-    let removes_app = plan.app_dir.is_some() && !plan.dev_build;
 
-    let steps = usize::from(backup_wanted)
+    let steps = 1
+        + usize::from(backup_wanted)
         + usize::from(mods_dir.is_some())
-        + usize::from(options.delete_config)
-        + usize::from(removes_app);
+        + usize::from(options.delete_config);
     let mut step = 0usize;
 
     let mut backup: Option<String> = None;
@@ -98,50 +100,30 @@ fn run_inner(
         advance(ui, &mut step, steps);
     }
 
-    match plan.app_dir.as_deref() {
-        Some(app_dir) if plan.dev_build => {
-            log_line(
-                ui,
-                format!(
-                    "Skipping {}: this is a development build.",
-                    app_dir.display()
-                ),
-            );
-        }
-        Some(app_dir) => {
-            log_line(ui, "Removing shortcuts...".into());
-            shared::desktop_entry::uninstall();
-            if let Err(e) = shared::desktop_entry::remove_desktop_shortcut() {
-                log_line(
-                    ui,
-                    format!("WARNING: could not remove the desktop shortcut: {e}"),
-                );
-            }
-            if let Err(e) = unregister_uninstall_entry() {
-                log_line(
-                    ui,
-                    format!("WARNING: could not remove the Add or Remove Programs entry: {e}"),
-                );
-            }
-
-            log_line(ui, format!("Deleting {}...", app_dir.display()));
-            if remove_app_dir(app_dir)? {
-                *PENDING_CLEANUP.lock().unwrap() = Some(app_dir.to_path_buf());
-                log_line(
-                    ui,
-                    "The uninstaller itself is removed once this window closes.".into(),
-                );
-            }
-            advance(ui, &mut step, steps);
-        }
-        None => log_line(
+    log_line(ui, "Removing shortcuts...".into());
+    shared::desktop_entry::uninstall();
+    if let Err(e) = shared::desktop_entry::remove_desktop_shortcut() {
+        log_line(
             ui,
-            plan.app_dir_error.as_ref().map_or_else(
-                || "WARNING: could not locate the Aurora application folder.".to_owned(),
-                |error| format!("WARNING: {error}"),
-            ),
-        ),
+            format!("WARNING: could not remove the desktop shortcut: {e}"),
+        );
     }
+    if let Err(e) = unregister_uninstall_entry() {
+        log_line(
+            ui,
+            format!("WARNING: could not remove the Add or Remove Programs entry: {e}"),
+        );
+    }
+
+    log_line(ui, format!("Deleting {}...", app_dir.display()));
+    if remove_app_dir(app_dir)? {
+        *PENDING_CLEANUP.lock().unwrap() = Some(app_dir.to_path_buf());
+        log_line(
+            ui,
+            "The uninstaller itself is removed once this window closes.".into(),
+        );
+    }
+    advance(ui, &mut step, steps);
 
     set_progress(ui, 1.0);
     log_line(ui, "Uninstallation complete.".into());
@@ -203,19 +185,6 @@ fn remove_app_dir(dir: &Path) -> Result<bool, String> {
         .ok();
     let mut skipped = false;
 
-    for path in owned_paths(dir) {
-        if !path.exists() {
-            continue;
-        }
-        if let Err(e) = remove_path(&path) {
-            if self_exe.is_some() && self_exe == &path.canonicalize().ok() {
-                skipped = true;
-                continue;
-            }
-            return Err(e);
-        }
-    }
-
     let entries =
         fs::read_dir(dir).map_err(|e| format!("failed to read {}: {e}", dir.display()))?;
     for entry in entries {
@@ -240,29 +209,6 @@ fn remove_app_dir(dir: &Path) -> Result<bool, String> {
     Ok(false)
 }
 
-fn owned_paths(dir: &Path) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> = match LocalManifest::load(dir) {
-        Ok(Some(local)) => local
-            .files
-            .keys()
-            .filter_map(|rel| ipc::manifest::safe_join(dir, rel))
-            .collect(),
-        _ => Vec::new(),
-    };
-
-    for name in [
-        ipc::AURORA_EXE,
-        ipc::UPDATER_EXE,
-        ipc::LOCAL_MANIFEST_FILE,
-        ipc::AURORA_LOCK_FILE,
-        ipc::UPDATER_LOCK_FILE,
-    ] {
-        paths.push(dir.join(name));
-    }
-
-    paths
-}
-
 fn remove_path(path: &Path) -> Result<(), String> {
     let result = if path.is_dir() {
         fs::remove_dir_all(path)
@@ -284,7 +230,6 @@ fn backup_path(base: &Path) -> PathBuf {
     base.join(format!("AuroraMods-{stamp}.zip"))
 }
 
-#[cfg(windows)]
 fn unregister_uninstall_entry() -> Result<(), String> {
     use std::os::windows::process::CommandExt;
 
@@ -300,11 +245,6 @@ fn unregister_uninstall_entry() -> Result<(), String> {
     if !status.success() {
         return Err(format!("reg.exe exited with {status}"));
     }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn unregister_uninstall_entry() -> Result<(), String> {
     Ok(())
 }
 
@@ -329,7 +269,54 @@ pub fn take_pending_cleanup() -> Option<PathBuf> {
     PENDING_CLEANUP.lock().unwrap().take()
 }
 
-#[cfg(windows)]
+pub fn cleanup_target() -> Option<PathBuf> {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter()
+        .position(|arg| arg == CLEANUP_ARG)
+        .and_then(|index| args.get(index + 1))
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+pub fn run_cleanup(dir: &Path) {
+    let deadline = Instant::now() + CLEANUP_TIMEOUT;
+
+    loop {
+        match fs::remove_dir_all(dir) {
+            Ok(()) => break,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
+            Err(e) if Instant::now() >= deadline => {
+                eprintln!("Gave up deleting {}: {e}", dir.display());
+                break;
+            }
+            Err(_) => std::thread::sleep(CLEANUP_RETRY_INTERVAL),
+        }
+    }
+
+    delete_self_on_reboot();
+}
+
+fn delete_self_on_reboot() {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{MOVEFILE_DELAY_UNTIL_REBOOT, MoveFileExW};
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let wide: Vec<u16> = exe
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    if unsafe { MoveFileExW(wide.as_ptr(), std::ptr::null(), MOVEFILE_DELAY_UNTIL_REBOOT) } == 0 {
+        eprintln!(
+            "Could not schedule {} for deletion on reboot",
+            exe.display()
+        );
+    }
+}
+
 pub fn cleanup_after_exit(dir: &Path) {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
@@ -337,22 +324,25 @@ pub fn cleanup_after_exit(dir: &Path) {
     const DETACHED_PROCESS: u32 = 0x0000_0008;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    let mut command = Command::new("cmd.exe");
-    command.raw_arg(format!(
-        r#"/C ping 127.0.0.1 -n 4 >nul & rmdir /s /q "{}""#,
-        dir.display()
-    ));
-    command.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+    let schedule = || -> std::io::Result<()> {
+        let exe = std::env::current_exe()?;
+        let helper = std::env::temp_dir().join(format!(
+            "aurora-cleanup-{}-{}.exe",
+            std::process::id(),
+            chrono::Local::now().format("%H%M%S")
+        ));
+        fs::copy(&exe, &helper)?;
 
-    if let Err(e) = command.spawn() {
+        Command::new(&helper)
+            .arg(CLEANUP_ARG)
+            .arg(dir)
+            .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW)
+            .spawn()?;
+        Ok(())
+    };
+
+    if let Err(e) = schedule() {
         eprintln!("Failed to schedule cleanup of {}: {e}", dir.display());
-    }
-}
-
-#[cfg(not(windows))]
-pub fn cleanup_after_exit(dir: &Path) {
-    if let Err(e) = fs::remove_dir_all(dir) {
-        eprintln!("Failed to delete {}: {e}", dir.display());
     }
 }
 

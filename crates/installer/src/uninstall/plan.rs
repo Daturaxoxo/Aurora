@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde_json::Value;
 use shared::classes::info::paths::CLIENT_PAK_DIR;
 use shared::config::{get_userdata_path, key};
-const BUILD_DIRS: [&str; 2] = ["debug", "release"];
 const PROTECTED_ENV_VARS: [&str; 9] = [
     "ProgramFiles",
     "ProgramFiles(x86)",
@@ -15,26 +15,35 @@ const PROTECTED_ENV_VARS: [&str; 9] = [
     "USERPROFILE",
     "LOCALAPPDATA",
 ];
+
+/// Folder the user picked by hand after automatic detection failed.
+static APP_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+pub fn set_app_dir_override(dir: PathBuf) {
+    *APP_DIR_OVERRIDE.lock().unwrap() = Some(dir);
+}
+
+fn app_dir_override() -> Option<PathBuf> {
+    APP_DIR_OVERRIDE.lock().unwrap().clone()
+}
+
 pub struct Plan {
     pub data_dir: PathBuf,
     pub app_dir: Option<PathBuf>,
     pub app_dir_error: Option<String>,
     pub mods_dir: Option<PathBuf>,
     pub backup_dir: PathBuf,
-    pub dev_build: bool,
 }
 
 impl Plan {
     pub fn resolve() -> Self {
         let config = read_config();
 
-        let mods_dir = path_value(&config, key::GAME_PATH)
-            .map(|game| game.join(CLIENT_PAK_DIR))
-            .filter(|mods| mods.is_dir());
+        let mods_dir = path_value(&config, key::GAME_PATH).map(|game| game.join(CLIENT_PAK_DIR));
 
-        Self::from_paths(
+        Self::from_candidates(
             aurora_data_dir(),
-            candidate_app_dir(&config),
+            candidate_app_dirs(&config),
             mods_dir,
             default_backup_dir(),
         )
@@ -46,15 +55,21 @@ impl Plan {
         mods_dir: Option<PathBuf>,
         backup_dir: PathBuf,
     ) -> Self {
-        let (app_dir, app_dir_error) = match app_dir {
-            Some(dir) => match verify_app_dir(&dir) {
-                Ok(()) => (Some(dir), None),
-                Err(e) => (None, Some(e)),
-            },
-            None => (None, None),
-        };
+        Self::from_candidates(
+            data_dir,
+            app_dir.into_iter().collect(),
+            mods_dir,
+            backup_dir,
+        )
+    }
 
-        let dev_build = app_dir.as_deref().is_some_and(is_build_dir);
+    fn from_candidates(
+        data_dir: PathBuf,
+        candidates: Vec<PathBuf>,
+        mods_dir: Option<PathBuf>,
+        backup_dir: PathBuf,
+    ) -> Self {
+        let (app_dir, app_dir_error) = select_app_dir(candidates);
 
         Self {
             data_dir,
@@ -62,9 +77,23 @@ impl Plan {
             app_dir_error,
             mods_dir: mods_dir.filter(|mods| mods.is_dir()),
             backup_dir,
-            dev_build,
         }
     }
+}
+
+/// Takes the first candidate that verifies. If none do, reports why the best
+/// guess was rejected.
+fn select_app_dir(candidates: Vec<PathBuf>) -> (Option<PathBuf>, Option<String>) {
+    let mut first_error = None;
+
+    for dir in candidates {
+        match verify_app_dir(&dir) {
+            Ok(()) => return (Some(dir), None),
+            Err(e) => first_error.get_or_insert(e),
+        };
+    }
+
+    (None, first_error)
 }
 
 pub fn default_backup_dir() -> PathBuf {
@@ -86,32 +115,33 @@ pub fn verify_app_dir(dir: &Path) -> Result<(), String> {
         ));
     }
 
-    if !dir.join(ipc::AURORA_EXE).is_file() {
-        return Err(format!(
-            "refusing to touch {}: it does not contain {}",
-            dir.display(),
-            ipc::AURORA_EXE
-        ));
-    }
-
-    if !dir.join(ipc::LOCAL_MANIFEST_FILE).is_file() && !is_build_dir(dir) {
-        return Err(format!(
-            "refusing to touch {}: it does not contain {}",
-            dir.display(),
-            ipc::LOCAL_MANIFEST_FILE
-        ));
+    for name in [ipc::AURORA_EXE, ipc::UPDATER_EXE] {
+        if !dir.join(name).is_file() {
+            return Err(format!(
+                "refusing to touch {}: it does not contain {name}",
+                dir.display()
+            ));
+        }
     }
 
     Ok(())
 }
 
-fn candidate_app_dir(config: &Value) -> Option<PathBuf> {
-    path_value(config, key::APP_LOCATION)
-        .as_deref()
-        .and_then(Path::parent)
-        .filter(|dir| !dir.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .or_else(sibling_app_dir)
+fn candidate_app_dirs(config: &Value) -> Vec<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    candidates.extend(app_dir_override());
+    candidates.extend(
+        path_value(config, key::APP_LOCATION)
+            .as_deref()
+            .and_then(Path::parent)
+            .filter(|dir| !dir.as_os_str().is_empty())
+            .map(Path::to_path_buf),
+    );
+    candidates.extend(sibling_app_dir());
+
+    candidates.dedup();
+    candidates
 }
 
 fn aurora_data_dir() -> PathBuf {
@@ -136,14 +166,7 @@ fn path_value(config: &Value, key: &str) -> Option<PathBuf> {
 }
 
 fn sibling_app_dir() -> Option<PathBuf> {
-    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    dir.join(ipc::AURORA_EXE).exists().then_some(dir)
-}
-
-fn is_build_dir(dir: &Path) -> bool {
-    dir.file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| BUILD_DIRS.contains(&name.to_lowercase().as_str()))
+    Some(std::env::current_exe().ok()?.parent()?.to_path_buf())
 }
 
 fn is_protected_dir(dir: &Path) -> bool {

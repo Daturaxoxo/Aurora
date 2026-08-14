@@ -49,8 +49,7 @@ pub fn needed(plan: &Plan, options: Options) -> bool {
         return true;
     }
 
-    if !plan.dev_build
-        && let Some(app_dir) = plan.app_dir.as_deref()
+    if let Some(app_dir) = plan.app_dir.as_deref()
         && !can_remove(app_dir)
     {
         return true;
@@ -62,32 +61,7 @@ fn can_remove(dir: &Path) -> bool {
     if !dir.exists() {
         return true;
     }
-    dir.parent().is_none_or(is_writable) && tree_is_removable(dir)
-}
-
-fn tree_is_removable(path: &Path) -> bool {
-    if !path.is_dir() {
-        return file_is_removable(path);
-    }
-
-    if !is_writable(path) {
-        return false;
-    }
-
-    let Ok(entries) = std::fs::read_dir(path) else {
-        return false;
-    };
-
-    entries
-        .flatten()
-        .all(|entry| tree_is_removable(&entry.path()))
-}
-
-fn file_is_removable(file: &Path) -> bool {
-    match std::fs::OpenOptions::new().write(true).open(file) {
-        Ok(_) => true,
-        Err(e) => e.kind() != std::io::ErrorKind::PermissionDenied,
-    }
+    dir.parent().is_none_or(is_writable) && is_writable(dir)
 }
 
 fn is_writable(dir: &Path) -> bool {
@@ -100,7 +74,6 @@ fn is_writable(dir: &Path) -> bool {
         Err(_) => false,
     }
 }
-#[cfg(windows)]
 pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
@@ -170,9 +143,4 @@ pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
         }
         code => Err(format!("could not restart as administrator (code {code})")),
     }
-}
-
-#[cfg(not(windows))]
-pub fn relaunch(_plan: &Plan, _options: Options) -> Result<(), String> {
-    Err("Aurora's files are owned by another user. Please retry with elevated permissions.".into())
 }

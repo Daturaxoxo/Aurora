@@ -1,5 +1,5 @@
 import { Palette } from "../../global.slint";
-import { Card, CheckboxRow } from "../widgets.slint";
+import { Card, CheckboxRow, NavButton } from "../widgets.slint";
 
 component OptionRow inherits VerticalLayout {
     in property <string> label;
@@ -29,12 +29,15 @@ component OptionRow inherits VerticalLayout {
 
 export component UninstallWelcomePage inherits VerticalLayout {
     in property <string> app-path;
+    in property <bool> app-found;
+    in property <string> app-error;
     in property <string> mods-path;
     in property <bool> mods-available;
-    in property <bool> dev-build;
     in-out property <bool> option-delete-config;
     in-out property <bool> option-delete-mods;
     in-out property <bool> option-preserve-mods;
+
+    callback browse-clicked();
 
     spacing: 8px;
     alignment: start;
@@ -95,25 +98,32 @@ export component UninstallWelcomePage inherits VerticalLayout {
             spacing: 6px;
 
             Text {
-                text: "The Aurora application folder is always removed:";
+                text: root.app-found
+                    ? "The Aurora application folder is always removed:"
+                    : "The Aurora application folder could not be located, so nothing can be removed:";
                 font-size: 13px;
                 color: Palette.text-secondary;
                 wrap: word-wrap;
             }
 
             Text {
-                text: root.app-path;
+                text: root.app-found ? root.app-path : root.app-error;
                 font-size: 13px;
-                color: Palette.text-primary;
+                color: root.app-found ? Palette.text-primary : #ff6b6b;
                 wrap: word-wrap;
             }
 
-            if root.dev-build: Text {
-                text: "This is a development build, so the application folder will be kept.";
-                font-size: 12px;
-                color: #ffcc66;
-                wrap: word-wrap;
+            HorizontalLayout {
+                padding-top: 6px;
+                alignment: start;
+
+                NavButton {
+                    text: "Browse...";
+                    width: 96px;
+                    clicked => { root.browse-clicked(); }
+                }
             }
+
         }
     }
 }
