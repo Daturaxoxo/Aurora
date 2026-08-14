@@ -194,7 +194,15 @@ fn apply_update(
 
         let actual = hash_file(&tmp).map_err(|e| {
             cleanup(&tmps);
-            format!("failed to hash {}: {e}", tmp.display())
+            if e.kind() == std::io::ErrorKind::NotFound {
+                format!(
+                    "{} was removed after downloading (likely antivirus); \
+                     allow the Aurora folder and try again",
+                    tmp.display()
+                )
+            } else {
+                format!("failed to hash {}: {e}", tmp.display())
+            }
         })?;
         if actual != entry.sha256 {
             cleanup(&tmps);
