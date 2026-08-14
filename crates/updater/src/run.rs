@@ -162,7 +162,8 @@ fn apply_update(
         }
         log(&format!("downloading {}", entry.path));
         let mut last_progress = Instant::now();
-        if let Err(e) = net::download(&entry.url, &tmp, |done, total| {
+        let sources = entry.download_urls();
+        if let Err(e) = net::download_from_any(&sources, &tmp, &mut |done, total| {
             if last_progress.elapsed() >= PROGRESS_INTERVAL {
                 last_progress = Instant::now();
                 send(

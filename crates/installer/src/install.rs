@@ -50,7 +50,7 @@ fn build_plan() -> Result<Plan, String> {
     let sizes = manifest
         .files
         .iter()
-        .map(|f| (f.path.clone(), net::file_size(&f.url).unwrap_or(0)))
+        .map(|f| (f.path.clone(), net::file_size_any(&f.download_urls()).unwrap_or(0)))
         .collect();
     Ok(Plan { manifest, sizes })
 }
@@ -193,7 +193,8 @@ fn run_inner(
             staged.push((tmp.clone(), dst));
 
             let mut last_progress = Instant::now();
-            net::download(&entry.url, &tmp, |done, total| {
+            let sources = entry.download_urls();
+            net::download_from_any(&sources, &tmp, &mut |done, total| {
                 if last_progress.elapsed() >= PROGRESS_INTERVAL {
                     last_progress = Instant::now();
                     let overall = if total_bytes > 0 {

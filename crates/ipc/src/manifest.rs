@@ -6,9 +6,30 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::LOCAL_MANIFEST_FILE;
+use crate::{DOWNLOAD_BASE_FALLBACK, DOWNLOAD_BASE_PRIMARY, LOCAL_MANIFEST_FILE};
 
-pub const DOWNLOAD_HOST: &str = "host.getaurora.moe";
+pub fn fallback_url(relative: &str) -> Option<String> {
+    if DOWNLOAD_BASE_FALLBACK.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{DOWNLOAD_BASE_FALLBACK}{}",
+        relative.replace(['/', '\\'], "__")
+    ))
+}
+
+fn download_urls(primary: &str, relative: &str) -> Vec<String> {
+    let mut urls = Vec::with_capacity(2);
+    if is_trusted_url(primary) {
+        urls.push(primary.to_owned());
+    }
+    if let Some(url) = fallback_url(relative) {
+        if is_trusted_url(&url) && !urls.contains(&url) {
+            urls.push(url);
+        }
+    }
+    urls
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Manifest {
@@ -42,6 +63,10 @@ pub struct AppImageEntry {
 impl AppImageEntry {
     pub fn validate_url(&self) -> Result<(), String> {
         check_url("appimage entry", &self.url)
+    }
+
+    pub fn download_urls(&self) -> Vec<String> {
+        download_urls(&self.url, crate::APPIMAGE_NAME)
     }
 }
 
@@ -108,11 +133,15 @@ pub fn safe_join(install_root: &Path, relative: &str) -> Option<PathBuf> {
 }
 
 pub fn is_trusted_url(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("https://") else {
-        return false;
-    };
-    let authority = rest.split(['/', '\\', '?', '#']).next().unwrap_or_default();
-    authority.eq_ignore_ascii_case(DOWNLOAD_HOST)
+    [DOWNLOAD_BASE_PRIMARY, DOWNLOAD_BASE_FALLBACK]
+        .into_iter()
+        .filter(|base| !base.is_empty())
+        .any(|base| {
+            let Some(name) = url.strip_prefix(base) else {
+                return false;
+            };
+            !name.is_empty() && !name.contains(['/', '\\', '?', '#'])
+        })
 }
 
 fn check_url(kind: &str, url: &str) -> Result<(), String> {
@@ -120,7 +149,7 @@ fn check_url(kind: &str, url: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "rejected {kind}: url `{url}` is not an https url on `{DOWNLOAD_HOST}`"
+            "rejected {kind}: url `{url}` is not an asset under a known download base"
         ))
     }
 }
@@ -132,6 +161,10 @@ impl FileEntry {
 
     pub fn validate_url(&self) -> Result<(), String> {
         check_url(&format!("manifest entry `{}`", self.path), &self.url)
+    }
+
+    pub fn download_urls(&self) -> Vec<String> {
+        download_urls(&self.url, &self.path)
     }
 }
 

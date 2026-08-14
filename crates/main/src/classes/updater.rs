@@ -429,8 +429,8 @@ impl UpdateHandler {
         let tmp = appimage.with_file_name(format!("{}.new", ipc::APPIMAGE_NAME));
         let _ = std::fs::remove_file(&tmp);
 
-        info!("downloading {}", manifest.appimage.url);
-        if let Err(e) = Self::download_with_progress(window, &manifest.appimage.url, &tmp) {
+        let sources = manifest.appimage.download_urls();
+        if let Err(e) = Self::download_from_any(window, &sources, &tmp) {
             let _ = std::fs::remove_file(&tmp);
             return Err(e);
         }
@@ -465,6 +465,32 @@ impl UpdateHandler {
         }
         Self::relaunch_appimage(window, &appimage);
         Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn download_from_any(
+        window: &slint::Weak<MainWindow>,
+        urls: &[String],
+        dst: &std::path::Path,
+    ) -> Result<()> {
+        let mut last_err = anyhow!("no download sources available");
+        for (i, url) in urls.iter().enumerate() {
+            info!("downloading {url}");
+            match Self::download_with_progress(window, url, dst) {
+                Ok(()) => {
+                    if i > 0 {
+                        info!("fell back to {url}");
+                    }
+                    return Ok(());
+                }
+                Err(e) => {
+                    warn!("download failed from {url}: {e}");
+                    let _ = std::fs::remove_file(dst);
+                    last_err = e;
+                }
+            }
+        }
+        Err(last_err.context("all download sources failed"))
     }
 
     #[cfg(target_os = "linux")]
@@ -601,11 +627,25 @@ impl UpdateHandler {
             .find(|f| f.path == ipc::UPDATER_EXE)
             .ok_or_else(|| anyhow!("manifest has no entry for {}", ipc::UPDATER_EXE))?;
 
-        let bytes = reqwest::blocking::get(&entry.url)
-            .and_then(reqwest::blocking::Response::error_for_status)
-            .with_context(|| format!("failed to download {}", entry.url))?
-            .bytes()
-            .context("failed to read updater download")?;
+        let mut last_err = anyhow!("no download sources available");
+        let mut downloaded = None;
+        for url in entry.download_urls() {
+            let result = reqwest::blocking::get(&url)
+                .and_then(reqwest::blocking::Response::error_for_status)
+                .and_then(reqwest::blocking::Response::bytes);
+            match result {
+                Ok(bytes) => {
+                    downloaded = Some(bytes);
+                    break;
+                }
+                Err(e) => {
+                    warn!("updater download failed from {url}: {e}");
+                    last_err = e.into();
+                }
+            }
+        }
+        let bytes = downloaded
+            .ok_or_else(|| last_err.context("all updater download sources failed"))?;
 
         let actual = ipc::manifest::hash_bytes(&bytes);
         if actual != manifest.updater_hash {
