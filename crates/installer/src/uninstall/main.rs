@@ -4,6 +4,8 @@ include!(concat!(env!("OUT_DIR"), "/uninstall.rs"));
 
 mod elevate;
 mod plan;
+#[path = "../registry.rs"]
+mod registry;
 mod run;
 
 use shared::display::{center_window, on_drag};
