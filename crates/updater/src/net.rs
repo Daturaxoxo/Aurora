@@ -96,5 +96,24 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
         done += n as u64;
         progress(done, total);
     }
+    
+    file.sync_all()
+        .map_err(|e| format!("failed to flush {}: {e}", dest.display()))?;
+    drop(file);
+
+    let size = std::fs::metadata(dest)
+        .map_err(|e| {
+            format!(
+                "{} vanished right after download (likely antivirus): {e}",
+                dest.display()
+            )
+        })?
+        .len();
+    if size != done {
+        return Err(format!(
+            "{} is {size} bytes on disk but {done} bytes were written (likely antivirus)",
+            dest.display()
+        ));
+    }
     Ok(())
 }
