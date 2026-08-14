@@ -30,6 +30,19 @@ BLACKLISTED_EXTENSIONS = (
     "pak",
     "disabled",
 )
+BLACKLISTED_PATHS = ("Bin/Addons/Censorship/AuroraTF.asi","Bin/Addons/Censorship/CNAuroraTF.asi")
+
+
+def is_blacklisted(path):
+    if path.endswith(BLACKLISTED_EXTENSIONS):
+        return True
+
+    normalized = path.replace("\\", "/")
+    return any(
+        normalized == blacklisted or normalized.endswith("/" + blacklisted)
+        for blacklisted in BLACKLISTED_PATHS
+    )
+
 
 def encode_path(rel_path):
     return rel_path.replace("\\", "/").replace("/", PATH_SEPARATOR_ENCODING)
@@ -118,10 +131,10 @@ def get_all_files(folder_path, relative=False):
 
     for root, _, files in os.walk(folder_path):
         for file in files:
-            if file.endswith(BLACKLISTED_EXTENSIONS):
-                continue
-
             full_path = os.path.join(root, file)
+
+            if is_blacklisted(full_path):
+                continue
 
             if relative:
                 rel_path = os.path.relpath(full_path, folder_path).replace(os.sep, "/")
@@ -155,10 +168,10 @@ def build_manifest(
 
     for root, _, files in os.walk(base_dir):
         for file in files:
-            if file.endswith(BLACKLISTED_EXTENSIONS):
-                continue
-
             filepath = os.path.join(root, file)
+
+            if is_blacklisted(filepath):
+                continue
             rel_path = os.path.relpath(filepath, base_dir).replace(os.sep, "/")
 
             if rel_path == output_filename: continue
