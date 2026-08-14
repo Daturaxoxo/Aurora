@@ -1,8 +1,3 @@
-# NOTE: `crates/installer` builds both AuroraInstaller and AuroraUninstaller and
-# opts out of shared's `extract` feature to drop the archive codecs it never
-# uses. Cargo unifies features per invocation, so `cargo build --workspace`
-# silently gives it `extract` back. Ship those two binaries via
-# ./build-installer.ps1, which builds them alone and with the size flags.
 [workspace]
 members = [
     "crates/main",

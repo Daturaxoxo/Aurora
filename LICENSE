@@ -1,0 +1,222 @@
+                                              AURORA APPLICATION LICENSE
+                                            Copyright (c) 2026, Daturaxoxo
+                                                        v1.2
+
+   This software and associated documentation files (the "Software") are provided subject to the following conditions:
+
+--------------
+0. Definitions
+--------------
+   "This License" refers to version 1.2 of the Aurora Application License.
+
+   "The Authors" refers to Daturaxoxo and any other lead developer of the Aurora team designated as such and written by Daturaxoxo. Contributors are not Authors unless separately designated in writing.
+
+   "The Software" refers to the Aurora Launcher application, its source code, its companion tools and utilities, its website, and any other copyrightable work published by the Authors that includes a copy of this license. A work published by the Authors is covered by this License only where the Authors have designated it as such.
+
+   "The Aurora Team" refers to the development team behind the creation of the Software this license protects.
+
+   "You" refers to any individual, corporation, or organization exercising rights under this License.
+
+   "Unmodified Copy" means a copy of an official release published by the Authors in which no source code, binary, asset, or accompanying notice has been altered, added, or removed.
+
+   "Fork" means any copy of the Software in which source code, binaries, assets, or behaviour have been altered in any way, or to which material has been added or from which material has been removed.
+
+   "Commercial Use" means any use primarily intended for or directed toward commercial advantage or private monetary compensation. Voluntary donations that are not tied to the access to the Software, to any feature of it, or to support for it, are not Commercial use.
+
+   "Author Services" means any network service, API endpoint, database, telemetry collector, content delivery resource, credential, or other infrastructure operated by or on behalf of the Authors.
+
+   "Pre-Release Build" refers to any builds of the original and unmodified Software that is not publicly available, but accessible to donators only for a period of time before it is made fully public with all of its features available.
+
+   "Dormant" refers to the active status of the Software, meaning if the Authors have not published a public release, nightly/beta build, repository commit or public statement of continued development for the period of nine (9) months.
+
+-------------------
+1. GRANT OF LICENSE
+-------------------
+   Subject to every term below, permission is granted to view, download, compile, run, and modify the Software solely for non-commercial, personal, educational, or contributional purposes.
+
+   This is a source-available license. It is not an open-source license endorsed by the Open Source Initiative. No rights are granted other than those expressly stated here, and all rights not expressly granted are reserved by the Authors.
+
+----------------------------
+2. COMMERCIAL USE PROHIBITED
+----------------------------
+
+   Commercial Use of the Software, whether modified or unmodified, is prohibited without prior written permission from the Authors. Prohibited Commercial Use includes, but is not limited to:
+
+   a. Selling the Software, or selling access to it or to any part of it.
+   b. Placing the Software, any release of it, or any of its features behind a paywall, subscription, membership tier or any other payment requirement.
+   c. Bundling or including the Software in any paid product or paid service.
+   d. Sub-licensing the Software to any third party.
+   e. Charging any fee for the installation, configuration, modification, or support of the Software as a paid service.
+   f. Distributing the Software through advertising-gated download lockers, link shorteners that pay per click, paid-download hosts, or any other channel that generates revenue from the act of distribution.
+
+   Hosting an Unmodified Copy on a platform that displays advertising incidental to the platform itself, and from which you receive no revenue, is not Commercial Use.
+
+   Reserved rights of the Authors. This section does not restrict the Authors. The Authors may offer early access to Pre-Release builds, cosmetic content, or other privileges as a reward for community support, including but not limited to Discord server boosting, and doing so is not Commercial Use. No other party may offer such privileges in respect of the Software.
+
+--------------------------------------
+3. REDISTRIBUTION OF UNMODIFIED COPIES
+--------------------------------------
+
+   You may redistribute and mirror Unmodified Copies of the Software, provided that all of the following conditions are met:
+
+   a. This License is included, complete and unaltered.
+   b. All copyright, authorship, and attribution notices are preserved and intact.
+   c. The name and branding of the Software are preserved without alteration.
+   d. No fee of any kind is charged, and section 2 is not violated.
+   e. The copy is clearly identified as an Unmodified Copy and a link to the official source is provided.
+   f. Upon written request from the Authors, you cease distribution and remove the copy within fourteen (14) days.
+
+   Pre-Release Builds are excluded from this Section. You may not redistribute, mirror, publish, or otherwise make a Pre-Release Build available to any other person by any means without prior written permission from the Authors. This restriction continues to apply after a corresponding official release is published.
+
+---------------------------------------
+4. REDISTRIBUTION AND CREATION OF FORKS
+---------------------------------------
+
+While the Software is not Dormant, you may not publish or distribute a Fork by any means. You may create and retain Forks privately, and Section 6 governs Forks made for the purpose of contributing to the Software.
+
+While the Software is Dormant, you may publish and distribute a Fork, including under any name and any logo, provided that all of the following conditions are met:
+
+   a. The Fork clearly and prominently states that it is an unofficial derivative of Aurora Launcher, and links to the official source.
+   b. The Fork is not named "Aurora" or "Aurora Launcher", nor any name differing from those only by capitalisation, spacing, punctuation, or visually similar characters. The Fork may use a name derived from the original Software's name, such as but not limited to, given as an example: "BetterAurora". The Fork may equally use a name unrelated to the Software.
+   c. The Fork does not state or imply that it is endorsed by, affiliated with, or supported by the Authors.
+   d. All original copyright and authorship notices are preserved, and this License is included, complete and unaltered.
+   e. The Fork complies with Section 5.
+   f. The Fork does not include, reproduce, or distribute any Supporter Content.
+   g. Section 2 is not violated.
+
+Dormancy is assessed at the moment the Fork is first published. A Fork lawfully published while the Software was Dormant may continue to be distributed and updated if the Software later ceases to be Dormant. A Fork first published while the Software is not Dormant is not made lawful by the Software later becoming Dormant.
+
+------------------
+5. AUTHOR SERVICES
+------------------
+
+   This License grants no right to access, connect to, query, or otherwise make use
+of Author Services for any modified versions of the original Software. Specifically:
+ 
+  a. Any Fork must remove or replace every reference to Author Services before
+     distribution, and must not connect to them without prior written permission
+     from the Authors.
+  b. You may not extract, reuse, or redistribute any credential, API key, token,
+     or endpoint address obtained from the source code, binaries, or network
+     traffic of the Software.
+  c. The Authors may deny, revoke, or rate-limit access to Author Services at
+     any time, for any reason, without notice.
+
+   Nothing in this Section restricts an end user from running an Unmodified Copy and accessing Author Services through it, subject to those services' own terms.
+
+   Access to Author Services, where granted, is governed separately by their own
+terms of service and not by this License.
+
+----------------
+6. CONTRIBUTIONS
+----------------
+   Every contribution to any repository of the Software must carry a sign-off line
+certifying the Developer Certificate of Origin, version 1.1, as published at
+https://developercertificate.org. By signing off, you certify that you wrote the
+contribution yourself, or that you have the right to submit it under this
+License.
+ 
+   By submitting a contribution, you grant the Authors a perpetual, worldwide,
+irrevocable, non-exclusive, royalty-free, transferable, and sublicensable right
+to use, reproduce, modify, adapt, publish, distribute, publicly display, and
+relicense your contribution under any terms, including commercial terms.
+ 
+   You retain copyright in your contribution. Your contribution is additionally
+licensed to all other recipients under this License.
+ 
+   The Authors are under no obligation to accept, retain, or attribute any
+contribution.
+
+   Any forks of the Software that is intended to be used as modified copies to be contributed towards the main repository of the Software, which includes committing and pull requesting to the repository is not subject to the renaming requirements required by section 4.
+
+-----------------------
+7. THIRD-PARTY SOFTWARE
+-----------------------
+ 
+   The Software may include, link to, or invoke third-party libraries, frameworks,
+and tools, including but not limited to Slint, various Rust crates, and Unreal
+Engine tooling such as RETOC and UE4SS. Those components are governed by their
+own respective licenses, which are not superseded by this License and which may
+grant you rights broader than those granted here with respect to those
+components.
+
+-------------------------------------------
+8. THIS LICENSE MUST ACCOMPANY THE SOFTWARE
+-------------------------------------------
+ 
+   Every distribution of the Software, whether an Unmodified Copy or a Fork, and
+whether in source or binary form, must include a complete and unaltered copy of
+this License in a location readily accessible to the recipient.
+
+-------------
+9. TRADEMARKS
+-------------
+ 
+   The names "Aurora", "Aurora Launcher", and "Aurora Team", together with all
+associated logos and visual branding, are reserved by the Authors. This License
+grants no right to use them except to accurately identify the origin of the
+Software as required by sections 3 and 4, and except as expressly permitted by
+section 4 with the dormancy stage.
+
+---------------
+10. TERMINATION
+---------------
+ 
+   Your rights under this License terminate automatically if you fail to comply
+with any of its terms. Upon termination you must cease all use of the Software
+and destroy all copies in your possession, except as required to be retained by
+applicable law.
+ 
+   If you cure the violation within thirty (30) days of becoming aware of it,
+whether by your own discovery or upon notice from the Authors, your rights are
+reinstated provisionally. Your rights are reinstated permanently if the Authors
+do not give you future notices of the violation by some reasonable means within sixty (60)
+days after the cure.
+ 
+   Termination of your rights does not terminate the rights of any recipient who
+received a copy from you and who remains in compliance with this License.
+
+----------------------------------------
+11. DISCLAIMER OF WARRANTY AND LIABILITY
+----------------------------------------
+ 
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. THE ENTIRE RISK AS TO THE QUALITY
+AND PERFORMANCE OF THE SOFTWARE IS WITH YOU.
+ 
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.
+ 
+   Nothing in this section limits any liability that cannot be limited under
+applicable law.
+
+-----------
+12. GENERAL
+-----------
+ 
+   Severability. If any provision of this License is held unenforceable, that
+provision is modified to the minimum extent necessary to make it enforceable, or
+severed if it cannot be, and the remaining provisions continue in full force.
+ 
+Survival. Sections 0, 5, 9, 10, 11, and 12 survive termination of this License.
+ 
+   No waiver. A failure by the Authors to enforce any provision is not a waiver of
+that provision or of any other.
+ 
+   Versions. The Authors may publish revised versions of this License. Each release
+of the Software is governed by the version distributed with it. A later version
+does not retroactively alter the terms under which an earlier release was
+obtained.
+ 
+   Mandatory rights. Nothing in this License restricts any right granted to you by
+applicable law that cannot be restricted by agreement, including rights of
+observation, study, backup, and decompilation for interoperability under
+Directive 2009/24/EC where that Directive applies.
+ 
+   Governing law. This License is governed by the laws of Romania, without regard
+to conflict of law principles.
+
+   All messaging attempts to contact the Authors to get written permission as per required by the sections above must be handled through our official Discord channels or the Authors respective accounts: SERVER: https://discord.gg/565jfeYsbp | DM: datura.xoxo | DM: alawapr.rs
