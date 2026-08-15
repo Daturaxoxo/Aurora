@@ -12,8 +12,8 @@ use crate::{config, utils};
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
-const HEARTBEAT: Duration = Duration::from_mins(2);
-const JITTER: f64 = 0.10;
+const HEARTBEAT: Duration = Duration::from_mins(10);
+const JITTER: f64 = 0.05;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 static SESSION: OnceLock<String> = OnceLock::new();
