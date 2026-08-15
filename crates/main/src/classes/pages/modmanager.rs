@@ -171,7 +171,18 @@ impl ModManager {
         mod_data.has_json = true;
 
         let binding = serde_json::Map::new();
-        let optionals = json["Optionals"].as_object().unwrap_or(&binding);
+        let root = json.as_object().unwrap_or(&binding);
+
+        // Case insensitive field lookup
+        let field = |name: &str| {
+            root.iter()
+                .find(|(k, _)| k.to_lowercase() == name)
+                .map(|(_, v)| v)
+        };
+
+        let optionals = field("optionals")
+            .and_then(Value::as_object)
+            .unwrap_or(&binding);
 
         let optional = |name: &str| {
             optionals
@@ -194,25 +205,25 @@ impl ModManager {
         let support_link = optional("support link").map(&with_scheme);
         let image_url = optional("custom image url").map(with_scheme);
 
-        let icon = json["Icon"]
-            .as_str()
+        let icon = field("icon")
+            .and_then(Value::as_str)
             .map(str::trim)
             .filter(|icon| !icon.is_empty())
             .map(ToString::to_string);
 
-        let display_name = json["Name"]
-            .as_str()
+        let display_name = field("name")
+            .and_then(Value::as_str)
             .unwrap_or(&mod_data.display_name)
             .to_string();
 
         Mod {
             display_name,
-            version: json["Version"]
-                .as_str()
+            version: field("version")
+                .and_then(Value::as_str)
                 .or(Some("1.0.0"))
                 .map(ToString::to_string),
-            author: json["Author"]
-                .as_str()
+            author: field("author")
+                .and_then(Value::as_str)
                 .or(Some("Unknown"))
                 .map(ToString::to_string),
             support_link,
@@ -234,10 +245,7 @@ impl ModManager {
             get_mods_path().ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
 
         if !mods_path.exists() {
-            info!(
-                "mods folder '{}' does not exist yet",
-                mods_path.display()
-            );
+            info!("mods folder '{}' does not exist yet", mods_path.display());
             return Ok(vec![]);
         }
 
@@ -287,9 +295,7 @@ impl ModManager {
                             let sub = match sub {
                                 Ok(sub) => sub,
                                 Err(e) => {
-                                    warn!(
-                                        "skipping unreadable entry in group '{group_name}': {e}"
-                                    );
+                                    warn!("skipping unreadable entry in group '{group_name}': {e}");
                                     continue;
                                 }
                             };
@@ -300,10 +306,7 @@ impl ModManager {
                             }
                         }
                     }
-                    Err(e) => warn!(
-                        "could not read group '{}': {e}",
-                        entry.path().display()
-                    ),
+                    Err(e) => warn!("could not read group '{}': {e}", entry.path().display()),
                 }
                 if !group.mods.is_empty() {
                     group.mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name));
@@ -325,10 +328,7 @@ impl ModManager {
         }
 
         let mod_count: usize = groups.iter().map(|g| g.mods.len()).sum();
-        info!(
-            "found {mod_count} mod(s) in {} group(s)",
-            groups.len()
-        );
+        info!("found {mod_count} mod(s) in {} group(s)", groups.len());
 
         Ok(groups)
     }
@@ -834,10 +834,7 @@ impl ModManagerHandler {
             Ok(()) => Ok(()),
             Err(e) => {
                 if let Err(cleanup) = std::fs::remove_dir_all(&staging) {
-                    warn!(
-                        "could not clean up '{}': {cleanup}",
-                        staging.display()
-                    );
+                    warn!("could not clean up '{}': {cleanup}", staging.display());
                 }
                 Err(e)
             }
@@ -1393,10 +1390,7 @@ impl ModManagerHandler {
 
                 let target = target_dir.join(&m.folder_name);
                 if target.exists() {
-                    warn!(
-                        "not moving '{}': target already exists",
-                        m.folder_name
-                    );
+                    warn!("not moving '{}': target already exists", m.folder_name);
                 } else if let Err(e) = std::fs::rename(&m.path, &target) {
                     warn!("could not move '{}': {e}", m.folder_name);
                     let ww2 = ww.clone();
@@ -1419,11 +1413,7 @@ impl ModManagerHandler {
                         state.selected.insert(target.to_string_lossy().into_owned());
                     }
                     drop(state);
-                    info!(
-                        "moved '{}' → '{}'",
-                        m.folder_name,
-                        target_dir.display()
-                    );
+                    info!("moved '{}' → '{}'", m.folder_name, target_dir.display());
                 }
             }
             Self::reload(&ww);
@@ -1457,10 +1447,7 @@ impl ModManagerHandler {
         }
 
         if let Err(e) = std::fs::remove_dir(group_path) {
-            error!(
-                "could not delete group '{}': {e}",
-                group_path.display()
-            );
+            error!("could not delete group '{}': {e}", group_path.display());
         } else {
             info!("deleted group '{}'", group_path.display());
         }
@@ -1831,10 +1818,7 @@ impl ModManagerHandler {
                 if new_path.exists() {
                     warn!("group '{name}' already exists, ignoring rename");
                 } else if let Err(e) = std::fs::rename(&old_path, &new_path) {
-                    error!(
-                        "could not rename group '{}': {e}",
-                        old_path.display()
-                    );
+                    error!("could not rename group '{}': {e}", old_path.display());
                 } else {
                     rekey_mod_config(&old_path.to_string_lossy(), &new_path.to_string_lossy());
                     let mut state = STATE.lock().unwrap();
@@ -2085,10 +2069,7 @@ impl ModManagerHandler {
             };
             let _ = std::fs::create_dir_all(&folder);
             if let Err(e) = open_folder(&folder) {
-                error!(
-                    "could not open mods folder '{}': {e}",
-                    folder.display()
-                );
+                error!("could not open mods folder '{}': {e}", folder.display());
             }
         });
 
