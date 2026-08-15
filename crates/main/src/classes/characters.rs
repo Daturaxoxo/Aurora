@@ -25,18 +25,14 @@ pub fn character_for(text: &str) -> Option<&'static str> {
         return None;
     }
 
-    if let Some(slug) = ALIASES
+    // Whichever name comes first in the text wins
+    ALIASES
         .iter()
-        .find(|(alias, _)| text.contains(alias))
-        .and_then(|(_, target)| known(target))
-    {
-        return Some(slug);
-    }
-
-    CHARACTER_ICONS
-        .iter()
-        .find(|(slug, _)| text.contains(slug))
-        .map(|(slug, _)| *slug)
+        .filter_map(|(alias, target)| Some((*alias, known(target)?)))
+        .chain(CHARACTER_ICONS.iter().map(|(slug, _)| (*slug, *slug)))
+        .filter_map(|(needle, slug)| Some((text.find(needle)?, needle.len(), slug)))
+        .min_by_key(|&(at, len, _)| (at, std::cmp::Reverse(len)))
+        .map(|(_, _, slug)| slug)
 }
 
 #[must_use]

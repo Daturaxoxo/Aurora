@@ -1593,7 +1593,22 @@ impl ModManagerHandler {
             } else {
                 name
             };
-            Self::update_row(&win, &id, |row| row.name = shown.into());
+
+            let icon = mod_icon(&m, shown);
+            Self::update_row(&win, &id, |row| {
+                row.name = shown.into();
+                row.icon = icon.clone();
+            });
+
+            let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+            let shown_name = |m: &Mod| -> String {
+                display_names
+                    .get(&mod_id(m))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&m.display_name)
+                    .to_string()
+            };
+            Self::refresh_filter_options(&win, &shown_name);
         });
 
         let ww = window.clone();
