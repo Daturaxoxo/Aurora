@@ -69,11 +69,6 @@ impl AuroraEngine {
                     .iter()
                     .map(|p| ("Injected plugin".to_string(), p.clone())),
             )
-            .chain(
-                super::everlight::find_logs(&self.win64)
-                    .into_iter()
-                    .map(|p| ("Everlight log".to_string(), p)),
-            )
             .collect();
         targets.sort_by(|a, b| a.1.cmp(&b.1));
         targets.dedup_by(|a, b| a.1 == b.1);
