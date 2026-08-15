@@ -19,7 +19,8 @@ const LAUNCHER_GRACE_SECS: u32 = 10;
 
 // TODO: Probably want to consider decreasing these at some point
 // Is it worth decreasing tho? -Datura
-const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(5);
+// No it's not, i had to increase it - wapr
+const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(7);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
 const LAUNCHER_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
 
