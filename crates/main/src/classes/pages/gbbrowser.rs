@@ -25,7 +25,8 @@ const DOWNLOAD_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_hours(1);
-
+const DOWNLOAD_ATTEMPTS: u32 = 4;
+const DOWNLOAD_RETRY_BACKOFF: Duration = Duration::from_secs(2);
 const INSTALL_RUNNING: u8 = 0;
 const INSTALL_CANCELLED: u8 = 1;
 const INSTALL_COMMITTED: u8 = 2;
@@ -68,7 +69,7 @@ static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
         .pool_idle_timeout(POOL_IDLE_TIMEOUT)
         .build()
         .unwrap_or_else(|e| {
-            error!("[GbBrowser] could not build the HTTP client, falling back to default: {e}");
+            error!("GameBanana Browser Backend: could not build the HTTP client, falling back to default: {e}");
             reqwest::Client::default()
         })
 });
@@ -183,7 +184,7 @@ impl GbBrowserHandler {
         w.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
         w.set_gb_characters(Self::character_model());
         Self::bind(window);
-        info!("[GbBrowser] setup() complete");
+        info!("GameBanana Browser Backend: setup() complete");
     }
 
     fn character_model() -> ModelRc<GbCharacter> {
@@ -191,7 +192,7 @@ impl GbBrowserHandler {
             .iter()
             .map(|(name, _)| {
                 let icon = characters::icon_for(name).unwrap_or_else(|| {
-                    warn!("[GbBrowser] no character icon matches '{name}'");
+                    warn!("GameBanana Browser Backend: no character icon matches '{name}'");
                     slint::Image::default()
                 });
                 GbCharacter {
@@ -313,7 +314,7 @@ impl GbBrowserHandler {
                 let thumb = tokio::task::spawn_blocking(move || decode_thumb(&bytes))
                     .await
                     .unwrap_or_else(|e| {
-                        warn!("[GbBrowser] thumbnail decode panicked: {e}");
+                        warn!("GameBanana Browser Backend: thumbnail decode panicked: {e}");
                         None
                     });
                 let ww2 = ww.clone();
@@ -336,11 +337,11 @@ impl GbBrowserHandler {
             let outcome = match fetch.await {
                 Ok(Ok(loaded)) => Some(loaded),
                 Ok(Err(e)) => {
-                    error!("[GbBrowser] could not load page {page}: {e}");
+                    error!("GameBanana Browser Backend: could not load page {page}: {e}");
                     None
                 }
                 Err(e) => {
-                    error!("[GbBrowser] loading page {page} panicked: {e}");
+                    error!("GameBanana Browser Backend: loading page {page} panicked: {e}");
                     None
                 }
             };
@@ -407,12 +408,12 @@ impl GbBrowserHandler {
                 Ok(resp) => match resp.bytes().await {
                     Ok(bytes) => decode_thumb(&bytes),
                     Err(e) => {
-                        warn!("[GbBrowser] could not read preview '{url}': {e}");
+                        warn!("GameBanana Browser Backend: could not read preview '{url}': {e}");
                         None
                     }
                 },
                 Err(e) => {
-                    warn!("[GbBrowser] could not fetch preview '{url}': {e}");
+                    warn!("GameBanana Browser Backend: could not fetch preview '{url}': {e}");
                     None
                 }
             };
@@ -456,7 +457,7 @@ impl GbBrowserHandler {
     async fn discard_partial(path: &std::path::Path) {
         if let Err(e) = tokio::fs::remove_file(path).await {
             warn!(
-                "[GbBrowser] could not remove partial download '{}': {e}",
+                "GameBanana Browser Backend: could not remove partial download '{}': {e}",
                 path.display()
             );
         }
@@ -488,79 +489,134 @@ impl GbBrowserHandler {
                     return Err(anyhow!("unsafe file name '{}'", file.name));
                 };
 
-                let mut resp = HTTP
-                    .get(&file.url)
-                    .timeout(DOWNLOAD_TOTAL_TIMEOUT)
-                    .send()
-                    .await?
-                    .error_for_status()?;
-                let total = resp.content_length().unwrap_or(file.size);
                 let dir = get_gamebanana_download_dir();
                 tokio::fs::create_dir_all(&dir).await?;
                 let path = dir.join(&safe_name);
-                let mut out = tokio::io::BufWriter::with_capacity(
-                    DOWNLOAD_BUFFER,
-                    tokio::fs::File::create(&path).await?,
-                );
 
                 let started = Instant::now();
                 let mut done: u64 = 0;
                 let mut last_percent: u64 = 0;
                 let mut hasher = md5::Context::new();
+                let mut total: u64 = file.size;
+                let mut attempt: u32 = 1;
 
-                let transfer: Result<bool> = async {
-                    loop {
-                        if INSTALL_STATE.load(Ordering::SeqCst) == INSTALL_CANCELLED {
-                            return Ok(true);
+                let cancelled = loop {
+                    let mut request = HTTP.get(&file.url).timeout(DOWNLOAD_TOTAL_TIMEOUT);
+                    if done > 0 {
+                        request =
+                            request.header(reqwest::header::RANGE, format!("bytes={done}-"));
+                    }
+
+                    let transfer: Result<bool> = async {
+                        let mut resp = request.send().await?.error_for_status()?;
+                        let resuming = done > 0
+                            && resp.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+                        if done > 0 && !resuming {
+                            warn!(
+                                "GameBanana Browser Backend: '{}' could not be resumed, starting over",
+                                file.name
+                            );
+                            done = 0;
+                            last_percent = 0;
+                            hasher = md5::Context::new();
                         }
-                        let chunk = tokio::select! {
-                            biased;
-                            () = INSTALL_CANCEL_SIGNAL.notified() => return Ok(true),
-                            chunk = tokio::time::timeout(DOWNLOAD_IDLE_TIMEOUT, resp.chunk()) => {
-                                chunk.map_err(|_| {
-                                    anyhow!(
-                                        "the download stalled for more than {}s",
-                                        DOWNLOAD_IDLE_TIMEOUT.as_secs()
-                                    )
-                                })??
+
+                        total = resp.content_length().map_or(file.size, |len| {
+                            if resuming {
+                                done + len
+                            } else {
+                                len
+                            }
+                        });
+
+                        let mut out = tokio::io::BufWriter::with_capacity(
+                            DOWNLOAD_BUFFER,
+                            tokio::fs::OpenOptions::new()
+                                .create(true)
+                                .write(true)
+                                .append(resuming)
+                                .truncate(!resuming)
+                                .open(&path)
+                                .await?,
+                        );
+
+                        let stopped = loop {
+                            if INSTALL_STATE.load(Ordering::SeqCst) == INSTALL_CANCELLED {
+                                break true;
+                            }
+                            let chunk = tokio::select! {
+                                biased;
+                                () = INSTALL_CANCEL_SIGNAL.notified() => break true,
+                                chunk = tokio::time::timeout(DOWNLOAD_IDLE_TIMEOUT, resp.chunk()) => {
+                                    chunk.map_err(|_| {
+                                        anyhow!(
+                                            "the download stalled for more than {}s",
+                                            DOWNLOAD_IDLE_TIMEOUT.as_secs()
+                                        )
+                                    })??
+                                }
+                            };
+                            let Some(chunk) = chunk else { break false };
+                            hasher.consume(&chunk);
+                            out.write_all(&chunk).await?;
+                            done += chunk.len() as u64;
+                            if let Some(percent) = (done * 100).checked_div(total) {
+                                if percent > last_percent {
+                                    last_percent = percent;
+                                    #[allow(
+                                        clippy::cast_precision_loss,
+                                        clippy::cast_possible_truncation
+                                    )]
+                                    let frac = (done as f64 / total as f64).min(1.0) as f32;
+                                    Self::set_progress(
+                                        &ww,
+                                        frac,
+                                        format!("Downloading {}...", file.name),
+                                    );
+                                }
                             }
                         };
-                        let Some(chunk) = chunk else { break };
-                        hasher.consume(&chunk);
-                        out.write_all(&chunk).await?;
-                        done += chunk.len() as u64;
-                        if let Some(percent) = (done * 100).checked_div(total) {
-                            if percent > last_percent {
-                                last_percent = percent;
-                                #[allow(
-                                    clippy::cast_precision_loss,
-                                    clippy::cast_possible_truncation
-                                )]
-                                let frac = (done as f64 / total as f64).min(1.0) as f32;
-                                Self::set_progress(
-                                    &ww,
-                                    frac,
-                                    format!("Downloading {}...", file.name),
-                                );
+                        out.flush().await?;
+                        Ok(stopped)
+                    }
+                    .await;
+
+                    match transfer {
+                        Ok(stopped) => break stopped,
+                        Err(e) => {
+                            let cancelled =
+                                INSTALL_STATE.load(Ordering::SeqCst) == INSTALL_CANCELLED;
+                            if cancelled || attempt >= DOWNLOAD_ATTEMPTS {
+                                Self::discard_partial(&path).await;
+                                return if cancelled {
+                                    Ok(None)
+                                } else {
+                                    Err(e.context(format!(
+                                        "'{}' failed after {DOWNLOAD_ATTEMPTS} attempts",
+                                        file.name
+                                    )))
+                                };
                             }
+
+                            warn!(
+                                "GameBanana Browser Backend: '{}' interrupted at {}, retrying ({attempt}/{DOWNLOAD_ATTEMPTS}): {e:#}",
+                                file.name,
+                                format_bytes(done)
+                            );
+                            Self::set_progress(
+                                &ww,
+                                0.0,
+                                format!("Reconnecting to resume {}...", file.name),
+                            );
+                            tokio::time::sleep(DOWNLOAD_RETRY_BACKOFF * attempt).await;
+                            attempt += 1;
                         }
                     }
-                    out.flush().await?;
-                    Ok(false)
-                }
-                .await;
+                };
 
-                drop(out);
-                match transfer {
-                    Ok(true) => {
-                        Self::discard_partial(&path).await;
-                        return Ok(None);
-                    }
-                    Err(e) => {
-                        Self::discard_partial(&path).await;
-                        return Err(e);
-                    }
-                    Ok(false) => {}
+                if cancelled {
+                    Self::discard_partial(&path).await;
+                    return Ok(None);
                 }
 
                 let digest = hasher.finalize();
@@ -586,7 +642,7 @@ impl GbBrowserHandler {
                     0
                 };
                 info!(
-                    "[GbBrowser] fetched '{}' ({}) in {secs:.1}s - {}/s",
+                    "GameBanana Browser Backend: fetched '{}' ({}) in {secs:.1}s - {}/s",
                     file.name,
                     format_bytes(done),
                     format_bytes(rate)
@@ -607,11 +663,11 @@ impl GbBrowserHandler {
                         )
                         .is_err()
                     {
-                        info!("[GbBrowser] download of '{}' cancelled", file.name);
+                        info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
                         Self::discard_partial(&path).await;
                         return;
                     }
-                    info!("[GbBrowser] downloaded '{}'", path.display());
+                    info!("GameBanana Browser Backend: downloaded '{}'", path.display());
                     let ww2 = ww.clone();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww2.upgrade() {
@@ -629,10 +685,10 @@ impl GbBrowserHandler {
                 }
                 Ok(None) => {
                     // The cancel callback already hid the overlay and toasted
-                    info!("[GbBrowser] download of '{}' cancelled", file.name);
+                    info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
                 }
                 Err(e) => {
-                    error!("[GbBrowser] could not download '{}': {e}", file.name);
+                    error!("GameBanana Browser Backend: could not download '{}': {e}", file.name);
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww.upgrade() {
                             w.set_progress_overlay_active(false);
@@ -684,7 +740,7 @@ impl GbBrowserHandler {
                 .ok()
                 .and_then(|i| CHARACTERS.get(i))
                 .map_or(Mode::Feed, |(name, id)| {
-                    trace!("[GbBrowser] filtering by character '{name}'");
+                    trace!("GameBanana Browser Backend: filtering by character '{name}'");
                     Mode::Category(*id)
                 });
             if let Some(win) = ww.upgrade() {
@@ -712,7 +768,7 @@ impl GbBrowserHandler {
                 let mut failure = match API.clear_cache().await {
                     Ok(()) => None,
                     Err(e) => {
-                        error!("[GbBrowser] could not clear the page cache: {e}");
+                        error!("GameBanana Browser Backend: could not clear the page cache: {e}");
                         Some(e.to_string())
                     }
                 };
@@ -724,7 +780,7 @@ impl GbBrowserHandler {
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                     Err(e) => {
                         error!(
-                            "[GbBrowser] could not clear the downloads in '{}': {e}",
+                            "GameBanana Browser Backend: could not clear the downloads in '{}': {e}",
                             dir.display()
                         );
                         failure.get_or_insert_with(|| e.to_string());
@@ -736,7 +792,7 @@ impl GbBrowserHandler {
                     if let Some(e) = failure {
                         show_toast(&win, "error", format!("Could not clear cache - {e}"));
                     } else {
-                        info!("[GbBrowser] cache cleared");
+                        info!("GameBanana Browser Backend: cache cleared");
                         show_toast(&win, "success", "Cache cleared".into());
                     }
                     // Refetch the active feed, search or category from the API
@@ -765,13 +821,13 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
                     let Some(files) = files else {
-                        error!("[GbBrowser] could not fetch the files of mod {mod_id}");
+                        error!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
                         show_toast(&win, "error", "Could not fetch this mod's files".into());
                         return;
                     };
                     match files.len() {
                         0 => {
-                            warn!("[GbBrowser] mod {mod_id} has no downloadable files");
+                            warn!("GameBanana Browser Backend: mod {mod_id} has no downloadable files");
                             show_toast(&win, "error", "This mod has no files to download".into());
                         }
                         1 => Self::download_and_install(&ww2, files[0].clone()),
@@ -907,7 +963,7 @@ impl GbBrowserHandler {
                 .map(|(m, _)| m.mod_url.clone());
             let Some(url) = url else { return };
             if let Err(e) = open::that(&url) {
-                error!("[GbBrowser] could not open '{url}': {e}");
+                error!("GameBanana Browser Backend: could not open '{url}': {e}");
             }
         });
     }
