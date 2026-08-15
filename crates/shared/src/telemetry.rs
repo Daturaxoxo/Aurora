@@ -344,6 +344,7 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                     "timestamp": event.timestamp,
                     "os_main": os_main,
                     "os_version": os_version,
+                    "region": crate::api::ccu::region(),
                 });
 
                 match client.post(TELEMETRY_ENDPOINT).json(&payload).send() {

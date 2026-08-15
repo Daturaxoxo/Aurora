@@ -131,9 +131,9 @@ impl ModManager {
             .into_owned();
 
         let files = read_dir_recursive(folder);
-        let is_enabled = files
+        let is_enabled = !files
             .iter()
-            .any(|p| is_pak_file(&p.file_name().to_string_lossy()));
+            .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
 
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
@@ -382,7 +382,7 @@ impl ModManager {
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: no .pak files found for {}",
+                    "Cannot toggle mod: {} has no .pak file to disable",
                     mod_.folder_name
                 ));
             }
@@ -408,7 +408,7 @@ impl ModManager {
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: no disabled mod files found for {}",
+                    "Cannot toggle mod: {} contains no disabled mod files",
                     mod_.folder_name
                 ));
             }

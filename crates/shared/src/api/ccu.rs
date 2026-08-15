@@ -59,7 +59,7 @@ const fn region_name(version: Version) -> &'static str {
     }
 }
 
-fn region() -> &'static str {
+pub fn region() -> &'static str {
     if let Some(cached) = REGION.get() {
         return cached;
     }
