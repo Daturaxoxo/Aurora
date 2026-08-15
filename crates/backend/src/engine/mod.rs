@@ -1,6 +1,7 @@
 mod everlight;
 mod files;
 mod inject;
+mod locks;
 mod lua;
 mod monitor;
 pub mod process;

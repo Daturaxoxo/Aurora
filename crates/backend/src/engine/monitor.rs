@@ -55,9 +55,16 @@ impl AuroraEngine {
         exit_result?;
 
         info!("NTE was closed, initializing clean-up process...");
-        self.sanitize(true)?;
+        self.cleanup()
+    }
 
-        self.ensure_processes_gone(POST_EXIT_KILL_GRACE)
+    /// Waits for NTE to be gone, then removes the files it was using.
+    pub(super) fn cleanup(&self) -> Result<()> {
+        if let Err(e) = self.ensure_processes_gone(POST_EXIT_KILL_GRACE) {
+            warn!("Could not confirm every NTE process exited: {e}");
+        }
+
+        self.sanitize(false)
     }
 
     fn wait_for_launcher(&self, grace_secs: u32) -> Result<bool> {
@@ -95,7 +102,7 @@ impl AuroraEngine {
 
             if Instant::now() >= deadline {
                 warn!("NTE never started within {LAUNCHER_WAIT_TIMEOUT:?}. Aborting monitor.");
-                self.sanitize(true)?;
+                self.cleanup()?;
                 return Ok(false);
             }
 
@@ -123,7 +130,7 @@ impl AuroraEngine {
                 warn!(
                     "NTE Launcher failed to resolve within {grace_secs}s of continuous absence. Aborting monitor."
                 );
-                self.sanitize(true)?;
+                self.cleanup()?;
                 return Ok(false);
             }
         }
@@ -152,7 +159,7 @@ impl AuroraEngine {
 
         while Instant::now() < deadline {
             snapshot.rerefresh();
-            if !snapshot.any_matching(NTE_PROCESSES) {
+            if !snapshot.any_matching(NTE_PROCESSES) && !snapshot.any_in_dir(&self.win64) {
                 return Ok(());
             }
             thread::sleep(THREAD_SLEEP_DURATION);

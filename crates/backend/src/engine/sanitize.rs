@@ -135,6 +135,10 @@ impl AuroraEngine {
                             "Failed to remove {} after 5 attempts, giving up: {e}",
                             path.display()
                         );
+                        let holders = super::locks::holders(path);
+                        if !holders.is_empty() {
+                            error!("{} is held by: {}", path.display(), holders.join(", "));
+                        }
                         return Err(anyhow!("{label} ({}): {e}", path.display()));
                     }
                 }

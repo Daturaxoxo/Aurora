@@ -138,6 +138,7 @@ impl AuroraEngine {
             launcher_process: self.gpaths.launcher_process,
             game_process: self.gpaths.game_process,
             helper_processes: self.gpaths.helper_processes.clone(),
+            win64: self.win64.clone(),
             loader_dlls,
         });
     }

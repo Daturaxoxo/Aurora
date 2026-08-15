@@ -23,7 +23,7 @@ impl AuroraEngine {
         let files = self.managed_files();
         Self::check_required(&files)?;
 
-        self.sanitize(true)?;
+        self.cleanup()?;
 
         Self::copy_non_addon_files(&files)?;
         self.copy_pak_addons(&files)?;

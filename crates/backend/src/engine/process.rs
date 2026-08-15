@@ -1,13 +1,23 @@
+use std::collections::HashSet;
 use std::fs::OpenOptions;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
+use super::locks;
 use super::AuroraEngine;
+
+/// How long to wait for a process to actually disappear after asking it to die.
+const KILL_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
+const KILL_CONFIRM_POLL: Duration = Duration::from_millis(100);
+
+const PROBE_ATTEMPTS: u32 = 5;
+const PROBE_INTERVAL: Duration = Duration::from_millis(300);
 
 fn basename(arg: &str) -> &str {
     arg.rsplit(['/', '\\']).next().unwrap_or(arg)
@@ -45,6 +55,37 @@ fn process_gone(pid: Pid) -> bool {
     system.process(pid).is_none()
 }
 
+/// Waits for `pid` to leave the process table, up to `KILL_CONFIRM_TIMEOUT`.
+fn wait_for_exit(pid: Pid) -> bool {
+    let deadline = Instant::now() + KILL_CONFIRM_TIMEOUT;
+
+    loop {
+        if process_gone(pid) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(KILL_CONFIRM_POLL);
+    }
+}
+
+/// True when `path` sits inside `dir`. Compared case-insensitively on Windows,
+/// where the same directory reaches us in whatever casing the caller stored.
+fn path_under(path: &Path, dir: &Path) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let path = path.to_string_lossy().to_lowercase().replace('/', "\\");
+        let dir = dir.to_string_lossy().to_lowercase().replace('/', "\\");
+        path.starts_with(&format!("{}\\", dir.trim_end_matches('\\')))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.starts_with(dir)
+    }
+}
+
 pub(super) struct ProcessSnapshot(System);
 
 impl ProcessSnapshot {
@@ -80,6 +121,22 @@ impl ProcessSnapshot {
     pub fn any_matching(&self, targets: &[&str]) -> bool {
         targets.iter().any(|t| !self.matching(t).is_empty())
     }
+
+    /// Every process running out of `dir`, ourselves excluded.
+    pub fn in_dir<'a>(&'a self, dir: &Path) -> Vec<(&'a Pid, &'a Process)> {
+        let own_pid = std::process::id();
+        self.0
+            .processes()
+            .iter()
+            .filter(|(pid, p)| {
+                pid.as_u32() != own_pid && p.exe().is_some_and(|exe| path_under(exe, dir))
+            })
+            .collect()
+    }
+
+    pub fn any_in_dir(&self, dir: &Path) -> bool {
+        !self.in_dir(dir).is_empty()
+    }
 }
 
 pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
@@ -90,8 +147,11 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
     trace!("Killing process {exe} (pid {pid})");
 
     if process.kill() {
-        info!("Process {exe} killed");
-        return true;
+        if wait_for_exit(pid) {
+            info!("Process {exe} killed");
+            return true;
+        }
+        warn!("{exe} (pid {pid}) did not exit within {KILL_CONFIRM_TIMEOUT:?}, escalating");
     }
 
     if process_gone(pid) {
@@ -108,8 +168,14 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
             .output()
         {
             Ok(output) if output.status.success() => {
-                info!("{exe} killed via taskkill");
-                return true;
+                if wait_for_exit(pid) {
+                    info!("{exe} killed via taskkill");
+                    return true;
+                }
+                error!(
+                    "{exe} (pid {pid}) survived taskkill for {KILL_CONFIRM_TIMEOUT:?}. \
+                     Ensure Aurora Engine is running as Administrator."
+                );
             }
             Ok(output) => {
                 if process_gone(pid) {
@@ -147,6 +213,7 @@ pub struct KillSnapshot {
     pub launcher_process: &'static str,
     pub game_process: &'static str,
     pub helper_processes: Vec<&'static str>,
+    pub win64: PathBuf,
     pub loader_dlls: Vec<(String, PathBuf)>,
 }
 
@@ -179,17 +246,34 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     trace!("Processes to kill: {}", names.join(", "));
 
     let mut kill_failures: Vec<String> = Vec::new();
+    let mut killed: HashSet<Pid> = HashSet::new();
+
+    let mut kill = |pid: &Pid, process: &Process| {
+        if !killed.insert(*pid) {
+            return;
+        }
+        if !kill_process(*pid, process) {
+            let exe = process
+                .exe()
+                .map(|e| e.display().to_string())
+                .unwrap_or_default();
+            kill_failures.push(exe);
+        }
+    };
 
     for name in names {
         for (pid, process) in snapshot_data.matching(name) {
-            if !kill_process(*pid, process) {
-                let exe = process
-                    .exe()
-                    .map(|e| e.display().to_string())
-                    .unwrap_or_default();
-                kill_failures.push(exe);
-            }
+            kill(pid, process);
         }
+    }
+
+    // Anything else living in Win64 has the loader DLL mapped too
+    for (pid, process) in snapshot_data.in_dir(&snapshot.win64) {
+        trace!(
+            "Killing {} (runs from Win64)",
+            process.name().to_string_lossy()
+        );
+        kill(pid, process);
     }
 
     if !kill_failures.is_empty() {
@@ -201,47 +285,80 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
         ));
     }
 
-    let mut locked_files: Vec<String> = Vec::new();
-
     for (label, destination) in &snapshot.loader_dlls {
         if !destination.exists() {
             continue;
         }
         trace!("Checking {}", destination.display());
-
-        let mut still_locked = false;
-        for attempt in 0..5 {
-            match OpenOptions::new().write(true).open(destination) {
-                Ok(_) => {
-                    trace!("{label} is not locked");
-                    still_locked = false;
-                    break;
-                }
-                Err(e) => {
-                    trace!("{label} is locked: {e}");
-                    still_locked = true;
-                    if attempt < 4 {
-                        warn!("{label} is still locked, Aurora Engine is waiting...");
-                        std::thread::sleep(Duration::from_millis(300));
-                    }
-                }
-            }
-        }
-        if still_locked {
-            error!("{label} is still locked after 5 attempts");
-            locked_files.push(label.clone());
-        }
-    }
-
-    if !locked_files.is_empty() {
-        return Err(anyhow!(
-            "{} file(s) are still locked: {}.",
-            locked_files.len(),
-            locked_files.join(", ")
-        ));
+        probe_lock(label, destination);
     }
 
     Ok(())
+}
+
+fn probe_lock(label: &str, path: &Path) {
+    let mut readonly_cleared = false;
+    let mut attempt = 0;
+
+    loop {
+        let Err(err) = OpenOptions::new().write(true).open(path) else {
+            trace!("{label} is not locked");
+            return;
+        };
+
+        match err.kind() {
+            ErrorKind::NotFound => {
+                trace!("{label} is already gone");
+                return;
+            }
+            ErrorKind::PermissionDenied if !readonly_cleared && clear_readonly(path) => {
+                readonly_cleared = true;
+                trace!("{label} was read-only, cleared the attribute and retrying");
+                continue;
+            }
+            _ => {}
+        }
+
+        attempt += 1;
+        if attempt >= PROBE_ATTEMPTS {
+            report_stuck(label, path, &err);
+            return;
+        }
+
+        trace!("{label} is not writable yet ({err}), retrying");
+        std::thread::sleep(PROBE_INTERVAL);
+    }
+}
+
+fn report_stuck(label: &str, path: &Path, err: &std::io::Error) {
+    let holders = locks::holders(path);
+
+    if holders.is_empty() {
+        warn!(
+            "{label} is not writable after {PROBE_ATTEMPTS} attempts ({err}). \
+             Clean-up will still try to remove it."
+        );
+    } else {
+        warn!(
+            "{label} is held by {} ({err}). Clean-up will still try to remove it.",
+            holders.join(", ")
+        );
+    }
+}
+
+fn clear_readonly(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+
+    let mut perms = metadata.permissions();
+    if !perms.readonly() {
+        return false;
+    }
+
+    #[allow(clippy::permissions_set_readonly_false)]
+    perms.set_readonly(false);
+    std::fs::set_permissions(path, perms).is_ok()
 }
 
 impl AuroraEngine {
