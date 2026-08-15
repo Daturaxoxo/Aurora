@@ -4,8 +4,10 @@ use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
 use shared::classes::gamebanana::api::GameBananaApi;
+use shared::classes::info::addons;
+use shared::classes::info::version::{detect_version, Version};
 use shared::utils::get_cache_dir;
-use shared::{config, utils};
+use shared::{config, pathfind, utils};
 
 use anyhow::{Context, Result};
 use log::*;
@@ -18,8 +20,6 @@ use std::sync::Mutex;
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 
-const UNAVAILABLE_ADDONS: [&str; 0] = [];
-
 const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
     ("No 3D Driving Waypoint", "drv_lin"),
     ("Hide UID", "uid_rem"),
@@ -28,6 +28,13 @@ const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
     ("Cooldown Timers", "col_tim"),
     ("Collectible Highlighter", "collectibles"),
 ];
+
+fn config_key(name: &str) -> Option<&'static str> {
+    ADDON_CONFIG_KEYS
+        .iter()
+        .find(|(addon_name, _)| *addon_name == name)
+        .map(|(_, config_key)| *config_key)
+}
 
 #[derive(Debug, Clone, Default)]
 struct AddonData {
@@ -75,6 +82,7 @@ impl AddonsHandler {
         let ww = window.clone();
         std::thread::spawn(move || {
             let addons = Self::scan();
+            let version = Self::detected_version();
 
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(w) = ww.upgrade() else {
@@ -82,8 +90,10 @@ impl AddonsHandler {
                     return;
                 };
 
-                let slint_items: Vec<AddonItem> =
-                    addons.iter().map(Self::to_slint_item_no_image).collect();
+                let slint_items: Vec<AddonItem> = addons
+                    .iter()
+                    .map(|addon| Self::to_slint_item(addon, version))
+                    .collect();
 
                 w.set_addons(Rc::new(VecModel::from(slint_items)).into());
                 Self::fetch_images_async(&ww, addons);
@@ -852,7 +862,20 @@ impl AddonsHandler {
         }
     }
 
-    fn to_slint_item_no_image(addon: &Addon) -> AddonItem {
+    fn detected_version() -> Version {
+        let version = pathfind::get_game_directory()
+            .ok()
+            .and_then(|path| detect_version(&path).ok())
+            .unwrap_or_default();
+
+        debug!("Resolved addon against game region: {version}");
+        version
+    }
+
+    fn to_slint_item(addon: &Addon, version: Version) -> AddonItem {
+        let unavailable = config_key(&addon.name)
+            .is_some_and(|config_key| addons::is_unavailable(config_key, version));
+
         AddonItem {
             name: addon.name.clone().into(),
             author: addon.author.clone().into(),
@@ -864,7 +887,7 @@ impl AddonsHandler {
             enabled: addon.enabled,
             update_available: addon.update_available,
             installing: false,
-            unavailable: UNAVAILABLE_ADDONS.contains(&addon.name.as_str()),
+            unavailable,
         }
     }
 }

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use log::*;
-use shared::classes::info::Target;
+use shared::classes::info::{addons, Target};
 use shared::config::{get, key};
 
 use crate::classes::addons::pak::PakAddon;
@@ -25,7 +25,6 @@ pub struct ManagedFile {
     pub required: bool,
     pub enabled: bool,
     pub group: FileGroup,
-    /// Set only for `FileGroup::PakAddon` entries.
     pub addon: Option<String>,
 }
 
@@ -76,7 +75,8 @@ impl AuroraEngine {
     }
 
     fn signature_bypass_files(&self) -> Vec<ManagedFile> {
-        let crr = get(key::CENSORSHIP_REMOVE).as_bool().unwrap_or(false);
+        let crr = get(key::CENSORSHIP_REMOVE).as_bool().unwrap_or(false)
+            && !self.addon_unavailable(key::CENSORSHIP_REMOVE);
 
         self.targets
             .iter()
@@ -103,6 +103,17 @@ impl AuroraEngine {
             .collect()
     }
 
+    fn addon_unavailable(&self, config_key: &str) -> bool {
+        let unavailable = addons::is_unavailable(config_key, self.version);
+        if unavailable {
+            info!(
+                "Addon '{config_key}' is unavailable on {}, skipping",
+                self.version
+            );
+        }
+        unavailable
+    }
+
     fn pak_addon_files(&self) -> Vec<ManagedFile> {
         PakAddon::get_pak_addons()
             .into_iter()
@@ -115,7 +126,7 @@ impl AuroraEngine {
                         addon.config_key, addon.base_name
                     );
                     false
-                });
+                }) && !self.addon_unavailable(&addon.config_key);
 
                 addon
                     .resolve(&self.pak_dir)
@@ -135,9 +146,6 @@ impl AuroraEngine {
     }
 }
 
-/// Groups `PakAddon` entries by which addon they belong to, so a whole
-/// addon's files are checked and copied at once: if any one file is
-/// missing, none of that addon's files are copied.
 pub(super) fn group_by_addon(files: &[ManagedFile]) -> BTreeMap<&str, Vec<&ManagedFile>> {
     let mut groups: BTreeMap<&str, Vec<&ManagedFile>> = BTreeMap::new();
     for f in files.iter().filter(|f| f.group == FileGroup::PakAddon) {
