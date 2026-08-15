@@ -16,12 +16,14 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 // prefixes & shit, done so we have an easy job later on when adding new game support (even tho we will probably have to change these to arrays later on...) -datura
 const GROUP_PREFIX: &str = "AU GRP - ";
 const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
 const TOGGLE_EXTENSION: &str = "pak";
+
+static TOGGLE_LOCK: Mutex<()> = Mutex::new(());
 const DISABLED_SUFFIX: &str = ".disabled";
 const STAGING_PREFIX: &str = ".aurora-installing-";
 const ALREADY_INSTALLED: &str = "a mod with this name already exists";
@@ -357,6 +359,8 @@ impl ModManager {
     }
 
     pub fn toggle_mod(mod_: &Mod) -> Result<()> {
+        let _guard = TOGGLE_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+
         let folder = mod_.path.clone();
         if !folder.exists() {
             return Err(anyhow!(
@@ -365,8 +369,12 @@ impl ModManager {
             ));
         }
         let files = read_dir_recursive(&folder);
+        let disabled: Vec<_> = files
+            .iter()
+            .filter(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()))
+            .collect();
 
-        if mod_.is_enabled {
+        if disabled.is_empty() {
             let targets = files
                 .iter()
                 .filter(|p| is_pak_file(&p.file_name().to_string_lossy()))
@@ -394,9 +402,8 @@ impl ModManager {
                 mod_.folder_name
             );
         } else {
-            let targets = files
+            let targets = disabled
                 .iter()
-                .filter(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()))
                 .map(|pak| {
                     let old = pak.path();
                     let name = pak.file_name().to_string_lossy().into_owned();
@@ -405,13 +412,6 @@ impl ModManager {
                     (old, new)
                 })
                 .collect::<Vec<_>>();
-
-            if targets.is_empty() {
-                return Err(anyhow!(
-                    "Cannot toggle mod: {} contains no disabled mod files",
-                    mod_.folder_name
-                ));
-            }
 
             Self::rename_all(&targets)?;
             trace!(
