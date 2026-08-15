@@ -13,6 +13,7 @@ export struct AddonItem {
     enabled: bool,
     update_available: bool,
     installing: bool,
+    unavailable: bool,
 }
 
 component AddonCard inherits Rectangle {
@@ -33,26 +34,31 @@ component AddonCard inherits Rectangle {
     property <bool> busy: root.item.installing && (!root.item.installed || root.item.update_available);
 
     property <brush> action-color:
+        root.item.unavailable ? #6b6b6b :
         root.busy ? #6b6b6b :
         root.item.update_available ? #E8A020 :
         !root.item.installed ? #E8A020 :
         root.item.enabled ? #ee4937 :
         #36e780;
 
+
     property <string> action-label:
+        root.item.unavailable ? Tr.values[TrKey.addons-action-unavailable] : // TEMP:
         root.busy ? Tr.values[TrKey.addons-action-installing] :
         root.item.update_available ? Tr.values[TrKey.addons-action-update] :
         !root.item.installed ? Tr.values[TrKey.addons-action-install] :
         root.item.enabled ? Tr.values[TrKey.addons-action-disable] :
         Tr.values[TrKey.addons-action-enable];
 
-    property <bool> show-delete: root.item.installed && !root.busy;
+    property <bool> show-delete: root.item.installed && !root.item.unavailable && !root.busy;
 
     // Addons that ship a direct download have no GameBanana page to open
     property <bool> show-link: root.item.link != "";
 
     property <length> trailing-width:
-        (root.show-delete ? 53px : 0px) + (root.show-link ? 53px : 0px);
+        root.item.unavailable ? 0px
+            : (root.show-delete ? 53px : 0px)
+            + (root.show-link ? 53px : 0px);
 
     Rectangle {
         x: 0;
@@ -162,7 +168,7 @@ component AddonCard inherits Rectangle {
             animate background { duration: 120ms; }
 
             action-ta := TouchArea {
-                enabled: !root.item.installing;
+                enabled: !root.item.installing && !root.item.unavailable;
                 clicked => { root.action(root.index); }
             }
 
@@ -170,7 +176,7 @@ component AddonCard inherits Rectangle {
                 alignment: center;
                 spacing: 8px;
 
-                if !root.item.installed && !root.busy: Image {
+                if !root.item.installed && !root.busy && !root.item.unavailable: Image {
                     source: @image-url("../../../../production/icons/download.png");
                     width: 16px;
                     height: 16px;
@@ -193,7 +199,7 @@ component AddonCard inherits Rectangle {
         }
 
         // Divider
-        if root.trailing-width > 0px: Rectangle {
+        if !root.item.unavailable: Rectangle {
             x: parent.width - root.trailing-width;
             y: 0;
             width: 1px;
@@ -236,7 +242,7 @@ component AddonCard inherits Rectangle {
             background: #00000033;
         }
 
-        if root.show-link: gb-btn := Rectangle {
+        if root.show-link && !root.item.unavailable: gb-btn := Rectangle {
             x: parent.width - 52px;
             y: 0;
             width: 52px;

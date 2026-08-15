@@ -3551,5 +3551,22 @@
         "ko": "Aurora를 사용할 때 적용되는 약관입니다.",
         "pt": "Os termos aplicáveis quando utiliza o Aurora.",
         "pt-BR": "Os termos que se aplicam quando você usa o Aurora."
+    },
+    {
+        "key": "addons.action.unavailable",
+        "en": "UNAVAILABLE",
+        "tr": "KULLANILAMAZ",
+        "zh": "不可用",
+        "es": "NO DISPONIBLE",
+        "de": "NICHT VERFÜGBAR",
+        "nl": "NIET BESCHIKBAAR",
+        "fr": "INDISPONIBLE",
+        "it": "NON DISPONIBILE",
+        "ru": "НЕДОСТУПНО",
+        "vi": "KHÔNG KHẢ DỤNG",
+        "jp": "利用不可",
+        "ko": "사용 불가",
+        "pt": "INDISPONÍVEL",
+        "pt-BR": "INDISPONÍVEL"
     }
 ]

@@ -18,6 +18,8 @@ use std::sync::Mutex;
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 
+const UNAVAILABLE_ADDONS: [&str; 0] = [];
+
 const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
     ("No 3D Driving Waypoint", "drv_lin"),
     ("Hide UID", "uid_rem"),
@@ -862,6 +864,7 @@ impl AddonsHandler {
             enabled: addon.enabled,
             update_available: addon.update_available,
             installing: false,
+            unavailable: UNAVAILABLE_ADDONS.contains(&addon.name.as_str()),
         }
     }
 }
