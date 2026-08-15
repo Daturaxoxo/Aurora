@@ -1,7 +1,7 @@
 use super::cache::CacheManager;
 use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
 use crate::utils::{error_chain, get_local_version};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::{stream, StreamExt};
 use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
@@ -12,13 +12,21 @@ use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
 const NTE_GAME_ID: u32 = 23012;
-const FETCH_CONCURRENCY: usize = 15;
-
+const FETCH_CONCURRENCY: usize = 6;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
+const POOL_MAX_IDLE_PER_HOST: usize = 8;
+const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 const MAX_ATTEMPTS: u32 = 3;
-const RETRY_BACKOFF: Duration = Duration::from_millis(400);
+const RETRY_BACKOFF: Duration = Duration::from_millis(500);
+const MAX_RETRY_AFTER: Duration = Duration::from_secs(10);
+
+enum Attempt {
+    Done(Vec<u8>),
+    Retry(anyhow::Error, Option<Duration>),
+    Fatal(anyhow::Error),
+}
 
 pub struct GameBananaApi {
     client: Client,
@@ -38,6 +46,8 @@ impl GameBananaApi {
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(REQUEST_TIMEOUT)
             .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+            .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
+            .tcp_keepalive(TCP_KEEPALIVE)
             .build()
             .unwrap_or_else(|e| {
                 error!("Failed to build GameBanana client, falling back to default: {e}");
@@ -54,51 +64,132 @@ impl GameBananaApi {
         self.cache.clear().await
     }
 
-    /// Whether the request never reached `GameBanana`, so sending it again is safe.
     fn is_transient(error: &reqwest::Error) -> bool {
         error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
     }
 
-    async fn send_retrying(request: RequestBuilder, what: &str) -> Result<Response> {
-        let mut attempt = 1;
+    fn retry_after(resp: &Response) -> Option<Duration> {
+        let seconds: u64 = resp
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)?
+            .to_str()
+            .ok()?
+            .trim()
+            .parse()
+            .ok()?;
+
+        Some(Duration::from_secs(seconds).min(MAX_RETRY_AFTER))
+    }
+
+    fn backoff(attempt: u32, suggested: Option<Duration>) -> Duration {
+        if let Some(after) = suggested {
+            return after;
+        }
+
+        let base = RETRY_BACKOFF.saturating_mul(1 << (attempt - 1).min(4));
+        let spread = u64::try_from(base.as_millis()).unwrap_or(u64::MAX) / 2;
+
+        base + Duration::from_millis(Self::jitter(spread))
+    }
+
+    fn jitter(max_ms: u64) -> u64 {
+        use std::collections::hash_map::RandomState;
+        use std::hash::{BuildHasher, Hasher};
+
+        if max_ms == 0 {
+            return 0;
+        }
+        let mut hasher = RandomState::new().build_hasher();
+        hasher.write_u64(max_ms);
+        hasher.finish() % max_ms
+    }
+
+    async fn run_once(request: RequestBuilder, what: &str) -> Attempt {
+        let resp = match request.send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let msg = format!("could not reach {what}: {}", error_chain(&e));
+                return if Self::is_transient(&e) {
+                    Attempt::Retry(anyhow!(msg), None)
+                } else {
+                    Attempt::Fatal(anyhow!(msg))
+                };
+            }
+        };
+
+        let status = resp.status();
+
+        if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            let after = Self::retry_after(&resp);
+            return Attempt::Retry(anyhow!("{what} returned HTTP {status}"), after);
+        }
+
+        if !status.is_success() {
+            return Attempt::Fatal(anyhow!("{what} returned HTTP {status}"));
+        }
+
+        match resp.bytes().await {
+            Err(e) => Attempt::Retry(
+                anyhow!("could not read {what}: {}", error_chain(&e)),
+                None,
+            ),
+            Ok(bytes) if bytes.is_empty() => {
+                Attempt::Retry(anyhow!("{what} returned an empty body"), None)
+            }
+            Ok(bytes) => Attempt::Done(bytes.to_vec()),
+        }
+    }
+
+    async fn fetch_bytes(request: RequestBuilder, what: &str) -> Result<Vec<u8>> {
+        let mut attempt = 1u32;
         loop {
-            let Some(attempt_request) = request.try_clone() else {
-                return request
-                    .send()
-                    .await
-                    .with_context(|| format!("could not reach {what}"));
+            let Some(replay) = request.try_clone() else {
+                return match Self::run_once(request, what).await {
+                    Attempt::Done(bytes) => Ok(bytes),
+                    Attempt::Retry(e, _) | Attempt::Fatal(e) => Err(e),
+                };
             };
 
-            match attempt_request.send().await {
-                Ok(resp) => {
-                    let status = resp.status();
-                    if attempt >= MAX_ATTEMPTS
-                        || !(status.is_server_error()
-                            || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
-                    {
-                        return Ok(resp);
+            match Self::run_once(replay, what).await {
+                Attempt::Done(bytes) => return Ok(bytes),
+                Attempt::Fatal(e) => return Err(e),
+                Attempt::Retry(e, after) => {
+                    if attempt >= MAX_ATTEMPTS {
+                        return Err(e.context(format!(
+                            "{what} still failing after {MAX_ATTEMPTS} attempts"
+                        )));
                     }
-                    warn!("{what} returned HTTP {status}, retrying ({attempt}/{MAX_ATTEMPTS})");
-                }
-                Err(e) => {
-                    if attempt >= MAX_ATTEMPTS || !Self::is_transient(&e) {
-                        return Err(e).with_context(|| format!("could not reach {what}"));
-                    }
+
+                    let wait = Self::backoff(attempt, after);
                     warn!(
-                        "{what} failed, retrying ({attempt}/{MAX_ATTEMPTS}): {}",
-                        error_chain(&e)
+                        "{what} failed, retrying in {}ms ({attempt}/{MAX_ATTEMPTS}): {e:#}",
+                        wait.as_millis()
                     );
+                    tokio::time::sleep(wait).await;
+                    attempt += 1;
                 }
             }
-
-            tokio::time::sleep(RETRY_BACKOFF * attempt).await;
-            attempt += 1;
         }
+    }
+
+    async fn fetch_json<T: serde::de::DeserializeOwned>(
+        request: RequestBuilder,
+        what: &str,
+    ) -> Result<T> {
+        let bytes = Self::fetch_bytes(request, what).await?;
+
+        serde_json::from_slice(&bytes).with_context(|| {
+            format!(
+                "could not parse {what} ({} bytes of {})",
+                bytes.len(),
+                String::from_utf8_lossy(&bytes[..bytes.len().min(120)])
+            )
+        })
     }
 
     fn detect_nsfw(record: &ApiRecord) -> bool {
         let vis = record.initial_visibility.as_deref().unwrap_or("");
-        if vis == "warn" || vis == "hide" {
+        if vis == "hide" { // check is vis == "warn" is required, since it also hides skimpy outfits (basically all beach outfits for example since bikinis & swimsuits are skimpy)
             return true;
         }
         if vis == "show" {
@@ -125,27 +216,13 @@ impl GameBananaApi {
 
     async fn fetch_thumbnail(client: &Client, url: &str) -> Vec<u8> {
         let request = client.get(url);
-        let resp = match Self::send_retrying(request, &format!("thumbnail '{url}'")).await {
-            Ok(resp) => resp,
-            Err(e) => {
+
+        Self::fetch_bytes(request, &format!("thumbnail '{url}'"))
+            .await
+            .unwrap_or_else(|e| {
                 warn!("Failed to fetch thumbnail '{url}': {e:#}");
-                return Vec::new();
-            }
-        };
-
-        let status = resp.status();
-        if !status.is_success() {
-            warn!("Thumbnail '{url}' returned HTTP {status}");
-            return Vec::new();
-        }
-
-        match resp.bytes().await {
-            Ok(bytes) => bytes.to_vec(),
-            Err(e) => {
-                warn!("Failed to read thumbnail '{url}': {}", error_chain(&e));
                 Vec::new()
-            }
-        }
+            })
     }
 
     async fn fetch_one(client: &Client, record: ApiRecord) -> NteMod {
@@ -230,30 +307,12 @@ impl GameBananaApi {
     async fn fetch_profile_mod(&self, record: &ApiRecord) -> Option<NteMod> {
         let url = format!("{}/apiv11/Mod/{}/ProfilePage", BASE_URL, record.id);
         let request = self.client.get(&url);
-        let resp = match Self::send_retrying(request, &format!("the profile of mod {}", record.id))
-            .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                warn!("Failed to fetch profile for mod {}: {e:#}", record.id);
-                return None;
-            }
-        };
+        let what = format!("the profile of mod {}", record.id);
 
-        let status = resp.status();
-        if !status.is_success() {
-            warn!("Profile for mod {} returned HTTP {status}", record.id);
-            return None;
-        }
-
-        match resp.json::<ProfilePage>().await {
+        match Self::fetch_json::<ProfilePage>(request, &what).await {
             Ok(profile) => Some(Self::fetch_one(&self.client, profile.record).await),
             Err(e) => {
-                warn!(
-                    "Failed to parse profile for mod {}: {}",
-                    record.id,
-                    error_chain(&e)
-                );
+                warn!("Failed to fetch profile for mod {}: {e:#}", record.id);
                 None
             }
         }
@@ -285,14 +344,8 @@ impl GameBananaApi {
 
         let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
         let request = self.client.get(&url).query(&[("_nPage", page)]);
-        let resp = Self::send_retrying(request, &format!("the feed (page {page})"))
-            .await?
-            .error_for_status()
-            .with_context(|| format!("the feed returned an error (page {page})"))?;
-        let subfeed: SubfeedResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("could not parse the feed (page {page})"))?;
+        let subfeed: SubfeedResponse =
+            Self::fetch_json(request, &format!("the feed (page {page})")).await?;
 
         let only_mods = Self::only_mod_records(subfeed.records);
         if only_mods.is_empty() {
@@ -339,15 +392,8 @@ impl GameBananaApi {
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
-        let resp = Self::send_retrying(request, &format!("search for '{query}'"))
-            .await?
-            .error_for_status()
-            .with_context(|| format!("search for '{query}' returned an error"))?;
-
-        let search_response: SearchResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("could not parse search results for '{query}'"))?;
+        let search_response: SearchResponse =
+            Self::fetch_json(request, &format!("search for '{query}'")).await?;
 
         let only_mods = Self::only_mod_records(search_response.records);
         if only_mods.is_empty() {
@@ -405,14 +451,11 @@ impl GameBananaApi {
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
-        let resp = Self::send_retrying(request, &format!("category {category_id} (page {page})"))
-            .await?
-            .error_for_status()
-            .with_context(|| format!("category {category_id} returned an error (page {page})"))?;
-        let index: SearchResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("could not parse category {category_id} (page {page})"))?;
+        let index: SearchResponse = Self::fetch_json(
+            request,
+            &format!("category {category_id} (page {page})"),
+        )
+        .await?;
 
         let only_mods = Self::only_mod_records(index.records);
         if only_mods.is_empty() {
@@ -434,27 +477,12 @@ impl GameBananaApi {
     pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<NteModFile>> {
         let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
         let request = self.client.get(&url);
-        let resp = match Self::send_retrying(request, &format!("the files of mod {mod_id}")).await {
-            Ok(r) => r,
-            Err(e) => {
-                error!("Failed to fetch mod files for mod {mod_id}: {e:#}");
-                return None;
-            }
-        };
+        let what = format!("the files of mod {mod_id}");
 
-        let status = resp.status();
-        if !status.is_success() {
-            error!("Mod files for mod {mod_id} returned HTTP {status}");
-            return None;
-        }
-
-        let profile: ProfilePage = match resp.json().await {
+        let profile: ProfilePage = match Self::fetch_json(request, &what).await {
             Ok(p) => p,
             Err(e) => {
-                error!(
-                    "Failed to parse profile for mod {mod_id}: {}",
-                    error_chain(&e)
-                );
+                error!("Failed to fetch mod files for mod {mod_id}: {e:#}");
                 return None;
             }
         };

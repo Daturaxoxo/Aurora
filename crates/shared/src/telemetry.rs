@@ -104,13 +104,6 @@ pub fn export_telemetry() -> Result<()> {
 
     writeln!(file)?;
 
-    writeln!(file, "=== Environment ===")?;
-
-    #[cfg(target_os = "windows")]
-    writeln!(file, "Windows Defender:    {}", windows_defender_on())?;
-
-    writeln!(file)?;
-
     writeln!(file, "=== Aurora Configuration ===")?;
 
     let configs = get_all_configs();
@@ -310,33 +303,6 @@ fn scrub_username(text: &str) -> String {
     }
 
     text.replace(&user, "<user>")
-}
-
-#[cfg(target_os = "windows")]
-fn windows_defender_on() -> bool {
-    use windows_sys::Win32::{
-        Foundation::S_OK,
-        System::SecurityCenter::{
-            WscGetSecurityProviderHealth, WSC_SECURITY_PROVIDER_ANTIVIRUS,
-            WSC_SECURITY_PROVIDER_HEALTH_GOOD,
-        },
-    };
-
-    unsafe {
-        let mut health = 0;
-
-        let hr = WscGetSecurityProviderHealth(
-            WSC_SECURITY_PROVIDER_ANTIVIRUS.unchecked_cast(),
-            &raw mut health,
-        );
-
-        if hr == S_OK {
-            health == WSC_SECURITY_PROVIDER_HEALTH_GOOD
-        } else {
-            warn!("Failed to query Windows Defender health: hr = {hr}");
-            false
-        }
-    }
 }
 
 pub struct ErrorEvent {

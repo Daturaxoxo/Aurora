@@ -24,6 +24,7 @@ const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
 const TOGGLE_EXTENSION: &str = "pak";
 const DISABLED_SUFFIX: &str = ".disabled";
 const STAGING_PREFIX: &str = ".aurora-installing-";
+const ALREADY_INSTALLED: &str = "a mod with this name already exists";
 
 fn is_mod_file(name: &str) -> bool {
     Path::new(name)
@@ -502,6 +503,28 @@ fn mod_id(mod_: &Mod) -> String {
     mod_.path.to_string_lossy().into_owned()
 }
 
+fn note_missing(action: &str, mod_: &Mod) {
+    warn!(
+        "{action} '{}': already gone from '{}', refreshing",
+        mod_.folder_name,
+        mod_.path.display()
+    );
+}
+
+fn expected_install_failure(error: &anyhow::Error) -> Option<&'static str> {
+    let chain = format!("{error:#}");
+
+    if chain.contains(ALREADY_INSTALLED) {
+        return Some("is already installed");
+    }
+
+    if chain.contains("Password required") {
+        return Some("is password protected, so Aurora cannot extract it");
+    }
+
+    None
+}
+
 fn rekey_mod_config(old: &str, new: &str) {
     if old == new {
         return;
@@ -725,13 +748,18 @@ impl ModManagerHandler {
                         installed.push(name);
                     }
                     Err(e) => {
-                        error!("could not install '{}': {e}", path.display());
-                        failed.push(format!(
-                            "{}: {e}",
-                            path.file_name()
-                                .map(|n| n.to_string_lossy().into_owned())
-                                .unwrap_or_default()
-                        ));
+                        let name = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+
+                        if let Some(reason) = expected_install_failure(&e) {
+                            warn!("skipped '{}': {reason}", path.display());
+                            failed.push(format!("{name} {reason}"));
+                        } else {
+                            error!("could not install '{}': {e}", path.display());
+                            failed.push(format!("{name}: {e}"));
+                        }
                     }
                 }
             }
@@ -803,7 +831,7 @@ impl ModManagerHandler {
 
     fn install_into(target: &Path, fill: impl FnOnce(&Path) -> Result<()>) -> Result<()> {
         if target.exists() {
-            return Err(anyhow!("a mod with this name already exists"));
+            return Err(anyhow!(ALREADY_INSTALLED));
         }
 
         let parent = target
@@ -824,7 +852,7 @@ impl ModManagerHandler {
         let finish = |staging: &Path| -> Result<()> {
             fill(staging)?;
             if target.exists() {
-                return Err(anyhow!("a mod with this name already exists"));
+                return Err(anyhow!(ALREADY_INSTALLED));
             }
             std::fs::rename(staging, target)?;
             Ok(())
@@ -1333,9 +1361,7 @@ impl ModManagerHandler {
         Some(String::new())
     }
 
-    // Dragging a selected mod moves the whole selection, otherwise just that mod
     fn drop_mods_on_zone(window: &slint::Weak<MainWindow>, id: String, zone: String) {
-        // Dropping onto the group the mod is already in moves it back to root
         let zone = if !zone.is_empty()
             && Self::mod_by_id(&id).is_some_and(|m| Self::current_zone(&m) == zone)
         {
@@ -1504,7 +1530,11 @@ impl ModManagerHandler {
                     match ModManager::toggle_mod(&m) {
                         Ok(()) => Self::note_toggle(&id),
                         Err(e) => {
-                            error!("could not toggle '{}': {e}", m.folder_name);
+                            if m.path.exists() {
+                                error!("could not toggle '{}': {e}", m.folder_name);
+                            } else {
+                                note_missing("could not toggle", &m);
+                            }
                             let ww = ww.clone();
                             let name = m.folder_name.clone();
                             let _ = slint::invoke_from_event_loop(move || {
@@ -1532,7 +1562,11 @@ impl ModManagerHandler {
                     match ModManager::toggle_mod(m) {
                         Ok(()) => Self::note_toggle(&mod_id(m)),
                         Err(e) => {
-                            error!("could not toggle '{}': {e}", m.folder_name);
+                            if m.path.exists() {
+                                error!("could not toggle '{}': {e}", m.folder_name);
+                            } else {
+                                note_missing("could not toggle", m);
+                            }
                         }
                     }
                 }
@@ -1551,6 +1585,11 @@ impl ModManagerHandler {
                             info!("deleted '{}'", m.path.display());
                             config_map_set(key::MODMNG_NOTES, &id, None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &id, None);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                            note_missing("could not delete", &m);
+                            config_map_set(key::MODMNG_NOTES, &mod_id(&m), None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(&m), None);
                         }
                         Err(e) => {
                             error!("could not delete '{}': {e}", m.path.display());
@@ -1688,7 +1727,11 @@ impl ModManagerHandler {
                     match ModManager::toggle_mod(m) {
                         Ok(()) => Self::note_toggle(&mod_id(m)),
                         Err(e) => {
-                            error!("could not toggle '{}': {e}", m.folder_name);
+                            if m.path.exists() {
+                                error!("could not toggle '{}': {e}", m.folder_name);
+                            } else {
+                                note_missing("could not toggle", m);
+                            }
                         }
                     }
                 }
@@ -1713,6 +1756,11 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("deleted '{}'", m.path.display());
+                            config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
+                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                            note_missing("could not delete", m);
                             config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
                         }
@@ -1881,7 +1929,11 @@ impl ModManagerHandler {
                         match ModManager::toggle_mod(m) {
                             Ok(()) => Self::note_toggle(&mod_id(m)),
                             Err(e) => {
+                                if m.path.exists() {
                                 error!("could not toggle '{}': {e}", m.folder_name);
+                            } else {
+                                note_missing("could not toggle", m);
+                            }
                             }
                         }
                     }
