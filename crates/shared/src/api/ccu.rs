@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
@@ -7,6 +8,7 @@ use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
+use crate::classes::info::version::{detect_version, Version};
 use crate::utils::get_local_version;
 use crate::{config, utils};
 
@@ -15,8 +17,10 @@ const TELEMETRY_KEY: &str = "telemetry";
 const HEARTBEAT: Duration = Duration::from_mins(10);
 const JITTER: f64 = 0.05;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+const REGION_UNKNOWN: &str = "unknown";
 
 static SESSION: OnceLock<String> = OnceLock::new();
+static REGION: OnceLock<&'static str> = OnceLock::new();
 
 #[derive(Serialize)]
 struct Beat<'a> {
@@ -24,6 +28,7 @@ struct Beat<'a> {
     event: &'a str,
     version: &'a str,
     os: &'a str,
+    region: &'a str,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,6 +38,8 @@ pub struct Stats {
     pub by_os: HashMap<String, u32>,
     #[serde(default)]
     pub by_version: HashMap<String, u32>,
+    #[serde(default)]
+    pub by_region: HashMap<String, u32>,
 }
 
 pub fn session_id() -> &'static str {
@@ -41,6 +48,37 @@ pub fn session_id() -> &'static str {
 
 pub fn enabled() -> bool {
     config::get(TELEMETRY_KEY).as_bool().unwrap_or(true)
+}
+
+const fn region_name(version: Version) -> &'static str {
+    match version {
+        Version::Global => "global",
+        Version::CN => "china",
+        Version::TW => "taiwan",
+        Version::Unknown => REGION_UNKNOWN,
+    }
+}
+
+fn region() -> &'static str {
+    if let Some(cached) = REGION.get() {
+        return cached;
+    }
+
+    let stored = config::get(config::key::GAME_PATH);
+    let path = stored.as_str().unwrap_or_default();
+
+    let version = if path.is_empty() {
+        Version::Unknown
+    } else {
+        detect_version(Path::new(path)).unwrap_or_default()
+    };
+
+    let name = region_name(version);
+    if name != REGION_UNKNOWN {
+        let _ = REGION.set(name);
+    }
+
+    name
 }
 
 fn entropy(salt: u64) -> u64 {
@@ -91,6 +129,7 @@ fn send(event: &str, version: &str) -> Result<()> {
             event,
             version,
             os: std::env::consts::OS,
+            region: region(),
         },
     )
 }
@@ -142,6 +181,7 @@ pub fn stop() {
         event: "stop",
         version: &version,
         os: std::env::consts::OS,
+        region: region(),
     };
 
     if let Err(e) = client.post(super::url(PATH)).json(&payload).send() {
