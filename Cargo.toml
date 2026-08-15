@@ -51,11 +51,11 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
-    "Win32_System_SecurityCenter",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Registry",
     "Win32_System_RestartManager",
     "Win32_Storage_FileSystem",
+    "Win32_Globalization",
 ] }
 slint-build = "1.17.1"
 winresource = "0.1.31"
@@ -63,9 +63,6 @@ image = "0.25.10"
 mslnk = "0.1"
 md5 = "0.8.1"
 
-# Compression is unusably slow when built unoptimized (zipping a 4.4 GB mod
-# folder took ~4 min in a dev build vs ~19 s in release). Optimizing just these
-# leaves our own crates fully debuggable.
 [profile.dev.package.flate2]
 opt-level = 3
 

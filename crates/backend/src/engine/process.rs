@@ -45,17 +45,78 @@ fn matches_process(process: &Process, target_lower: &str) -> bool {
     name_matches(&process.name().to_string_lossy())
 }
 
-fn process_gone(pid: Pid) -> bool {
-    let mut system = System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::Some(&[pid]),
-        true,
-        ProcessRefreshKind::nothing(),
-    );
-    system.process(pid).is_none()
+#[cfg(target_os = "windows")]
+mod win {
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_PARAMETER};
+    use windows_sys::Win32::Globalization::{GetOEMCP, MultiByteToWideChar};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    const STILL_ACTIVE: u32 = 259;
+
+    pub fn is_alive(pid: u32) -> bool {
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+
+            if handle.is_null() {
+                return GetLastError() != ERROR_INVALID_PARAMETER;
+            }
+
+            let mut code: u32 = 0;
+            let queried = GetExitCodeProcess(handle, &raw mut code);
+            CloseHandle(handle);
+
+            queried == 0 || code == STILL_ACTIVE
+        }
+    }
+
+    pub fn decode_console(bytes: &[u8]) -> String {
+        if bytes.is_empty() {
+            return String::new();
+        }
+
+        unsafe {
+            let codepage = GetOEMCP();
+            let len = MultiByteToWideChar(codepage, 0, bytes.as_ptr(), -1, std::ptr::null_mut(), 0);
+            if len <= 1 {
+                return String::from_utf8_lossy(bytes).into_owned();
+            }
+
+            let Ok(capacity) = usize::try_from(len) else {
+                return String::from_utf8_lossy(bytes).into_owned();
+            };
+
+            let mut wide = vec![0u16; capacity];
+            let written =
+                MultiByteToWideChar(codepage, 0, bytes.as_ptr(), -1, wide.as_mut_ptr(), len);
+
+            let Ok(written) = usize::try_from(written) else {
+                return String::from_utf8_lossy(bytes).into_owned();
+            };
+
+            String::from_utf16_lossy(&wide[..written.saturating_sub(1)])
+        }
+    }
 }
 
-/// Waits for `pid` to leave the process table, up to `KILL_CONFIRM_TIMEOUT`.
+fn process_gone(pid: Pid) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        !win::is_alive(pid.as_u32())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut system = System::new();
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[pid]),
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+        system.process(pid).is_none()
+    }
+}
+
 fn wait_for_exit(pid: Pid) -> bool {
     let deadline = Instant::now() + KILL_CONFIRM_TIMEOUT;
 
@@ -122,7 +183,6 @@ impl ProcessSnapshot {
         targets.iter().any(|t| !self.matching(t).is_empty())
     }
 
-    /// Every process running out of `dir`, ourselves excluded.
     pub fn in_dir<'a>(&'a self, dir: &Path) -> Vec<(&'a Pid, &'a Process)> {
         let own_pid = std::process::id();
         self.0
@@ -178,11 +238,12 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
                 );
             }
             Ok(output) => {
-                if process_gone(pid) {
-                    trace!("{exe} (pid {pid}) already exited on its own");
+                if wait_for_exit(pid) {
+                    trace!("{exe} (pid {pid}) exited despite taskkill reporting failure");
                     return true;
                 }
-                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stderr = win::decode_console(&output.stderr);
+                let stderr = stderr.trim();
                 error!(
                     "{exe} could not be killed (taskkill exit {}: {stderr}). \
                      Ensure Aurora Engine is running as Administrator.",
@@ -190,7 +251,7 @@ pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
                 );
             }
             Err(e) => {
-                if process_gone(pid) {
+                if wait_for_exit(pid) {
                     trace!("{exe} (pid {pid}) already exited on its own");
                     return true;
                 }
@@ -267,7 +328,6 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
         }
     }
 
-    // Anything else living in Win64 has the loader DLL mapped too
     for (pid, process) in snapshot_data.in_dir(&snapshot.win64) {
         trace!(
             "Killing {} (runs from Win64)",

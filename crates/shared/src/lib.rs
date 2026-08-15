@@ -1,4 +1,3 @@
-#![feature(integer_casts)]
 #![feature(file_buffered)]
 
 #[cfg(target_os = "linux")]
