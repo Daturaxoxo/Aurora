@@ -50,9 +50,7 @@ impl Key {
         if status == ERROR_SUCCESS {
             Ok(Self(handle))
         } else {
-            Err(format!(
-                "could not create HKCU\\{subkey} (error {status})"
-            ))
+            Err(format!("could not create HKCU\\{subkey} (error {status})"))
         }
     }
 
@@ -70,7 +68,8 @@ impl Key {
         let len = u32::try_from(data.len())
             .map_err(|_| format!("value `{name}` is too large for the registry"))?;
 
-        let status = unsafe { RegSetValueExW(self.0, name_w.as_ptr(), 0, kind, data.as_ptr(), len) };
+        let status =
+            unsafe { RegSetValueExW(self.0, name_w.as_ptr(), 0, kind, data.as_ptr(), len) };
 
         if status == ERROR_SUCCESS {
             Ok(())

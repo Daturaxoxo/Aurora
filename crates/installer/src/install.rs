@@ -49,7 +49,12 @@ fn build_plan() -> Result<Plan, String> {
     let sizes = manifest
         .files
         .iter()
-        .map(|f| (f.path.clone(), net::file_size_any(&f.download_urls()).unwrap_or(0)))
+        .map(|f| {
+            (
+                f.path.clone(),
+                net::file_size_any(&f.download_urls()).unwrap_or(0),
+            )
+        })
         .collect();
     Ok(Plan { manifest, sizes })
 }

@@ -137,8 +137,7 @@ impl fmt::Display for BypassMethod {
 }
 
 impl BypassMethod {
-    pub const ALL_DLL_NAMES: &'static [&'static str] =
-        &["version.dll", "dsound.dll"];
+    pub const ALL_DLL_NAMES: &'static [&'static str] = &["version.dll", "dsound.dll"];
 
     pub fn to_dll_names(&self) -> Vec<&'static str> {
         match self {

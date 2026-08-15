@@ -1,7 +1,7 @@
+use super::version::Version;
+use log::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use log::*;
-use super::version::Version;
 const PATCHER_CONFIG: &[&str] = &["UserData", "Patcher", "PatcherSDK", "config.xml"];
 const RES_VERSION_TAG: &str = "ResVersion";
 
