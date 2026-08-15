@@ -7,3 +7,11 @@ rustflags = [
     "-Z",
     "share-generics=y",
 ]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-Z",
+    "threads=8",
+    "-Z",
+    "share-generics=y",
+]
