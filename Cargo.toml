@@ -59,7 +59,10 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 slint-build = "1.17.1"
 winresource = "0.1.31"
-image = "0.25.10"
+image = { version = "0.25.10", default-features = false, features = [
+    "png",
+    "jpeg",
+] }
 mslnk = "0.1"
 md5 = "0.8.1"
 
@@ -78,9 +81,13 @@ opt-level = 3
 [profile.dev.package.crc32fast]
 opt-level = 3
 
+[profile.dev]
+debug = "line-tables-only"
+panic = "abort"
+
 [profile.release]
 opt-level = "s"
-lto = true
-codegen-units = 1
+lto = "thin"
+codegen-units = 16
 strip = "symbols"
 panic = "abort"

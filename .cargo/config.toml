@@ -1,2 +1,9 @@
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = [
+    "-C",
+    "target-feature=+crt-static",
+    "-Z",
+    "threads=8",
+    "-Z",
+    "share-generics=y",
+]

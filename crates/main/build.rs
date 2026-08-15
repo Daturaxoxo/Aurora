@@ -13,9 +13,9 @@ fn main() {
 
     for (source, processed) in pairs.map(|(s, p)| (Path::new(s), Path::new(p))) {
         if source.exists() {
-            let _ = fs::remove_dir_all(processed);
             fs::create_dir_all(processed).unwrap();
             process_directory(source, source, processed);
+            prune_orphans(source, processed, processed);
         }
     }
 
@@ -70,7 +70,7 @@ fn generate_languages_slint() {
          }}\n"
     );
 
-    fs::write(SLINT_OUT, slint).unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
+    write_if_changed(Path::new(SLINT_OUT), &slint);
 }
 
 fn generate_translations_slint() {
@@ -143,7 +143,15 @@ fn generate_translations_slint() {
         default_values.join(",\n"),
     );
 
-    fs::write(SLINT_OUT, slint).unwrap_or_else(|e| panic!("Could not write {SLINT_OUT}: {e}"));
+    write_if_changed(Path::new(SLINT_OUT), &slint);
+}
+
+fn write_if_changed(path: &Path, contents: &str) {
+    if fs::read_to_string(path).is_ok_and(|existing| existing == contents) {
+        return;
+    }
+
+    fs::write(path, contents).unwrap_or_else(|e| panic!("Could not write {}: {e}", path.display()));
 }
 
 fn generate_character_icons() {
@@ -245,7 +253,13 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                 if ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg" {
                     let file_name = path.file_name().and_then(|os| os.to_str()).unwrap_or("");
                     if file_name.contains("background") {
-                        fs::copy(&path, &dest_path).unwrap();
+                        if !is_up_to_date(&path, &dest_path) {
+                            fs::copy(&path, &dest_path).unwrap();
+                        }
+                        continue;
+                    }
+
+                    if is_up_to_date(&path, &dest_path) {
                         continue;
                     }
 
@@ -265,6 +279,30 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                     }
                 }
             }
+        }
+    }
+}
+
+fn is_up_to_date(source: &Path, dest: &Path) -> bool {
+    let (Ok(source), Ok(dest)) = (fs::metadata(source), fs::metadata(dest)) else {
+        return false;
+    };
+
+    match (source.modified(), dest.modified()) {
+        (Ok(source), Ok(dest)) => dest >= source,
+        _ => false,
+    }
+}
+
+fn prune_orphans(root_source: &Path, target_base: &Path, current: &Path) {
+    for entry in fs::read_dir(current).unwrap() {
+        let path = entry.unwrap().path();
+        let relative = path.strip_prefix(target_base).unwrap();
+
+        if path.is_dir() {
+            prune_orphans(root_source, target_base, &path);
+        } else if !root_source.join(relative).exists() {
+            fs::remove_file(&path).unwrap();
         }
     }
 }
