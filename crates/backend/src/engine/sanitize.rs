@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use log::{error, info, trace, warn};
+use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 
 use super::AuroraEngine;
@@ -49,17 +50,20 @@ impl AuroraEngine {
 
         let injected = injected_plugins();
 
-        let handles: Vec<_> = self
+        let mut targets: Vec<(String, PathBuf)> = self
             .managed_files()
             .into_iter()
             .map(|f| (f.label, f.destination))
             .chain([
-                // Plugins now live directly in Win64; this only clears the
-                // folder older Aurora versions used to create.
-                ("Plugins".to_string(), self.win64.join("Plugins")),
-                //("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
-                // ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
+                ("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
+                ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])
+            .chain(BypassMethod::ALL_DLL_NAMES.iter().flat_map(|dll| {
+                [
+                    (format!("Wrapper {dll} (root)"), self.game_path.join(dll)),
+                    (format!("Wrapper {dll} (bin)"), self.win64.join(dll)),
+                ]
+            }))
             .chain(
                 injected
                     .iter()
@@ -70,6 +74,12 @@ impl AuroraEngine {
                     .into_iter()
                     .map(|p| ("Everlight log".to_string(), p)),
             )
+            .collect();
+        targets.sort_by(|a, b| a.1.cmp(&b.1));
+        targets.dedup_by(|a, b| a.1 == b.1);
+
+        let handles: Vec<_> = targets
+            .into_iter()
             .map(|(label, path)| {
                 thread::spawn(move || Self::remove_target(&label, &path).map_err(|e| e.to_string()))
             })

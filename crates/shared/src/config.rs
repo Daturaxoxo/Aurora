@@ -15,7 +15,7 @@ const LOCK_RETRY_DELAY: Duration = Duration::from_millis(15);
 pub const LANGS: &[(&str, &str)] = &[
     ("English", "en"),
     ("Türkçe", "tr"),
-    ("简体中文", "cn"),
+    ("简体中文", "zh-CN"),
     ("繁體中文", "zh-TW"),
     ("日本語", "jp"),
     ("Español", "es"),

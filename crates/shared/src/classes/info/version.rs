@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
+use log::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Version {
@@ -136,6 +137,9 @@ impl fmt::Display for BypassMethod {
 }
 
 impl BypassMethod {
+    pub const ALL_DLL_NAMES: &'static [&'static str] =
+        &["version.dll", "dsound.dll"];
+
     pub fn to_dll_names(&self) -> Vec<&'static str> {
         match self {
             Self::Version => vec!["version.dll"],
@@ -143,12 +147,70 @@ impl BypassMethod {
         }
     }
 
-    pub fn from_num(i: impl Into<i64>) -> Result<Self> {
-        let i = i.into();
+    pub fn resolve(raw: impl Into<i64>, version: Version) -> Result<Self> {
+        let method = Self::from_num(raw.into())?;
+
+        if version == Version::CN && method != Self::DSound {
+            debug!("CN installation detected: forcing engine method {method} -> dsound.dll (ACE)");
+            return Ok(Self::DSound);
+        }
+
+        Ok(method)
+    }
+
+    fn from_num(i: i64) -> Result<Self> {
         match i {
             0 => Ok(Self::Version),
             1 => Ok(Self::DSound),
             _ => Err(anyhow!("Invalid bypass method: {i}")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cn_resolve() {
+        for raw in 0..=1 {
+            let method = BypassMethod::resolve(raw, Version::CN).unwrap();
+            assert_eq!(method, BypassMethod::DSound, "CN index {raw}");
+            assert!(!method.to_dll_names().contains(&"version.dll"));
+        }
+    }
+
+    #[test]
+    fn global_resolve() {
+        for version in [Version::Global, Version::TW] {
+            assert_eq!(
+                BypassMethod::resolve(0, version).unwrap(),
+                BypassMethod::Version
+            );
+            assert_eq!(
+                BypassMethod::resolve(1, version).unwrap(),
+                BypassMethod::DSound
+            );
+        }
+    }
+
+    #[test]
+    fn reject_ofr_index() {
+        assert!(BypassMethod::resolve(2, Version::Global).is_err());
+        assert!(BypassMethod::resolve(-1, Version::CN).is_err());
+    }
+
+    // function below is kind of temporary, just added it so people on CN v2.0.0 who have the old version.dll files in their \Win64 directory can easily clean them
+    // so they don't have to deal with any old installations messing their experience (perchappenchance) -datura
+    #[test]
+    fn sweep_previous() {
+        for method in [BypassMethod::Version, BypassMethod::DSound] {
+            for dll in method.to_dll_names() {
+                assert!(
+                    BypassMethod::ALL_DLL_NAMES.contains(&dll),
+                    "{dll} would be stranded by sanitize"
+                );
+            }
         }
     }
 }
