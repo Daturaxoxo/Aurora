@@ -53,10 +53,7 @@ impl ButtonHandler {
 
         let mods_path = path.join(CLIENT_PAK_DIR);
         if let Err(e) = std::fs::create_dir_all(&mods_path) {
-            error!(
-                "Failed to create mods folder {}: {e}",
-                mods_path.display()
-            );
+            error!("Failed to create mods folder {}: {e}", mods_path.display());
             ToastHandler::show(window, "Failed to create the mods folder.", "error");
             return;
         }

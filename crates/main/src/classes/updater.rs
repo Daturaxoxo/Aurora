@@ -644,8 +644,8 @@ impl UpdateHandler {
                 }
             }
         }
-        let bytes = downloaded
-            .ok_or_else(|| last_err.context("all updater download sources failed"))?;
+        let bytes =
+            downloaded.ok_or_else(|| last_err.context("all updater download sources failed"))?;
 
         let actual = ipc::manifest::hash_bytes(&bytes);
         if actual != manifest.updater_hash {

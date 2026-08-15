@@ -257,10 +257,7 @@ impl SettingsHandler {
 
                         let path = if let Some(root) = resolve_selected_game_root(&path) {
                             if root != path {
-                                info!(
-                                    "resolved selection to install root -> {:?}",
-                                    root.display()
-                                );
+                                info!("resolved selection to install root -> {:?}", root.display());
                             }
                             root
                         } else {
@@ -292,7 +289,9 @@ impl SettingsHandler {
                                 w.set_game_directory(path_str.into());
                                 debug!("game_directory UI property updated");
                             } else {
-                                error!("window handle dead when trying to update game_directory UI");
+                                error!(
+                                    "window handle dead when trying to update game_directory UI"
+                                );
                             }
                         });
                     }

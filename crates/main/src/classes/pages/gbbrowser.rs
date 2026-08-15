@@ -51,6 +51,7 @@ pub const CHARACTERS: &[(&str, u32)] = &[
     ("Sakiri", 43042),
     ("Shinku", 46561),
     ("Skia", 43043),
+    ("Zankou", 48011),
     ("Zero (F)", 43032),
     ("Zero (M)", 43033),
 ];
