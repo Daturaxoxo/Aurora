@@ -223,7 +223,7 @@ pub fn export_telemetry() -> Result<()> {
             .unwrap_or("0")
             .parse::<i64>()?,
     };
-    let engine_method = BypassMethod::from_num(engine_method_raw)?;
+    let engine_method = BypassMethod::resolve(engine_method_raw, version)?;
     let vpaths = get_version_paths(game_path.as_path(), version, distro, engine_method);
     for (name, path) in vpaths.all_dll_targets() {
         print_entry(&name, path.as_path())?;
