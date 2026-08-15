@@ -41,10 +41,9 @@ impl AuroraEngine {
             let win64 = self.win64.clone();
             let game_path = self.game_path.clone();
             let version = self.version;
-            let game_process = self.gpaths.game_process;
             let stop = watcher_stop.clone();
             thread::spawn(move || {
-                everlight::watch(&win64, &game_path, version, game_process, &evt_tx, &stop);
+                everlight::watch(&win64, &game_path, version, &evt_tx, &stop);
             })
         };
 
