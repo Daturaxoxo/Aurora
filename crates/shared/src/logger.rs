@@ -296,7 +296,7 @@ impl Log for Logger {
             }
         }
 
-        if level == Level::Error {
+        if level == Level::Error && !crate::telemetry::is_reporting_thread() {
             if let Some(tx) = &self.error_tx {
                 let _ = tx.try_send(ErrorEvent {
                     timestamp,

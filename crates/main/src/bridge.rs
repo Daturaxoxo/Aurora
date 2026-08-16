@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::{classes::updater, LaunchState, MainWindow};
 use anyhow::{anyhow, Result};
-use backend::handler::{EngineCommand, EngineEvent, EngineHandler};
+use backend::handler::{self, EngineCommand, EngineEvent, EngineHandler};
 use log::*;
 use shared::config::{self, key};
 
@@ -137,12 +137,17 @@ impl Bridge {
                         .ok();
                     }
                     EngineEvent::EngineInitFailed(msg) => {
-                        error!("Engine failed to initialise: {msg}");
-                        Self::show_toast(
-                            &w,
-                            &format!("Engine error: {msg}\nCheck your game path in Settings."),
-                            "error",
-                        );
+                        if let Some(warning) = handler::init_warning(&msg) {
+                            warn!("Engine failed to initialise: {msg}");
+                            Self::show_toast(&w, warning, "warning");
+                        } else {
+                            error!("Engine failed to initialise: {msg}");
+                            Self::show_toast(
+                                &w,
+                                &format!("Engine error: {msg}\nCheck your game path in Settings."),
+                                "error",
+                            );
+                        }
                     }
                     EngineEvent::LaunchSuccess => {
                         Self::show_toast(

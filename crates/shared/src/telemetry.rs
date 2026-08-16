@@ -1,8 +1,12 @@
 use std::{
+    cell::Cell,
+    collections::{HashSet, VecDeque},
+    hash::{DefaultHasher, Hash as _, Hasher as _},
     io::Write as _,
     path::{Path, PathBuf},
     sync::mpsc::{sync_channel, SyncSender},
-    time::Duration,
+    thread,
+    time::{Duration, Instant},
 };
 
 #[cfg(target_os = "windows")]
@@ -311,12 +315,65 @@ pub struct ErrorEvent {
     pub message: String,
 }
 
+const MAX_EVENTS_PER_SESSION: usize = 50; // maximum amount of telemetry logs an user can give in a session (done so our api doesn't die when an error loop happens) -datura
+const SEND_BURST: usize = 3; // telemetry logs allowed at once, basically: "maximum of X errors within {SEND_WINDOW} seconds"
+const SEND_WINDOW: Duration = Duration::from_secs(5); // the time frame SEND_BURST uses
+
+thread_local! {
+    static REPORTING: Cell<bool> = const { Cell::new(false) };
+}
+
+pub(crate) fn is_reporting_thread() -> bool {
+    REPORTING.with(Cell::get)
+}
+
+struct Budget {
+    seen: HashSet<u64>,
+    recent: VecDeque<Instant>,
+}
+
+impl Budget {
+    fn new() -> Self {
+        Self {
+            seen: HashSet::new(),
+            recent: VecDeque::with_capacity(SEND_BURST),
+        }
+    }
+
+    fn admit(&mut self, event: &ErrorEvent) -> bool {
+        if self.seen.len() >= MAX_EVENTS_PER_SESSION {return false}
+        let mut hasher = DefaultHasher::new();
+        event.module.hash(&mut hasher);
+        event.message.hash(&mut hasher);
+        self.seen.insert(hasher.finish())
+    }
+
+    fn pace(&mut self) {
+        loop {
+            while self
+                .recent
+                .front()
+                .is_some_and(|at| at.elapsed() >= SEND_WINDOW)
+            {self.recent.pop_front();}
+
+            if self.recent.len() < SEND_BURST {break}
+            let Some(oldest) = self.recent.front().copied() else {break};
+            thread::sleep(SEND_WINDOW.saturating_sub(oldest.elapsed()));
+        }
+
+        self.recent.push_back(Instant::now());
+    }
+}
+
 pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
     let (tx, rx) = sync_channel::<ErrorEvent>(256);
 
     let spawned = std::thread::Builder::new()
         .name("error-telemetry".into())
         .spawn(move || {
+            REPORTING.with(|reporting| reporting.set(true));
+
+            let mut budget = Budget::new();
             let version = get_local_version();
             let client = reqwest::blocking::Client::builder()
                 .user_agent(format!("AuroraLauncher/{version}"))
@@ -333,9 +390,9 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                 if config::get(config::key::TELEMETRY_OPT_OUT)
                     .as_bool()
                     .unwrap_or(false)
-                {
-                    continue;
-                }
+                {continue}
+
+                if !budget.admit(&event) {continue}
 
                 let payload = serde_json::json!({
                     "message": scrub_username(&event.message),
@@ -346,6 +403,8 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                     "os_version": os_version,
                     "region": crate::api::ccu::region(),
                 });
+
+                budget.pace();
 
                 match client.post(TELEMETRY_ENDPOINT).json(&payload).send() {
                     Ok(res) if !res.status().is_success() => {

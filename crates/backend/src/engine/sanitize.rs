@@ -9,6 +9,7 @@ use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 
 use super::AuroraEngine;
+const INCOMPATIBLE: &[&str] = &["anticensor"];
 
 fn injected_plugins() -> Vec<PathBuf> {
     config::get(key::INJECTED_PLUGINS)
@@ -21,6 +22,29 @@ fn injected_plugins() -> Vec<PathBuf> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
+    fs::read_dir(win64)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            if path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
+            {return None}
+
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            INCOMPATIBLE.iter().any(|frag| name.contains(frag)).then(|| {
+                (
+                    format!("Incompatible {}", e.file_name().to_string_lossy()),
+                    path,
+                )
+            })
+        })
+        .collect()
 }
 
 fn prune_injected_plugins(injected: &[PathBuf]) {
@@ -69,6 +93,7 @@ impl AuroraEngine {
                     .iter()
                     .map(|p| ("Injected plugin".to_string(), p.clone())),
             )
+            .chain(remove_incompatible(&self.win64))
             .collect();
         targets.sort_by(|a, b| a.1.cmp(&b.1));
         targets.dedup_by(|a, b| a.1 == b.1);

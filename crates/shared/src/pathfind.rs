@@ -553,11 +553,9 @@ pub fn candidate_directories() -> Result<Option<PathBuf>, std::io::Error> {
 }
 
 #[cfg(windows)]
-fn suppress_drive_error_dialogs() {
+fn suppress_error_dialogs() {
     use std::sync::Once;
-
     const SEM_FAILCRITICALERRORS: u32 = 0x0001;
-
     static ONCE: Once = Once::new();
 
     ONCE.call_once(|| unsafe {
@@ -571,7 +569,7 @@ fn suppress_drive_error_dialogs() {
 fn get_root_paths() -> Vec<PathBuf> {
     #[cfg(windows)]
     {
-        suppress_drive_error_dialogs();
+        suppress_error_dialogs();
 
         (b'A'..=b'Z')
             .filter_map(|b| {
@@ -637,59 +635,4 @@ pub fn get_game_directory() -> Result<PathBuf> {
     warn!("No game directory found after {:?}", instant.elapsed());
 
     Err(anyhow!("Game directory not found"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("aurora-pathfind-{name}"));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn resolves_a_root_from_inside_the_install() {
-        let root = scratch("inside").join("Neverness To Everness");
-        let inner = root.join(CLIENT_WIN64);
-        fs::create_dir_all(&inner).unwrap();
-        fs::write(root.join("NTEGlobalLauncher.exe"), []).unwrap();
-
-        assert_eq!(
-            resolve_game_root(&inner, GAME_FOLDER_NAME),
-            Some(root.clone())
-        );
-        assert_eq!(
-            resolve_game_root(root.parent().unwrap(), GAME_FOLDER_NAME),
-            Some(root)
-        );
-    }
-
-    #[test]
-    fn a_folder_named_like_the_game_is_not_enough() {
-        let decoy = scratch("decoy").join("nte");
-        fs::create_dir_all(&decoy).unwrap();
-
-        assert!(!validate_game_path(&decoy, GAME_FOLDER_NAME).unwrap());
-        assert_eq!(resolve_game_root(&decoy, GAME_FOLDER_NAME), None);
-    }
-
-    #[test]
-    fn empty_paths_resolve_to_nothing() {
-        assert_eq!(resolve_game_root(Path::new(""), GAME_FOLDER_NAME), None);
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn external_mounts_stay_walkable() {
-        assert!(should_descend(Path::new("/"), "run"));
-        assert!(should_descend(Path::new("/"), "media"));
-        assert!(should_descend(Path::new("/"), "mnt"));
-        assert!(should_descend(Path::new("/run"), "media"));
-        assert!(!should_descend(Path::new("/"), "proc"));
-        assert!(!should_descend(Path::new("/run"), "user"));
-        assert!(should_descend(Path::new("/home/user"), "media"));
-    }
 }

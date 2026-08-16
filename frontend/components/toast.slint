@@ -5,11 +5,10 @@ export component WindowToast inherits Rectangle {
     in property <string> text;
     in property <string> kind: "success";
     in property <duration> timeout: 4000ms;
-    callback close();
-
     private property <float> progress: 1.0;
     private property <bool> showing: false;
     private property <bool> arm-fade-in: false;
+    callback close();
 
     opacity: 0.0;
     visible: self.opacity > 0.001;
@@ -72,14 +71,14 @@ export component WindowToast inherits Rectangle {
 
     property <color> drain-color:
         root.kind == "success" ? #22c55e :
-        (root.kind == "error" ? #ef4444 : #3b82f6);
-
+        (root.kind == "error" ? #ef4444 :
+        (root.kind == "warning" ? #f59e0b : #3b82f6));
     property <image> status-icon:
         root.kind == "success" ? @image-url("../../production/icons/processed/success.png") :
-        (root.kind == "error" ? @image-url("../../production/icons/processed/error.png") :
+        (root.kind == "error" || root.kind == "warning" ? @image-url("../../production/icons/processed/error.png") :
         @image-url("../../production/icons/processed/info.png"));
+    property <brush> status-icon-tint: root.kind == "warning" ? #f59e0b : transparent;
 
-    // FIXED: Wrap everything in a VerticalLayout without explicit height constraints
     VerticalLayout {
         HorizontalLayout {
             padding: 14px;
@@ -94,11 +93,12 @@ export component WindowToast inherits Rectangle {
                     alignment: center;
                     Image {
                         source: root.status-icon;
+                        colorize: root.status-icon-tint;
                         width: 22px;
                         height: 22px;
                         image-fit: contain;
                     }
-                    // Removed the leftover red placeholder rectangle
+                    // Removed the leftover red placeholder rectangle -datura
                 }
 
                 VerticalLayout {
@@ -138,7 +138,6 @@ export component WindowToast inherits Rectangle {
             }
         }
 
-        // Progress bar sits naturally underneath the content row
         Rectangle {
             height: 2px;
             background: #ffffff0d;

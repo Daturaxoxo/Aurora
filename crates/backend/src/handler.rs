@@ -13,7 +13,6 @@ use std::{
 };
 
 pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
-
 pub static GAME_RUNNING: AtomicBool = AtomicBool::new(false);
 
 pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
@@ -47,6 +46,28 @@ pub enum EngineEvent {
 pub struct EngineHandler {
     pub cmd_tx: mpsc::Sender<EngineCommand>,
     pub evt_rx: mpsc::Receiver<EngineEvent>,
+}
+
+const INIT_WARNINGS: &[(&str, &str)] = &[
+    (
+        "None of the expected launchers were found",
+        "Invalid game installation: no game markers were found.",
+    ),
+    (
+        "Game path not found",
+        "Your game path couldn't be found, set it manually in the settings.",
+    ),
+    (
+        "Aurora couldn't find the game path",
+        "Your game path couldn't be found, set it manually in the settings.",
+    ), // dont ask me why there are 2. -daturas
+];
+
+pub fn init_warning(msg: &str) -> Option<&'static str> {
+    INIT_WARNINGS
+        .iter()
+        .find(|(needle, _)| msg.contains(needle))
+        .map(|(_, warning)| *warning)
 }
 
 #[cfg(target_os = "windows")]
