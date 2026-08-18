@@ -396,6 +396,7 @@ impl SettingsHandler {
                     .unwrap_or_default()
             };
 
+            #[cfg(target_os = "linux")]
             if let Some(w) = ww.upgrade() {
                 w.set_proton_version_not_recommended(
                     backend::classes::linux::is_proton_version_not_recommended(&name),
