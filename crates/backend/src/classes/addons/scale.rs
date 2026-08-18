@@ -17,7 +17,7 @@ fn get_windows_ini_paths() -> Option<Vec<PathBuf>> {
     let ht_path = PathBuf::from(local_app_data).join("HT/");
     let mut result = Vec::new();
     for dir in ht_path.read_dir().ok()?.flatten() {
-        if dir.file_name().to_string_lossy().contains("Saved_Global") {
+        if dir.file_name().to_string_lossy().contains("Saved") {
             result.push(dir.path().join("Config/Windows/Engine.ini"));
         }
     }
