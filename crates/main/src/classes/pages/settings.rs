@@ -161,7 +161,9 @@ impl SettingsHandler {
 
     #[cfg(target_os = "linux")]
     fn load_proton_versions(w: &MainWindow) {
-        let builds = backend::classes::linux::installed_dwproton_builds();
+        use backend::classes::linux;
+
+        let builds = linux::installed_dwproton_builds();
         debug!("installed DW-Proton builds: {builds:?}");
         let raw_version = config::get(key::PROTON_VERSION);
         let saved = raw_version.as_str().unwrap_or("").trim().to_string();
@@ -193,6 +195,8 @@ impl SettingsHandler {
 
         w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
         w.set_proton_version_index(index);
+
+        w.set_proton_version_not_recommended(linux::is_proton_version_not_recommended(&saved));
     }
 
     fn bind(window: &slint::Weak<MainWindow>) {
@@ -391,6 +395,12 @@ impl SettingsHandler {
                     .map(|s| s.to_string())
                     .unwrap_or_default()
             };
+
+            if let Some(w) = ww.upgrade() {
+                w.set_proton_version_not_recommended(
+                    backend::classes::linux::is_proton_version_not_recommended(&name),
+                );
+            }
 
             info!("proton_version changed → index={index}, build={name:?}");
             config::set(key::PROTON_VERSION, name);

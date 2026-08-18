@@ -394,6 +394,11 @@ pub fn installed_dwproton_builds() -> Vec<String> {
         .collect()
 }
 
+pub fn is_proton_version_not_recommended(version: &str) -> bool {
+    debug!("is_proton_version_not_recommended: version={version:?}");
+    !version.contains("10.") && !version.is_empty()
+}
+
 fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
     let builds = dwproton_builds(steam_root);
 

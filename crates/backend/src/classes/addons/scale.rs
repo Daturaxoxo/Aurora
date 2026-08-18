@@ -7,7 +7,7 @@ pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
 
 /// Whether application scaling is available on this platform.
-pub const SUPPORTED: bool = cfg!(target_os = "windows");
+pub const SUPPORTED: bool = cfg!(any(target_os = "windows", target_os = "linux"));
 
 #[cfg(target_os = "windows")]
 fn get_windows_ini_paths() -> Option<Vec<PathBuf>> {
@@ -31,8 +31,29 @@ fn get_windows_ini_paths() -> Option<Vec<PathBuf>> {
 
 #[cfg(unix)]
 fn get_unix_ini_paths() -> Option<Vec<PathBuf>> {
-    error!("Linux/Proton path for Engine.ini is not yet implemented");
-    None
+    use shared::classes::steam;
+
+    let pfx = steam::aurora_prefix()?;
+    let ht_path = pfx
+        .join("drive_c")
+        .join("users")
+        .join("steamuser")
+        .join("AppData")
+        .join("Local")
+        .join("HT");
+
+    let mut result = Vec::new();
+    for dir in ht_path.read_dir().ok()?.flatten() {
+        if dir.file_name().to_string_lossy().contains("Saved_Global") {
+            result.push(dir.path().join("Config/Windows/Engine.ini"));
+        }
+    }
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 pub fn get_ini_paths() -> Option<Vec<PathBuf>> {

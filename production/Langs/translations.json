@@ -3568,5 +3568,22 @@
         "ko": "사용 불가",
         "pt": "INDISPONÍVEL",
         "pt-BR": "INDISPONÍVEL"
+    },
+    {
+        "key": "settings.proton-version.warning",
+        "en": "Version not recommended",
+        "tr": "Sürüm önerilmez",
+        "zh-CN": "不推荐的版本",
+        "es": "Versión no recomendada",
+        "de": "Version nicht empfohlen",
+        "nl": "Versie niet aanbevolen",
+        "fr": "Version non recommandée",
+        "it": "Versione non consigliata",
+        "ru": "Версия не рекомендуется",
+        "vi": "Phiên bản không được khuyến nghị",
+        "jp": "推奨されないバージョン",
+        "ko": "권장하지 않는 버전",
+        "pt": "Versão não recomendada",
+        "pt-BR": "Versão não recomendada"
     }
 ]
