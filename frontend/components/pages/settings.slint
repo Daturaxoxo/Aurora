@@ -383,6 +383,7 @@ export component SettingsPage inherits Rectangle {
     in-out property <bool> desktop-entry: false;
     in property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;     // 0=Automatic
+    in property <bool> proton-version-not-recommended: false;
 
     // DEVELOPER
     in-out property <bool> developer-mode: false;
@@ -820,10 +821,23 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: Tr.values[TrKey.settings-proton-version-title];
                                     subtitle: Tr.values[TrKey.settings-proton-version-subtitle];
-                                    Dropdown {
-                                        options: root.proton-versions;
-                                        selected-index <=> root.proton-version-index;
-                                        selection-changed(idx) => { root.proton-version-index-changed(idx); }
+
+                                    VerticalLayout {
+                                        spacing: 6px;
+                                        alignment: center;
+
+                                        Dropdown {
+                                            options: root.proton-versions;
+                                            selected-index <=> root.proton-version-index;
+                                            selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                        }
+
+                                        if root.proton-version-not-recommended: Text {
+                                            text: Tr.values[TrKey.settings-proton-version-warning];
+                                            color: #f59e0b;
+                                            font-size: 12px;
+                                            horizontal-alignment: right;
+                                        }
                                     }
                                 }
                             }

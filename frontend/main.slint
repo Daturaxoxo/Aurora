@@ -150,6 +150,7 @@ export component MainWindow inherits Window {
     in-out property <bool> desktop-entry: false;
     in-out property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;
+    in property <bool> proton-version-not-recommended: false;
     in-out property <bool> telemetry-opt-out: false;
     callback browse-game-directory();
     callback export-telemetry();
@@ -1188,6 +1189,7 @@ export component MainWindow inherits Window {
             desktop-entry <=> root.desktop-entry;
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
+            proton-version-not-recommended: root.proton-version-not-recommended;
             telemetry-opt-out <=> root.telemetry-opt-out;
             app-version: root.app-version;
             build-timestamp: root.build-timestamp;

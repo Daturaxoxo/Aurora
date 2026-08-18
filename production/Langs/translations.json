@@ -3568,5 +3568,9 @@
         "ko": "사용 불가",
         "pt": "INDISPONÍVEL",
         "pt-BR": "INDISPONÍVEL"
+    },
+    {
+        "key": "settings.proton-version.warning",
+        "en": "Version not recommended"
     }
 ]
