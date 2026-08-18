@@ -162,7 +162,7 @@ impl SettingsHandler {
     #[cfg(target_os = "linux")]
     fn load_proton_versions(w: &MainWindow) {
         use backend::classes::linux;
-        
+
         let builds = linux::installed_dwproton_builds();
         debug!("installed DW-Proton builds: {builds:?}");
         let raw_version = config::get(key::PROTON_VERSION);
@@ -395,6 +395,12 @@ impl SettingsHandler {
                     .map(|s| s.to_string())
                     .unwrap_or_default()
             };
+
+            if let Some(w) = ww.upgrade() {
+                w.set_proton_version_not_recommended(
+                    backend::classes::linux::is_proton_version_not_recommended(&name),
+                );
+            }
 
             info!("proton_version changed → index={index}, build={name:?}");
             config::set(key::PROTON_VERSION, name);
