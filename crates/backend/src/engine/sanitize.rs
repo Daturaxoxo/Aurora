@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use log::{error, info, trace, warn};
+use log::*;
 use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 
@@ -24,6 +24,22 @@ fn injected_plugins() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
+fn leftover_pak_files(pak_dir: &Path) -> Vec<(String,PathBuf)> {
+    fs::read_dir(pak_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|dir| {
+            let name = dir.file_name().to_string_lossy().to_lowercase();
+            !name.starts_with("pakchunk")
+                && !name.starts_with("global")
+                && name != "auroramods"
+                && name != "~mods"
+        })
+        .map(|d| (d.file_name().to_string_lossy().to_string(), d.path()))
+        .collect()
+}
+
 fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
     fs::read_dir(win64)
         .into_iter()
@@ -34,15 +50,20 @@ fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
             if path
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
-            {return None}
+            {
+                return None;
+            }
 
             let name = e.file_name().to_string_lossy().to_lowercase();
-            INCOMPATIBLE.iter().any(|frag| name.contains(frag)).then(|| {
-                (
-                    format!("Incompatible {}", e.file_name().to_string_lossy()),
-                    path,
-                )
-            })
+            INCOMPATIBLE
+                .iter()
+                .any(|frag| name.contains(frag))
+                .then(|| {
+                    (
+                        format!("Incompatible {}", e.file_name().to_string_lossy()),
+                        path,
+                    )
+                })
         })
         .collect()
 }
@@ -94,6 +115,7 @@ impl AuroraEngine {
                     .map(|p| ("Injected plugin".to_string(), p.clone())),
             )
             .chain(remove_incompatible(&self.win64))
+            .chain(leftover_pak_files(&self.pak_dir))
             .collect();
         targets.sort_by(|a, b| a.1.cmp(&b.1));
         targets.dedup_by(|a, b| a.1 == b.1);

@@ -80,7 +80,7 @@ impl ButtonHandler {
                         checked: false,
                     },
                     CheckboxItem {
-                        label: "Remove Injected Files".into(),
+                        label: "Remove Leftover Files".into(),
                         required: true,
                         checked: true,
                     },
