@@ -48,7 +48,7 @@ def clean_addons(target_path: Path):
 
 def remove_aurora_zip_files(directory: str = ".") -> list[str]:
     pattern = re.compile(
-        r"^aurora-(?:host-)?\d+\.\d+\.\d+(?:-.+?)?-(?:WINDOWS|LINUX)\.zip$",
+        r"^aurora-(?:(?:host|github)-)?\d+\.\d+\.\d+(?:-.+?)?-(?:WINDOWS|LINUX|windows|linux)\.zip$",
         re.IGNORECASE,
     )
 
