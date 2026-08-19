@@ -72,6 +72,7 @@ pub mod key {
     pub const TELEMETRY_OPT_OUT: &str = "telemetry_opt_out";
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
+    pub const LEGACY_MODS_PROMPTED: &str = "legacy_mods_prompted";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -94,7 +95,8 @@ pub fn default_value(k: &str) -> Value {
         | key::DESKTOP_ENTRY
         | key::DESKTOP_ENTRY_PROMPTED
         | key::TELEMETRY_OPT_OUT
-        | key::IGNORE_CHECKSUM => {
+        | key::IGNORE_CHECKSUM
+        | key::LEGACY_MODS_PROMPTED => {
             json!(false)
         }
 
