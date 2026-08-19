@@ -482,7 +482,7 @@ impl GameBananaApi {
         let profile: ProfilePage = match Self::fetch_json(request, &what).await {
             Ok(p) => p,
             Err(e) => {
-                error!("Failed to fetch mod files for mod {mod_id}: {e:#}");
+                warn!("Failed to fetch mod files for mod {mod_id}: {e:#}");
                 return None;
             }
         };

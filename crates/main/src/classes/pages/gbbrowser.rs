@@ -337,7 +337,7 @@ impl GbBrowserHandler {
             let outcome = match fetch.await {
                 Ok(Ok(loaded)) => Some(loaded),
                 Ok(Err(e)) => {
-                    error!("GameBanana Browser Backend: could not load page {page}: {e}");
+                    warn!("GameBanana Browser Backend: could not load page {page}: {e}");
                     None
                 }
                 Err(e) => {
@@ -684,11 +684,10 @@ impl GbBrowserHandler {
                     );
                 }
                 Ok(None) => {
-                    // The cancel callback already hid the overlay and toasted
                     info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
                 }
                 Err(e) => {
-                    error!("GameBanana Browser Backend: could not download '{}': {e}", file.name);
+                    warn!("GameBanana Browser Backend: could not download '{}': {e}", file.name);
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww.upgrade() {
                             w.set_progress_overlay_active(false);
@@ -821,7 +820,7 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
                     let Some(files) = files else {
-                        error!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
+                        warn!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
                         show_toast(&win, "error", "Could not fetch this mod's files".into());
                         return;
                     };
@@ -963,7 +962,7 @@ impl GbBrowserHandler {
                 .map(|(m, _)| m.mod_url.clone());
             let Some(url) = url else { return };
             if let Err(e) = open::that(&url) {
-                error!("GameBanana Browser Backend: could not open '{url}': {e}");
+                warn!("GameBanana Browser Backend: could not open '{url}': {e}");
             }
         });
     }
