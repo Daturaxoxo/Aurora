@@ -9,6 +9,7 @@ use slint::{ComponentHandle as _, Model as _};
 use shared::config::{self, key};
 
 use crate::bridge::Bridge;
+use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::{MainWindow, Tr, TrKey};
 
 pub const POPUP_ID: &str = "legacy-mods";
@@ -69,22 +70,37 @@ pub fn confirm(window: &slint::Weak<MainWindow>) {
     let folders = PENDING.with(RefCell::take);
 
     match legacymods::migrate(&folders) {
-        Ok(report) if report.failures.is_empty() => Bridge::show_toast(
-            window,
-            &format!("Migrated {} mod(s).", report.migrated),
-            "success",
-        ),
-        Ok(report) => Bridge::show_toast(
-            window,
-            &format!(
-                "Migrated {} mod(s), {} could not be moved.",
-                report.migrated,
-                report.failures.len()
-            ),
-            "error",
-        ),
+        Ok(report) if report.failures.is_empty() => {
+            refresh_mod_manager(window, report.migrated);
+            Bridge::show_toast(
+                window,
+                &format!("Migrated {} mod(s).", report.migrated),
+                "success",
+            );
+        }
+        Ok(report) => {
+            refresh_mod_manager(window, report.migrated);
+            Bridge::show_toast(
+                window,
+                &format!(
+                    "Migrated {} mod(s), {} could not be moved.",
+                    report.migrated,
+                    report.failures.len()
+                ),
+                "error",
+            );
+        }
         Err(e) => Bridge::show_toast(window, &format!("Migration failed - {e}"), "error"),
     }
+}
+
+fn refresh_mod_manager(window: &slint::Weak<MainWindow>, migrated: usize) {
+    if migrated == 0 {
+        return;
+    }
+
+    info!("[LegacyMods] rescanning the mods folder after the migration");
+    ModManagerHandler::reload(window);
 }
 
 fn show_prompt(w: &MainWindow) {

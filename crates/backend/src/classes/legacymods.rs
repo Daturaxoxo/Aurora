@@ -8,15 +8,12 @@ use log::*;
 
 use shared::utils::get_mods_path;
 
-const LEGACY_PREFIX: &str = "~mod";
-
 #[derive(Debug, Default)]
 pub struct MigrationReport {
     pub migrated: usize,
     pub failures: Vec<String>,
 }
 
-/// Folders in the Paks directory that start with `~mod`, case-insensitively.
 pub fn find_legacy_folders() -> Vec<PathBuf> {
     let Some(pak_dir) = get_mods_path().and_then(|p| p.parent().map(Path::to_path_buf)) else {
         debug!("[LegacyMods] the game folder is not set, skipping the check");
@@ -33,7 +30,7 @@ pub fn find_legacy_folders() -> Vec<PathBuf> {
                 .file_name()
                 .to_string_lossy()
                 .to_lowercase()
-                .starts_with(LEGACY_PREFIX)
+                .starts_with("~mod")
         })
         .map(|entry| entry.path())
         .collect();
@@ -49,7 +46,6 @@ pub fn find_legacy_folders() -> Vec<PathBuf> {
     folders
 }
 
-/// Moves everything out of the legacy folders into `AuroraMods`.
 pub fn migrate(folders: &[PathBuf]) -> Result<MigrationReport> {
     let mods_path =
         get_mods_path().ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
@@ -72,6 +68,48 @@ pub fn migrate(folders: &[PathBuf]) -> Result<MigrationReport> {
     Ok(report)
 }
 
+const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
+const DISABLED_SUFFIX: &str = ".disabled";
+
+fn enabled_name(name: &str) -> &str {
+    name.strip_suffix(DISABLED_SUFFIX).unwrap_or(name)
+}
+
+fn stem_of(name: &str) -> String {
+    Path::new(enabled_name(name))
+        .file_stem()
+        .map(OsStr::to_string_lossy)
+        .unwrap_or_default()
+        .into_owned()
+}
+
+fn is_mod_file(name: &str) -> bool {
+    Path::new(enabled_name(name))
+        .extension()
+        .is_some_and(|ext| MOD_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+}
+
+fn file_name_of(path: &Path) -> String {
+    path.file_name()
+        .map(OsStr::to_string_lossy)
+        .unwrap_or_default()
+        .into_owned()
+}
+
+fn mod_name(files: &[PathBuf]) -> Option<String> {
+    files
+        .iter()
+        .map(|path| file_name_of(path))
+        .filter(|name| is_mod_file(name))
+        .min_by_key(|name| {
+            let is_pak = Path::new(enabled_name(name))
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("pak"));
+            (!is_pak, name.to_lowercase())
+        })
+        .map(|name| stem_of(&name))
+}
+
 fn migrate_folder(folder: &Path, mods_path: &Path, report: &mut MigrationReport) {
     let entries = match fs::read_dir(folder) {
         Ok(entries) => entries,
@@ -81,8 +119,6 @@ fn migrate_folder(folder: &Path, mods_path: &Path, report: &mut MigrationReport)
         }
     };
 
-    // Loose files sharing a stem (mod.pak, mod.utoc, mod.ucas) belong to the
-    // same mod, so they travel into one folder named after that stem.
     let mut loose: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
 
     for entry in entries {
@@ -95,9 +131,9 @@ fn migrate_folder(folder: &Path, mods_path: &Path, report: &mut MigrationReport)
         };
 
         let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
 
         if entry.file_type().is_ok_and(|t| t.is_dir()) {
-            let name = entry.file_name().to_string_lossy().into_owned();
             match move_into(&[path], &unique_destination(mods_path, &name)) {
                 Ok(()) => report.migrated += 1,
                 Err(e) => report.failures.push(e),
@@ -105,24 +141,25 @@ fn migrate_folder(folder: &Path, mods_path: &Path, report: &mut MigrationReport)
             continue;
         }
 
-        let stem = path
-            .file_stem()
-            .map(OsStr::to_string_lossy)
-            .unwrap_or_default()
-            .into_owned();
-
-        loose.entry(stem).or_default().push(path);
+        loose
+            .entry(stem_of(&name).to_lowercase())
+            .or_default()
+            .push(path);
     }
 
-    for (stem, files) in loose {
-        match move_into(&files, &unique_destination(mods_path, &stem)) {
+    for (_, mut files) in loose {
+        let Some(name) = mod_name(&files) else {
+            continue;
+        };
+        files.sort();
+
+        match move_into(&files, &unique_destination(mods_path, &name)) {
             Ok(()) => report.migrated += 1,
             Err(e) => report.failures.push(e),
         }
     }
 }
 
-/// `name`, or `name (2)`, `name (3)`... when `AuroraMods` already holds it.
 fn unique_destination(mods_path: &Path, name: &str) -> PathBuf {
     let candidate = mods_path.join(name);
     if !candidate.exists() {
@@ -141,8 +178,6 @@ fn unique_destination(mods_path: &Path, name: &str) -> PathBuf {
 
 fn move_into(sources: &[PathBuf], destination: &Path) -> std::result::Result<(), String> {
     let move_one = |source: &PathBuf| -> std::io::Result<()> {
-        // A directory moves as itself; loose files move inside a folder named
-        // after their stem, since the mod manager only lists folders.
         let target = if source.is_dir() {
             destination.to_path_buf()
         } else {
