@@ -22,7 +22,6 @@ const LAUNCHER_GRACE_SECS: u32 = 10;
 // No it's not, i had to increase it - wapr
 const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(7);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
-const LAUNCHER_WAIT_TIMEOUT: Duration = Duration::from_secs(600);
 
 impl AuroraEngine {
     pub fn monitor(&mut self, evt_tx: mpsc::Sender<EngineEvent>) -> Result<()> {
@@ -86,7 +85,6 @@ impl AuroraEngine {
             .max(1),
         )
         .unwrap_or(1);
-        let deadline = Instant::now() + LAUNCHER_WAIT_TIMEOUT;
 
         loop {
             thread::sleep(THREAD_SLEEP_DURATION);
@@ -98,12 +96,6 @@ impl AuroraEngine {
                     warn!("Failed to update Discord RPC: {e}");
                 }
                 return Ok(true);
-            }
-
-            if Instant::now() >= deadline {
-                warn!("NTE never started within {LAUNCHER_WAIT_TIMEOUT:?}. Aborting monitor.");
-                self.cleanup()?;
-                return Ok(false);
             }
 
             if snapshot.any_matching(&watch_names) {
