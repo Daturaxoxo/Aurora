@@ -8,8 +8,31 @@ use shared::utils::get_bin_path;
 pub mod pak;
 pub mod scale;
 
-/// Folder under `Bin/Addons` holding the censorship remover's payload.
 pub const CENSORSHIP_DIR: &str = "Censorship";
+
+const REMOVED_ADDONS: [&str; 2] = ["Collectibles", "CooldownTimers"];
+
+pub fn migrate() {
+    let Some(bin_path) = get_bin_path() else {
+        warn!("Addon migration: could not resolve the Bin path");
+        return;
+    };
+
+    for name in REMOVED_ADDONS {
+        let folder = bin_path.join("Addons").join(name);
+        if !folder.is_dir() {
+            continue;
+        }
+
+        match std::fs::remove_dir_all(&folder) {
+            Ok(()) => info!("Addon migration: removed '{}'", folder.display()),
+            Err(e) => warn!(
+                "Addon migration: could not remove '{}': {e}",
+                folder.display()
+            ),
+        }
+    }
+}
 
 pub fn get_all_addon_paths() -> Option<Vec<PathBuf>> {
     let bin_path = get_bin_path()?;

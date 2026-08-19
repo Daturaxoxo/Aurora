@@ -40,10 +40,9 @@ impl PakAddon {
             Self::new("uid_rem".to_string(), "HideUI_UserID_P".to_string()),
             // key::HIDE_NOTIF_DOTS
             Self::new("nor_rem".to_string(), "Disable_RedDot_P".to_string()),
-            // key::COOLDOWN_TIMER
-            Self::new("col_tim".to_string(), "CooldownTimer_P".to_string()),
-            // key::COLLECTIBLES
-            Self::new("collectibles".to_string(), "ItemOutline_P".to_string()),
+            // key::UI_MOD_PACK
+            Self::new("ui_pack".to_string(), "ModPack_P".to_string()),
+            Self::new("ui_pack".to_string(), "ModPack_Launcher_P".to_string()),
         ]
     }
 }
@@ -66,8 +65,7 @@ impl ResolvedAddonFile {
             "DisableDrivingLine_P" => "NoDriveLine",
             "HideUI_UserID_P" => "HideUID",
             "Disable_RedDot_P" => "HideRedDots",
-            "CooldownTimer_P" => "CooldownTimers",
-            "ItemOutline_P" => "Collectibles",
+            "ModPack_P" | "ModPack_Launcher_P" => "UIModPack",
             _ => base_name,
         }
         .to_string()

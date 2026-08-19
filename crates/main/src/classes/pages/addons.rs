@@ -20,13 +20,12 @@ use std::sync::Mutex;
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 
-const ADDON_CONFIG_KEYS: [(&str, &str); 6] = [
-    ("No 3D Driving Waypoint", "drv_lin"),
-    ("Hide UID", "uid_rem"),
-    ("Hide Notification Dots", "nor_rem"),
+const ADDON_CONFIG_KEYS: [(&str, &str); 5] = [
     ("Censorship Remover", "csn_rem"),
-    ("Cooldown Timers", "col_tim"),
-    ("Collectible Highlighter", "collectibles"),
+    ("UI Mod Pack", "ui_pack"),
+    ("Hide UID", "uid_rem"),
+    ("No 3D Driving Waypoint", "drv_lin"),
+    ("Hide Notification Dots", "nor_rem"),
 ];
 
 fn config_key(name: &str) -> Option<&'static str> {
@@ -536,6 +535,12 @@ impl AddonsHandler {
 
             addons.push(addon);
         }
+
+        addons.sort_by_key(|addon| {
+            ADDON_CONFIG_KEYS
+                .iter()
+                .position(|(name, _)| *name == addon.name)
+        });
 
         let persisted = config::modify(|data| {
             for (key, enabled) in &seen_keys {
