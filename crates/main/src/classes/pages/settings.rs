@@ -397,9 +397,13 @@ impl SettingsHandler {
             };
 
             if let Some(w) = ww.upgrade() {
+                #[cfg(target_os = "linux")]
                 w.set_proton_version_not_recommended(
                     backend::classes::linux::is_proton_version_not_recommended(&name),
                 );
+
+                #[cfg(not(target_os = "linux"))]
+                w.set_proton_version_not_recommended(false);
             }
 
             info!("proton_version changed → index={index}, build={name:?}");

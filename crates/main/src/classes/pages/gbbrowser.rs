@@ -89,6 +89,13 @@ enum Mode {
     Partial(String),
 }
 
+#[derive(Debug, Clone, Default)]
+struct GbMod {
+    id: u32,
+    author: String,
+    name: String,
+}
+
 struct PreviewState {
     mod_id: u32,
     urls: Vec<String>,
@@ -105,8 +112,7 @@ struct GbState {
     mods: Vec<(NteMod, Option<Thumbnail>)>,
     seen: HashSet<u32>,
     files: Vec<NteModFile>,
-    files_mod_id: u32,
-    files_author: String,
+    files_mod: GbMod,
     preview: Option<PreviewState>,
 }
 
@@ -121,8 +127,7 @@ impl Default for GbState {
             mods: Vec::new(),
             seen: HashSet::new(),
             files: Vec::new(),
-            files_mod_id: 0,
-            files_author: String::new(),
+            files_mod: GbMod::default(),
             preview: None,
         }
     }
@@ -475,13 +480,8 @@ impl GbBrowserHandler {
         }
     }
 
-    fn download_and_install(
-        window: &slint::Weak<MainWindow>,
-        mod_id: u32,
-        author: String,
-        file: NteModFile,
-    ) {
-        Self::start_download(window, mod_id, author, file, None);
+    fn download_and_install(window: &slint::Weak<MainWindow>, mod_: GbMod, file: NteModFile) {
+        Self::start_download(window, mod_, file, None);
     }
 
     pub(crate) fn download_update(
@@ -490,13 +490,17 @@ impl GbBrowserHandler {
         file: NteModFile,
         folder: std::path::PathBuf,
     ) {
-        Self::start_download(window, source.mod_id, source.author, file, Some(folder));
+        let mod_ = GbMod {
+            id: source.mod_id,
+            author: source.author,
+            name: source.name,
+        };
+        Self::start_download(window, mod_, file, Some(folder));
     }
 
     fn start_download(
         window: &slint::Weak<MainWindow>,
-        mod_id: u32,
-        author: String,
+        mod_: GbMod,
         file: NteModFile,
         update_folder: Option<std::path::PathBuf>,
     ) {
@@ -725,11 +729,12 @@ impl GbBrowserHandler {
                     });
 
                     let source = ModSource {
-                        mod_id,
+                        mod_id: mod_.id,
                         file_id: file.id,
                         file_name: file.name.clone(),
                         md5: file.md5.clone(),
-                        author,
+                        author: mod_.author,
+                        name: mod_.name,
                     };
 
                     if let Some(folder) = update_folder {
@@ -866,13 +871,17 @@ impl GbBrowserHandler {
             let Ok(mod_id) = u32::try_from(id) else {
                 return;
             };
-            let (mod_name, author) = STATE
+            let mod_ = STATE
                 .lock()
                 .unwrap()
                 .mods
                 .iter()
                 .find(|(m, _)| m.id == mod_id)
-                .map(|(m, _)| (m.name.clone(), m.author.clone()))
+                .map(|(m, _)| GbMod {
+                    id: m.id,
+                    author: m.author.clone(),
+                    name: m.name.clone(),
+                })
                 .unwrap_or_default();
 
             let ww2 = ww.clone();
@@ -890,9 +899,7 @@ impl GbBrowserHandler {
                             warn!("GameBanana Browser Backend: mod {mod_id} has no downloadable files");
                             show_toast(&win, "error", "This mod has no files to download".into());
                         }
-                        1 => {
-                            Self::download_and_install(&ww2, mod_id, author, files[0].clone());
-                        }
+                        1 => Self::download_and_install(&ww2, mod_, files[0].clone()),
                         _ => {
                             let items: Vec<GbFileItem> = files
                                 .iter()
@@ -904,11 +911,10 @@ impl GbBrowserHandler {
                                 .collect();
                             let mut state = STATE.lock().unwrap();
                             state.files = files;
-                            state.files_mod_id = mod_id;
-                            state.files_author = author;
+                            state.files_mod = mod_.clone();
                             drop(state);
                             win.set_gb_files(Rc::new(VecModel::from(items)).into());
-                            win.set_gb_files_mod_name(mod_name.as_str().into());
+                            win.set_gb_files_mod_name(mod_.name.as_str().into());
                             win.set_gb_files_visible(true);
                         }
                     }
@@ -926,10 +932,10 @@ impl GbBrowserHandler {
                     .files
                     .get(i)
                     .cloned()
-                    .map(|f| (state.files_mod_id, state.files_author.clone(), f))
+                    .map(|f| (state.files_mod.clone(), f))
             });
-            if let Some((mod_id, author, file)) = picked {
-                Self::download_and_install(&ww, mod_id, author, file);
+            if let Some((mod_, file)) = picked {
+                Self::download_and_install(&ww, mod_, file);
             }
         });
 

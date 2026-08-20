@@ -40,6 +40,8 @@ pub struct ModSource {
     pub md5: String,
     #[serde(default)]
     pub author: String,
+    #[serde(default)]
+    pub name: String,
 }
 
 impl ModSource {
@@ -807,6 +809,13 @@ impl ModManagerHandler {
                         if let Some(source) = &source {
                             if let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
                                 source.write(&folder);
+                                if !source.name.is_empty() {
+                                    config_map_set(
+                                        key::MODMNG_NOTES,
+                                        &folder.to_string_lossy(),
+                                        Some(&source.name),
+                                    );
+                                }
                             }
                         }
                         installed.push(name);
