@@ -35,6 +35,15 @@ fn main() -> Result<(), slint::PlatformError> {
         base.unwrap_or_else(|| PathBuf::from(".")).join("Aurora")
     }
 
+    fn with_aurora_folder(path: PathBuf) -> PathBuf {
+        let already = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case("Aurora"));
+
+        if already { path } else { path.join("Aurora") }
+    }
+
     fn available_space_for(path: &Path) -> Option<u64> {
         let disks = sysinfo::Disks::new_with_refreshed_list();
         disks
@@ -133,7 +142,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_folder();
 
             if let Some(path) = picked {
-                let path_str: String = path.to_string_lossy().into_owned();
+                let path_str: String = path.join("Aurora").to_string_lossy().into_owned();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(w) = ui_weak.upgrade() {
                         w.set_install_path(path_str.into());
@@ -175,7 +184,13 @@ fn main() -> Result<(), slint::PlatformError> {
             return;
         };
         match w.get_current_step() {
-            0 | 1 => w.set_current_step(w.get_current_step() + 1),
+            0 => w.set_current_step(1),
+            1 => {
+                let path = with_aurora_folder(PathBuf::from(w.get_install_path().as_str()));
+                w.set_install_path(path.to_string_lossy().into_owned().into());
+                update_available_space(&w);
+                w.set_current_step(2);
+            }
             2 => {
                 w.set_current_step(3);
                 install::run(
