@@ -1,16 +1,13 @@
-use super::gbbrowser;
 use super::INVALID_FILENAME_CHARS;
 use crate::classes::{characters, modicons};
-use crate::{FilterOption, GroupOption, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag};
+use crate::{FilterOption, GroupOption, MainWindow, ModFilters, ModItem};
 
 use anyhow::{anyhow, Context, Result};
 use backend::handler::GAME_RUNNING;
 use log::*;
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use shared::archive::{extract_archive_with_progress, ARCHIVE_EXTENSIONS};
-use shared::classes::gamebanana::types::NteModFile;
 use shared::config::{self, key};
 use shared::utils::{get_mods_path, open_folder, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
@@ -30,42 +27,6 @@ static TOGGLE_LOCK: Mutex<()> = Mutex::new(());
 const DISABLED_SUFFIX: &str = ".disabled";
 const STAGING_PREFIX: &str = ".aurora-installing-";
 const ALREADY_INSTALLED: &str = "a mod with this name already exists";
-const SOURCE_FILE: &str = ".aurora-source.json";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModSource {
-    pub mod_id: u32,
-    pub file_id: u32,
-    pub file_name: String,
-    pub md5: String,
-    #[serde(default)]
-    pub author: String,
-}
-
-impl ModSource {
-    fn read(folder: &Path) -> Option<Self> {
-        let raw = std::fs::read_to_string(folder.join(SOURCE_FILE)).ok()?;
-        serde_json::from_str(&raw)
-            .map_err(|e| warn!("'{}' has an unreadable source file: {e}", folder.display()))
-            .ok()
-    }
-
-    fn write(&self, folder: &Path) {
-        let raw = match serde_json::to_string(self) {
-            Ok(raw) => raw,
-            Err(e) => {
-                warn!(
-                    "could not serialize the source of '{}': {e}",
-                    folder.display()
-                );
-                return;
-            }
-        };
-        if let Err(e) = std::fs::write(folder.join(SOURCE_FILE), raw) {
-            warn!("could not record the source of '{}': {e}", folder.display());
-        }
-    }
-}
 
 fn is_mod_file(name: &str) -> bool {
     Path::new(name)
@@ -120,7 +81,6 @@ pub struct Mod {
     pub image_url: Option<String>,
     pub is_enabled: bool,
     pub has_json: bool,
-    pub source: Option<ModSource>,
 }
 
 impl Default for Mod {
@@ -137,7 +97,6 @@ impl Default for Mod {
             image_url: None,
             is_enabled: false,
             has_json: false,
-            source: None,
         }
     }
 }
@@ -183,18 +142,8 @@ impl ModManager {
             display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
             path: folder.clone(),
             is_enabled,
-            source: ModSource::read(folder),
             ..Default::default()
         };
-
-        if let Some(author) = mod_data
-            .source
-            .as_ref()
-            .map(|source| source.author.clone())
-            .filter(|author| !author.is_empty())
-        {
-            mod_data.author = Some(author);
-        }
 
         let Some(json_path) = Self::find_mod_json(folder) else {
             return mod_data;
@@ -278,8 +227,8 @@ impl ModManager {
                 .map(ToString::to_string),
             author: field("author")
                 .and_then(Value::as_str)
-                .map(ToString::to_string)
-                .or_else(|| mod_data.author.clone()),
+                .or(Some("Unknown"))
+                .map(ToString::to_string),
             support_link,
             icon,
             image_url,
@@ -354,10 +303,6 @@ impl ModManager {
                                 }
                             };
                             if sub.file_type().is_ok_and(|t| t.is_dir())
-                                && !sub
-                                    .file_name()
-                                    .to_string_lossy()
-                                    .starts_with(STAGING_PREFIX)
                                 && Self::contains_pak(&sub.path())
                             {
                                 group.add_mod(Self::get_mod_data(&sub.path()));
@@ -491,9 +436,6 @@ struct ScannedGroup {
 
 const UNGROUPED: &str = "\u{1}ungrouped";
 
-/// `None` means the mod is up-to-date, `Some` means it needs to be updated
-type UpdateCheck = Option<NteModFile>;
-
 #[derive(Default)]
 struct State {
     scanned: Vec<ScannedGroup>,
@@ -503,10 +445,10 @@ struct State {
     selected_groups: HashSet<String>,
     collapsed: HashSet<String>,
     restart_required: HashSet<String>,
-    updates: HashMap<String, UpdateCheck>,
     pending_edit_group: Option<String>,
     search: String,
-    filter: ModStatusFilter,
+    // TODO: Make this an enum
+    filter: i32, // 0 = all, 1 = enabled only, 2 = disabled only
     filter_characters: HashSet<String>,
     filter_authors: HashSet<String>,
     /// A group id, [`UNGROUPED`], or empty for every group
@@ -515,14 +457,14 @@ struct State {
 
 impl State {
     fn filtering(&self) -> bool {
-        self.filter != ModStatusFilter::All
+        self.filter != 0
             || !self.filter_characters.is_empty()
             || !self.filter_authors.is_empty()
             || !self.filter_group.is_empty()
     }
 
     fn active_filter_count(&self) -> i32 {
-        i32::from(self.filter != ModStatusFilter::All)
+        i32::from(self.filter != 0)
             + i32::from(!self.filter_group.is_empty())
             + i32::try_from(self.filter_characters.len() + self.filter_authors.len()).unwrap_or(0)
     }
@@ -726,7 +668,7 @@ impl ModManagerHandler {
     }
 
     pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
-        Self::install_paths_with_done(window, paths, None, None);
+        Self::install_paths_with_done(window, paths, None);
     }
 
     fn set_progress(window: &slint::Weak<MainWindow>, progress: f32, text: String) {
@@ -742,7 +684,6 @@ impl ModManagerHandler {
     pub(crate) fn install_paths_with_done(
         window: &slint::Weak<MainWindow>,
         paths: Vec<PathBuf>,
-        source: Option<ModSource>,
         on_done: Option<InstallDoneCallback>,
     ) {
         let ww = window.clone();
@@ -804,11 +745,6 @@ impl ModManagerHandler {
                 match Self::install_path(unit, &mut on_progress) {
                     Ok(name) => {
                         info!("installed '{name}' from '{}'", path.display());
-                        if let Some(source) = &source {
-                            if let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
-                                source.write(&folder);
-                            }
-                        }
                         installed.push(name);
                     }
                     Err(e) => {
@@ -988,140 +924,6 @@ impl ModManagerHandler {
         Ok(name)
     }
 
-    pub(crate) fn apply_update(
-        window: &slint::Weak<MainWindow>,
-        folder: PathBuf,
-        downloaded: PathBuf,
-        source: ModSource,
-    ) {
-        let ww = window.clone();
-        std::thread::spawn(move || {
-            let name = folder
-                .file_name()
-                .unwrap_or(folder.as_os_str())
-                .to_string_lossy()
-                .into_owned();
-
-            let was_enabled = !read_dir_recursive(&folder)
-                .iter()
-                .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
-
-            let outcome = Self::replace_folder(&folder, &downloaded, &mut |frac| {
-                Self::set_progress(&ww, frac, format!("Updating {name}..."));
-            });
-
-            let failure = match outcome {
-                Ok(()) => {
-                    info!("updated '{}'", folder.display());
-                    source.write(&folder);
-
-                    if !was_enabled {
-                        let updated = Mod {
-                            folder_name: name.clone(),
-                            path: folder.clone(),
-                            ..Default::default()
-                        };
-                        if let Err(e) = ModManager::toggle_mod(&updated) {
-                            warn!("could not disable '{name}' again after updating: {e}");
-                        }
-                    }
-
-                    STATE
-                        .lock()
-                        .unwrap()
-                        .updates
-                        .insert(folder.to_string_lossy().into_owned(), None);
-                    None
-                }
-                Err(e) => {
-                    error!("could not update '{}': {e:#}", folder.display());
-                    Some(format!("{e:#}"))
-                }
-            };
-
-            let ww2 = ww.clone();
-            let _ = slint::invoke_from_event_loop(move || {
-                let Some(win) = ww2.upgrade() else { return };
-                win.set_progress_overlay_active(false);
-                match failure {
-                    None => Self::show_toast(&win, "success", format!("Updated {name}")),
-                    Some(e) => {
-                        Self::show_toast(&win, "error", format!("Could not update {name} - {e}"));
-                    }
-                }
-            });
-
-            Self::reload(&ww);
-        });
-    }
-
-    fn replace_folder(
-        folder: &Path,
-        downloaded: &Path,
-        progress: &mut dyn FnMut(f32),
-    ) -> Result<()> {
-        let parent = folder
-            .parent()
-            .ok_or_else(|| anyhow!("the mod folder could not be resolved"))?;
-        let name = folder
-            .file_name()
-            .ok_or_else(|| anyhow!("invalid mod name"))?
-            .to_string_lossy()
-            .into_owned();
-        let staging = parent.join(format!("{STAGING_PREFIX}{name}"));
-
-        if staging.exists() {
-            std::fs::remove_dir_all(&staging)?;
-        }
-        std::fs::create_dir_all(&staging)?;
-
-        let ext = downloaded
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-
-        let filled = if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
-            extract_archive_with_progress(downloaded, &staging, &mut |done, total| {
-                if total > 0 {
-                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-                    progress((done as f64 / total as f64).min(1.0) as f32);
-                }
-            })
-        } else if MOD_EXTENSIONS.contains(&ext.as_str()) {
-            downloaded
-                .file_name()
-                .ok_or_else(|| anyhow!("invalid file name"))
-                .and_then(|file_name| {
-                    std::fs::copy(downloaded, staging.join(file_name))?;
-                    Ok(())
-                })
-        } else {
-            Err(anyhow!("unsupported file type '.{ext}'"))
-        };
-
-        let clean_up = |staging: &Path| {
-            if let Err(e) = std::fs::remove_dir_all(staging) {
-                warn!("could not clean up '{}': {e}", staging.display());
-            }
-        };
-
-        if let Err(e) = filled {
-            clean_up(&staging);
-            return Err(e);
-        }
-
-        if let Err(e) = std::fs::remove_dir_all(folder) {
-            clean_up(&staging);
-            return Err(anyhow!("could not clear '{}': {e}", folder.display()));
-        }
-
-        std::fs::rename(&staging, folder)
-            .with_context(|| format!("could not move the new files into '{}'", folder.display()))?;
-
-        Ok(())
-    }
-
     fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
         std::fs::create_dir_all(dst)?;
         for entry in src.read_dir()? {
@@ -1172,80 +974,10 @@ impl ModManagerHandler {
 
                 STATE.lock().unwrap().scanned = scanned;
                 Self::rebuild(&w);
-                Self::check_updates(&ww);
 
                 if let Some(error) = error {
                     Self::show_toast(&w, "error", format!("Could not read mods folder - {error}"));
                 }
-            });
-        });
-    }
-
-    fn tag_for(m: &Mod, updates: &HashMap<String, UpdateCheck>) -> ModTag {
-        if m.source.is_none() {
-            return ModTag::Local;
-        }
-
-        match updates.get(&mod_id(m)) {
-            Some(Some(_)) => ModTag::UpdateAvailable,
-            Some(None) => ModTag::UpToDate,
-            None => ModTag::None,
-        }
-    }
-
-    fn check_updates(window: &slint::Weak<MainWindow>) {
-        let pending: Vec<(String, ModSource)> = {
-            let state = STATE.lock().unwrap();
-            state
-                .scanned
-                .iter()
-                .flat_map(|g| g.mods.iter())
-                .filter(|m| !state.updates.contains_key(&mod_id(m)))
-                .filter_map(|m| m.source.clone().map(|source| (mod_id(m), source)))
-                .collect()
-        };
-
-        if pending.is_empty() {
-            return;
-        }
-
-        let ww = window.clone();
-        gbbrowser::runtime().spawn(async move {
-            let mod_ids: HashSet<u32> = pending.iter().map(|(_, s)| s.mod_id).collect();
-            let mut fetched: HashMap<u32, Vec<NteModFile>> = HashMap::new();
-            for mod_id in mod_ids {
-                match gbbrowser::mod_files(mod_id).await {
-                    Some(files) => {
-                        fetched.insert(mod_id, files);
-                    }
-                    None => warn!("could not check mod {mod_id} for updates"),
-                }
-            }
-
-            let mut results: Vec<(String, UpdateCheck)> = Vec::new();
-            for (id, source) in pending {
-                let Some(files) = fetched.get(&source.mod_id) else {
-                    continue;
-                };
-
-                let newest = files
-                    .iter()
-                    .find(|f| f.id == source.file_id)
-                    .or_else(|| files.iter().find(|f| f.name == source.file_name));
-                let Some(newest) = newest else {
-                    warn!("'{}' is no longer on GameBanana", source.file_name);
-                    continue;
-                };
-
-                let outdated =
-                    !newest.md5.is_empty() && !newest.md5.eq_ignore_ascii_case(&source.md5);
-                results.push((id, outdated.then(|| newest.clone())));
-            }
-
-            let _ = slint::invoke_from_event_loop(move || {
-                let Some(w) = ww.upgrade() else { return };
-                STATE.lock().unwrap().updates.extend(results);
-                Self::rebuild(&w);
             });
         });
     }
@@ -1307,9 +1039,9 @@ impl ModManagerHandler {
                     .iter()
                     .filter(|m| {
                         let wrong_status = match state.filter {
-                            ModStatusFilter::Enabled => !m.is_enabled,
-                            ModStatusFilter::Disabled => m.is_enabled,
-                            ModStatusFilter::All => false,
+                            1 => !m.is_enabled,
+                            2 => m.is_enabled,
+                            _ => false,
                         };
                         if wrong_status {
                             return false;
@@ -1369,7 +1101,6 @@ impl ModManagerHandler {
                         is_group_header: true,
                         collapsed,
                         restart_required: false,
-                        tag: ModTag::None,
                     };
                     items.push(header.clone());
                     section.push(header);
@@ -1408,7 +1139,6 @@ impl ModManagerHandler {
                             is_group_header: false,
                             collapsed: false,
                             restart_required: state.restart_required.contains(&mod_id(m)),
-                            tag: Self::tag_for(m, &state.updates),
                         };
                         items.push(item.clone());
                         section.push(item);
@@ -1447,7 +1177,6 @@ impl ModManagerHandler {
                 .flat_map(|g| g.mods.iter().map(mod_id))
                 .collect();
             state.restart_required.retain(|id| installed.contains(id));
-            state.updates.retain(|id, _| installed.contains(id));
             state.displayed = displayed;
             state.rows = rows;
 
@@ -1825,18 +1554,6 @@ impl ModManagerHandler {
         });
 
         let ww = window.clone();
-        w.on_mod_update(move |id| {
-            let id = id.to_string();
-            let file = STATE.lock().unwrap().updates.get(&id).cloned().flatten();
-            let (Some(file), Some(m)) = (file, Self::mod_by_id(&id)) else {
-                return;
-            };
-            let Some(source) = m.source else { return };
-
-            gbbrowser::GbBrowserHandler::download_update(&ww, source, file, m.path);
-        });
-
-        let ww = window.clone();
         w.on_mods_toggle_all(move || {
             let ww = ww.clone();
             std::thread::spawn(move || {
@@ -2088,14 +1805,14 @@ impl ModManagerHandler {
 
             {
                 let mut state = STATE.lock().unwrap();
-                state.filter = ModStatusFilter::All;
+                state.filter = 0;
                 state.filter_group = String::new();
                 state.filter_characters.clear();
                 state.filter_authors.clear();
             }
 
             win.set_mods_filters(ModFilters {
-                status: ModStatusFilter::All,
+                status: 0,
                 group_id: "".into(),
             });
             Self::rebuild(&win);
@@ -2213,10 +1930,10 @@ impl ModManagerHandler {
                             Ok(()) => Self::note_toggle(&mod_id(m)),
                             Err(e) => {
                                 if m.path.exists() {
-                                    error!("could not toggle '{}': {e}", m.folder_name);
-                                } else {
-                                    note_missing("could not toggle", m);
-                                }
+                                error!("could not toggle '{}': {e}", m.folder_name);
+                            } else {
+                                note_missing("could not toggle", m);
+                            }
                             }
                         }
                     }
@@ -2395,9 +2112,6 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mods_refresh(move || {
-            {
-                STATE.lock().unwrap().updates.clear();
-            }
             Self::reload(&ww);
         });
 

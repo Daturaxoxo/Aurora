@@ -74,7 +74,7 @@ impl Version {
         match self {
             Self::Global => VersionSpec {
                 launcher_process: "NTEGlobalLauncher.exe",
-                helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe", "NTEGlobalBrowser.exe"],
+                helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe"],
             },
             Self::CN => VersionSpec {
                 launcher_process: "NTELauncher.exe",

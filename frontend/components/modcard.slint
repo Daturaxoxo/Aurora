@@ -2,13 +2,6 @@ import { Palette } from "../global.slint";
 import { Tr, TrKey } from "../translations.slint";
 import { ScrollingTextInput } from "textfield.slint";
 
-export enum ModTag {
-    none,
-    local,
-    update-available,
-    up-to-date,
-}
-
 export struct ModItem {
     id: string,
     name: string,
@@ -25,7 +18,6 @@ export struct ModItem {
     is-group-header: bool,
     collapsed: bool,
     restart-required: bool,
-    tag: ModTag,
 }
 
 component RestartPill inherits Rectangle {
@@ -42,36 +34,6 @@ component RestartPill inherits Rectangle {
         text: Tr.values[TrKey.modmanager-restart-required];
         color: #ffdcae;
         font-size: root.compact ? 10px : 11.5px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-}
-
-component TagPill inherits Rectangle {
-    in property <ModTag> tag: ModTag.none;
-    in property <bool> compact: false;
-
-    property <color> accent: root.tag == ModTag.update-available
-        ? #e8a020
-        : root.tag == ModTag.up-to-date ? #25d952 : #9a9aa4;
-
-    height: root.compact ? 20px : 16px;
-    width: tag-text.preferred-width + (root.compact ? 16px : 12px);
-    border-radius: root.compact ? 7px : 4px;
-    border-width: 1px;
-    border-color: root.accent.transparentize(0.7);
-    background: root.compact ? #1e1e24ee : root.accent.transparentize(0.88);
-
-    tag-text := Text {
-        text: root.tag == ModTag.local
-            ? Tr.values[TrKey.modmanager-tag-local]
-            : root.tag == ModTag.update-available
-            ? Tr.values[TrKey.modmanager-tag-update-available]
-            : Tr.values[TrKey.modmanager-tag-up-to-date];
-        color: root.accent;
-        font-size: root.compact ? 10px : 9.5px;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -122,7 +84,6 @@ export component ModCard inherits Rectangle {
     callback set-notes(string /* id */, string /* notes */);
     callback request-delete(string /* id */, string /* name */);
     callback toggle-enabled(string /* id */);
-    callback update(string /* id */);
     callback open-link(string /* id */);
     callback drag-started(string /* id */, string /* name */);
     callback drag-moved(length /* x */, length /* y */);
@@ -266,8 +227,7 @@ export component ModCard inherits Rectangle {
             spacing: 3px;
             horizontal-stretch: 0;
             max-width: max(80px, root.width - (root.show-icon ? 218px : 166px)
-                - (root.item.restart-required ? restart-measure.preferred-width + 34px : 0px)
-                - (root.item.tag == ModTag.update-available ? 34px : 0px));
+                - (root.item.restart-required ? restart-measure.preferred-width + 34px : 0px));
 
             HorizontalLayout {
                 height: 18px;
@@ -399,10 +359,6 @@ export component ModCard inherits Rectangle {
                         font-weight: 600;
                     }
                 }
-
-                if root.item.tag != ModTag.none: TagPill {
-                    tag: root.item.tag;
-                }
             }
 
             HorizontalLayout {
@@ -502,31 +458,6 @@ export component ModCard inherits Rectangle {
             }
         }
 
-        if root.item.tag == ModTag.update-available: VerticalLayout {
-            alignment: center;
-            update-btn := Rectangle {
-                width: 28px;
-                height: 28px;
-                border-radius: 6px;
-                background: update-ta.has-hover ? #e8a02022 : transparent;
-                animate background { duration: 100ms; }
-
-                Image {
-                    source: @image-url("../../production/icons/download.png");
-                    width: 15px;
-                    height: 15px;
-                    image-rendering: smooth;
-                    image-fit: contain;
-                    colorize: update-ta.has-hover ? #f5bd52 : #e8a020;
-                    animate colorize { duration: 100ms; }
-                }
-
-                update-ta := TouchArea {
-                    clicked => { root.update(root.item.id); }
-                }
-            }
-        }
-
         VerticalLayout {
             alignment: center;
             ToggleSwitch {
@@ -567,10 +498,12 @@ export component ModCard inherits Rectangle {
                 height: 20px;
                 border-radius: 4px;
                 border-width: 1px;
+                opacity: (grid-root.tile-hovered || root.item.selected) ? 1 : 0;
                 border-color: root.item.selected
                     ? #6db3f2
                     : (grid-select-ta.has-hover ? #ffffff88 : #ffffff55);
                 background: root.item.selected ? #6db3f2 : #00000066;
+                animate opacity { duration: 120ms; }
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -624,13 +557,6 @@ export component ModCard inherits Rectangle {
                 compact: true;
                 x: max(6px, grid-delete-btn.x - self.width - 6px);
                 y: 8px;
-            }
-
-            if root.item.tag != ModTag.none: TagPill {
-                compact: true;
-                tag: root.item.tag;
-                x: 32px;
-                y: 6px;
             }
         }
 
@@ -733,31 +659,6 @@ export component ModCard inherits Rectangle {
                     enabled: grid-author-wrap.is-link && root.item.author != "";
                     mouse-cursor: pointer;
                     clicked => { root.open-link(root.item.id); }
-                }
-            }
-
-            if root.item.tag == ModTag.update-available: VerticalLayout {
-                alignment: center;
-                grid-update-btn := Rectangle {
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 6px;
-                    background: grid-update-ta.has-hover ? #e8a02022 : transparent;
-                    animate background { duration: 100ms; }
-
-                    Image {
-                        source: @image-url("../../production/icons/download.png");
-                        width: 14px;
-                        height: 14px;
-                        image-rendering: smooth;
-                        image-fit: contain;
-                        colorize: grid-update-ta.has-hover ? #f5bd52 : #e8a020;
-                        animate colorize { duration: 100ms; }
-                    }
-
-                    grid-update-ta := TouchArea {
-                        clicked => { root.update(root.item.id); }
-                    }
                 }
             }
 

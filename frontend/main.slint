@@ -19,7 +19,6 @@ import {
     GroupOption,
     FilterOption,
     ModFilters,
-    ModStatusFilter,
 } from "components/pages/modmanager.slint";
 import {
     GameBananaBrowser,
@@ -203,7 +202,6 @@ export component MainWindow inherits Window {
     in-out property <int> mods-selected-group-count: 0;
     callback mods-delete-selected-groups();
     callback mod-toggle(string);
-    callback mod-update(string);
     callback mod-delete(string);
     callback mod-rename(string, string);
     callback mod-select(string);
@@ -223,7 +221,7 @@ export component MainWindow inherits Window {
     callback mods-toggle-selected();
     callback mods-delete-selected();
     callback mods-search-changed(string);
-    in-out property <ModFilters> mods-filters: { status: ModStatusFilter.all, group-id: "" };
+    in-out property <ModFilters> mods-filters: { status: 0, group-id: "" };
     in-out property <[FilterOption]> mods-filter-characters: [];
     in-out property <[FilterOption]> mods-filter-authors: [];
     in-out property <[FilterOption]> mods-filter-groups: [];
@@ -1082,7 +1080,6 @@ export component MainWindow inherits Window {
             }
             close-mod-manager => { root.show-mod-manager = false; }
             toggle-mod(id) => { root.mod-toggle(id); }
-            update-mod(id) => { root.mod-update(id); }
             delete-mod(id) => { root.mod-delete(id); }
             rename-mod(id, name) => { root.mod-rename(id, name); }
             select-mod(id) => { root.mod-select(id); }
