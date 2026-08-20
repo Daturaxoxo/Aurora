@@ -10,6 +10,7 @@ use anyhow::{Result, anyhow};
 use log::*;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
+use backend::classes::addons;
 use shared::config::{self, key};
 use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
@@ -39,6 +40,7 @@ fn main() -> Result<()> {
     }));
 
     config::migrate();
+    addons::migrate();
 
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
@@ -251,6 +253,8 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     classes::desktop::prompt_on_first_run(&window.as_weak());
+
+    classes::legacymods::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
 

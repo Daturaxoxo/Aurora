@@ -16,6 +16,8 @@ const PROTECTED_ENV_VARS: [&str; 9] = [
     "LOCALAPPDATA",
 ];
 
+const DATA_DIR_NAME: &str = "Aurora";
+
 /// Folder the user picked by hand after automatic detection failed.
 static APP_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
 
@@ -31,6 +33,9 @@ pub struct Plan {
     pub data_dir: PathBuf,
     pub app_dir: Option<PathBuf>,
     pub app_dir_error: Option<String>,
+    /// The application folder holds things Aurora did not install, so the user
+    /// is told upfront that those are left alone.
+    pub app_dir_shared: bool,
     pub mods_dir: Option<PathBuf>,
     pub backup_dir: PathBuf,
 }
@@ -70,11 +75,15 @@ impl Plan {
         backup_dir: PathBuf,
     ) -> Self {
         let (app_dir, app_dir_error) = select_app_dir(candidates);
+        let app_dir_shared = app_dir
+            .as_deref()
+            .is_some_and(|dir| !crate::owned::foreign_entries(dir).is_empty());
 
         Self {
             data_dir,
             app_dir,
             app_dir_error,
+            app_dir_shared,
             mods_dir: mods_dir.filter(|mods| mods.is_dir()),
             backup_dir,
         }
@@ -125,6 +134,39 @@ pub fn verify_app_dir(dir: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Aurora's own data folder, and no other. `--data-dir` comes from the
+/// elevated relaunch, so it is checked rather than trusted.
+pub fn verify_data_dir(dir: &Path) -> Result<(), String> {
+    if is_protected_dir(dir) {
+        return Err(format!(
+            "refusing to delete {}: it is a system or user folder",
+            dir.display()
+        ));
+    }
+
+    if dir.file_name() != Some(DATA_DIR_NAME.as_ref()) {
+        return Err(format!(
+            "refusing to delete {}: Aurora's data folder is named {DATA_DIR_NAME}",
+            dir.display()
+        ));
+    }
+
+    Ok(())
+}
+
+/// Only the folder Aurora installs mods into, never the game's own pak folder
+/// one level up.
+pub fn verify_mods_dir(dir: &Path) -> Result<(), String> {
+    if dir.ends_with(CLIENT_PAK_DIR) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "refusing to delete {}: it is not the {CLIENT_PAK_DIR} folder",
+        dir.display()
+    ))
 }
 
 fn candidate_app_dirs(config: &Value) -> Vec<PathBuf> {

@@ -47,6 +47,9 @@ impl PopupHandler {
                         crate::classes::desktop::mark_prompted();
                         ww.set_desktop_entry(true);
                     }
+                    crate::classes::legacymods::POPUP_ID => {
+                        crate::classes::legacymods::confirm(&w);
+                    }
                     "repair" => {
                         let checkboxes = ww
                             .get_popup_checkboxes()
@@ -81,6 +84,10 @@ impl PopupHandler {
 
                 if id.as_str() == crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID {
                     SettingsHandler::cancel_ignore_checksum(&w);
+                }
+
+                if id.as_str() == crate::classes::legacymods::POPUP_ID {
+                    crate::classes::legacymods::mark_prompted();
                 }
 
                 #[cfg(target_os = "linux")]
