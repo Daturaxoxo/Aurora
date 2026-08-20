@@ -14,7 +14,17 @@ use std::{
 };
 
 pub static ENGINE_CMD_TX: OnceLock<mpsc::Sender<EngineCommand>> = OnceLock::new();
+pub static ENGINE_EVT_TX: OnceLock<mpsc::Sender<EngineEvent>> = OnceLock::new();
 pub static GAME_RUNNING: AtomicBool = AtomicBool::new(false);
+
+pub fn emit(event: EngineEvent) {
+    match ENGINE_EVT_TX.get() {
+        Some(tx) => {
+            tx.send(event).ok();
+        }
+        None => debug!("Dropping an engine event, the engine has not been started yet"),
+    }
+}
 
 pub fn get_tx() -> Result<mpsc::Sender<EngineCommand>> {
     let tx = ENGINE_CMD_TX
@@ -42,6 +52,7 @@ pub enum EngineEvent {
     ValidationResult { missing: Vec<String> },
     EngineReady,
     EngineInitFailed(String),
+    ModsMigrated { count: usize },
 }
 
 pub struct EngineHandler {
@@ -109,6 +120,7 @@ impl EngineHandler {
         let (evt_tx, evt_rx) = mpsc::channel::<EngineEvent>();
 
         let _ = ENGINE_CMD_TX.set(cmd_tx.clone());
+        let _ = ENGINE_EVT_TX.set(evt_tx.clone());
 
         std::thread::spawn(move || {
             let engine: Arc<Mutex<Option<AuroraEngine>>> = Arc::new(Mutex::new(None));

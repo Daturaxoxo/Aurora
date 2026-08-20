@@ -3,6 +3,7 @@
 include!(concat!(env!("OUT_DIR"), "/uninstall.rs"));
 
 mod elevate;
+mod owned;
 mod plan;
 #[path = "../registry.rs"]
 mod registry;
@@ -38,6 +39,7 @@ fn show_app_dir(ui: &UninstallerWindow, plan: &Plan) {
             .into(),
     );
     ui.set_app_found(plan.app_dir.is_some());
+    ui.set_app_shared(plan.app_dir_shared);
     ui.set_app_error(app_dir_error(plan).into());
 }
 

@@ -30,6 +30,7 @@ component OptionRow inherits VerticalLayout {
 export component UninstallWelcomePage inherits VerticalLayout {
     in property <string> app-path;
     in property <bool> app-found;
+    in property <bool> app-shared;
     in property <string> app-error;
     in property <string> mods-path;
     in property <bool> mods-available;
@@ -99,7 +100,7 @@ export component UninstallWelcomePage inherits VerticalLayout {
 
             Text {
                 text: root.app-found
-                    ? "The Aurora application folder is always removed:"
+                    ? "Aurora's own files are always removed from:"
                     : "The Aurora application folder could not be located, so nothing can be removed:";
                 font-size: 13px;
                 color: Palette.text-secondary;
@@ -110,6 +111,15 @@ export component UninstallWelcomePage inherits VerticalLayout {
                 text: root.app-found ? root.app-path : root.app-error;
                 font-size: 13px;
                 color: root.app-found ? Palette.text-primary : #ff6b6b;
+                wrap: word-wrap;
+            }
+
+            if root.app-found: Text {
+                text: root.app-shared
+                    ? "This folder has files that Aurora did not install, only Aurora's own files are deleted."
+                    : "Only the files Aurora installed are deleted.";
+                font-size: 12px;
+                color: root.app-shared ? #ffc357 : #ffffff55;
                 wrap: word-wrap;
             }
 

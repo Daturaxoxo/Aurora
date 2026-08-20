@@ -11,7 +11,7 @@ impl RepairHandler {
         let engine_handler = backend::handler::get_tx()?;
         engine_handler.send(EngineCommand::KillProcesses)?;
         if validate_files {
-            trace!("[Repair] Validating files");
+            info!("[Repair] Validating files");
             engine_handler.send(EngineCommand::Validate)?;
 
             let game_path = pathfind::get_game_directory()
@@ -20,13 +20,13 @@ impl RepairHandler {
         }
 
         if remove_files {
-            trace!("[Repair] Removing files");
+            info!("[Repair] Removing files");
             // TODO: Doesn't check for old files
             engine_handler.send(EngineCommand::Sanitize)?;
         }
 
         if clean_cache {
-            trace!("[Repair] Cleaning cache");
+            info!("[Repair] Cleaning cache");
             std::fs::remove_dir_all(get_cache_dir())?;
         }
 

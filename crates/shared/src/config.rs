@@ -46,8 +46,7 @@ pub mod key {
     pub const NO_DRIVE_LINE: &str = "drv_lin";
     pub const HIDE_UID: &str = "uid_rem";
     pub const HIDE_NOTIF_DOTS: &str = "nor_rem";
-    pub const COOLDOWN_TIMER: &str = "col_tim";
-    pub const COLLECTIBLES: &str = "collectibles";
+    pub const UI_MOD_PACK: &str = "ui_pack";
     pub const DISCORD_RPC: &str = "discord_rpc";
     pub const EXPORT_CONSOLE: &str = "export_console";
     pub const UI_SCALING: &str = "ui_scaling";
@@ -72,6 +71,7 @@ pub mod key {
     pub const TELEMETRY_OPT_OUT: &str = "telemetry_opt_out";
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
+    pub const LEGACY_MODS_PROMPTED: &str = "legacy_mods_prompted";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -87,14 +87,14 @@ pub fn default_value(k: &str) -> Value {
         | key::SHOW_NSFW_MODS
         | key::CUSTOM_ADDONS_TOGGLED
         | key::CENSORSHIP_REMOVE
-        | key::COLLECTIBLES
-        | key::COOLDOWN_TIMER
+        | key::UI_MOD_PACK
         | key::GB_NSFW
         | key::QUICK_START_CREATED
         | key::DESKTOP_ENTRY
         | key::DESKTOP_ENTRY_PROMPTED
         | key::TELEMETRY_OPT_OUT
-        | key::IGNORE_CHECKSUM => {
+        | key::IGNORE_CHECKSUM
+        | key::LEGACY_MODS_PROMPTED => {
             json!(false)
         }
 
@@ -345,12 +345,25 @@ pub fn set(k: &str, value: impl Into<Value>) {
 /// Superseded by [`key::TELEMETRY_OPT_OUT`]
 const LEGACY_ERROR_TELEMETRY: &str = "error_telemetry";
 
+const REMOVED_ADDONS: [&str; 2] = ["col_tim", "collectibles"];
+
 pub fn migrate() {
-    if !get_all_configs().contains_key(LEGACY_ERROR_TELEMETRY) {
+    let existing = get_all_configs();
+    let stale = REMOVED_ADDONS
+        .iter()
+        .any(|key| existing.contains_key(*key));
+
+    if !stale && !existing.contains_key(LEGACY_ERROR_TELEMETRY) {
         return;
     }
 
     modify(|data| {
+        for key in REMOVED_ADDONS {
+            if data.remove(key).is_some() {
+                info!("Dropping {key}, its addon no longer exists");
+            }
+        }
+
         let Some(legacy) = data.remove(LEGACY_ERROR_TELEMETRY) else {
             return;
         };

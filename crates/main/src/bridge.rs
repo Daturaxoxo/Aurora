@@ -56,6 +56,9 @@ impl Bridge {
                         );
                     }
                 }
+                EngineEvent::ModsMigrated { count } => {
+                    info!("Quick start: moved {count} mod(s) into Aurora's mods folder");
+                }
                 EngineEvent::Toast { .. } | EngineEvent::GamePathUpdated(_) => {}
             }
         }
@@ -224,6 +227,10 @@ impl Bridge {
                                 "error",
                             );
                         }
+                    }
+                    EngineEvent::ModsMigrated { count } => {
+                        info!("Moved {count} mod(s) into Aurora's mods folder, rescanning");
+                        ModManagerHandler::reload(&w);
                     }
                     EngineEvent::Toast { text, kind } => {
                         Self::show_toast(&w, &text, &kind);
