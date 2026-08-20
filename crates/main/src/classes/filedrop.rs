@@ -95,8 +95,8 @@ unsafe extern "system" fn subclass_proc(
             unsafe { DragFinish(hdrop) };
 
             let weak = unsafe { &*(refdata as *const slint::Weak<MainWindow>) };
-            if let Some(win) = weak.upgrade() {
-                if !paths.is_empty() {
+            if let Some(win) = weak.upgrade()
+                && !paths.is_empty() {
                     if win.get_show_mod_manager() {
                         info!(
                             "[FileDrop] {} path(s) dropped on the mod manager",
@@ -108,7 +108,6 @@ unsafe extern "system" fn subclass_proc(
                         ModulesHandler::install_paths(weak, paths);
                     }
                 }
-            }
             0
         }
         WM_NCDESTROY => unsafe {

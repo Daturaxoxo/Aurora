@@ -247,8 +247,8 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
         if path.is_dir() {
             fs::create_dir_all(&dest_path).unwrap();
             process_directory(root_source, &path, target_base);
-        } else if path.is_file() {
-            if let Some(extension) = path.extension().and_then(|os| os.to_str()) {
+        } else if path.is_file()
+            && let Some(extension) = path.extension().and_then(|os| os.to_str()) {
                 let ext_lower = extension.to_lowercase();
                 if ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg" {
                     let file_name = path.file_name().and_then(|os| os.to_str()).unwrap_or("");
@@ -279,7 +279,6 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                     }
                 }
             }
-        }
     }
 }
 

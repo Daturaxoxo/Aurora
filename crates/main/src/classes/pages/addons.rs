@@ -685,14 +685,13 @@ impl AddonsHandler {
 
         if failures.is_empty() {
             let md5 = Self::combined_md5(&addon.install_data);
-            if !md5.is_empty() {
-                if let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5) {
+            if !md5.is_empty()
+                && let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5) {
                     warn!(
                         "Installed addon: could not record the hash for '{}': {e}",
                         addon.name
                     );
                 }
-            }
             Ok(())
         } else {
             Err(anyhow::anyhow!(
@@ -778,14 +777,13 @@ impl AddonsHandler {
                     return match written {
                         Ok(()) => Ok(dest),
                         Err(e) => {
-                            if temp_path.exists() {
-                                if let Err(e) = std::fs::remove_file(&temp_path) {
+                            if temp_path.exists()
+                                && let Err(e) = std::fs::remove_file(&temp_path) {
                                     warn!(
                                         "Addon download: could not remove '{}': {e}",
                                         temp_path.display()
                                     );
                                 }
-                            }
                             Err(e)
                         }
                     };

@@ -79,11 +79,10 @@ impl SettingsHandler {
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
         debug!("discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
-        if discord_rpc {
-            if let Err(e) = RPC.set_idle() {
+        if discord_rpc
+            && let Err(e) = RPC.set_idle() {
                 error!("could not set Discord RPC to idle: {e}");
             }
-        }
 
         // Launcher
         let raw_path = config::get(key::GAME_PATH);

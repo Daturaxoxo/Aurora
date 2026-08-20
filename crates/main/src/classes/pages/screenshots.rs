@@ -214,11 +214,10 @@ fn hash_file(path: &Path) -> std::io::Result<u64> {
 }
 
 fn content_hash(path: &Path, id: FileId) -> Option<u64> {
-    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path) {
-        if *cached_id == id {
+    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path)
+        && *cached_id == id {
             return Some(*hash);
         }
-    }
 
     let hash = hash_file(path)
         .map_err(|e| warn!("Could not hash '{}': {e}", path.display()))
@@ -518,11 +517,10 @@ fn copy_image_to_clipboard(path: &Path) -> bool {
         return false;
     }
 
-    if let Some(bmp) = bmp {
-        if let Err(e) = clipboard_win::raw::set_bitmap(&bmp) {
+    if let Some(bmp) = bmp
+        && let Err(e) = clipboard_win::raw::set_bitmap(&bmp) {
             warn!("Could not add a bitmap to the clipboard: {e}");
         }
-    }
 
     true
 }
@@ -954,12 +952,11 @@ impl ScreenshotHandler {
             };
 
             let model = win.get_screenshots();
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(mut row) = model.row_data(i) {
+            if let Ok(i) = usize::try_from(index)
+                && let Some(mut row) = model.row_data(i) {
                     row.selected = selected;
                     model.set_row_data(i, row);
                 }
-            }
             win.set_screenshot_selected_count(i32::try_from(count).unwrap_or(0));
         });
 
@@ -970,12 +967,11 @@ impl ScreenshotHandler {
 
             let model = win.get_screenshots();
             for i in 0..model.row_count() {
-                if let Some(mut row) = model.row_data(i) {
-                    if row.selected {
+                if let Some(mut row) = model.row_data(i)
+                    && row.selected {
                         row.selected = false;
                         model.set_row_data(i, row);
                     }
-                }
             }
             win.set_screenshot_selected_count(0);
         });
@@ -1004,11 +1000,10 @@ impl ScreenshotHandler {
             };
             let Some(win) = ww.upgrade() else { return };
 
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(row) = win.get_screenshots().row_data(i) {
+            if let Ok(i) = usize::try_from(index)
+                && let Some(row) = win.get_screenshots().row_data(i) {
                     win.set_screenshot_preview_image(row.image);
                 }
-            }
 
             let generation = PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
             let ww = ww.clone();

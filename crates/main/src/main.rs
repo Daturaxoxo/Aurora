@@ -99,8 +99,8 @@ fn main() -> Result<()> {
     }
 
     #[cfg(target_os = "windows")]
-    if let Some(app_path) = &app_location {
-        if !config::get(key::QUICK_START_CREATED)
+    if let Some(app_path) = &app_location
+        && !config::get(key::QUICK_START_CREATED)
             .as_bool()
             .unwrap_or(false)
         {
@@ -110,7 +110,6 @@ fn main() -> Result<()> {
                 Err(e) => warn!("Could not create the quick start shortcut: {e}"),
             }
         }
-    }
 
     let window = MainWindow::new()?;
 

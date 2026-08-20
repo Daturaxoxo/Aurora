@@ -426,11 +426,10 @@ impl ModulesHandler {
             let id = id.to_string();
             let ww = ww.clone();
             std::thread::spawn(move || {
-                if let Some(m) = Self::module_by_id(&id) {
-                    if let Err(e) = Self::toggle_module(&m) {
+                if let Some(m) = Self::module_by_id(&id)
+                    && let Err(e) = Self::toggle_module(&m) {
                         error!("[Modules] could not toggle '{}': {e}", m.id);
                     }
-                }
                 Self::reload(&ww);
             });
         });
@@ -542,13 +541,12 @@ impl ModulesHandler {
     fn update_row(w: &MainWindow, id: &str, change: impl Fn(&mut ModItem)) {
         let model = w.get_modules_list();
         for i in 0..model.row_count() {
-            if let Some(mut row) = model.row_data(i) {
-                if row.id == id {
+            if let Some(mut row) = model.row_data(i)
+                && row.id == id {
                     change(&mut row);
                     model.set_row_data(i, row);
                     break;
                 }
-            }
         }
     }
 }

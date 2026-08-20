@@ -806,8 +806,8 @@ impl ModManagerHandler {
                 match Self::install_path(unit, &mut on_progress) {
                     Ok(name) => {
                         info!("installed '{name}' from '{}'", path.display());
-                        if let Some(source) = &source {
-                            if let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
+                        if let Some(source) = &source
+                            && let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
                                 source.write(&folder);
                                 if !source.name.is_empty() {
                                     config_map_set(
@@ -817,7 +817,6 @@ impl ModManagerHandler {
                                     );
                                 }
                             }
-                        }
                         installed.push(name);
                     }
                     Err(e) => {
@@ -2451,13 +2450,12 @@ impl ModManagerHandler {
     fn update_row(w: &MainWindow, id: &str, change: impl Fn(&mut ModItem)) {
         let model = w.get_mods();
         for i in 0..model.row_count() {
-            if let Some(mut row) = model.row_data(i) {
-                if row.id == id {
+            if let Some(mut row) = model.row_data(i)
+                && row.id == id {
                     change(&mut row);
                     model.set_row_data(i, row);
                     break;
                 }
-            }
         }
 
         let sections = w.get_mods_grid();
@@ -2466,13 +2464,12 @@ impl ModManagerHandler {
                 continue;
             };
             for i in 0..section.row_count() {
-                if let Some(mut row) = section.row_data(i) {
-                    if row.id == id {
+                if let Some(mut row) = section.row_data(i)
+                    && row.id == id {
                         change(&mut row);
                         section.set_row_data(i, row);
                         return;
                     }
-                }
             }
         }
     }

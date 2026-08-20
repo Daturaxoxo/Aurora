@@ -608,8 +608,8 @@ impl GbBrowserHandler {
                             hasher.consume(&chunk);
                             out.write_all(&chunk).await?;
                             done += chunk.len() as u64;
-                            if let Some(percent) = (done * 100).checked_div(total) {
-                                if percent > last_percent {
+                            if let Some(percent) = (done * 100).checked_div(total)
+                                && percent > last_percent {
                                     last_percent = percent;
                                     #[allow(
                                         clippy::cast_precision_loss,
@@ -622,7 +622,6 @@ impl GbBrowserHandler {
                                         format!("Downloading {}...", file.name),
                                     );
                                 }
-                            }
                         };
                         out.flush().await?;
                         Ok(stopped)
