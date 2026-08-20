@@ -75,6 +75,7 @@ export component UninstallerWindow inherits Window {
     // Welcome Properties
     in property <string> app-path: "";
     in property <bool> app-found: false;
+    in property <bool> app-shared: false;
     in property <string> app-error: "";
     in property <string> mods-path: "";
     in property <bool> mods-available: false;
@@ -202,6 +203,7 @@ export component UninstallerWindow inherits Window {
                                 width: parent.width - 56px;
                                 app-path: root.app-path;
                                 app-found: root.app-found;
+                                app-shared: root.app-shared;
                                 app-error: root.app-error;
                                 mods-path: root.mods-path;
                                 mods-available: root.mods-available;
@@ -321,7 +323,7 @@ export component UninstallerWindow inherits Window {
                             }
 
                             Text {
-                                text: "Aurora and the selected data will be removed. This cannot be undone.";
+                                text: "Aurora and the selected data will be removed. Other files in the folder are kept. This cannot be undone.";
                                 font-size: 13px;
                                 color: Palette.text-secondary;
                                 wrap: word-wrap;

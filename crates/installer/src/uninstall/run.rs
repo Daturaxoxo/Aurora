@@ -1,4 +1,5 @@
 use crate::UninstallerWindow;
+use crate::owned;
 use crate::plan::Plan;
 use shared::utils::format_bytes;
 use slint::{Model, SharedString, VecModel, Weak};
@@ -90,12 +91,14 @@ fn run_inner(
         }
 
         log_line(ui, format!("Deleting {}...", mods.display()));
+        crate::plan::verify_mods_dir(mods)?;
         remove_dir(mods)?;
         advance(ui, &mut step, steps);
     }
 
     if options.delete_config {
         log_line(ui, format!("Deleting {}...", plan.data_dir.display()));
+        crate::plan::verify_data_dir(&plan.data_dir)?;
         remove_dir(&plan.data_dir)?;
         advance(ui, &mut step, steps);
     }
@@ -115,9 +118,11 @@ fn run_inner(
         );
     }
 
-    log_line(ui, format!("Deleting {}...", app_dir.display()));
-    if remove_app_dir(app_dir)? {
-        *PENDING_CLEANUP.lock().unwrap() = Some(app_dir.to_path_buf());
+    log_line(ui, format!("Removing Aurora from {}...", app_dir.display()));
+    if remove_app_dir(ui, app_dir)?
+        && let Ok(exe) = std::env::current_exe()
+    {
+        *PENDING_CLEANUP.lock().unwrap() = Some(exe);
         log_line(
             ui,
             "The uninstaller itself is removed once this window closes.".into(),
@@ -173,40 +178,69 @@ fn advance(ui: &Weak<UninstallerWindow>, step: &mut usize, steps: usize) {
     set_progress(ui, ratio(*step, steps));
 }
 
-fn remove_app_dir(dir: &Path) -> Result<bool, String> {
+fn remove_app_dir(ui: &Weak<UninstallerWindow>, dir: &Path) -> Result<bool, String> {
     if !dir.exists() {
         return Ok(false);
     }
     crate::plan::verify_app_dir(dir)?;
 
-    let self_exe = &std::env::current_exe()
+    let owned = owned::resolve(dir);
+    if !owned.from_manifest {
+        log_line(
+            ui,
+            format!(
+                "WARNING: no install manifest in {}, so only Aurora's standard files are removed.",
+                dir.display()
+            ),
+        );
+    }
+
+    let self_exe = std::env::current_exe()
         .unwrap_or_default()
         .canonicalize()
         .ok();
     let mut skipped = false;
 
-    let entries =
-        fs::read_dir(dir).map_err(|e| format!("failed to read {}: {e}", dir.display()))?;
-    for entry in entries {
-        let path = entry
-            .map_err(|e| format!("failed to read {}: {e}", dir.display()))?
-            .path();
+    for tree in &owned.trees {
+        log_line(ui, format!("  Deleting {}...", tree.display()));
+        remove_path(tree)?;
+    }
 
-        if let Err(e) = remove_path(&path) {
-            if self_exe.is_some() && self_exe == &path.canonicalize().ok() {
-                skipped = true;
-                continue;
-            }
-            return Err(e);
+    for file in &owned.files {
+        if !file.exists() {continue}
+        if self_exe.is_some() && self_exe == file.canonicalize().ok() {
+            skipped = true;
+            continue;
         }
+        remove_path(file)?;
     }
 
-    if skipped {
-        return Ok(true);
+    for empty in &owned.prune {
+        let _ = fs::remove_dir(empty);
     }
 
-    fs::remove_dir(dir).map_err(|e| format!("failed to delete {}: {e}", dir.display()))?;
-    Ok(false)
+    for kept in &owned.foreign {
+        log_line(
+            ui,
+            format!("  Keeping {} - Aurora did not install it.", kept.display()),
+        );
+    }
+
+    if fs::remove_dir(dir).is_ok() {
+        return Ok(false);
+    }
+
+    if !skipped {
+        log_line(
+            ui,
+            format!(
+                "Left {} in place: it still holds files that are not Aurora's.",
+                dir.display()
+            ),
+        );
+    }
+
+    Ok(skipped)
 }
 
 fn remove_path(path: &Path) -> Result<(), String> {
@@ -264,19 +298,31 @@ pub fn cleanup_target() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-pub fn run_cleanup(dir: &Path) {
+pub fn run_cleanup(target: &Path) {
+    if target.is_dir() {
+        eprintln!(
+            "Refusing to clean up {}: expected a file, not a folder",
+            target.display()
+        );
+        return;
+    }
+
     let deadline = Instant::now() + CLEANUP_TIMEOUT;
 
     loop {
-        match fs::remove_dir_all(dir) {
+        match fs::remove_file(target) {
             Ok(()) => break,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
             Err(e) if Instant::now() >= deadline => {
-                eprintln!("Gave up deleting {}: {e}", dir.display());
+                eprintln!("Gave up deleting {}: {e}", target.display());
                 break;
             }
             Err(_) => std::thread::sleep(CLEANUP_RETRY_INTERVAL),
         }
+    }
+
+    if let Some(parent) = target.parent() {
+        let _ = fs::remove_dir(parent);
     }
 
     delete_self_on_reboot();
@@ -303,7 +349,7 @@ fn delete_self_on_reboot() {
     }
 }
 
-pub fn cleanup_after_exit(dir: &Path) {
+pub fn cleanup_after_exit(target: &Path) {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 
@@ -321,14 +367,14 @@ pub fn cleanup_after_exit(dir: &Path) {
 
         Command::new(&helper)
             .arg(CLEANUP_ARG)
-            .arg(dir)
+            .arg(target)
             .creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW)
             .spawn()?;
         Ok(())
     };
 
     if let Err(e) = schedule() {
-        eprintln!("Failed to schedule cleanup of {}: {e}", dir.display());
+        eprintln!("Failed to schedule cleanup of {}: {e}", target.display());
     }
 }
 
