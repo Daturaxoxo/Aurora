@@ -3,7 +3,7 @@ use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
@@ -14,8 +14,8 @@ use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 const PAGE_SIZE: usize = 15;
@@ -890,13 +890,17 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
                     let Some(files) = files else {
-                        error!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
+                        error!(
+                            "GameBanana Browser Backend: could not fetch the files of mod {mod_id}"
+                        );
                         show_toast(&win, "error", "Could not fetch this mod's files".into());
                         return;
                     };
                     match files.len() {
                         0 => {
-                            warn!("GameBanana Browser Backend: mod {mod_id} has no downloadable files");
+                            warn!(
+                                "GameBanana Browser Backend: mod {mod_id} has no downloadable files"
+                            );
                             show_toast(&win, "error", "This mod has no files to download".into());
                         }
                         1 => Self::download_and_install(&ww2, mod_, files[0].clone()),

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::{classes::updater, LaunchState, MainWindow};
-use anyhow::{anyhow, Result};
+use crate::{LaunchState, MainWindow, classes::updater};
+use anyhow::{Result, anyhow};
 use backend::handler::{self, EngineCommand, EngineEvent, EngineHandler};
 use log::*;
 use shared::config::{self, key};

@@ -2,10 +2,10 @@ use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
-use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
+use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::info::addons;
-use shared::classes::info::version::{detect_version, Version};
+use shared::classes::info::version::{Version, detect_version};
 use shared::utils::get_cache_dir;
 use shared::{config, pathfind, utils};
 

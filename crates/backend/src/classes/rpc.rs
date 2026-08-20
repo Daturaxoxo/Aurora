@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use discord_rich_presence::{
-    activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
+    activity::{Activity, Assets, Button, Timestamps},
 };
 use log::*;
 use shared::config::{self, key};

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

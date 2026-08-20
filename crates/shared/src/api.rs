@@ -1,10 +1,10 @@
 pub mod ccu;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::*;
 use reqwest::blocking::Client;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use std::error::Error;
 use std::fmt;

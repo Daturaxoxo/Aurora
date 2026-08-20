@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use ipc::lock::SingletonLock;
-use ipc::manifest::{hash_file, FileEntry, LocalManifest, Manifest};
+use ipc::manifest::{FileEntry, LocalManifest, Manifest, hash_file};
 use ipc::protocol::{self, Message};
 
 use crate::logfile;

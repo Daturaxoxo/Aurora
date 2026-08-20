@@ -4,7 +4,7 @@ use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::rpc::RPC;
-use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
+use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
@@ -567,7 +567,10 @@ impl SettingsHandler {
             .map_or("en", |l| l.code.as_str());
 
         if result == "en" && index != 0 {
-            warn!("index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
+            warn!(
+                "index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"",
+                LANGUAGES.len()
+            );
         }
 
         result

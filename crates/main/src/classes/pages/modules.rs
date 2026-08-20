@@ -1,7 +1,7 @@
 use crate::classes::pages::modmanager::{config_map, config_map_set};
 use crate::{MainWindow, ModItem, ModTag};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -11,8 +11,8 @@ use slint::{Model, VecModel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const DISABLED_SUFFIX: &str = ".disabled";
 const MODULE_EXTENSIONS: [&str; 1] = ["asi"];

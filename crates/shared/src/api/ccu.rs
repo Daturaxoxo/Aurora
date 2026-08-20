@@ -8,7 +8,7 @@ use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::classes::info::version::{detect_version, Version};
+use crate::classes::info::version::{Version, detect_version};
 use crate::utils::get_local_version;
 use crate::{config, utils};
 

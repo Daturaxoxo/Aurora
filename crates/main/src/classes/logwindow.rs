@@ -1,9 +1,9 @@
 use std::{cell::RefCell, fmt::Write as _, rc::Rc, time::Duration};
 
-use log::{debug, error, info, Level};
+use log::{Level, debug, error, info};
 use shared::{
     config::{self, key},
-    logger::{self, LogEntry, LOG_BUFFER_CAPACITY},
+    logger::{self, LOG_BUFFER_CAPACITY, LogEntry},
 };
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 

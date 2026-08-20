@@ -1,8 +1,8 @@
 use super::cache::CacheManager;
 use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
 use crate::utils::{error_chain, get_local_version};
-use anyhow::{anyhow, Context, Result};
-use futures::{stream, StreamExt};
+use anyhow::{Context, Result, anyhow};
+use futures::{StreamExt, stream};
 use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -129,10 +129,7 @@ impl GameBananaApi {
         }
 
         match resp.bytes().await {
-            Err(e) => Attempt::Retry(
-                anyhow!("could not read {what}: {}", error_chain(&e)),
-                None,
-            ),
+            Err(e) => Attempt::Retry(anyhow!("could not read {what}: {}", error_chain(&e)), None),
             Ok(bytes) if bytes.is_empty() => {
                 Attempt::Retry(anyhow!("{what} returned an empty body"), None)
             }
@@ -189,7 +186,8 @@ impl GameBananaApi {
 
     fn detect_nsfw(record: &ApiRecord) -> bool {
         let vis = record.initial_visibility.as_deref().unwrap_or("");
-        if vis == "hide" { // check is vis == "warn" is required, since it also hides skimpy outfits (basically all beach outfits for example since bikinis & swimsuits are skimpy)
+        if vis == "hide" {
+            // check is vis == "warn" is required, since it also hides skimpy outfits (basically all beach outfits for example since bikinis & swimsuits are skimpy)
             return true;
         }
         if vis == "show" {
@@ -451,11 +449,8 @@ impl GameBananaApi {
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
-        let index: SearchResponse = Self::fetch_json(
-            request,
-            &format!("category {category_id} (page {page})"),
-        )
-        .await?;
+        let index: SearchResponse =
+            Self::fetch_json(request, &format!("category {category_id} (page {page})")).await?;
 
         let only_mods = Self::only_mod_records(index.records);
         if only_mods.is_empty() {

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::{error, info, trace, warn};
 use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
@@ -34,15 +34,20 @@ fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
             if path
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
-            {return None}
+            {
+                return None;
+            }
 
             let name = e.file_name().to_string_lossy().to_lowercase();
-            INCOMPATIBLE.iter().any(|frag| name.contains(frag)).then(|| {
-                (
-                    format!("Incompatible {}", e.file_name().to_string_lossy()),
-                    path,
-                )
-            })
+            INCOMPATIBLE
+                .iter()
+                .any(|frag| name.contains(frag))
+                .then(|| {
+                    (
+                        format!("Incompatible {}", e.file_name().to_string_lossy()),
+                        path,
+                    )
+                })
         })
         .collect()
 }

@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use log::*;
-use shared::classes::info::{addons, Target};
+use shared::classes::info::{Target, addons};
 use shared::config::{get, key};
 
-use crate::classes::addons::pak::PakAddon;
 use crate::classes::addons::CENSORSHIP_DIR;
+use crate::classes::addons::pak::PakAddon;
 
 use super::AuroraEngine;
 

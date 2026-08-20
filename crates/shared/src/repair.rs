@@ -3,8 +3,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use anyhow::{anyhow, Context, Result};
-use ipc::manifest::{hash_bytes, safe_join, FileEntry, LocalManifest, Manifest};
+use anyhow::{Context, Result, anyhow};
+use ipc::manifest::{FileEntry, LocalManifest, Manifest, hash_bytes, safe_join};
 use log::*;
 
 #[derive(Debug, Default)]

@@ -1,15 +1,15 @@
-use super::gbbrowser;
 use super::INVALID_FILENAME_CHARS;
+use super::gbbrowser;
 use crate::classes::{characters, modicons};
 use crate::{FilterOption, GroupOption, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use backend::handler::GAME_RUNNING;
 use log::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use shared::archive::{extract_archive_with_progress, ARCHIVE_EXTENSIONS};
+use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive_with_progress};
 use shared::classes::gamebanana::types::NteModFile;
 use shared::config::{self, key};
 use shared::utils::{get_mods_path, open_folder, read_dir_recursive};
@@ -666,8 +666,8 @@ impl ModManagerHandler {
     // TODO: This is not yet tested on linux
     #[cfg(not(target_os = "windows"))]
     fn setup_file_drop(window: &slint::Weak<MainWindow>) {
-        use i_slint_backend_winit::winit::event::WindowEvent;
         use i_slint_backend_winit::WinitWindowAccessor;
+        use i_slint_backend_winit::winit::event::WindowEvent;
         use slint::ComponentHandle;
 
         let ww = window.clone();
@@ -2359,11 +2359,7 @@ impl ModManagerHandler {
                 let source = Self::mod_by_id(&id)
                     .map(|m| Self::current_zone(&m))
                     .unwrap_or_default();
-                if zone == source {
-                    String::new()
-                } else {
-                    zone
-                }
+                if zone == source { String::new() } else { zone }
             });
 
             if win.get_mods_drag_target() != target.as_str() {

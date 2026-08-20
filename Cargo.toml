@@ -8,7 +8,7 @@ members = [
     "crates/steam-wrapper",
     "crates/installer",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.dependencies]
 slint = { version = "1.17.1", default-features = false, features = [

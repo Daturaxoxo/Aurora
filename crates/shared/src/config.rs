@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::*;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
@@ -248,7 +248,9 @@ fn quarantine(path: &Path, cause: &anyhow::Error) {
 
 fn load_raw() -> Result<Map<String, Value>> {
     let path = config_file_path();
-    let Some(contents) = read_raw(&path)? else {return Ok(Map::new())};
+    let Some(contents) = read_raw(&path)? else {
+        return Ok(Map::new());
+    };
 
     let e = match parse_raw(&contents, &path) {
         Ok(map) => return Ok(map),

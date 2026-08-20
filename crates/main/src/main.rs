@@ -6,7 +6,7 @@ mod bridge;
 mod classes;
 mod translations;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
@@ -283,8 +283,8 @@ fn set_app_user_model_id() {
 
 #[cfg(target_os = "windows")]
 fn set_window_icon(window: &MainWindow) {
-    use i_slint_backend_winit::winit::window::Icon;
     use i_slint_backend_winit::WinitWindowAccessor;
+    use i_slint_backend_winit::winit::window::Icon;
 
     const LOGO: &[u8] = include_bytes!("../../../production/icons/logo.png");
 

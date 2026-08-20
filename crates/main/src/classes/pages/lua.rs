@@ -6,7 +6,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use once_cell::sync::Lazy;
