@@ -835,10 +835,11 @@ impl UpdateHandler {
     fn send_init_confirmed() {
         for _ in 0..10 {
             if let Ok(mut stream) = protocol::connect(ipc::INIT_PIPE_NAME)
-                && protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok() {
-                    info!("init_confirmed sent");
-                    return;
-                }
+                && protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok()
+            {
+                info!("init_confirmed sent");
+                return;
+            }
             std::thread::sleep(Duration::from_millis(300));
         }
         warn!("could not deliver init_confirmed to the updater");

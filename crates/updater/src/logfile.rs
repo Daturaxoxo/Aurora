@@ -26,9 +26,8 @@ pub fn log(msg: &str) {
     #[cfg(debug_assertions)]
     eprint!("{line}");
 
-    if let Some(path) = LOG_PATH.get() {
-        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+    if let Some(path) = LOG_PATH.get()
+        && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
             let _ = file.write_all(line.as_bytes());
         }
-    }
 }

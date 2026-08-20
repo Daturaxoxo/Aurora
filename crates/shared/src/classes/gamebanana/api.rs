@@ -329,8 +329,8 @@ impl GameBananaApi {
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
     ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_feed_cache(page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_feed_cache(page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -338,7 +338,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
         let request = self.client.get(&url).query(&[("_nPage", page)]);
@@ -371,8 +370,8 @@ impl GameBananaApi {
             return Ok(Vec::new());
         }
 
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_search_cache(query, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_search_cache(query, page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -380,7 +379,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Util/Search/Results");
         let request = self.client.get(&url).query(&[
@@ -429,8 +427,8 @@ impl GameBananaApi {
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
     ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_category_cache(category_id, page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -438,7 +436,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Mod/Index");
         let request = self.client.get(&url).query(&[

@@ -141,13 +141,12 @@ impl DiscordRpc {
                         }
                         RpcCommand::ClearActivity => {
                             desired = None;
-                            if connected {
-                                if let Err(e) = client.clear_activity() {
+                            if connected
+                                && let Err(e) = client.clear_activity() {
                                     debug!("Discord RPC clear failed, dropping connection: {e:?}");
                                     let _ = client.close();
                                     connected = false;
                                 }
-                            }
                             continue;
                         }
                         RpcCommand::Reconnect => {

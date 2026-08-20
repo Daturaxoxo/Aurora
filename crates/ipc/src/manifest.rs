@@ -23,11 +23,10 @@ fn download_urls(primary: &str, relative: &str) -> Vec<String> {
     if is_trusted_url(primary) {
         urls.push(primary.to_owned());
     }
-    if let Some(url) = fallback_url(relative) {
-        if is_trusted_url(&url) && !urls.contains(&url) {
+    if let Some(url) = fallback_url(relative)
+        && is_trusted_url(&url) && !urls.contains(&url) {
             urls.push(url);
         }
-    }
     urls
 }
 

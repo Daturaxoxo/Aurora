@@ -807,16 +807,17 @@ impl ModManagerHandler {
                     Ok(name) => {
                         info!("installed '{name}' from '{}'", path.display());
                         if let Some(source) = &source
-                            && let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
-                                source.write(&folder);
-                                if !source.name.is_empty() {
-                                    config_map_set(
-                                        key::MODMNG_NOTES,
-                                        &folder.to_string_lossy(),
-                                        Some(&source.name),
-                                    );
-                                }
+                            && let Some(folder) = get_mods_path().map(|mods| mods.join(&name))
+                        {
+                            source.write(&folder);
+                            if !source.name.is_empty() {
+                                config_map_set(
+                                    key::MODMNG_NOTES,
+                                    &folder.to_string_lossy(),
+                                    Some(&source.name),
+                                );
                             }
+                        }
                         installed.push(name);
                     }
                     Err(e) => {
@@ -2451,11 +2452,12 @@ impl ModManagerHandler {
         let model = w.get_mods();
         for i in 0..model.row_count() {
             if let Some(mut row) = model.row_data(i)
-                && row.id == id {
-                    change(&mut row);
-                    model.set_row_data(i, row);
-                    break;
-                }
+                && row.id == id
+            {
+                change(&mut row);
+                model.set_row_data(i, row);
+                break;
+            }
         }
 
         let sections = w.get_mods_grid();
@@ -2465,11 +2467,12 @@ impl ModManagerHandler {
             };
             for i in 0..section.row_count() {
                 if let Some(mut row) = section.row_data(i)
-                    && row.id == id {
-                        change(&mut row);
-                        section.set_row_data(i, row);
-                        return;
-                    }
+                    && row.id == id
+                {
+                    change(&mut row);
+                    section.set_row_data(i, row);
+                    return;
+                }
             }
         }
     }

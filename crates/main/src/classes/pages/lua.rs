@@ -291,12 +291,13 @@ impl LuaScriptsHandler {
         let script_dir = mods_dir.join(item.name.as_str());
 
         if let Err(e) = fs::remove_dir_all(&script_dir)
-            && e.kind() != std::io::ErrorKind::NotFound {
-                error!(
-                    "Failed to delete script folder '{}': {e}",
-                    script_dir.display()
-                );
-            }
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            error!(
+                "Failed to delete script folder '{}': {e}",
+                script_dir.display()
+            );
+        }
 
         unregister_mod_from_config(mods_dir, &item.name);
         drop(mods_dir_guard);
@@ -527,9 +528,10 @@ fn read_debug_enabled(bin_dir: &Path) -> bool {
             continue;
         }
         if let Some((key, value)) = trimmed.split_once('=')
-            && key.trim().eq_ignore_ascii_case("GuiConsoleEnabled") {
-                return value.trim() == "1";
-            }
+            && key.trim().eq_ignore_ascii_case("GuiConsoleEnabled")
+        {
+            return value.trim() == "1";
+        }
     }
 
     false
@@ -565,17 +567,16 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) -> Result<()> {
             continue;
         }
 
-        if debug_section
-            && let Some((key, _)) = trimmed.split_once('=') {
-                let key_name = key.trim();
-                if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
-                    || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
-                {
-                    let _ = write!(updated, "{key_name} = {value}");
-                    updated.push_str(line_ending);
-                    continue;
-                }
+        if debug_section && let Some((key, _)) = trimmed.split_once('=') {
+            let key_name = key.trim();
+            if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
+                || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
+            {
+                let _ = write!(updated, "{key_name} = {value}");
+                updated.push_str(line_ending);
+                continue;
             }
+        }
 
         updated.push_str(line);
         updated.push_str(line_ending);

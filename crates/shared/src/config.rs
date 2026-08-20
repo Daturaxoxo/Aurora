@@ -134,11 +134,10 @@ pub fn get_userdata_path() -> PathBuf {
 pub fn config_file_path() -> PathBuf {
     let config_path = get_userdata_path().join("config.json");
 
-    if !config_path.parent().unwrap().exists() {
-        if let Err(e) = fs::create_dir_all(config_path.parent().unwrap()) {
+    if !config_path.parent().unwrap().exists()
+        && let Err(e) = fs::create_dir_all(config_path.parent().unwrap()) {
             error!("Failed to create config directory: {e}");
         }
-    }
 
     config_path
 }

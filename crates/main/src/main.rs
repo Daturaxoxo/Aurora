@@ -103,13 +103,13 @@ fn main() -> Result<()> {
         && !config::get(key::QUICK_START_CREATED)
             .as_bool()
             .unwrap_or(false)
-        {
-            info!("Quick start not created; running first-time setup");
-            match shared::desktop_entry::create_quick_start_shortcut(app_path) {
-                Ok(()) => config::set(key::QUICK_START_CREATED, true),
-                Err(e) => warn!("Could not create the quick start shortcut: {e}"),
-            }
+    {
+        info!("Quick start not created; running first-time setup");
+        match shared::desktop_entry::create_quick_start_shortcut(app_path) {
+            Ok(()) => config::set(key::QUICK_START_CREATED, true),
+            Err(e) => warn!("Could not create the quick start shortcut: {e}"),
         }
+    }
 
     let window = MainWindow::new()?;
 

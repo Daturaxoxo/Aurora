@@ -96,18 +96,19 @@ unsafe extern "system" fn subclass_proc(
 
             let weak = unsafe { &*(refdata as *const slint::Weak<MainWindow>) };
             if let Some(win) = weak.upgrade()
-                && !paths.is_empty() {
-                    if win.get_show_mod_manager() {
-                        info!(
-                            "[FileDrop] {} path(s) dropped on the mod manager",
-                            paths.len()
-                        );
-                        ModManagerHandler::install_paths(weak, paths);
-                    } else if win.get_show_modules() {
-                        info!("[FileDrop] {} path(s) dropped on the modules", paths.len());
-                        ModulesHandler::install_paths(weak, paths);
-                    }
+                && !paths.is_empty()
+            {
+                if win.get_show_mod_manager() {
+                    info!(
+                        "[FileDrop] {} path(s) dropped on the mod manager",
+                        paths.len()
+                    );
+                    ModManagerHandler::install_paths(weak, paths);
+                } else if win.get_show_modules() {
+                    info!("[FileDrop] {} path(s) dropped on the modules", paths.len());
+                    ModulesHandler::install_paths(weak, paths);
                 }
+            }
             0
         }
         WM_NCDESTROY => unsafe {

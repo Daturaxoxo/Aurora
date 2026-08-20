@@ -130,11 +130,10 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
                 .with_context(|| format!("moving '{}' to '{}'", temp.display(), dest.display()))
         });
 
-    if written.is_err() && temp.exists() {
-        if let Err(e) = fs::remove_file(&temp) {
+    if written.is_err() && temp.exists()
+        && let Err(e) = fs::remove_file(&temp) {
             warn!("Download: could not remove '{}': {e}", temp.display());
         }
-    }
 
     written
 }
