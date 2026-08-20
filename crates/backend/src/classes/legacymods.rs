@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use log::*;
 
-use shared::utils::get_mods_path;
+use shared::utils::{get_mods_path, read_dir_recursive};
 
 #[derive(Debug, Default)]
 pub struct MigrationReport {
@@ -50,12 +50,16 @@ pub fn migrate(folders: &[PathBuf]) -> Result<MigrationReport> {
     let mods_path =
         get_mods_path().ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
 
-    fs::create_dir_all(&mods_path)?;
+    migrate_into(folders, &mods_path)
+}
+
+pub fn migrate_into(folders: &[PathBuf], mods_path: &Path) -> Result<MigrationReport> {
+    fs::create_dir_all(mods_path)?;
 
     let mut report = MigrationReport::default();
 
     for folder in folders {
-        migrate_folder(folder, &mods_path, &mut report);
+        migrate_folder(folder, mods_path, &mut report);
         remove_if_empty(folder);
     }
 
@@ -83,10 +87,17 @@ fn stem_of(name: &str) -> String {
         .into_owned()
 }
 
-fn is_mod_file(name: &str) -> bool {
+pub fn is_mod_file(name: &str) -> bool {
     Path::new(enabled_name(name))
         .extension()
         .is_some_and(|ext| MOD_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+}
+
+pub fn is_mod_folder(folder: &Path) -> bool {
+    read_dir_recursive(&folder.to_path_buf())
+        .iter()
+        .filter(|entry| entry.file_type().is_file())
+        .any(|entry| is_mod_file(&entry.file_name().to_string_lossy()))
 }
 
 fn file_name_of(path: &Path) -> String {
