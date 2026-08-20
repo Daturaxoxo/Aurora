@@ -65,6 +65,10 @@ image = { version = "0.25.10", default-features = false, features = [
 ] }
 mslnk = "0.1"
 md5 = "0.8.1"
+ureq = { version = "3", default-features = false, features = [
+    "native-tls",
+    "gzip",
+] }
 
 [profile.dev.package.flate2]
 opt-level = 3
