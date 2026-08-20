@@ -1,5 +1,5 @@
 use crate::classes::pages::modmanager::{config_map, config_map_set};
-use crate::{MainWindow, ModItem};
+use crate::{MainWindow, ModItem, ModTag};
 
 use anyhow::{anyhow, Result};
 use log::*;
@@ -210,6 +210,7 @@ impl ModulesHandler {
                     is_group_header: false,
                     collapsed: false,
                     restart_required: false,
+                    tag: ModTag::None,
                 })
                 .collect();
 

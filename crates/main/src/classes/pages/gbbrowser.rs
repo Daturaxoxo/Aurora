@@ -1,5 +1,5 @@
 use crate::classes::characters;
-use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
@@ -105,6 +105,8 @@ struct GbState {
     mods: Vec<(NteMod, Option<Thumbnail>)>,
     seen: HashSet<u32>,
     files: Vec<NteModFile>,
+    files_mod_id: u32,
+    files_author: String,
     preview: Option<PreviewState>,
 }
 
@@ -119,6 +121,8 @@ impl Default for GbState {
             mods: Vec::new(),
             seen: HashSet::new(),
             files: Vec::new(),
+            files_mod_id: 0,
+            files_author: String::new(),
             preview: None,
         }
     }
@@ -127,6 +131,14 @@ impl Default for GbState {
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
 static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_RUNNING);
 static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
+
+pub fn runtime() -> &'static tokio::runtime::Runtime {
+    &RUNTIME
+}
+
+pub async fn mod_files(mod_id: u32) -> Option<Vec<NteModFile>> {
+    API.get_mod_files(mod_id).await
+}
 
 fn show_nsfw() -> bool {
     config::get(key::GB_NSFW).as_bool().unwrap_or(false)
@@ -463,15 +475,47 @@ impl GbBrowserHandler {
         }
     }
 
-    fn download_and_install(window: &slint::Weak<MainWindow>, file: NteModFile) {
+    fn download_and_install(
+        window: &slint::Weak<MainWindow>,
+        mod_id: u32,
+        author: String,
+        file: NteModFile,
+    ) {
+        Self::start_download(window, mod_id, author, file, None);
+    }
+
+    pub(crate) fn download_update(
+        window: &slint::Weak<MainWindow>,
+        source: ModSource,
+        file: NteModFile,
+        folder: std::path::PathBuf,
+    ) {
+        Self::start_download(window, source.mod_id, source.author, file, Some(folder));
+    }
+
+    fn start_download(
+        window: &slint::Weak<MainWindow>,
+        mod_id: u32,
+        author: String,
+        file: NteModFile,
+        update_folder: Option<std::path::PathBuf>,
+    ) {
         INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
+        let updating = update_folder.is_some();
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
             let name = file.name.clone();
             move || {
                 if let Some(w) = ww.upgrade() {
-                    w.set_progress_overlay_title("Installing Mod".into());
+                    w.set_progress_overlay_title(
+                        if updating {
+                            "Updating Mod"
+                        } else {
+                            "Installing Mod"
+                        }
+                        .into(),
+                    );
                     w.set_progress_overlay_progress(0.0);
                     w.set_progress_overlay_text(format!("Downloading {name}...").into());
                     w.set_progress_overlay_cancellable(true);
@@ -674,14 +718,30 @@ impl GbBrowserHandler {
                             // Extraction can't be aborted, so cancelling stops here
                             w.set_progress_overlay_cancellable(false);
                             w.set_progress_overlay_progress(1.0);
-                            w.set_progress_overlay_text("Installing...".into());
+                            w.set_progress_overlay_text(
+                                if updating { "Updating..." } else { "Installing..." }.into(),
+                            );
                         }
                     });
-                    ModManagerHandler::install_paths_with_done(
-                        &ww,
-                        vec![path],
-                        Some(Box::new(|w| w.set_progress_overlay_active(false))),
-                    );
+
+                    let source = ModSource {
+                        mod_id,
+                        file_id: file.id,
+                        file_name: file.name.clone(),
+                        md5: file.md5.clone(),
+                        author,
+                    };
+
+                    if let Some(folder) = update_folder {
+                        ModManagerHandler::apply_update(&ww, folder, path, source);
+                    } else {
+                        ModManagerHandler::install_paths_with_done(
+                            &ww,
+                            vec![path],
+                            Some(source),
+                            Some(Box::new(|w| w.set_progress_overlay_active(false))),
+                        );
+                    }
                 }
                 Ok(None) => {
                     // The cancel callback already hid the overlay and toasted
@@ -806,13 +866,13 @@ impl GbBrowserHandler {
             let Ok(mod_id) = u32::try_from(id) else {
                 return;
             };
-            let mod_name = STATE
+            let (mod_name, author) = STATE
                 .lock()
                 .unwrap()
                 .mods
                 .iter()
                 .find(|(m, _)| m.id == mod_id)
-                .map(|(m, _)| m.name.clone())
+                .map(|(m, _)| (m.name.clone(), m.author.clone()))
                 .unwrap_or_default();
 
             let ww2 = ww.clone();
@@ -830,7 +890,9 @@ impl GbBrowserHandler {
                             warn!("GameBanana Browser Backend: mod {mod_id} has no downloadable files");
                             show_toast(&win, "error", "This mod has no files to download".into());
                         }
-                        1 => Self::download_and_install(&ww2, files[0].clone()),
+                        1 => {
+                            Self::download_and_install(&ww2, mod_id, author, files[0].clone());
+                        }
                         _ => {
                             let items: Vec<GbFileItem> = files
                                 .iter()
@@ -840,7 +902,11 @@ impl GbBrowserHandler {
                                     downloads: i32::try_from(f.download_count).unwrap_or(i32::MAX),
                                 })
                                 .collect();
-                            STATE.lock().unwrap().files = files;
+                            let mut state = STATE.lock().unwrap();
+                            state.files = files;
+                            state.files_mod_id = mod_id;
+                            state.files_author = author;
+                            drop(state);
                             win.set_gb_files(Rc::new(VecModel::from(items)).into());
                             win.set_gb_files_mod_name(mod_name.as_str().into());
                             win.set_gb_files_visible(true);
@@ -854,11 +920,16 @@ impl GbBrowserHandler {
         w.on_gb_file_chosen(move |index| {
             let Some(win) = ww.upgrade() else { return };
             win.set_gb_files_visible(false);
-            let file = usize::try_from(index)
-                .ok()
-                .and_then(|i| STATE.lock().unwrap().files.get(i).cloned());
-            if let Some(file) = file {
-                Self::download_and_install(&ww, file);
+            let picked = usize::try_from(index).ok().and_then(|i| {
+                let state = STATE.lock().unwrap();
+                state
+                    .files
+                    .get(i)
+                    .cloned()
+                    .map(|f| (state.files_mod_id, state.files_author.clone(), f))
+            });
+            if let Some((mod_id, author, file)) = picked {
+                Self::download_and_install(&ww, mod_id, author, file);
             }
         });
 

@@ -1,6 +1,6 @@
 import { Palette } from "../../global.slint";
 import { LineEdit, ScrollView } from "std-widgets.slint";
-import { ModCard, ModItem, ToggleSwitch } from "../modcard.slint";
+import { ModCard, ModItem, ModTag, ToggleSwitch } from "../modcard.slint";
 import { PopupDialog } from "../popup.slint";
 import { ChipButton } from "../chipbutton.slint";
 import { ScrollingTextInput } from "../textfield.slint";
@@ -21,16 +21,22 @@ export struct FilterOption {
     selected: bool,
 }
 
+export enum ModStatusFilter {
+    all,
+    enabled,
+    disabled,
+}
+
 // Everything the filter panel holds that isn't a multi selection
 export struct ModFilters {
-    // 0 = all, 1 = enabled only, 2 = disabled only
-    status: int,
+    status: ModStatusFilter,
     // "" = any group, "\u{1}ungrouped" = mods outside every group
     group-id: string,
 }
 
 export {
     ModItem,
+    ModTag,
 }
 component GroupHeader inherits Rectangle {
     in property <ModItem> item;
@@ -539,7 +545,7 @@ export component ModManagerPage inherits Rectangle {
     callback view-changed(bool);
 
     // [FILTERS]
-    in-out property <ModFilters> filters: { status: 0, group-id: "" };
+    in-out property <ModFilters> filters: { status: ModStatusFilter.all, group-id: "" };
     in-out property <[FilterOption]> filter-characters: [];
     in-out property <[FilterOption]> filter-authors: [];
     in property <[FilterOption]> filter-groups: [];
@@ -559,6 +565,7 @@ export component ModManagerPage inherits Rectangle {
     callback install-from-gamebanana();
     callback open-gamebanana();
     callback toggle-mod(string);
+    callback update-mod(string);
     callback delete-mod(string);
     callback rename-mod(string, string);
     callback select-mod(string);
@@ -1652,6 +1659,7 @@ export component ModManagerPage inherits Rectangle {
                             rename(id, name) => { root.rename-mod(id, name); }
                             set-notes(id, notes) => { root.set-mod-notes(id, notes); }
                             toggle-enabled(id) => { root.toggle-mod(id); }
+                            update(id) => { root.update-mod(id); }
                             request-delete(id, name) => { root.pending-delete-id = id; }
                             open-link(id) => { root.open-mod-link(id); }
                             drop-target: root.drag-id != ""
@@ -1792,9 +1800,9 @@ export component ModManagerPage inherits Rectangle {
                         if section-root.tile-count > 0: tile-area := Rectangle {
                             property <length> tile-spacing: 10px;
                             property <int> cols: max(1, Math.floor(
-                                (self.width + self.tile-spacing) / (150px + self.tile-spacing)));
+                                (self.width + self.tile-spacing) / (190px + self.tile-spacing)));
                             property <length> tile-w: (self.width - (self.cols - 1) * self.tile-spacing) / self.cols;
-                            property <length> tile-h: 150px;
+                            property <length> tile-h: self.tile-w;
 
                             height: Math.ceil(section-root.tile-count / self.cols)
                                 * (self.tile-h + self.tile-spacing) - self.tile-spacing;
@@ -1819,6 +1827,7 @@ export component ModManagerPage inherits Rectangle {
                                     toggle-select(id) => { root.select-mod(id); }
                                     rename(id, name) => { root.rename-mod(id, name); }
                                     toggle-enabled(id) => { root.toggle-mod(id); }
+                                    update(id) => { root.update-mod(id); }
                                     request-delete(id, name) => { root.pending-delete-id = id; }
                                     open-link(id) => { root.open-mod-link(id); }
                                     drag-started(id, name) => {
@@ -2042,27 +2051,27 @@ export component ModManagerPage inherits Rectangle {
 
                                     StatusChip {
                                         label: Tr.values[TrKey.global-filter-all];
-                                        active: root.filters.status == 0;
+                                        active: root.filters.status == ModStatusFilter.all;
                                         clicked => {
-                                            root.filters.status = 0;
+                                            root.filters.status = ModStatusFilter.all;
                                             root.filters-changed(root.filters);
                                         }
                                     }
 
                                     StatusChip {
                                         label: Tr.values[TrKey.modmanager-filter-enabled];
-                                        active: root.filters.status == 1;
+                                        active: root.filters.status == ModStatusFilter.enabled;
                                         clicked => {
-                                            root.filters.status = 1;
+                                            root.filters.status = ModStatusFilter.enabled;
                                             root.filters-changed(root.filters);
                                         }
                                     }
 
                                     StatusChip {
                                         label: Tr.values[TrKey.modmanager-filter-disabled];
-                                        active: root.filters.status == 2;
+                                        active: root.filters.status == ModStatusFilter.disabled;
                                         clicked => {
-                                            root.filters.status = 2;
+                                            root.filters.status = ModStatusFilter.disabled;
                                             root.filters-changed(root.filters);
                                         }
                                     }
@@ -2129,7 +2138,7 @@ export component ModManagerPage inherits Rectangle {
                     ChipButton {
                         text: Tr.values[TrKey.modmanager-filter-clear];
                         clicked => {
-                            root.filters = { status: 0, group-id: "" };
+                            root.filters = { status: ModStatusFilter.all, group-id: "" };
                             root.clear-filters();
                         }
                     }
