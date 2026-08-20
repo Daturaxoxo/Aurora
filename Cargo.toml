@@ -71,16 +71,16 @@ ureq = { version = "3", default-features = false, features = [
 ] }
 
 [profile.dev.package.flate2]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.zlib-rs]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.miniz_oxide]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.crc32fast]
-opt-level = 3
+opt-level = 2
 
 [profile.dev]
 debug = "line-tables-only"
