@@ -5,7 +5,6 @@ pub mod characters;
 pub mod desktop;
 #[cfg(target_os = "windows")]
 pub mod filedrop;
-pub mod legacymods;
 pub mod logwindow;
 pub mod modicons;
 pub mod pages;
