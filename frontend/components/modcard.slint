@@ -124,6 +124,7 @@ export component ModCard inherits Rectangle {
     callback toggle-enabled(string /* id */);
     callback update(string /* id */);
     callback open-link(string /* id */);
+    callback view-icon(string /* id */);
     callback drag-started(string /* id */, string /* name */);
     callback drag-moved(length /* x */, length /* y */);
     callback drag-ended(length /* x */, length /* y */);
@@ -257,6 +258,45 @@ export component ModCard inherits Rectangle {
                         : @image-url("../../production/assets/characters/default.png");
                     image-fit: contain;
                     image-rendering: smooth;
+                }
+
+                icon-ta := TouchArea {
+                    property <bool> dragged: false;
+                    mouse-cursor: pointer;
+
+                    moved => {
+                        if (!root.dragging
+                            && self.pressed
+                            && (Math.abs((self.mouse-x - self.pressed-x) / 1px) > 6
+                            || Math.abs((self.mouse-y - self.pressed-y) / 1px) > 6)) {
+                            root.dragging = true;
+                            self.dragged = true;
+                            root.drag-started(root.item.id, root.item.name);
+                        }
+                        if (root.dragging) {
+                            root.drag-moved(
+                                self.absolute-position.x + self.mouse-x,
+                                self.absolute-position.y + self.mouse-y);
+                        }
+                    }
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.up && root.dragging) {
+                            root.dragging = false;
+                            root.drag-ended(
+                                self.absolute-position.x + self.mouse-x,
+                                self.absolute-position.y + self.mouse-y);
+                        }
+                    }
+                    clicked => {
+                        if (!self.dragged) {
+                            root.view-icon(root.item.id);
+                        }
+                        self.dragged = false;
+                    }
+                }
+
+                if icon-ta.has-hover: Rectangle {
+                    background: #ffffff0a;
                 }
             }
         }
@@ -558,6 +598,45 @@ export component ModCard inherits Rectangle {
                     : @image-url("../../production/assets/characters/default.png");
                 image-fit: contain;
                 image-rendering: smooth;
+            }
+
+            grid-icon-ta := TouchArea {
+                property <bool> dragged: false;
+                mouse-cursor: pointer;
+
+                moved => {
+                    if (!root.dragging
+                        && self.pressed
+                        && (Math.abs((self.mouse-x - self.pressed-x) / 1px) > 6
+                        || Math.abs((self.mouse-y - self.pressed-y) / 1px) > 6)) {
+                        root.dragging = true;
+                        self.dragged = true;
+                        root.drag-started(root.item.id, root.item.name);
+                    }
+                    if (root.dragging) {
+                        root.drag-moved(
+                            self.absolute-position.x + self.mouse-x,
+                            self.absolute-position.y + self.mouse-y);
+                    }
+                }
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.up && root.dragging) {
+                        root.dragging = false;
+                        root.drag-ended(
+                            self.absolute-position.x + self.mouse-x,
+                            self.absolute-position.y + self.mouse-y);
+                    }
+                }
+                clicked => {
+                    if (!self.dragged) {
+                        root.view-icon(root.item.id);
+                    }
+                    self.dragged = false;
+                }
+            }
+
+            if grid-icon-ta.has-hover: Rectangle {
+                background: #ffffff0a;
             }
 
             grid-select-box := Rectangle {

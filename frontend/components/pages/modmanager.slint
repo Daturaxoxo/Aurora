@@ -1,6 +1,7 @@
 import { Palette } from "../../global.slint";
 import { LineEdit, ScrollView } from "std-widgets.slint";
 import { ModCard, ModItem, ModTag, ToggleSwitch } from "../modcard.slint";
+import { ImageLightbox } from "../lightbox.slint";
 import { PopupDialog } from "../popup.slint";
 import { ChipButton } from "../chipbutton.slint";
 import { ScrollingTextInput } from "../textfield.slint";
@@ -592,6 +593,10 @@ export component ModManagerPage inherits Rectangle {
     callback create-group-with-selected(string /* new group name */);
 
     in-out property <bool> naming-group: false;
+
+    in-out property <bool> icon-viewer-visible: false;
+    in-out property <image> icon-viewer-image;
+    in-out property <string> icon-viewer-name: "";
 
     in-out property <string> pending-delete-id: "";
     in-out property <string> pending-delete-group-id: "";
@@ -1662,6 +1667,11 @@ export component ModManagerPage inherits Rectangle {
                             update(id) => { root.update-mod(id); }
                             request-delete(id, name) => { root.pending-delete-id = id; }
                             open-link(id) => { root.open-mod-link(id); }
+                            view-icon(id) => {
+                                root.icon-viewer-image = mod.icon;
+                                root.icon-viewer-name = mod.name;
+                                root.icon-viewer-visible = true;
+                            }
                             drop-target: root.drag-id != ""
                                 && root.drag-target-group != ""
                                 && root.drag-id != mod.id
@@ -1830,6 +1840,11 @@ export component ModManagerPage inherits Rectangle {
                                     update(id) => { root.update-mod(id); }
                                     request-delete(id, name) => { root.pending-delete-id = id; }
                                     open-link(id) => { root.open-mod-link(id); }
+                                    view-icon(id) => {
+                                        root.icon-viewer-image = mod.icon;
+                                        root.icon-viewer-name = mod.name;
+                                        root.icon-viewer-visible = true;
+                                    }
                                     drag-started(id, name) => {
                                         root.drag-id = id;
                                         root.drag-source-zone = mod.group-id;
@@ -2250,5 +2265,11 @@ export component ModManagerPage inherits Rectangle {
             root.pending-delete-selected = false;
             root.pending-delete-selected-groups = false;
         }
+    }
+
+    if root.icon-viewer-visible: ImageLightbox {
+        source: root.icon-viewer-image;
+        caption: root.icon-viewer-name;
+        closed => { root.icon-viewer-visible = false; }
     }
 }

@@ -1,6 +1,7 @@
 import { Palette } from "../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ToggleSwitch } from "modcard.slint";
+import { ImageLightbox } from "lightbox.slint";
 import { Tr, TrKey } from "../translations.slint";
 
 export struct GbModItem {
@@ -868,176 +869,18 @@ export component GameBananaBrowser inherits Rectangle {
         }
     }
 
-    if root.preview-visible: Rectangle {
-        width: 100%;
-        height: 100%;
-        border-radius: 16px;
-        background: #000000d8;
-
-        TouchArea {
-            clicked => { root.preview-visible = false; }
-        }
-
-        FocusScope {
-            width: 0px;
-            init => { self.focus(); }
-            key-pressed(event) => {
-                if (event.text == Key.Escape) {
-                    root.preview-visible = false;
-                    return accept;
-                }
-                if (event.text == Key.LeftArrow && root.preview-index > 0) {
-                    root.preview-nav(root.preview-index - 1);
-                    return accept;
-                }
-                if (event.text == Key.RightArrow
-                    && root.preview-index < root.preview-count - 1) {
-                    root.preview-nav(root.preview-index + 1);
-                    return accept;
-                }
-                reject
-            }
-        }
-
-        preview-img := Image {
-            x: (parent.width - self.width) / 2;
-            y: 24px;
-            width: parent.width - 152px;
-            height: parent.height - 92px;
-            source: root.preview-image;
-            image-fit: contain;
-            image-rendering: smooth;
-        }
-
-        property <float> img-scale: min(
-            preview-img.width / 1px / max(1, preview-img.source.width),
-            preview-img.height / 1px / max(1, preview-img.source.height));
-        property <length> img-disp-w: preview-img.source.width * self.img-scale * 1px;
-        property <length> img-disp-h: preview-img.source.height * self.img-scale * 1px;
-
-        TouchArea {
-            x: preview-img.x + (preview-img.width - parent.img-disp-w) / 2;
-            y: preview-img.y + (preview-img.height - parent.img-disp-h) / 2;
-            width: parent.img-disp-w;
-            height: parent.img-disp-h;
-        }
-
-        Rectangle {
-            x: parent.width - 44px;
-            y: 16px;
-            width: 32px;
-            height: 32px;
-            border-radius: 16px;
-            background: preview-close-ta.has-hover ? #ffffff22 : #ffffff10;
-            animate background { duration: 100ms; }
-
-            Path {
-                x: 9px;
-                y: 9px;
-                width: 14px;
-                height: 14px;
-                viewbox-x: 0;
-                viewbox-y: 0;
-                viewbox-width: 14;
-                viewbox-height: 14;
-                commands: "M1 1 L13 13 M13 1 L1 13";
-                stroke: preview-close-ta.has-hover ? #ffffffdd : #ffffff88;
-                stroke-width: 1.8px;
-                fill: transparent;
-                animate stroke { duration: 100ms; }
-            }
-
-            preview-close-ta := TouchArea {
-                clicked => { root.preview-visible = false; }
-            }
-        }
-
-        if root.preview-count > 1 && root.preview-index > 0: Rectangle {
-            x: 20px;
-            y: (parent.height - self.height) / 2 - 20px;
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            background: prev-ta.has-hover ? #ffffff22 : #ffffff10;
-            animate background { duration: 100ms; }
-
-            Path {
-                x: 14px;
-                y: 12px;
-                width: 12px;
-                height: 16px;
-                viewbox-x: 0;
-                viewbox-y: 0;
-                viewbox-width: 12;
-                viewbox-height: 16;
-                commands: "M9 1 L2 8 L9 15";
-                stroke: prev-ta.has-hover ? #ffffffdd : #ffffff88;
-                stroke-width: 2px;
-                fill: transparent;
-                animate stroke { duration: 100ms; }
-            }
-
-            prev-ta := TouchArea {
-                clicked => { root.preview-nav(root.preview-index - 1); }
-            }
-        }
-
-        if root.preview-count > 1 && root.preview-index < root.preview-count - 1: Rectangle {
-            x: parent.width - 60px;
-            y: (parent.height - self.height) / 2 - 20px;
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            background: next-ta.has-hover ? #ffffff22 : #ffffff10;
-            animate background { duration: 100ms; }
-
-            Path {
-                x: 14px;
-                y: 12px;
-                width: 12px;
-                height: 16px;
-                viewbox-x: 0;
-                viewbox-y: 0;
-                viewbox-width: 12;
-                viewbox-height: 16;
-                commands: "M3 1 L10 8 L3 15";
-                stroke: next-ta.has-hover ? #ffffffdd : #ffffff88;
-                stroke-width: 2px;
-                fill: transparent;
-                animate stroke { duration: 100ms; }
-            }
-
-            next-ta := TouchArea {
-                clicked => { root.preview-nav(root.preview-index + 1); }
-            }
-        }
-
-        VerticalLayout {
-            y: parent.height - 56px;
-            height: 44px;
-            spacing: 3px;
-            alignment: center;
-
-            Text {
-                text: root.preview-name;
-                color: Palette.text-primary;
-                font-size: 13px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.preview-loading
-                    ? Tr.values[TrKey.gb-preview-loading]
-                    : (root.preview-count > 1
-                    ? (root.preview-index + 1) + " / " + root.preview-count
-                    : "");
-                color: #ffffff77;
-                font-size: 11px;
-                font-weight: 600;
-                horizontal-alignment: center;
-            }
-        }
+    if root.preview-visible: ImageLightbox {
+        source: root.preview-image;
+        caption: root.preview-name;
+        sub-caption: root.preview-loading
+            ? Tr.values[TrKey.gb-preview-loading]
+            : (root.preview-count > 1
+            ? (root.preview-index + 1) + " / " + root.preview-count
+            : "");
+        has-previous: root.preview-count > 1 && root.preview-index > 0;
+        has-next: root.preview-count > 1 && root.preview-index < root.preview-count - 1;
+        closed => { root.preview-visible = false; }
+        previous => { root.preview-nav(root.preview-index - 1); }
+        next => { root.preview-nav(root.preview-index + 1); }
     }
 }
