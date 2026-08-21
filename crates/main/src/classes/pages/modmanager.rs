@@ -120,6 +120,7 @@ pub struct Mod {
     pub support_link: Option<String>,
     pub icon: Option<String>,
     pub image_url: Option<String>,
+    pub has_icon_png: bool,
     pub is_enabled: bool,
     pub has_json: bool,
     pub source: Option<ModSource>,
@@ -137,6 +138,7 @@ impl Default for Mod {
             support_link: None,
             icon: None,
             image_url: None,
+            has_icon_png: false,
             is_enabled: false,
             has_json: false,
             source: None,
@@ -185,6 +187,7 @@ impl ModManager {
             display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
             path: folder.clone(),
             is_enabled,
+            has_icon_png: folder.join("icon.png").is_file(),
             source: ModSource::read(folder),
             ..Default::default()
         };
@@ -623,6 +626,12 @@ fn rekey_mod_config(old: &str, new: &str) {
 }
 
 fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
+    if mod_.has_icon_png
+        && let Ok(image) = slint::Image::load_from_path(&mod_.path.join("icon.png"))
+    {
+        return image;
+    }
+
     mod_.image_url
         .as_deref()
         .and_then(modicons::cached)
@@ -728,7 +737,7 @@ impl ModManagerHandler {
     }
 
     pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
-        Self::install_paths_with_done(window, paths, None, None);
+        Self::install_paths_with_done(window, paths, None, None, None);
     }
 
     fn set_progress(window: &slint::Weak<MainWindow>, progress: f32, text: String) {
@@ -746,6 +755,7 @@ impl ModManagerHandler {
         paths: Vec<PathBuf>,
         source: Option<ModSource>,
         on_done: Option<InstallDoneCallback>,
+        icon_png: Option<Vec<u8>>,
     ) {
         let ww = window.clone();
         std::thread::spawn(move || {
@@ -806,15 +816,23 @@ impl ModManagerHandler {
                 match Self::install_path(unit, &mut on_progress) {
                     Ok(name) => {
                         info!("installed '{name}' from '{}'", path.display());
-                        if let Some(source) = &source
-                            && let Some(folder) = get_mods_path().map(|mods| mods.join(&name))
-                        {
-                            source.write(&folder);
-                            if !source.name.is_empty() {
-                                config_map_set(
-                                    key::MODMNG_NOTES,
-                                    &folder.to_string_lossy(),
-                                    Some(&source.name),
+                        if let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
+                            if let Some(source) = &source {
+                                source.write(&folder);
+                                if !source.name.is_empty() {
+                                    config_map_set(
+                                        key::MODMNG_NOTES,
+                                        &folder.to_string_lossy(),
+                                        Some(&source.name),
+                                    );
+                                }
+                            }
+                            if let Some(png) = &icon_png
+                                && let Err(e) = std::fs::write(folder.join("icon.png"), png)
+                            {
+                                warn!(
+                                    "could not write the icon of '{}': {e}",
+                                    folder.display()
                                 );
                             }
                         }
@@ -1090,6 +1108,9 @@ impl ModManagerHandler {
             .unwrap_or("")
             .to_lowercase();
 
+        // Updates keep whatever icon.png the mod already had
+        let kept_icon = std::fs::read(folder.join("icon.png")).ok();
+
         let filled = if ARCHIVE_EXTENSIONS.contains(&ext.as_str()) {
             extract_archive_with_progress(downloaded, &staging, &mut |done, total| {
                 if total > 0 {
@@ -1127,6 +1148,12 @@ impl ModManagerHandler {
 
         std::fs::rename(&staging, folder)
             .with_context(|| format!("could not move the new files into '{}'", folder.display()))?;
+
+        if let Some(png) = kept_icon
+            && let Err(e) = std::fs::write(folder.join("icon.png"), &png)
+        {
+            warn!("could not restore the icon of '{}': {e}", folder.display());
+        }
 
         Ok(())
     }

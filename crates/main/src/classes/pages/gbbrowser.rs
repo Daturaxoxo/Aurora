@@ -94,6 +94,7 @@ struct GbMod {
     id: u32,
     author: String,
     name: String,
+    thumb: Option<Thumbnail>,
 }
 
 struct PreviewState {
@@ -160,6 +161,15 @@ fn decode_thumb(bytes: &[u8]) -> Option<Thumbnail> {
         width: w,
         height: h,
     })
+}
+
+fn encode_png(t: &Thumbnail) -> Option<Vec<u8>> {
+    let img = image::RgbaImage::from_raw(t.width, t.height, t.pixels.clone())?;
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png)
+        .map_err(|e| warn!("GameBanana Browser Backend: could not encode the icon png: {e}"))
+        .ok()?;
+    Some(out.into_inner())
 }
 
 fn to_item(m: &NteMod, thumb: Option<&Thumbnail>, hide_downloads: bool) -> GbModItem {
@@ -494,6 +504,7 @@ impl GbBrowserHandler {
             id: source.mod_id,
             author: source.author,
             name: source.name,
+            thumb: None,
         };
         Self::start_download(window, mod_, file, Some(folder));
     }
@@ -506,6 +517,13 @@ impl GbBrowserHandler {
     ) {
         INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
         let updating = update_folder.is_some();
+        
+        let icon_png = if updating {
+            None
+        } else {
+            mod_.thumb.as_ref().and_then(encode_png)
+        };
+        
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
@@ -744,6 +762,7 @@ impl GbBrowserHandler {
                             vec![path],
                             Some(source),
                             Some(Box::new(|w| w.set_progress_overlay_active(false))),
+                            icon_png,
                         );
                     }
                 }
@@ -875,10 +894,11 @@ impl GbBrowserHandler {
                 .mods
                 .iter()
                 .find(|(m, _)| m.id == mod_id)
-                .map(|(m, _)| GbMod {
+                .map(|(m, t)| GbMod {
                     id: m.id,
                     author: m.author.clone(),
                     name: m.name.clone(),
+                    thumb: t.clone(),
                 })
                 .unwrap_or_default();
 
