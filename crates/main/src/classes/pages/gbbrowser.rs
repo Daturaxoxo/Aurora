@@ -47,6 +47,7 @@ pub const CHARACTERS: &[(&str, u32)] = &[
     ("Iroi", 46560),
     ("Jiuyuan", 45476),
     ("Lacrimosa", 43039),
+    ("Linko", 48013),
     ("Mint", 43040),
     ("Nanally", 43041),
     ("Sakiri", 43042),
@@ -517,13 +518,13 @@ impl GbBrowserHandler {
     ) {
         INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
         let updating = update_folder.is_some();
-        
+
         let icon_png = if updating {
             None
         } else {
             mod_.thumb.as_ref().and_then(encode_png)
         };
-        
+
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
@@ -908,7 +909,9 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
                     let Some(files) = files else {
-                        warn!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
+                        warn!(
+                            "GameBanana Browser Backend: could not fetch the files of mod {mod_id}"
+                        );
                         show_toast(&win, "error", "Could not fetch this mod's files".into());
                         return;
                     };

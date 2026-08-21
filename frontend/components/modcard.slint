@@ -26,6 +26,7 @@ export struct ModItem {
     collapsed: bool,
     restart-required: bool,
     tag: ModTag,
+    has-icon-png: bool,
 }
 
 component RestartPill inherits Rectangle {
@@ -125,6 +126,7 @@ export component ModCard inherits Rectangle {
     callback update(string /* id */);
     callback open-link(string /* id */);
     callback view-icon(string /* id */);
+    callback change-icon(string /* id */);
     callback drag-started(string /* id */, string /* name */);
     callback drag-moved(length /* x */, length /* y */);
     callback drag-ended(length /* x */, length /* y */);
@@ -297,6 +299,35 @@ export component ModCard inherits Rectangle {
 
                 if icon-ta.has-hover: Rectangle {
                     background: #ffffff0a;
+                }
+
+                // Opens the icon picker
+                Rectangle {
+                    x: parent.width - self.width - 3px;
+                    y: parent.height - self.height - 3px;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 8px;
+                    opacity: icon-ta.has-hover || icon-badge-ta.has-hover ? 1 : 0;
+                    background: icon-badge-ta.has-hover ? #4a4a55 : #1e1e24ee;
+                    animate opacity { duration: 120ms; }
+                    animate background { duration: 100ms; }
+
+                    Image {
+                        source: @image-url("../../production/icons/edit.png");
+                        width: 9px;
+                        height: 9px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        image-rendering: smooth;
+                        image-fit: contain;
+                        colorize: #ffffffdd;
+                    }
+
+                    icon-badge-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.change-icon(root.item.id); }
+                    }
                 }
             }
         }
@@ -637,6 +668,35 @@ export component ModCard inherits Rectangle {
 
             if grid-icon-ta.has-hover: Rectangle {
                 background: #ffffff0a;
+            }
+
+            // Opens the icon picker
+            Rectangle {
+                x: parent.width - self.width - 6px;
+                y: parent.height - self.height - 6px;
+                width: 20px;
+                height: 20px;
+                border-radius: 10px;
+                opacity: (grid-root.tile-hovered || grid-icon-badge-ta.has-hover) ? 1 : 0;
+                background: grid-icon-badge-ta.has-hover ? #4a4a55 : #1e1e24ee;
+                animate opacity { duration: 120ms; }
+                animate background { duration: 100ms; }
+
+                Image {
+                    source: @image-url("../../production/icons/edit.png");
+                    width: 11px;
+                    height: 11px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    colorize: #ffffffdd;
+                }
+
+                grid-icon-badge-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.change-icon(root.item.id); }
+                }
             }
 
             grid-select-box := Rectangle {

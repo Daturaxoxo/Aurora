@@ -20,6 +20,7 @@ import {
     FilterOption,
     ModFilters,
     ModStatusFilter,
+    IconChoice,
 } from "components/pages/modmanager.slint";
 import {
     GameBananaBrowser,
@@ -242,6 +243,10 @@ export component MainWindow inherits Window {
     callback mods-install-archive();
     callback mods-install-folder();
     in-out property <bool> mods-file-hover: false;
+    in property <[IconChoice]> mods-icon-choices: [];
+    callback mods-pick-icon-character(string /* id */, string /* slug */);
+    callback mods-browse-icon(string /* id */);
+    callback mods-remove-icon(string /* id */);
 
     // GameBanana Browser Properties
     in-out property <bool> show-gb-browser: false;
@@ -1118,6 +1123,10 @@ export component MainWindow inherits Window {
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
             refresh => { root.mods-refresh(); }
             open-mods-folder => { root.open-mods-folder(); }
+            icon-choices: root.mods-icon-choices;
+            pick-icon-character(id, slug) => { root.mods-pick-icon-character(id, slug); }
+            browse-mod-icon(id) => { root.mods-browse-icon(id); }
+            remove-mod-icon(id) => { root.mods-remove-icon(id); }
             open-gamebanana => {
                 root.popup-id = "gamebanana-popup";
                 root.popup-title = Tr.values[TrKey.popup-gamebanana-title];

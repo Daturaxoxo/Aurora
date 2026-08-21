@@ -211,6 +211,7 @@ impl ModulesHandler {
                     collapsed: false,
                     restart_required: false,
                     tag: ModTag::None,
+                    has_icon_png: false,
                 })
                 .collect();
 

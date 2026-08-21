@@ -1,4 +1,5 @@
 import { Palette } from "../global.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export component ImageLightbox inherits Rectangle {
     in property <image> source;
@@ -18,6 +19,14 @@ export component ImageLightbox inherits Rectangle {
 
     backdrop-ta := TouchArea {
         clicked => { root.closed(); }
+    }
+
+    // Absorbs mouse-wheel scrolls
+    ScrollView {
+        width: 100%;
+        height: 100%;
+        viewport-width: self.width;
+        viewport-height: self.height + 1px;
     }
 
     FocusScope {

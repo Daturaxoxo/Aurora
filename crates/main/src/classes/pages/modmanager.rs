@@ -1,7 +1,9 @@
 use super::INVALID_FILENAME_CHARS;
 use super::gbbrowser;
 use crate::classes::{characters, modicons};
-use crate::{FilterOption, GroupOption, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag};
+use crate::{
+    FilterOption, GroupOption, IconChoice, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag,
+};
 
 use anyhow::{Context, Result, anyhow};
 use backend::handler::GAME_RUNNING;
@@ -12,10 +14,12 @@ use serde_json::Value;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive_with_progress};
 use shared::classes::gamebanana::types::NteModFile;
 use shared::config::{self, key};
-use shared::utils::{get_mods_path, open_folder, read_dir_recursive};
+use shared::utils::{get_cache_dir, get_mods_path, open_folder, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -656,6 +660,107 @@ fn mod_author(mod_: &Mod) -> Option<&str> {
         .filter(|author| !author.is_empty() && *author != "Unknown")
 }
 
+fn encode_icon_png(bytes: &[u8]) -> Result<Vec<u8>> {
+    let img = image::load_from_memory(bytes)?.to_rgba8();
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png)?;
+    Ok(out.into_inner())
+}
+
+fn icon_backup_path(mod_path: &Path) -> PathBuf {
+    let mut hasher = DefaultHasher::new();
+    mod_path.hash(&mut hasher);
+
+    get_cache_dir()
+        .join("ModIconBackups")
+        .join(format!("{:016x}", hasher.finish()))
+}
+
+fn backup_existing_icon(mod_: &Mod) {
+    let current = mod_.path.join("icon.png");
+    if !current.is_file() {
+        return;
+    }
+
+    let backup = icon_backup_path(&mod_.path);
+    if backup.exists() {
+        return;
+    }
+    
+    if let Some(parent) = backup.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        warn!("could not create '{}': {e}", parent.display());
+        return;
+    }
+    
+    if let Err(e) = std::fs::copy(&current, &backup) {
+        warn!(
+            "could not back up the icon of '{}': {e}",
+            mod_.path.display()
+        );
+    }
+}
+
+fn purge_icon_backup(mod_path: &Path) {
+    match std::fs::remove_file(icon_backup_path(mod_path)) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => warn!(
+            "could not remove the icon backup of '{}': {e}",
+            mod_path.display()
+        ),
+    }
+}
+
+fn rekey_icon_backup(old: &Path, new: &Path) {
+    let old_backup = icon_backup_path(old);
+    if !old_backup.exists() {
+        return;
+    }
+    
+    let new_backup = icon_backup_path(new);
+    if let Some(parent) = new_backup.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        warn!("could not create '{}': {e}", parent.display());
+        return;
+    }
+
+    if std::fs::rename(&old_backup, &new_backup).is_ok() {
+        return;
+    }
+    
+    match std::fs::copy(&old_backup, &new_backup) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&old_backup);
+        }
+        Err(e) => warn!(
+            "could not move the icon backup '{}' to '{}': {e}",
+            old_backup.display(),
+            new_backup.display()
+        ),
+    }
+}
+
+fn write_icon(mod_: &Mod, png: &[u8]) -> Result<()> {
+    backup_existing_icon(mod_);
+    std::fs::write(mod_.path.join("icon.png"), png)
+        .with_context(|| format!("could not write the icon of '{}'", mod_.path.display()))
+}
+
+fn report_icon_error(window: &slint::Weak<MainWindow>, mod_: &Mod, error: anyhow::Error) {
+    error!("{error:#}");
+    let name = mod_.folder_name.clone();
+    let text = format!("Could not change the icon of {name} - {error:#}");
+    let ww = window.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(win) = ww.upgrade() {
+            ModManagerHandler::show_toast(&win, "error", text);
+        }
+    });
+}
+
 pub struct ModManagerHandler;
 
 impl ModManagerHandler {
@@ -663,8 +768,38 @@ impl ModManagerHandler {
         info!("setup() called");
         Self::bind(window);
         Self::setup_file_drop(window);
+        Self::setup_icon_choices(window);
         Self::reload(window);
         info!("setup() complete");
+    }
+
+    fn setup_icon_choices(window: &slint::Weak<MainWindow>) {
+        // zero.png and mc.png are the same art
+        const HIDDEN: &[&str] = &["zero"];
+        const RENAMED: &[(&str, &str)] = &[("mc", "Zero")];
+
+        let choices: Vec<IconChoice> = characters::slugs()
+            .filter(|slug| !HIDDEN.contains(slug))
+            .map(|slug| {
+                let name = RENAMED
+                    .iter()
+                    .find(|(candidate, _)| *candidate == slug)
+                    .map_or_else(
+                        || characters::display_name(slug),
+                        |(_, name)| (*name).to_string(),
+                    );
+                
+                IconChoice {
+                    slug: slug.into(),
+                    name: name.as_str().into(),
+                    icon: characters::icon(slug).unwrap_or_default(),
+                }
+            })
+            .collect();
+
+        window
+            .unwrap()
+            .set_mods_icon_choices(Rc::new(VecModel::from(choices)).into());
     }
 
     #[cfg(target_os = "windows")]
@@ -830,10 +965,7 @@ impl ModManagerHandler {
                             if let Some(png) = &icon_png
                                 && let Err(e) = std::fs::write(folder.join("icon.png"), png)
                             {
-                                warn!(
-                                    "could not write the icon of '{}': {e}",
-                                    folder.display()
-                                );
+                                warn!("could not write the icon of '{}': {e}", folder.display());
                             }
                         }
                         installed.push(name);
@@ -1406,6 +1538,7 @@ impl ModManagerHandler {
                         collapsed,
                         restart_required: false,
                         tag: ModTag::None,
+                        has_icon_png: false,
                     };
                     items.push(header.clone());
                     section.push(header);
@@ -1445,6 +1578,7 @@ impl ModManagerHandler {
                             collapsed: false,
                             restart_required: state.restart_required.contains(&mod_id(m)),
                             tag: Self::tag_for(m, &state.updates),
+                            has_icon_png: m.has_icon_png,
                         };
                         items.push(item.clone());
                         section.push(item);
@@ -1741,6 +1875,7 @@ impl ModManagerHandler {
                     });
                 } else {
                     rekey_mod_config(id, &target.to_string_lossy());
+                    rekey_icon_backup(&m.path, &target);
                     let mut state = STATE.lock().unwrap();
                     if state.selected.remove(id) {
                         state.selected.insert(target.to_string_lossy().into_owned());
@@ -1775,6 +1910,7 @@ impl ModManagerHandler {
                     );
                 } else {
                     rekey_mod_config(&entry.path().to_string_lossy(), &target.to_string_lossy());
+                    rekey_icon_backup(&entry.path(), &target);
                 }
             }
         }
@@ -1904,11 +2040,13 @@ impl ModManagerHandler {
                             info!("deleted '{}'", m.path.display());
                             config_map_set(key::MODMNG_NOTES, &id, None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &id, None);
+                            purge_icon_backup(&m.path);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                             note_missing("could not delete", &m);
                             config_map_set(key::MODMNG_NOTES, &mod_id(&m), None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(&m), None);
+                            purge_icon_backup(&m.path);
                         }
                         Err(e) => {
                             error!("could not delete '{}': {e}", m.path.display());
@@ -2077,11 +2215,13 @@ impl ModManagerHandler {
                             info!("deleted '{}'", m.path.display());
                             config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
+                            purge_icon_backup(&m.path);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                             note_missing("could not delete", m);
                             config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
                             config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
+                            purge_icon_backup(&m.path);
                         }
                         Err(e) => {
                             error!("could not delete '{}': {e}", m.path.display());
@@ -2188,6 +2328,13 @@ impl ModManagerHandler {
                     error!("could not rename group '{}': {e}", old_path.display());
                 } else {
                     rekey_mod_config(&old_path.to_string_lossy(), &new_path.to_string_lossy());
+
+                    if let Ok(entries) = new_path.read_dir() {
+                        for entry in entries.flatten() {
+                            rekey_icon_backup(&old_path.join(entry.file_name()), &entry.path());
+                        }
+                    }
+                    
                     let mut state = STATE.lock().unwrap();
                     if state
                         .collapsed
@@ -2431,6 +2578,103 @@ impl ModManagerHandler {
                 STATE.lock().unwrap().updates.clear();
             }
             Self::reload(&ww);
+        });
+
+        // [ICON PICKER]
+
+        let ww = window.clone();
+        w.on_mods_pick_icon_character(move |id, slug| {
+            let id = id.to_string();
+            let slug = slug.to_string();
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let Some(m) = Self::mod_by_id(&id) else {
+                    return;
+                };
+                
+                let outcome = characters::icon_bytes(&slug)
+                    .ok_or_else(|| anyhow!("no character icon matches '{slug}'"))
+                    .and_then(|bytes| write_icon(&m, bytes));
+                
+                if let Err(e) = outcome {
+                    report_icon_error(&ww, &m, e);
+                } else {
+                    info!("set the icon of '{}' to '{slug}'", m.folder_name);
+                }
+                
+                Self::reload(&ww);
+            });
+        });
+
+        let ww = window.clone();
+        w.on_mods_browse_icon(move |id| {
+            let id = id.to_string();
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let Some(m) = Self::mod_by_id(&id) else {
+                    return;
+                };
+                
+                let Some(picked) = rfd::FileDialog::new()
+                    .set_title("Choose an Icon")
+                    .add_filter("Images", &["png", "jpg", "jpeg", "webp", "bmp", "gif"])
+                    .pick_file()
+                else {
+                    return;
+                };
+
+                let outcome = std::fs::read(&picked)
+                    .with_context(|| format!("could not read '{}'", picked.display()))
+                    .and_then(|bytes| encode_icon_png(&bytes))
+                    .and_then(|png| write_icon(&m, &png));
+                
+                if let Err(e) = outcome {
+                    report_icon_error(&ww, &m, e);
+                } else {
+                    info!(
+                        "set the icon of '{}' from '{}'",
+                        m.folder_name,
+                        picked.display()
+                    );
+                }
+                
+                Self::reload(&ww);
+            });
+        });
+
+        let ww = window.clone();
+        w.on_mods_remove_icon(move |id| {
+            let id = id.to_string();
+            let ww = ww.clone();
+            std::thread::spawn(move || {
+                let Some(m) = Self::mod_by_id(&id) else {
+                    return;
+                };
+                let icon = m.path.join("icon.png");
+                let backup = icon_backup_path(&m.path);
+
+                let outcome = if backup.is_file() {
+                    std::fs::copy(&backup, &icon)
+                        .map(|_| ())
+                        .and_then(|()| std::fs::remove_file(&backup))
+                        .with_context(|| {
+                            format!("could not restore the icon of '{}'", m.path.display())
+                        })
+                } else {
+                    match std::fs::remove_file(&icon) {
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                        other => other,
+                    }
+                    .with_context(|| format!("could not remove '{}'", icon.display()))
+                };
+
+                if let Err(e) = outcome {
+                    report_icon_error(&ww, &m, e);
+                } else {
+                    info!("removed the custom icon of '{}'", m.folder_name);
+                }
+                Self::reload(&ww);
+            });
         });
 
         w.on_open_mods_folder(move || {

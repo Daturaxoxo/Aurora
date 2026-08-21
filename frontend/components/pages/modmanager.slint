@@ -12,6 +12,13 @@ export struct GroupOption {
     name: string,
 }
 
+// One pickable character icon in the icon chooser
+export struct IconChoice {
+    slug: string,
+    name: string,
+    icon: image,
+}
+
 // One row of the filter panel: a character, an author or a group
 export struct FilterOption {
     id: string,
@@ -597,6 +604,16 @@ export component ModManagerPage inherits Rectangle {
     in-out property <bool> icon-viewer-visible: false;
     in-out property <image> icon-viewer-image;
     in-out property <string> icon-viewer-name: "";
+
+    // Icon picker
+    in property <[IconChoice]> icon-choices: [];
+    in-out property <bool> icon-picker-open: false;
+    in-out property <string> icon-picker-id: "";
+    in-out property <string> icon-picker-name: "";
+    in-out property <bool> icon-picker-has-custom: false;
+    callback pick-icon-character(string /* id */, string /* slug */);
+    callback browse-mod-icon(string /* id */);
+    callback remove-mod-icon(string /* id */);
 
     in-out property <string> pending-delete-id: "";
     in-out property <string> pending-delete-group-id: "";
@@ -1672,6 +1689,12 @@ export component ModManagerPage inherits Rectangle {
                                 root.icon-viewer-name = mod.name;
                                 root.icon-viewer-visible = true;
                             }
+                            change-icon(id) => {
+                                root.icon-picker-id = id;
+                                root.icon-picker-name = mod.name;
+                                root.icon-picker-has-custom = mod.has-icon-png;
+                                root.icon-picker-open = true;
+                            }
                             drop-target: root.drag-id != ""
                                 && root.drag-target-group != ""
                                 && root.drag-id != mod.id
@@ -1845,6 +1868,12 @@ export component ModManagerPage inherits Rectangle {
                                         root.icon-viewer-name = mod.name;
                                         root.icon-viewer-visible = true;
                                     }
+                                    change-icon(id) => {
+                                        root.icon-picker-id = id;
+                                        root.icon-picker-name = mod.name;
+                                        root.icon-picker-has-custom = mod.has-icon-png;
+                                        root.icon-picker-open = true;
+                                    }
                                     drag-started(id, name) => {
                                         root.drag-id = id;
                                         root.drag-source-zone = mod.group-id;
@@ -1976,6 +2005,14 @@ export component ModManagerPage inherits Rectangle {
 
         TouchArea {
             clicked => { root.filter-open = false; }
+        }
+
+        // Absorbs mouse-wheel scrolls
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
         }
 
         Rectangle {
@@ -2171,6 +2208,14 @@ export component ModManagerPage inherits Rectangle {
             clicked => { root.naming-group = false; }
         }
 
+        // Absorbs mouse-wheel scrolls
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
+        }
+
         Rectangle {
             width: 360px;
             height: new-group-layout.preferred-height;
@@ -2264,6 +2309,175 @@ export component ModManagerPage inherits Rectangle {
             root.pending-delete-group-id = "";
             root.pending-delete-selected = false;
             root.pending-delete-selected-groups = false;
+        }
+    }
+
+    if root.icon-picker-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: #000000aa;
+
+        TouchArea {
+            clicked => { root.icon-picker-open = false; }
+        }
+
+        // Absorbs mouse-wheel scrolls
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
+        }
+
+        Rectangle {
+            // 18px padding x2 + title row + footer + two layout spacings
+            property <length> chrome: 36px + 24px + 30px + 24px;
+
+            width: min(480px, parent.width - 40px);
+            height: min(parent.height - 60px, icon-grid.height + self.chrome);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #1e1e24;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: #00000099;
+            drop-shadow-blur: 30px;
+
+            // Swallows clicks so they don't reach the backdrop
+            TouchArea { }
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    height: 24px;
+                    spacing: 8px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: Tr.values[TrKey.modmanager-icon-picker-title] + " — " + root.icon-picker-name;
+                        color: Palette.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: picker-close-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 6px;
+                            y: 6px;
+                            width: 12px;
+                            height: 12px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: picker-close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        picker-close-ta := TouchArea {
+                            clicked => { root.icon-picker-open = false; }
+                        }
+                    }
+                }
+
+                picker-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    viewport-width: self.width;
+                    viewport-height: icon-grid.height;
+
+                    property <length> cell: 96px;
+                    property <length> gap: 10px;
+                    property <int> cols: max(1, Math.floor(
+                        (self.width + self.gap - 10px) / (self.cell + self.gap)));
+
+                    icon-grid := Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: picker-scroll.width;
+                        height: Math.ceil(root.icon-choices.length / picker-scroll.cols)
+                            * (picker-scroll.cell + picker-scroll.gap) - picker-scroll.gap;
+
+                        for choice[i] in root.icon-choices: Rectangle {
+                            x: Math.mod(i, picker-scroll.cols)
+                                * (picker-scroll.cell + picker-scroll.gap);
+                            y: Math.floor(i / picker-scroll.cols)
+                                * (picker-scroll.cell + picker-scroll.gap);
+                            width: picker-scroll.cell;
+                            height: picker-scroll.cell;
+                            border-radius: 8px;
+                            background: choice-ta.has-hover ? #6db3f226 : #00000044;
+                            border-width: 1px;
+                            border-color: choice-ta.has-hover ? #6db3f2 : transparent;
+                            animate background { duration: 100ms; }
+                            animate border-color { duration: 100ms; }
+
+                            Image {
+                                x: 6px;
+                                y: 6px;
+                                width: parent.width - 12px;
+                                height: parent.height - 12px;
+                                source: choice.icon;
+                                image-fit: contain;
+                                image-rendering: smooth;
+                            }
+
+                            choice-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.icon-picker-open = false;
+                                    root.pick-icon-character(root.icon-picker-id, choice.slug);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    ChipButton {
+                        text: Tr.values[TrKey.modmanager-icon-picker-remove];
+                        danger: true;
+                        enabled: root.icon-picker-has-custom;
+                        clicked => {
+                            root.icon-picker-open = false;
+                            root.remove-mod-icon(root.icon-picker-id);
+                        }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.modmanager-icon-picker-browse];
+                        clicked => {
+                            root.icon-picker-open = false;
+                            root.browse-mod-icon(root.icon-picker-id);
+                        }
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.icon-picker-open = false; }
+                    }
+                }
+            }
         }
     }
 
