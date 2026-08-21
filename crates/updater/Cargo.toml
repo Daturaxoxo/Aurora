@@ -5,13 +5,10 @@ edition = "2021"
 
 [dependencies]
 ipc = { path = "../ipc" }
-ureq = { version = "3", default-features = false, features = [
-    "rustls",
-    "gzip",
-] }
 shared = { path = "../shared" }
 
 serde_json = { workspace = true }
+ureq = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

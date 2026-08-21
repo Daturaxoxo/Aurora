@@ -65,18 +65,22 @@ image = { version = "0.25.10", default-features = false, features = [
 ] }
 mslnk = "0.1"
 md5 = "0.8.1"
+ureq = { version = "3", default-features = false, features = [
+    "native-tls",
+    "gzip",
+] }
 
 [profile.dev.package.flate2]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.zlib-rs]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.miniz_oxide]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package.crc32fast]
-opt-level = 3
+opt-level = 2
 
 [profile.dev]
 debug = "line-tables-only"

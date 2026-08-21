@@ -8,6 +8,9 @@ use log::*;
 use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 
+use crate::classes::legacymods;
+use crate::handler::{self, EngineEvent};
+
 use super::AuroraEngine;
 const INCOMPATIBLE: &[&str] = &["anticensor"];
 
@@ -24,7 +27,7 @@ fn injected_plugins() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-fn leftover_pak_files(pak_dir: &Path) -> Vec<(String,PathBuf)> {
+fn loose_items(pak_dir: &Path) -> Vec<(String, PathBuf)> {
     fs::read_dir(pak_dir)
         .into_iter()
         .flatten()
@@ -38,6 +41,23 @@ fn leftover_pak_files(pak_dir: &Path) -> Vec<(String,PathBuf)> {
         })
         .map(|d| (d.file_name().to_string_lossy().to_string(), d.path()))
         .collect()
+}
+
+fn triage_loose_items(pak_dir: &Path) -> (Vec<PathBuf>, Vec<(String, PathBuf)>) {
+    let mut folders = Vec::new();
+    let mut removals = Vec::new();
+
+    for (name, path) in loose_items(pak_dir) {
+        if path.is_dir() {
+            if legacymods::is_mod_folder(&path) {
+                folders.push(path);
+            }
+        } else if legacymods::is_mod_file(&name) {
+            removals.push((format!("Loose mod file {name}"), path));
+        }
+    }
+
+    (folders, removals)
 }
 
 fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
@@ -94,6 +114,10 @@ impl AuroraEngine {
         }
 
         let injected = injected_plugins();
+        let (mod_folders, loose_mods) = triage_loose_items(&self.pak_dir);
+
+        let mut failures: Vec<String> = Vec::new();
+        let migrated = self.migrate_loose_mods(&mod_folders, &mut failures);
 
         let mut targets: Vec<(String, PathBuf)> = self
             .managed_files()
@@ -115,7 +139,7 @@ impl AuroraEngine {
                     .map(|p| ("Injected plugin".to_string(), p.clone())),
             )
             .chain(remove_incompatible(&self.win64))
-            .chain(leftover_pak_files(&self.pak_dir))
+            .chain(loose_mods)
             .collect();
         targets.sort_by(|a, b| a.1.cmp(&b.1));
         targets.dedup_by(|a, b| a.1 == b.1);
@@ -126,8 +150,6 @@ impl AuroraEngine {
                 thread::spawn(move || Self::remove_target(&label, &path).map_err(|e| e.to_string()))
             })
             .collect();
-
-        let mut failures: Vec<String> = Vec::new();
 
         for handle in handles {
             match handle.join() {
@@ -142,6 +164,10 @@ impl AuroraEngine {
 
         prune_injected_plugins(&injected);
 
+        if migrated > 0 {
+            handler::emit(EngineEvent::ModsMigrated { count: migrated });
+        }
+
         if !failures.is_empty() {
             return Err(anyhow!(
                 "Sanitization failed for {} target(s): {}",
@@ -151,6 +177,30 @@ impl AuroraEngine {
         }
 
         Ok(())
+    }
+
+    fn migrate_loose_mods(&self, folders: &[PathBuf], failures: &mut Vec<String>) -> usize {
+        if folders.is_empty() {
+            return 0;
+        }
+
+        info!(
+            "Migrating {} loose mod folder(s) into {}",
+            folders.len(),
+            self.pak_base.display()
+        );
+
+        match legacymods::migrate_into(folders, &self.pak_base) {
+            Ok(report) => {
+                failures.extend(report.failures);
+                report.migrated
+            }
+            Err(e) => {
+                error!("Could not migrate the loose mod folders: {e}");
+                failures.push(format!("mod migration: {e}"));
+                0
+            }
+        }
     }
 
     fn remove_target(label: &str, path: &Path) -> Result<()> {
