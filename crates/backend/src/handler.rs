@@ -52,7 +52,6 @@ pub enum EngineEvent {
     ValidationResult { missing: Vec<String> },
     EngineReady,
     EngineInitFailed(String),
-    ModsMigrated { count: usize },
 }
 
 pub struct EngineHandler {
@@ -201,13 +200,6 @@ impl EngineHandler {
                                 Err(e) => {
                                     error!("Inject failed: {e}");
                                     evt_tx.send(EngineEvent::LaunchFailed(e.to_string())).ok();
-                                    if let Some(e) = engine
-                                        .lock()
-                                        .unwrap_or_else(PoisonError::into_inner)
-                                        .as_mut()
-                                    {
-                                        e.sanitize(false).ok();
-                                    }
                                     GAME_RUNNING.store(false, Ordering::SeqCst);
                                     return;
                                 }

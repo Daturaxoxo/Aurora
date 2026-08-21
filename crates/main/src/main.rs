@@ -254,8 +254,6 @@ fn main() -> Result<()> {
     #[cfg(target_os = "linux")]
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
-    classes::legacymods::prompt_on_first_run(&window.as_weak());
-
     window.show()?;
 
     #[cfg(target_os = "windows")]
