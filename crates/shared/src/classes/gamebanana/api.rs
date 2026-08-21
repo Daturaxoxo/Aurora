@@ -189,7 +189,7 @@ impl GameBananaApi {
 
     fn detect_nsfw(record: &ApiRecord) -> bool {
         let vis = record.initial_visibility.as_deref().unwrap_or("");
-        if vis == "hide" { // check is vis == "warn" is required, since it also hides skimpy outfits (basically all beach outfits for example since bikinis & swimsuits are skimpy)
+        if vis == "hide" {
             return true;
         }
         if vis == "show" {
