@@ -67,7 +67,11 @@ impl ModSource {
                 return;
             }
         };
-        if let Err(e) = std::fs::write(folder.join(SOURCE_FILE), raw) {
+        // Removing first breaks any hard link, so sibling instances of this
+        // mod don't get the new source file written through their links
+        let target = folder.join(SOURCE_FILE);
+        let _ = std::fs::remove_file(&target);
+        if let Err(e) = std::fs::write(&target, raw) {
             warn!("could not record the source of '{}': {e}", folder.display());
         }
     }
@@ -503,6 +507,17 @@ const UNGROUPED: &str = "\u{1}ungrouped";
 /// `None` means the mod is up-to-date, `Some` means it needs to be updated
 type UpdateCheck = Option<NteModFile>;
 
+struct AddExistingEntry {
+    id: String,
+    name: String,
+}
+
+struct AddExisting {
+    pool: Vec<AddExistingEntry>,
+    selected: HashSet<String>,
+    search: String,
+}
+
 #[derive(Default)]
 struct State {
     scanned: Vec<ScannedGroup>,
@@ -520,6 +535,7 @@ struct State {
     filter_authors: HashSet<String>,
     /// A group id, [`UNGROUPED`], or empty for every group
     filter_group: String,
+    add_existing: Option<AddExisting>,
 }
 
 impl State {
@@ -745,7 +761,11 @@ fn rekey_icon_backup(old: &Path, new: &Path) {
 
 fn write_icon(mod_: &Mod, png: &[u8]) -> Result<()> {
     backup_existing_icon(mod_);
-    std::fs::write(mod_.path.join("icon.png"), png)
+    // Removing first breaks any hard link, so sibling instances of this mod
+    // keep their old icon instead of getting the new one written through
+    let target = mod_.path.join("icon.png");
+    let _ = std::fs::remove_file(&target);
+    std::fs::write(&target, png)
         .with_context(|| format!("could not write the icon of '{}'", mod_.path.display()))
 }
 
@@ -1769,6 +1789,140 @@ impl ModManagerHandler {
         get_mods_path().map(|p| p.join(format!("{GROUP_PREFIX}{name}")))
     }
 
+    // [ADD EXISTING MODS]
+
+    /// Creates `dst` as a real folder whose files are hard links into `src`
+    fn hard_link_dir(src: &Path, dst: &Path) -> Result<()> {
+        std::fs::create_dir_all(dst)?;
+        for entry in src.read_dir()? {
+            let entry = entry?;
+            let target = dst.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                Self::hard_link_dir(&entry.path(), &target)?;
+            } else {
+                std::fs::hard_link(entry.path(), &target).with_context(|| {
+                    format!(
+                        "could not link '{}' into '{}'",
+                        entry.path().display(),
+                        target.display()
+                    )
+                })?;
+            }
+        }
+        Ok(())
+    }
+
+    fn copy_mod_config(old: &str, new: &str) {
+        if old == new {
+            return;
+        }
+
+        for map_key in [key::MODMNG_NOTES, key::MODMNG_DISPLAY_NAMES] {
+            config::modify(|data| {
+                let Some(mut map) = data.get(map_key).and_then(Value::as_object).cloned() else {
+                    return;
+                };
+                
+                let Some(value) = map.get(old).cloned() else {
+                    return;
+                };
+                
+                map.insert(new.to_string(), value);
+                data.insert(map_key.to_string(), Value::Object(map));
+            });
+        }
+    }
+
+    fn open_add_existing(w: &MainWindow, group_id: &str) {
+        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+        let shown_name =
+            |m: &Mod| -> String {
+                display_names
+                    .get(&mod_id(m))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&m.display_name)
+                    .to_string()
+            };
+
+        let group_name = {
+            let state = STATE.lock().unwrap();
+            let Some(group) = state.scanned.iter().find(|g| g.id == group_id) else {
+                return;
+            };
+            let inside: HashSet<String> = group.mods.iter().map(mod_id).collect();
+            let pool: Vec<AddExistingEntry> = state
+                .scanned
+                .iter()
+                .flat_map(|g| g.mods.iter())
+                .filter(|m| !inside.contains(&mod_id(m)))
+                .map(|m| AddExistingEntry {
+                    id: mod_id(m),
+                    name: shown_name(m),
+                })
+                .collect();
+            let name = group.name.clone();
+            drop(state);
+            (name, pool)
+        };
+
+        {
+            let mut state = STATE.lock().unwrap();
+            state.add_existing = Some(AddExisting {
+                pool: group_name.1,
+                selected: HashSet::new(),
+                search: String::new(),
+            });
+        }
+
+        w.set_mods_add_existing_group_id(group_id.into());
+        w.set_mods_add_existing_group_name(group_name.0.as_str().into());
+        w.set_mods_add_existing_search("".into());
+        Self::rebuild_add_existing_model(w);
+        w.set_mods_add_existing_open(true);
+    }
+
+    fn rebuild_add_existing_model(w: &MainWindow) {
+        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+
+        let options: Vec<FilterOption> = {
+            let state = STATE.lock().unwrap();
+            let Some(picker) = &state.add_existing else {
+                return;
+            };
+
+            let filtered: Vec<FilterOption> = picker
+                .pool
+                .iter()
+                .filter(|entry| {
+                    picker.search.is_empty()
+                        || entry.name.to_lowercase().contains(&picker.search)
+                })
+                .filter_map(|entry| {
+                    let m = state
+                        .scanned
+                        .iter()
+                        .flat_map(|g| g.mods.iter())
+                        .find(|m| mod_id(m) == entry.id)?;
+                    let shown = display_names
+                        .get(&mod_id(m))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&m.display_name);
+                    Some(FilterOption {
+                        id: entry.id.as_str().into(),
+                        name: entry.name.as_str().into(),
+                        icon: mod_icon(m, shown),
+                        count: 0,
+                        selected: picker.selected.contains(&entry.id),
+                    })
+                })
+                .collect();
+            drop(state);
+            filtered
+        };
+
+        w.set_mods_add_existing_options(Rc::new(VecModel::from(options)).into());
+    }
+
     // Items below must match the list layout + margins of modmanager.slint
     const LIST_PADDING_TOP: f32 = 12.0;
     const LIST_SPACING: f32 = 8.0;
@@ -1884,6 +2038,86 @@ impl ModManagerHandler {
                     info!("moved '{}' → '{}'", m.folder_name, target_dir.display());
                 }
             }
+            Self::reload(&ww);
+        });
+    }
+
+    fn add_existing_mods(window: &slint::Weak<MainWindow>, group_id: String, ids: Vec<String>) {
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let group_dir = PathBuf::from(&group_id);
+            if !group_dir.is_dir() {
+                error!("cannot add mods: '{}' is not a group folder", group_dir.display());
+                return;
+            }
+
+            let mut added: Vec<String> = Vec::new();
+            let mut failed: Vec<String> = Vec::new();
+
+            for id in &ids {
+                let Some(m) = Self::mod_by_id(id) else {
+                    continue;
+                };
+                
+                // Already living in this group
+                if m.path.parent().is_some_and(|p| p == group_dir) {
+                    continue;
+                }
+
+                let base = m.folder_name.clone();
+                let mut name = base.clone();
+                let mut counter = 1;
+                while group_dir.join(&name).exists() {
+                    counter += 1;
+                    name = format!("{base} ({counter})");
+                }
+                let target = group_dir.join(&name);
+
+                match Self::hard_link_dir(&m.path, &target) {
+                    Ok(()) => {
+                        let new_id = target.to_string_lossy().into_owned();
+                        Self::copy_mod_config(id, &new_id);
+                        added.push(name);
+                        info!("linked '{}' into '{}'", m.path.display(), target.display());
+                    }
+                    Err(e) => {
+                        error!("could not link '{}': {e}", m.path.display());
+                        failed.push(format!("{}: {e}", m.folder_name));
+                        if let Err(cleanup) = std::fs::remove_dir_all(&target)
+                            && cleanup.kind() != std::io::ErrorKind::NotFound
+                        {
+                            warn!(
+                                "could not clean up '{}': {cleanup}",
+                                target.display()
+                            );
+                        }
+                    }
+                }
+            }
+
+            let ww2 = ww.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(win) = ww2.upgrade() else { return };
+                let ok = match added.len() {
+                    0 => String::new(),
+                    1 => format!("Added {}", added[0]),
+                    n => format!("Added {n} mods"),
+                };
+                if failed.is_empty() {
+                    if !ok.is_empty() {
+                        Self::show_toast(&win, "success", ok);
+                    }
+                } else {
+                    let errors = failed.join("; ");
+                    let text = if ok.is_empty() {
+                        format!("Could not add mods - {errors}")
+                    } else {
+                        format!("{ok}, {} failed - {errors}", failed.len())
+                    };
+                    Self::show_toast(&win, "error", text);
+                }
+            });
+
             Self::reload(&ww);
         });
     }
@@ -2523,6 +2757,52 @@ impl ModManagerHandler {
             info!("created group '{name}'");
 
             Self::move_mods_to_zone(&ww, ids, path.to_string_lossy().into_owned());
+        });
+
+        let ww = window.clone();
+        w.on_mod_open_add_existing(move |group_id| {
+            if let Some(win) = ww.upgrade() {
+                Self::open_add_existing(&win, &group_id);
+            }
+        });
+
+        let ww = window.clone();
+        w.on_mods_add_existing_search_changed(move |text| {
+            let Some(win) = ww.upgrade() else { return };
+            {
+                let mut state = STATE.lock().unwrap();
+                let Some(picker) = state.add_existing.as_mut() else {
+                    return;
+                };
+                picker.search = text.trim().to_lowercase();
+
+                for option in win.get_mods_add_existing_options().iter() {
+                    if option.selected {
+                        picker.selected.insert(option.id.to_string());
+                    } else {
+                        picker.selected.remove(option.id.as_str());
+                    }
+                }
+                drop(state);
+            }
+            Self::rebuild_add_existing_model(&win);
+        });
+
+        let ww = window.clone();
+        w.on_mods_add_existing_confirm(move |group_id| {
+            let Some(win) = ww.upgrade() else { return };
+            let ids: Vec<String> = win
+                .get_mods_add_existing_options()
+                .iter()
+                .filter(|option| option.selected)
+                .map(|option| option.id.to_string())
+                .collect();
+            win.set_mods_add_existing_open(false);
+            if ids.is_empty() {
+                return;
+            }
+            STATE.lock().unwrap().add_existing = None;
+            Self::add_existing_mods(&ww, group_id.to_string(), ids);
         });
 
         let ww = window.clone();

@@ -56,6 +56,7 @@ component GroupHeader inherits Rectangle {
     callback request-delete(string /* id */);
     callback toggle-enabled(string /* id */);
     callback toggle-select(string /* id */);
+    callback request-add(string /* id */);
     callback auto-edit-consumed();
     callback auto-edit-opened();
 
@@ -65,7 +66,7 @@ component GroupHeader inherits Rectangle {
     property <bool> auto-editing: root.auto-edit-id != "" && root.auto-edit-id == root.item.id;
     property <bool> editing: root.editing-name || root.auto-editing;
     property <string> name-draft;
-    property <bool> hovered: header-ta.has-hover || rename-ta.has-hover
+    property <bool> hovered: header-ta.has-hover || rename-ta.has-hover || add-ta.has-hover
         || delete-ta.has-hover || select-ta.has-hover;
 
     function commit-name() {
@@ -254,6 +255,36 @@ component GroupHeader inherits Rectangle {
             }
         }
 
+        // Add existing mods to this group
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                background: add-ta.has-hover ? #ffffff16 : transparent;
+                animate background { duration: 100ms; }
+
+                Path {
+                    width: 13px;
+                    height: 13px;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: 16;
+                    viewbox-height: 16;
+                    commands: "M7 2 L7 12 M2 7 L12 7";
+                    stroke: add-ta.has-hover ? #ffffffdd : #ffffff66;
+                    stroke-width: 1.8px;
+                    fill: transparent;
+                    animate stroke { duration: 100ms; }
+                }
+
+                add-ta := TouchArea {
+                    clicked => { root.request-add(root.item.id); }
+                }
+            }
+        }
+
         Rectangle {
             horizontal-stretch: 1;
         }
@@ -301,6 +332,7 @@ component FilterRow inherits Rectangle {
     in property <bool> checked: false;
     in property <bool> radio: false;
     in property <bool> show-icon: false;
+    in property <bool> show-count: true;
 
     callback toggled();
 
@@ -387,7 +419,7 @@ component FilterRow inherits Rectangle {
             vertical-alignment: center;
         }
 
-        Text {
+        if root.show-count: Text {
             text: root.option.count;
             color: #ffffff55;
             font-size: 11.5px;
@@ -599,6 +631,16 @@ export component ModManagerPage inherits Rectangle {
     callback move-selected-to-group(string /* group id, "" = mods root */);
     callback create-group-with-selected(string /* new group name */);
 
+    // [ADD EXISTING MODS]
+    in-out property <bool> add-existing-open: false;
+    in-out property <string> add-existing-group-id: "";
+    in-out property <string> add-existing-group-name: "";
+    in-out property <[FilterOption]> add-existing-options: [];
+    in-out property <string> add-existing-search: "";
+    callback open-add-existing(string /* group id */);
+    callback add-existing-search-changed(string);
+    callback add-existing-confirmed(string /* group id */);
+
     in-out property <bool> naming-group: false;
 
     in-out property <bool> icon-viewer-visible: false;
@@ -637,6 +679,7 @@ export component ModManagerPage inherits Rectangle {
     in-out property <bool> grid-drag-zone-valid: false;
 
     changed search-text => { root.search-changed(root.search-text); }
+    changed add-existing-search => { root.add-existing-search-changed(root.add-existing-search); }
 
     function commit-new-group(name: string) {
         if (name != "") {
@@ -1648,6 +1691,7 @@ export component ModManagerPage inherits Rectangle {
                             request-delete(id) => { root.pending-delete-group-id = id; }
                             toggle-enabled(id) => { root.toggle-group(id); }
                             toggle-select(id) => { root.select-group(id); }
+                            request-add(id) => { root.open-add-existing(id); }
                         }
 
                         if mod.is-group-header: Rectangle {
@@ -1814,6 +1858,7 @@ export component ModManagerPage inherits Rectangle {
                             request-delete(id) => { root.pending-delete-group-id = id; }
                             toggle-enabled(id) => { root.toggle-group(id); }
                             toggle-select(id) => { root.select-group(id); }
+                            request-add(id) => { root.open-add-existing(id); }
                         }
 
                         if section-root.has-header: Rectangle {
@@ -2262,6 +2307,151 @@ export component ModManagerPage inherits Rectangle {
                         text: Tr.values[TrKey.global-button-create];
                         active: true;
                         clicked => { root.commit-new-group(new-group-input.text); }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.add-existing-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: #000000aa;
+
+        TouchArea {
+            clicked => { root.add-existing-open = false; }
+        }
+
+        // Absorbs mouse-wheel scrolls
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
+        }
+
+        Rectangle {
+            width: min(440px, parent.width - 40px);
+            height: min(parent.height - 60px, add-existing-layout.preferred-height);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #1e1e24;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: #00000099;
+            drop-shadow-blur: 30px;
+
+            // Swallows clicks so they don't reach the backdrop
+            TouchArea { }
+
+            add-existing-layout := VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    height: 24px;
+                    spacing: 8px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: Tr.values[TrKey.modmanager-add-existing]
+                            + " — " + root.add-existing-group-name;
+                        color: Palette.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: add-existing-close-ta.has-hover ? #ffffff14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 6px;
+                            y: 6px;
+                            width: 12px;
+                            height: 12px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: add-existing-close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        add-existing-close-ta := TouchArea {
+                            clicked => { root.add-existing-open = false; }
+                        }
+                    }
+                }
+
+                add-existing-input := LineEdit {
+                    height: 32px;
+                    font-size: 12.5px;
+                    placeholder-text: Tr.values[TrKey.global-search-mods-placeholder];
+                    text <=> root.add-existing-search;
+                    init => { self.focus(); }
+                }
+
+                if root.add-existing-options.length == 0: Text {
+                    text: Tr.values[TrKey.modmanager-empty-search];
+                    color: #ffffff44;
+                    font-size: 12.5px;
+                    horizontal-alignment: center;
+                }
+
+                if root.add-existing-options.length > 0: Rectangle {
+                    // Up to 8 rows of 30px plus spacing
+                    height: min(root.add-existing-options.length, 8) * 32px;
+
+                    ScrollView {
+                        width: 100%;
+                        height: 100%;
+                        viewport-width: self.width;
+                        viewport-height: add-existing-list.preferred-height;
+
+                        add-existing-list := VerticalLayout {
+                            spacing: 2px;
+                            alignment: start;
+
+                            for option[i] in root.add-existing-options: FilterRow {
+                                option: option;
+                                checked: option.selected;
+                                show-icon: true;
+                                show-count: false;
+                                toggled => {
+                                    root.add-existing-options[i].selected = !option.selected;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.add-existing-open = false; }
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.modmanager-add-existing-button];
+                        active: true;
+                        enabled: root.add-existing-options.length > 0;
+                        clicked => {
+                            root.add-existing-confirmed(root.add-existing-group-id);
+                        }
                     }
                 }
             }

@@ -240,6 +240,14 @@ export component MainWindow inherits Window {
     callback mod-group-toggle(string);
     callback mod-group-collapse(string);
     callback mod-group-select(string);
+    callback mod-open-add-existing(string /* group id */);
+    in-out property <bool> mods-add-existing-open: false;
+    in-out property <string> mods-add-existing-group-id: "";
+    in-out property <string> mods-add-existing-group-name: "";
+    in-out property <[FilterOption]> mods-add-existing-options: [];
+    in-out property <string> mods-add-existing-search: "";
+    callback mods-add-existing-search-changed(string);
+    callback mods-add-existing-confirm(string /* group id */);
     callback mods-install-archive();
     callback mods-install-folder();
     in-out property <bool> mods-file-hover: false;
@@ -1116,6 +1124,14 @@ export component MainWindow inherits Window {
             groups: root.mods-groups;
             move-selected-to-group(group) => { root.mods-move-selected-to-group(group); }
             create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
+            open-add-existing(group) => { root.mod-open-add-existing(group); }
+            add-existing-open <=> root.mods-add-existing-open;
+            add-existing-group-id <=> root.mods-add-existing-group-id;
+            add-existing-group-name <=> root.mods-add-existing-group-name;
+            add-existing-options <=> root.mods-add-existing-options;
+            add-existing-search <=> root.mods-add-existing-search;
+            add-existing-search-changed(text) => { root.mods-add-existing-search-changed(text); }
+            add-existing-confirmed(group) => { root.mods-add-existing-confirm(group); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
             editing-group-id <=> root.mods-editing-group-id;
