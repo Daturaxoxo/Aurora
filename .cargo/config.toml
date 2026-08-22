@@ -16,4 +16,6 @@ rustflags = [
     "threads=8",
     "-Z",
     "share-generics=y",
+    "-Z",
+    "next-solver=coherence",
 ]
