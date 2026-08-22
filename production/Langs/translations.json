@@ -3236,7 +3236,8 @@
         "jp": "グループにModを追加",
         "ko": "그룹에 모드 추가",
         "pt": "Adicionar mods ao grupo",
-        "pt-BR": "Adicionar mods ao grupo"
+        "pt-BR": "Adicionar mods ao grupo",
+        "id": "Tambahkan Mod ke Grup"
     },
     {
         "key": "modmanager.add-existing-button",
@@ -3253,7 +3254,8 @@
         "jp": "追加",
         "ko": "추가",
         "pt": "Adicionar",
-        "pt-BR": "Adicionar"
+        "pt-BR": "Adicionar",
+        "id": "Tambahkan"
     },
     {
         "key": "modmanager.move-no-group",
