@@ -50,7 +50,7 @@ pub(super) fn holders(path: &Path) -> Vec<String> {
 #[cfg(target_os = "windows")]
 fn list_processes(session: u32) -> Vec<String> {
     use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
-    use windows_sys::Win32::System::RestartManager::{RmGetList, RM_PROCESS_INFO};
+    use windows_sys::Win32::System::RestartManager::{RM_PROCESS_INFO, RmGetList};
 
     const MAX_TRIES: usize = 3;
 

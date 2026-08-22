@@ -128,11 +128,10 @@ fn scale_in(text: &str) -> Option<f64> {
             if trimmed.starts_with('[') {
                 break;
             }
-            if let Some((k, v)) = trimmed.split_once('=') {
-                if k.trim().eq_ignore_ascii_case(KEY) {
+            if let Some((k, v)) = trimmed.split_once('=')
+                && k.trim().eq_ignore_ascii_case(KEY) {
                     return v.trim().parse().ok();
                 }
-            }
         }
     }
 

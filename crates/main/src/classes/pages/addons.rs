@@ -2,10 +2,10 @@ use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
-use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
+use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::info::addons;
-use shared::classes::info::version::{detect_version, Version};
+use shared::classes::info::version::{Version, detect_version};
 use shared::utils::get_cache_dir;
 use shared::{config, pathfind, utils};
 
@@ -690,13 +690,13 @@ impl AddonsHandler {
 
         if failures.is_empty() {
             let md5 = Self::combined_md5(&addon.install_data);
-            if !md5.is_empty() {
-                if let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5) {
-                    warn!(
-                        "Installed addon: could not record the hash for '{}': {e}",
-                        addon.name
-                    );
-                }
+            if !md5.is_empty()
+                && let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5)
+            {
+                warn!(
+                    "Installed addon: could not record the hash for '{}': {e}",
+                    addon.name
+                );
             }
             Ok(())
         } else {
@@ -783,13 +783,13 @@ impl AddonsHandler {
                     return match written {
                         Ok(()) => Ok(dest),
                         Err(e) => {
-                            if temp_path.exists() {
-                                if let Err(e) = std::fs::remove_file(&temp_path) {
-                                    warn!(
-                                        "Addon download: could not remove '{}': {e}",
-                                        temp_path.display()
-                                    );
-                                }
+                            if temp_path.exists()
+                                && let Err(e) = std::fs::remove_file(&temp_path)
+                            {
+                                warn!(
+                                    "Addon download: could not remove '{}': {e}",
+                                    temp_path.display()
+                                );
                             }
                             Err(e)
                         }

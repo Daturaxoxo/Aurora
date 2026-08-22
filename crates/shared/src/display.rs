@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use display_info::DisplayInfo;
 use log::*;
 use slint::{PhysicalPosition, PhysicalSize, WindowPosition};
@@ -18,7 +18,9 @@ pub fn get_monitor_size() -> Result<DisplayInfo> {
 
                 if attempt == 10 {
                     if let Some(display) = displays.first().cloned() {
-                        warn!("get_monitor_size: no primary monitor found, falling back to the first display");
+                        warn!(
+                            "get_monitor_size: no primary monitor found, falling back to the first display"
+                        );
                         return Ok(display);
                     }
                     last_err = Some(anyhow!("No displays were reported by the system"));

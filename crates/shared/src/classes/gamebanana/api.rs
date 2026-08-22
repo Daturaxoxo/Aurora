@@ -1,8 +1,8 @@
 use super::cache::CacheManager;
 use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
 use crate::utils::{error_chain, get_local_version};
-use anyhow::{anyhow, Context, Result};
-use futures::{stream, StreamExt};
+use anyhow::{Context, Result, anyhow};
+use futures::{StreamExt, stream};
 use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -129,10 +129,7 @@ impl GameBananaApi {
         }
 
         match resp.bytes().await {
-            Err(e) => Attempt::Retry(
-                anyhow!("could not read {what}: {}", error_chain(&e)),
-                None,
-            ),
+            Err(e) => Attempt::Retry(anyhow!("could not read {what}: {}", error_chain(&e)), None),
             Ok(bytes) if bytes.is_empty() => {
                 Attempt::Retry(anyhow!("{what} returned an empty body"), None)
             }
@@ -331,8 +328,8 @@ impl GameBananaApi {
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
     ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_feed_cache(page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_feed_cache(page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -340,7 +337,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
         let request = self.client.get(&url).query(&[("_nPage", page)]);
@@ -373,8 +369,8 @@ impl GameBananaApi {
             return Ok(Vec::new());
         }
 
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_search_cache(query, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_search_cache(query, page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -382,7 +378,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Util/Search/Results");
         let request = self.client.get(&url).query(&[
@@ -431,8 +426,8 @@ impl GameBananaApi {
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<NteMod>>,
     ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_category_cache(category_id, page).await {
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
                         let _ = tx.send(m.clone());
@@ -440,7 +435,6 @@ impl GameBananaApi {
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Mod/Index");
         let request = self.client.get(&url).query(&[
@@ -451,11 +445,8 @@ impl GameBananaApi {
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
-        let index: SearchResponse = Self::fetch_json(
-            request,
-            &format!("category {category_id} (page {page})"),
-        )
-        .await?;
+        let index: SearchResponse =
+            Self::fetch_json(request, &format!("category {category_id} (page {page})")).await?;
 
         let only_mods = Self::only_mod_records(index.records);
         if only_mods.is_empty() {

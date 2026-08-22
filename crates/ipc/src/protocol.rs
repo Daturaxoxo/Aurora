@@ -1,12 +1,12 @@
 use std::io::{self, Read, Write};
-use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use interprocess::local_socket::{
-    traits::{Listener as _, Stream as _},
     GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Stream, ToNsName,
+    traits::{Listener as _, Stream as _},
 };
 use serde::{Deserialize, Serialize};
 

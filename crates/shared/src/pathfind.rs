@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::classes::games::markers::{find_marker, folder_name_matches, known_folder_names};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use jwalk::WalkDir;
 use log::*;
 use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
@@ -20,7 +20,7 @@ use crate::{
 };
 
 const MAX_ANCESTOR_HOPS: usize = 5; // maximum number of ancestor jumps done when searching for Neverness to Everness
-                                    // ^^ done so if someone selects "C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries", it'll resolve to "C:\Program Files\Neverness To Everness"
+// ^^ done so if someone selects "C:\Program Files\Neverness To Everness\Client\WindowsNoEditor\HT\Binaries", it'll resolve to "C:\Program Files\Neverness To Everness"
 const LIBRARY_FOLDERS: &[&str] = &[
     "common",
     "Games",

@@ -4,7 +4,7 @@ use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::rpc::RPC;
-use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
+use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
@@ -79,10 +79,8 @@ impl SettingsHandler {
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
         debug!("discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
-        if discord_rpc {
-            if let Err(e) = RPC.set_idle() {
-                error!("could not set Discord RPC to idle: {e}");
-            }
+        if discord_rpc && let Err(e) = RPC.set_idle() {
+            error!("could not set Discord RPC to idle: {e}");
         }
 
         // Launcher
@@ -398,9 +396,13 @@ impl SettingsHandler {
 
             #[cfg(target_os = "linux")]
             if let Some(w) = ww.upgrade() {
+                #[cfg(target_os = "linux")]
                 w.set_proton_version_not_recommended(
                     backend::classes::linux::is_proton_version_not_recommended(&name),
                 );
+
+                #[cfg(not(target_os = "linux"))]
+                w.set_proton_version_not_recommended(false);
             }
 
             info!("proton_version changed → index={index}, build={name:?}");
@@ -564,7 +566,10 @@ impl SettingsHandler {
             .map_or("en", |l| l.code.as_str());
 
         if result == "en" && index != 0 {
-            warn!("index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
+            warn!(
+                "index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"",
+                LANGUAGES.len()
+            );
         }
 
         result

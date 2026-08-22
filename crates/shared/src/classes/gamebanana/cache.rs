@@ -101,11 +101,10 @@ impl CacheManager {
         if !cache_file.exists() {
             return false;
         }
-        if let Ok(data) = std::fs::read_to_string(cache_file) {
-            if let Ok(wrapper) = serde_json::from_str::<CacheWrapper>(&data) {
+        if let Ok(data) = std::fs::read_to_string(cache_file)
+            && let Ok(wrapper) = serde_json::from_str::<CacheWrapper>(&data) {
                 return Self::current_timestamp().abs_diff(wrapper.cached_at) < CACHE_TTL_SECONDS;
             }
-        }
         false
     }
 

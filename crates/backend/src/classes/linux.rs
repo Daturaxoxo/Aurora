@@ -2,13 +2,13 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::{debug, info, warn};
 
 use crate::classes::launch_options::{self, LaunchOptions};
 use shared::classes::steam::real_user;
 use shared::classes::steam::{
-    aurora_compat_data_dir, find_steam_root, steam_libraries, STEAM_APP_ID,
+    STEAM_APP_ID, aurora_compat_data_dir, find_steam_root, steam_libraries,
 };
 
 const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];

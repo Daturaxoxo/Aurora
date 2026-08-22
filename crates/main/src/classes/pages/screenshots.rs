@@ -12,8 +12,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 const THUMB_MAX_W: u32 = 512;
@@ -214,10 +214,10 @@ fn hash_file(path: &Path) -> std::io::Result<u64> {
 }
 
 fn content_hash(path: &Path, id: FileId) -> Option<u64> {
-    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path) {
-        if *cached_id == id {
-            return Some(*hash);
-        }
+    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path)
+        && *cached_id == id
+    {
+        return Some(*hash);
     }
 
     let hash = hash_file(path)
@@ -518,10 +518,10 @@ fn copy_image_to_clipboard(path: &Path) -> bool {
         return false;
     }
 
-    if let Some(bmp) = bmp {
-        if let Err(e) = clipboard_win::raw::set_bitmap(&bmp) {
-            warn!("Could not add a bitmap to the clipboard: {e}");
-        }
+    if let Some(bmp) = bmp
+        && let Err(e) = clipboard_win::raw::set_bitmap(&bmp)
+    {
+        warn!("Could not add a bitmap to the clipboard: {e}");
     }
 
     true
@@ -954,11 +954,11 @@ impl ScreenshotHandler {
             };
 
             let model = win.get_screenshots();
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(mut row) = model.row_data(i) {
-                    row.selected = selected;
-                    model.set_row_data(i, row);
-                }
+            if let Ok(i) = usize::try_from(index)
+                && let Some(mut row) = model.row_data(i)
+            {
+                row.selected = selected;
+                model.set_row_data(i, row);
             }
             win.set_screenshot_selected_count(i32::try_from(count).unwrap_or(0));
         });
@@ -970,11 +970,11 @@ impl ScreenshotHandler {
 
             let model = win.get_screenshots();
             for i in 0..model.row_count() {
-                if let Some(mut row) = model.row_data(i) {
-                    if row.selected {
-                        row.selected = false;
-                        model.set_row_data(i, row);
-                    }
+                if let Some(mut row) = model.row_data(i)
+                    && row.selected
+                {
+                    row.selected = false;
+                    model.set_row_data(i, row);
                 }
             }
             win.set_screenshot_selected_count(0);
@@ -1004,10 +1004,10 @@ impl ScreenshotHandler {
             };
             let Some(win) = ww.upgrade() else { return };
 
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(row) = win.get_screenshots().row_data(i) {
-                    win.set_screenshot_preview_image(row.image);
-                }
+            if let Ok(i) = usize::try_from(index)
+                && let Some(row) = win.get_screenshots().row_data(i)
+            {
+                win.set_screenshot_preview_image(row.image);
             }
 
             let generation = PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;

@@ -1,9 +1,9 @@
 use crate::classes::characters;
-use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
@@ -14,8 +14,8 @@ use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 const PAGE_SIZE: usize = 15;
@@ -47,6 +47,7 @@ pub const CHARACTERS: &[(&str, u32)] = &[
     ("Iroi", 46560),
     ("Jiuyuan", 45476),
     ("Lacrimosa", 43039),
+    ("Linko", 48013),
     ("Mint", 43040),
     ("Nanally", 43041),
     ("Sakiri", 43042),
@@ -89,6 +90,14 @@ enum Mode {
     Partial(String),
 }
 
+#[derive(Debug, Clone, Default)]
+struct GbMod {
+    id: u32,
+    author: String,
+    name: String,
+    thumb: Option<Thumbnail>,
+}
+
 struct PreviewState {
     mod_id: u32,
     urls: Vec<String>,
@@ -105,6 +114,7 @@ struct GbState {
     mods: Vec<(NteMod, Option<Thumbnail>)>,
     seen: HashSet<u32>,
     files: Vec<NteModFile>,
+    files_mod: GbMod,
     preview: Option<PreviewState>,
 }
 
@@ -119,6 +129,7 @@ impl Default for GbState {
             mods: Vec::new(),
             seen: HashSet::new(),
             files: Vec::new(),
+            files_mod: GbMod::default(),
             preview: None,
         }
     }
@@ -127,6 +138,14 @@ impl Default for GbState {
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
 static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_RUNNING);
 static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
+
+pub fn runtime() -> &'static tokio::runtime::Runtime {
+    &RUNTIME
+}
+
+pub async fn mod_files(mod_id: u32) -> Option<Vec<NteModFile>> {
+    API.get_mod_files(mod_id).await
+}
 
 fn show_nsfw() -> bool {
     config::get(key::GB_NSFW).as_bool().unwrap_or(false)
@@ -143,6 +162,15 @@ fn decode_thumb(bytes: &[u8]) -> Option<Thumbnail> {
         width: w,
         height: h,
     })
+}
+
+fn encode_png(t: &Thumbnail) -> Option<Vec<u8>> {
+    let img = image::RgbaImage::from_raw(t.width, t.height, t.pixels.clone())?;
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png)
+        .map_err(|e| warn!("GameBanana Browser Backend: could not encode the icon png: {e}"))
+        .ok()?;
+    Some(out.into_inner())
 }
 
 fn to_item(m: &NteMod, thumb: Option<&Thumbnail>, hide_downloads: bool) -> GbModItem {
@@ -463,15 +491,54 @@ impl GbBrowserHandler {
         }
     }
 
-    fn download_and_install(window: &slint::Weak<MainWindow>, file: NteModFile) {
+    fn download_and_install(window: &slint::Weak<MainWindow>, mod_: GbMod, file: NteModFile) {
+        Self::start_download(window, mod_, file, None);
+    }
+
+    pub(crate) fn download_update(
+        window: &slint::Weak<MainWindow>,
+        source: ModSource,
+        file: NteModFile,
+        folder: std::path::PathBuf,
+    ) {
+        let mod_ = GbMod {
+            id: source.mod_id,
+            author: source.author,
+            name: source.name,
+            thumb: None,
+        };
+        Self::start_download(window, mod_, file, Some(folder));
+    }
+
+    fn start_download(
+        window: &slint::Weak<MainWindow>,
+        mod_: GbMod,
+        file: NteModFile,
+        update_folder: Option<std::path::PathBuf>,
+    ) {
         INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
+        let updating = update_folder.is_some();
+
+        let icon_png = if updating {
+            None
+        } else {
+            mod_.thumb.as_ref().and_then(encode_png)
+        };
+
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop({
             let ww = ww.clone();
             let name = file.name.clone();
             move || {
                 if let Some(w) = ww.upgrade() {
-                    w.set_progress_overlay_title("Installing Mod".into());
+                    w.set_progress_overlay_title(
+                        if updating {
+                            "Updating Mod"
+                        } else {
+                            "Installing Mod"
+                        }
+                        .into(),
+                    );
                     w.set_progress_overlay_progress(0.0);
                     w.set_progress_overlay_text(format!("Downloading {name}...").into());
                     w.set_progress_overlay_cancellable(true);
@@ -560,8 +627,8 @@ impl GbBrowserHandler {
                             hasher.consume(&chunk);
                             out.write_all(&chunk).await?;
                             done += chunk.len() as u64;
-                            if let Some(percent) = (done * 100).checked_div(total) {
-                                if percent > last_percent {
+                            if let Some(percent) = (done * 100).checked_div(total)
+                                && percent > last_percent {
                                     last_percent = percent;
                                     #[allow(
                                         clippy::cast_precision_loss,
@@ -574,7 +641,6 @@ impl GbBrowserHandler {
                                         format!("Downloading {}...", file.name),
                                     );
                                 }
-                            }
                         };
                         out.flush().await?;
                         Ok(stopped)
@@ -674,14 +740,32 @@ impl GbBrowserHandler {
                             // Extraction can't be aborted, so cancelling stops here
                             w.set_progress_overlay_cancellable(false);
                             w.set_progress_overlay_progress(1.0);
-                            w.set_progress_overlay_text("Installing...".into());
+                            w.set_progress_overlay_text(
+                                if updating { "Updating..." } else { "Installing..." }.into(),
+                            );
                         }
                     });
-                    ModManagerHandler::install_paths_with_done(
-                        &ww,
-                        vec![path],
-                        Some(Box::new(|w| w.set_progress_overlay_active(false))),
-                    );
+
+                    let source = ModSource {
+                        mod_id: mod_.id,
+                        file_id: file.id,
+                        file_name: file.name.clone(),
+                        md5: file.md5.clone(),
+                        author: mod_.author,
+                        name: mod_.name,
+                    };
+
+                    if let Some(folder) = update_folder {
+                        ModManagerHandler::apply_update(&ww, folder, path, source);
+                    } else {
+                        ModManagerHandler::install_paths_with_done(
+                            &ww,
+                            vec![path],
+                            Some(source),
+                            Some(Box::new(|w| w.set_progress_overlay_active(false))),
+                            icon_png,
+                        );
+                    }
                 }
                 Ok(None) => {
                     info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
@@ -805,13 +889,18 @@ impl GbBrowserHandler {
             let Ok(mod_id) = u32::try_from(id) else {
                 return;
             };
-            let mod_name = STATE
+            let mod_ = STATE
                 .lock()
                 .unwrap()
                 .mods
                 .iter()
                 .find(|(m, _)| m.id == mod_id)
-                .map(|(m, _)| m.name.clone())
+                .map(|(m, t)| GbMod {
+                    id: m.id,
+                    author: m.author.clone(),
+                    name: m.name.clone(),
+                    thumb: t.clone(),
+                })
                 .unwrap_or_default();
 
             let ww2 = ww.clone();
@@ -820,16 +909,20 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(win) = ww2.upgrade() else { return };
                     let Some(files) = files else {
-                        warn!("GameBanana Browser Backend: could not fetch the files of mod {mod_id}");
+                        warn!(
+                            "GameBanana Browser Backend: could not fetch the files of mod {mod_id}"
+                        );
                         show_toast(&win, "error", "Could not fetch this mod's files".into());
                         return;
                     };
                     match files.len() {
                         0 => {
-                            warn!("GameBanana Browser Backend: mod {mod_id} has no downloadable files");
+                            warn!(
+                                "GameBanana Browser Backend: mod {mod_id} has no downloadable files"
+                            );
                             show_toast(&win, "error", "This mod has no files to download".into());
                         }
-                        1 => Self::download_and_install(&ww2, files[0].clone()),
+                        1 => Self::download_and_install(&ww2, mod_, files[0].clone()),
                         _ => {
                             let items: Vec<GbFileItem> = files
                                 .iter()
@@ -839,9 +932,12 @@ impl GbBrowserHandler {
                                     downloads: i32::try_from(f.download_count).unwrap_or(i32::MAX),
                                 })
                                 .collect();
-                            STATE.lock().unwrap().files = files;
+                            let mut state = STATE.lock().unwrap();
+                            state.files = files;
+                            state.files_mod = mod_.clone();
+                            drop(state);
                             win.set_gb_files(Rc::new(VecModel::from(items)).into());
-                            win.set_gb_files_mod_name(mod_name.as_str().into());
+                            win.set_gb_files_mod_name(mod_.name.as_str().into());
                             win.set_gb_files_visible(true);
                         }
                     }
@@ -853,11 +949,16 @@ impl GbBrowserHandler {
         w.on_gb_file_chosen(move |index| {
             let Some(win) = ww.upgrade() else { return };
             win.set_gb_files_visible(false);
-            let file = usize::try_from(index)
-                .ok()
-                .and_then(|i| STATE.lock().unwrap().files.get(i).cloned());
-            if let Some(file) = file {
-                Self::download_and_install(&ww, file);
+            let picked = usize::try_from(index).ok().and_then(|i| {
+                let state = STATE.lock().unwrap();
+                state
+                    .files
+                    .get(i)
+                    .cloned()
+                    .map(|f| (state.files_mod.clone(), f))
+            });
+            if let Some((mod_, file)) = picked {
+                Self::download_and_install(&ww, mod_, file);
             }
         });
 

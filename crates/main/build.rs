@@ -247,36 +247,36 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
         if path.is_dir() {
             fs::create_dir_all(&dest_path).unwrap();
             process_directory(root_source, &path, target_base);
-        } else if path.is_file() {
-            if let Some(extension) = path.extension().and_then(|os| os.to_str()) {
-                let ext_lower = extension.to_lowercase();
-                if ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg" {
-                    let file_name = path.file_name().and_then(|os| os.to_str()).unwrap_or("");
-                    if file_name.contains("background") {
-                        if !is_up_to_date(&path, &dest_path) {
-                            fs::copy(&path, &dest_path).unwrap();
-                        }
-                        continue;
-                    }
-
-                    if is_up_to_date(&path, &dest_path) {
-                        continue;
-                    }
-
-                    let size = if relative.starts_with("characters") {
-                        128
-                    } else {
-                        64
-                    };
-
-                    if let Ok(img) = image::open(&path) {
-                        let scaled = img.resize(size, size, FilterType::Lanczos3);
-                        scaled
-                            .save(&dest_path)
-                            .expect("Failed to save downsampled asset");
-                    } else {
+        } else if path.is_file()
+            && let Some(extension) = path.extension().and_then(|os| os.to_str())
+        {
+            let ext_lower = extension.to_lowercase();
+            if ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg" {
+                let file_name = path.file_name().and_then(|os| os.to_str()).unwrap_or("");
+                if file_name.contains("background") {
+                    if !is_up_to_date(&path, &dest_path) {
                         fs::copy(&path, &dest_path).unwrap();
                     }
+                    continue;
+                }
+
+                if is_up_to_date(&path, &dest_path) {
+                    continue;
+                }
+
+                let size = if relative.starts_with("characters") {
+                    128
+                } else {
+                    64
+                };
+
+                if let Ok(img) = image::open(&path) {
+                    let scaled = img.resize(size, size, FilterType::Lanczos3);
+                    scaled
+                        .save(&dest_path)
+                        .expect("Failed to save downsampled asset");
+                } else {
+                    fs::copy(&path, &dest_path).unwrap();
                 }
             }
         }

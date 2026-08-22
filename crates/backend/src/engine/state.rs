@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use shared::classes::info::{
-    paths::{get_version_paths, VersionPaths},
-    version::{detect_distribution, detect_version, BypassMethod, Distribution, Version},
     Target,
+    paths::{VersionPaths, get_version_paths},
+    version::{BypassMethod, Distribution, Version, detect_distribution, detect_version},
 };
 use shared::config::{get, key};
 use shared::utils;
 
 use super::files::FileGroup;
-use super::process::{set_kill_snapshot, KillSnapshot};
+use super::process::{KillSnapshot, set_kill_snapshot};
 
 #[derive(Clone)]
 pub struct AuroraEngine {

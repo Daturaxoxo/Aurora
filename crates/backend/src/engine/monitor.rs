@@ -1,18 +1,18 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use shared::classes::info::NTE_PROCESSES;
 
 use crate::classes::rpc::RPC;
 use crate::handler::EngineEvent;
 
+use super::AuroraEngine;
 use super::everlight;
 use super::process::ProcessSnapshot;
-use super::AuroraEngine;
 
 // This is intentionally high, because when the launcher updates and restarts it takes a while.
 const LAUNCHER_GRACE_SECS: u32 = 10;

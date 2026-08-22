@@ -3,14 +3,14 @@ use std::io;
 #[cfg(windows)]
 use std::path::Path;
 use std::process::Command;
+#[cfg(windows)]
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(windows)]
 use std::sync::mpsc;
-#[cfg(windows)]
-use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::*;
 
 use ipc::manifest::hash_file;
@@ -834,11 +834,11 @@ impl UpdateHandler {
 
     fn send_init_confirmed() {
         for _ in 0..10 {
-            if let Ok(mut stream) = protocol::connect(ipc::INIT_PIPE_NAME) {
-                if protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok() {
-                    info!("init_confirmed sent");
-                    return;
-                }
+            if let Ok(mut stream) = protocol::connect(ipc::INIT_PIPE_NAME)
+                && protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok()
+            {
+                info!("init_confirmed sent");
+                return;
             }
             std::thread::sleep(Duration::from_millis(300));
         }

@@ -19,6 +19,8 @@ import {
     GroupOption,
     FilterOption,
     ModFilters,
+    ModStatusFilter,
+    IconChoice,
 } from "components/pages/modmanager.slint";
 import {
     GameBananaBrowser,
@@ -143,6 +145,7 @@ export component MainWindow inherits Window {
     in-out property <int> engine-scale: 100;
     in-out property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
+    in-out property <string> launch-args: "";
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     in-out property <bool> is-linux: false;
@@ -160,6 +163,7 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
+    callback launch-args-changed(string);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback proton-launch-args-changed(string);
@@ -202,6 +206,7 @@ export component MainWindow inherits Window {
     in-out property <int> mods-selected-group-count: 0;
     callback mods-delete-selected-groups();
     callback mod-toggle(string);
+    callback mod-update(string);
     callback mod-delete(string);
     callback mod-rename(string, string);
     callback mod-select(string);
@@ -221,7 +226,7 @@ export component MainWindow inherits Window {
     callback mods-toggle-selected();
     callback mods-delete-selected();
     callback mods-search-changed(string);
-    in-out property <ModFilters> mods-filters: { status: 0, group-id: "" };
+    in-out property <ModFilters> mods-filters: { status: ModStatusFilter.all, group-id: "" };
     in-out property <[FilterOption]> mods-filter-characters: [];
     in-out property <[FilterOption]> mods-filter-authors: [];
     in-out property <[FilterOption]> mods-filter-groups: [];
@@ -237,9 +242,21 @@ export component MainWindow inherits Window {
     callback mod-group-toggle(string);
     callback mod-group-collapse(string);
     callback mod-group-select(string);
+    callback mod-open-add-existing(string /* group id */);
+    in-out property <bool> mods-add-existing-open: false;
+    in-out property <string> mods-add-existing-group-id: "";
+    in-out property <string> mods-add-existing-group-name: "";
+    in-out property <[FilterOption]> mods-add-existing-options: [];
+    in-out property <string> mods-add-existing-search: "";
+    callback mods-add-existing-search-changed(string);
+    callback mods-add-existing-confirm(string /* group id */);
     callback mods-install-archive();
     callback mods-install-folder();
     in-out property <bool> mods-file-hover: false;
+    in property <[IconChoice]> mods-icon-choices: [];
+    callback mods-pick-icon-character(string /* id */, string /* slug */);
+    callback mods-browse-icon(string /* id */);
+    callback mods-remove-icon(string /* id */);
 
     // GameBanana Browser Properties
     in-out property <bool> show-gb-browser: false;
@@ -1080,6 +1097,7 @@ export component MainWindow inherits Window {
             }
             close-mod-manager => { root.show-mod-manager = false; }
             toggle-mod(id) => { root.mod-toggle(id); }
+            update-mod(id) => { root.mod-update(id); }
             delete-mod(id) => { root.mod-delete(id); }
             rename-mod(id, name) => { root.mod-rename(id, name); }
             select-mod(id) => { root.mod-select(id); }
@@ -1108,6 +1126,14 @@ export component MainWindow inherits Window {
             groups: root.mods-groups;
             move-selected-to-group(group) => { root.mods-move-selected-to-group(group); }
             create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
+            open-add-existing(group) => { root.mod-open-add-existing(group); }
+            add-existing-open <=> root.mods-add-existing-open;
+            add-existing-group-id <=> root.mods-add-existing-group-id;
+            add-existing-group-name <=> root.mods-add-existing-group-name;
+            add-existing-options <=> root.mods-add-existing-options;
+            add-existing-search <=> root.mods-add-existing-search;
+            add-existing-search-changed(text) => { root.mods-add-existing-search-changed(text); }
+            add-existing-confirmed(group) => { root.mods-add-existing-confirm(group); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
             editing-group-id <=> root.mods-editing-group-id;
@@ -1115,6 +1141,10 @@ export component MainWindow inherits Window {
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
             refresh => { root.mods-refresh(); }
             open-mods-folder => { root.open-mods-folder(); }
+            icon-choices: root.mods-icon-choices;
+            pick-icon-character(id, slug) => { root.mods-pick-icon-character(id, slug); }
+            browse-mod-icon(id) => { root.mods-browse-icon(id); }
+            remove-mod-icon(id) => { root.mods-remove-icon(id); }
             open-gamebanana => {
                 root.popup-id = "gamebanana-popup";
                 root.popup-title = Tr.values[TrKey.popup-gamebanana-title];
@@ -1182,6 +1212,7 @@ export component MainWindow inherits Window {
             engine-scale <=> root.engine-scale;
             show-engine-scale: root.show-engine-scale;
             ignore-checksum <=> root.ignore-checksum;
+            launch-args <=> root.launch-args;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
             is-linux: root.is-linux;
@@ -1204,6 +1235,7 @@ export component MainWindow inherits Window {
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
+            launch-args-changed(v) => { root.launch-args-changed(v); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
