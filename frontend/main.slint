@@ -145,6 +145,7 @@ export component MainWindow inherits Window {
     in-out property <int> engine-scale: 100;
     in-out property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
+    in-out property <string> launch-args: "";
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     in-out property <bool> is-linux: false;
@@ -162,6 +163,7 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
+    callback launch-args-changed(string);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback proton-launch-args-changed(string);
@@ -1194,6 +1196,7 @@ export component MainWindow inherits Window {
             engine-scale <=> root.engine-scale;
             show-engine-scale: root.show-engine-scale;
             ignore-checksum <=> root.ignore-checksum;
+            launch-args <=> root.launch-args;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
             is-linux: root.is-linux;
@@ -1216,6 +1219,7 @@ export component MainWindow inherits Window {
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
+            launch-args-changed(v) => { root.launch-args-changed(v); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
