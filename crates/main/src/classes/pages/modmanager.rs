@@ -702,14 +702,14 @@ fn backup_existing_icon(mod_: &Mod) {
     if backup.exists() {
         return;
     }
-    
+
     if let Some(parent) = backup.parent()
         && let Err(e) = std::fs::create_dir_all(parent)
     {
         warn!("could not create '{}': {e}", parent.display());
         return;
     }
-    
+
     if let Err(e) = std::fs::copy(&current, &backup) {
         warn!(
             "could not back up the icon of '{}': {e}",
@@ -734,7 +734,7 @@ fn rekey_icon_backup(old: &Path, new: &Path) {
     if !old_backup.exists() {
         return;
     }
-    
+
     let new_backup = icon_backup_path(new);
     if let Some(parent) = new_backup.parent()
         && let Err(e) = std::fs::create_dir_all(parent)
@@ -746,7 +746,7 @@ fn rekey_icon_backup(old: &Path, new: &Path) {
     if std::fs::rename(&old_backup, &new_backup).is_ok() {
         return;
     }
-    
+
     match std::fs::copy(&old_backup, &new_backup) {
         Ok(_) => {
             let _ = std::fs::remove_file(&old_backup);
@@ -808,7 +808,7 @@ impl ModManagerHandler {
                         || characters::display_name(slug),
                         |(_, name)| (*name).to_string(),
                     );
-                
+
                 IconChoice {
                     slug: slug.into(),
                     name: name.as_str().into(),
@@ -1822,11 +1822,11 @@ impl ModManagerHandler {
                 let Some(mut map) = data.get(map_key).and_then(Value::as_object).cloned() else {
                     return;
                 };
-                
+
                 let Some(value) = map.get(old).cloned() else {
                     return;
                 };
-                
+
                 map.insert(new.to_string(), value);
                 data.insert(map_key.to_string(), Value::Object(map));
             });
@@ -1835,14 +1835,13 @@ impl ModManagerHandler {
 
     fn open_add_existing(w: &MainWindow, group_id: &str) {
         let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
-        let shown_name =
-            |m: &Mod| -> String {
-                display_names
-                    .get(&mod_id(m))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(&m.display_name)
-                    .to_string()
-            };
+        let shown_name = |m: &Mod| -> String {
+            display_names
+                .get(&mod_id(m))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&m.display_name)
+                .to_string()
+        };
 
         let group_name = {
             let state = STATE.lock().unwrap();
@@ -1894,8 +1893,7 @@ impl ModManagerHandler {
                 .pool
                 .iter()
                 .filter(|entry| {
-                    picker.search.is_empty()
-                        || entry.name.to_lowercase().contains(&picker.search)
+                    picker.search.is_empty() || entry.name.to_lowercase().contains(&picker.search)
                 })
                 .filter_map(|entry| {
                     let m = state
@@ -2012,6 +2010,16 @@ impl ModManagerHandler {
                 let target = target_dir.join(&m.folder_name);
                 if target.exists() {
                     warn!("not moving '{}': target already exists", m.folder_name);
+                    let ww2 = ww.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = ww2.upgrade() {
+                            Self::show_toast(
+                                &win,
+                                "warning",
+                                format!("Not moving '{}'. This mod already exists.", m.folder_name),
+                            );
+                        }
+                    });
                 } else if let Err(e) = std::fs::rename(&m.path, &target) {
                     warn!("could not move '{}': {e}", m.folder_name);
                     let ww2 = ww.clone();
@@ -2047,7 +2055,10 @@ impl ModManagerHandler {
         std::thread::spawn(move || {
             let group_dir = PathBuf::from(&group_id);
             if !group_dir.is_dir() {
-                error!("cannot add mods: '{}' is not a group folder", group_dir.display());
+                error!(
+                    "cannot add mods: '{}' is not a group folder",
+                    group_dir.display()
+                );
                 return;
             }
 
@@ -2058,7 +2069,7 @@ impl ModManagerHandler {
                 let Some(m) = Self::mod_by_id(id) else {
                     continue;
                 };
-                
+
                 // Already living in this group
                 if m.path.parent().is_some_and(|p| p == group_dir) {
                     continue;
@@ -2086,10 +2097,7 @@ impl ModManagerHandler {
                         if let Err(cleanup) = std::fs::remove_dir_all(&target)
                             && cleanup.kind() != std::io::ErrorKind::NotFound
                         {
-                            warn!(
-                                "could not clean up '{}': {cleanup}",
-                                target.display()
-                            );
+                            warn!("could not clean up '{}': {cleanup}", target.display());
                         }
                     }
                 }
@@ -2568,7 +2576,7 @@ impl ModManagerHandler {
                             rekey_icon_backup(&old_path.join(entry.file_name()), &entry.path());
                         }
                     }
-                    
+
                     let mut state = STATE.lock().unwrap();
                     if state
                         .collapsed
@@ -2871,17 +2879,17 @@ impl ModManagerHandler {
                 let Some(m) = Self::mod_by_id(&id) else {
                     return;
                 };
-                
+
                 let outcome = characters::icon_bytes(&slug)
                     .ok_or_else(|| anyhow!("no character icon matches '{slug}'"))
                     .and_then(|bytes| write_icon(&m, bytes));
-                
+
                 if let Err(e) = outcome {
                     report_icon_error(&ww, &m, e);
                 } else {
                     info!("set the icon of '{}' to '{slug}'", m.folder_name);
                 }
-                
+
                 Self::reload(&ww);
             });
         });
@@ -2894,7 +2902,7 @@ impl ModManagerHandler {
                 let Some(m) = Self::mod_by_id(&id) else {
                     return;
                 };
-                
+
                 let Some(picked) = rfd::FileDialog::new()
                     .set_title("Choose an Icon")
                     .add_filter("Images", &["png", "jpg", "jpeg", "webp", "bmp", "gif"])
@@ -2907,7 +2915,7 @@ impl ModManagerHandler {
                     .with_context(|| format!("could not read '{}'", picked.display()))
                     .and_then(|bytes| encode_icon_png(&bytes))
                     .and_then(|png| write_icon(&m, &png));
-                
+
                 if let Err(e) = outcome {
                     report_icon_error(&ww, &m, e);
                 } else {
@@ -2917,7 +2925,7 @@ impl ModManagerHandler {
                         picked.display()
                     );
                 }
-                
+
                 Self::reload(&ww);
             });
         });
