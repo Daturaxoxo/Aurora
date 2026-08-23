@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::{LaunchState, MainWindow, classes::updater};
@@ -9,7 +10,13 @@ use shared::config::{self, key};
 
 pub struct Bridge;
 
+static GAME_BUSY: AtomicBool = AtomicBool::new(false);
+
 impl Bridge {
+    pub fn game_busy() -> bool {
+        GAME_BUSY.load(Ordering::SeqCst)
+    }
+
     pub fn quick_start() -> Result<()> {
         let handler = EngineHandler::start()?;
         handler
@@ -105,6 +112,7 @@ impl Bridge {
             w.on_launch_clicked(move || {
                 let plugin_files = Self::custom_addon_files();
                 debug!("Launching game with plugins: {plugin_files:?}");
+                GAME_BUSY.store(true, Ordering::SeqCst);
                 cmd_tx.send(EngineCommand::Launch(plugin_files)).ok();
 
                 let w_inner = w_launch.clone();
@@ -168,6 +176,7 @@ impl Bridge {
                         }
                     }
                     EngineEvent::LaunchFailed(msg) => {
+                        GAME_BUSY.store(false, Ordering::SeqCst);
                         Self::show_toast(&w, &msg, "error");
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
@@ -183,6 +192,7 @@ impl Bridge {
                         .ok();
                     }
                     EngineEvent::GameClosed => {
+                        GAME_BUSY.store(false, Ordering::SeqCst);
                         crate::classes::tray::deactivate(&w);
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -167,11 +167,21 @@ impl FileEntry {
     }
 }
 
+pub fn hash_eq(a: &str, b: &str) -> bool {
+    a.trim().eq_ignore_ascii_case(b.trim())
+}
+
 impl Manifest {
     pub fn validate(&self) -> Result<(), String> {
+        let mut seen: BTreeSet<String> = BTreeSet::new();
         for entry in &self.files {
             check_relative_path(&entry.path)
                 .map_err(|e| format!("rejected manifest entry `{}`: {e}", entry.path))?;
+
+            let key = entry.path.replace('\\', "/").to_lowercase();
+            if !seen.insert(key) {
+                return Err(format!("manifest lists `{}` more than once", entry.path));
+            }
         }
         Ok(())
     }
@@ -190,13 +200,19 @@ impl Manifest {
                 if entry.path == crate::UPDATER_EXE {
                     return false;
                 }
+                
                 let Some(target) = entry.resolve(install_root) else {
                     return false;
                 };
+                
                 if !target.exists() {
                     return true;
                 }
-                local.files.get(&entry.path) != Some(&entry.sha256)
+                
+                local
+                    .files
+                    .get(&entry.path)
+                    .is_none_or(|known| !hash_eq(known, &entry.sha256))
             })
             .collect()
     }

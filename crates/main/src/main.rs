@@ -51,7 +51,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(e) = std::fs::create_dir_all(ipc::state_root()) {
+    if let Err(e) = std::fs::create_dir_all(ipc::install_root()) {
         error!("Could not create the state directory: {e}");
         return Ok(());
     }
@@ -62,14 +62,14 @@ fn main() -> Result<()> {
     }
 
     let _instance_lock = match acquire_instance_lock() {
-        Ok(Some(lock)) => Some(lock),
+        Ok(Some(lock)) => lock,
         Ok(None) => {
             error!("Another instance of Aurora is already running; exiting.");
             return Ok(());
         }
         Err(e) => {
-            warn!("Could not acquire the instance lock: {e}");
-            None
+            error!("Could not acquire the instance lock: {e}; exiting.");
+            return Err(e.into());
         }
     };
 
@@ -259,6 +259,10 @@ fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
 
+    // Tells the updater, if this run was started by one, that the new build got
+    // as far as putting its window on screen.
+    UpdateHandler::on_window_shown();
+
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
     shared::api::ccu::stop();
@@ -318,7 +322,7 @@ fn set_window_icon(window: &MainWindow) {
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
     const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
 
-    let path = ipc::state_root().join(ipc::AURORA_LOCK_FILE);
+    let path = ipc::install_root().join(ipc::AURORA_LOCK_FILE);
 
     let relaunched = std::env::args().any(|arg| {
         matches!(

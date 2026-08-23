@@ -36,7 +36,7 @@ impl PopupHandler {
                         LuaScriptsHandler::confirm_delete(&w);
                     }
                     "beta-phase-inactive" => {
-                        std::process::exit(0);
+                        log::info!("continuing on a version whose beta phase has ended");
                     }
                     crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID => {
                         SettingsHandler::confirm_ignore_checksum();
