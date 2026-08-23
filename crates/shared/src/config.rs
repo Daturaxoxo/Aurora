@@ -70,6 +70,7 @@ pub mod key {
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
     pub const TELEMETRY_OPT_OUT: &str = "telemetry_opt_out";
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
+    pub const LAUNCH_ARGS: &str = "launch_args";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
 }
 
@@ -100,7 +101,8 @@ pub fn default_value(k: &str) -> Value {
         | key::APP_LOCATION
         | key::SELECTED_GAME
         | key::PROTON_ARGS
-        | key::PROTON_VERSION => json!(""),
+        | key::PROTON_VERSION
+        | key::LAUNCH_ARGS => json!(""),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

@@ -3,6 +3,7 @@ use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
+use backend::classes::launch_args;
 use backend::classes::rpc::RPC;
 use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
@@ -111,6 +112,11 @@ impl SettingsHandler {
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
         debug!("ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
         w.set_ignore_checksum(ignore_checksum);
+
+        let raw_launch_args = config::get(key::LAUNCH_ARGS);
+        let launch_args = raw_launch_args.as_str().unwrap_or("").to_string();
+        debug!("launch_args: raw={raw_launch_args:?} → {launch_args:?}");
+        w.set_launch_args(launch_args.into());
 
         // Linux only
         w.set_is_linux(cfg!(target_os = "linux"));
@@ -369,6 +375,25 @@ impl SettingsHandler {
                 w.set_engine_scale(actual);
             } else {
                 error!("window handle dead when reverting engine_scale");
+            }
+        });
+
+        let ww = window.clone();
+        w.on_launch_args_changed(move |args| {
+            info!("launch_args changed -> {args:?}");
+            config::set(key::LAUNCH_ARGS, args.as_str());
+            debug!("launch_args saved to config");
+
+            match launch_args::apply(args.as_str()) {
+                Ok(()) => debug!("launch_args written to the game's config files"),
+                Err(e) => {
+                    error!("launch_args could not be applied: {e}");
+                    ToastHandler::show(
+                        &ww,
+                        format!("Could not apply launch arguments: {e}"),
+                        "error",
+                    );
+                }
             }
         });
 
