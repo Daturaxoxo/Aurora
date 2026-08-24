@@ -1,3 +1,4 @@
+#[cfg(target_os = "windows")]
 use log::*;
 #[cfg(target_os = "windows")]
 use std::path::Path;
