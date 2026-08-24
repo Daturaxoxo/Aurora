@@ -14,6 +14,9 @@ Runs clippy.
 
 .\cross-check.ps1 -Command build -Release
 Actually cross-builds a Linux binary.
+
+.\cross-check.ps1 -AppImage 2.1.0
+Builds the AppImage inside WSL by running 'python ./release.py 2.1.0'.
 #>
 
 [CmdletBinding(PositionalBinding = $false)]
@@ -22,6 +25,8 @@ param(
 
     [ValidateSet('check', 'clippy', 'build', 'test')]
     [string]$Command = 'check',
+
+    [string]$AppImage,
 
     [string]$Distro = 'archlinux',
 
@@ -57,6 +62,52 @@ $repoWsl = (& wsl.exe -d $Distro -e wslpath -a "$PSScriptRoot") -replace "`0", '
 $repoWsl = ($repoWsl | Select-Object -First 1).Trim()
 if (-not $repoWsl) {
     Fail "Could not translate '$PSScriptRoot' to a WSL path."
+}
+
+if ($AppImage) {
+    $pyPrelude = @'
+export PATH="$HOME/.cargo/bin:$PATH"
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then
+  PY=python
+else
+  echo "cross-check: no python found in WSL." >&2
+  exit 127
+fi
+'@
+
+    $versionQuoted = "'" + ($AppImage -replace "'", "'\''") + "'"
+    $script = $pyPrelude + "`n" + "cd '$repoWsl'`nexec `"`$PY`" ./release.py $versionQuoted`n"
+    $script = $script -replace "`r", ''
+
+    if ($DryRun) {
+        Write-Host "wsl -d $Distro -e bash <script> # script contents:" -ForegroundColor DarkGray
+        Write-Host $script
+        exit 0
+    }
+
+    Write-Host "cross-check: python ./release.py $AppImage  (appimage, via WSL/$Distro)" -ForegroundColor Cyan
+
+    $tmp = [System.IO.Path]::Combine($env:TEMP, "aurora-cross-check-$PID.sh")
+    [System.IO.File]::WriteAllText($tmp, $script, (New-Object System.Text.UTF8Encoding $false))
+    try {
+        $tmpWsl = (& wsl.exe -d $Distro -e wslpath -a "$tmp") -replace "`0", ''
+        $tmpWsl = ($tmpWsl | Select-Object -First 1).Trim()
+        & wsl.exe -d $Distro -e bash $tmpWsl
+        $code = $LASTEXITCODE
+    }
+    finally {
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+    }
+
+    if ($code -eq 0) {
+        Write-Host "cross-check: OK" -ForegroundColor Green
+    }
+    else {
+        Write-Host "cross-check: FAILED (exit $code)" -ForegroundColor Red
+    }
+    exit $code
 }
 
 $cargo = @($Command)
