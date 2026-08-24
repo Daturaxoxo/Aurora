@@ -1155,7 +1155,7 @@ impl UpdateHandler {
 
     #[cfg(feature = "beta")]
     fn check_beta_phasing() -> Result<bool> {
-        let res: BetaPhaseResponse = fetch_json(BETA_PHASE_CHECK_URL, ipc::MAX_MANIFEST_BYTES)
+        let res: BetaPhaseResponse = fetch_json(BETA_PHASE_CHECK_URL)
             .context("could not read the beta phasing endpoint")?;
 
         Ok(res.active && res.phase == CURRENT_BETA_PHASE)
