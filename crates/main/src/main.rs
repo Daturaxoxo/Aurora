@@ -16,6 +16,7 @@ use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::oneclick::OneClickHandler;
 use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
@@ -51,7 +52,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(e) = std::fs::create_dir_all(ipc::install_root()) {
+    if let Err(e) = std::fs::create_dir_all(ipc::instance_root()) {
         error!("Could not create the state directory: {e}");
         return Ok(());
     }
@@ -61,10 +62,18 @@ fn main() -> Result<()> {
         error!("Could not sync the bundled Bin payload: {e}");
     }
 
+    let oneclick_request = OneClickHandler::request_from_args();
+
     let _instance_lock = match acquire_instance_lock() {
         Ok(Some(lock)) => lock,
         Ok(None) => {
-            error!("Another instance of Aurora is already running; exiting.");
+            if let Some(request) = &oneclick_request {
+                if let Err(e) = OneClickHandler::forward(request) {
+                    error!("1-Click: could not forward request: {e:#}");
+                }
+            } else {
+                error!("Another instance of Aurora is already running; exiting.");
+            }
             return Ok(());
         }
         Err(e) => {
@@ -89,6 +98,11 @@ fn main() -> Result<()> {
             "{} is not an installed copy of Aurora; keeping the stored app location",
             exe.display()
         ),
+    }
+
+    #[cfg(target_os = "windows")]
+    if let Err(e) = shared::oneclick::register_protocol(&exe) {
+        warn!("1-Click: could not refresh protocol registration: {e}");
     }
 
     if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {
@@ -250,11 +264,16 @@ fn main() -> Result<()> {
     LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
+    OneClickHandler::setup(&window.as_weak());
 
     #[cfg(target_os = "linux")]
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
+
+    if let Some(request) = oneclick_request {
+        OneClickHandler::handle(&window.as_weak(), &request);
+    }
 
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
@@ -265,6 +284,7 @@ fn main() -> Result<()> {
 
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
+    OneClickHandler::shutdown();
     shared::api::ccu::stop();
     Ok(())
 }
@@ -322,7 +342,7 @@ fn set_window_icon(window: &MainWindow) {
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
     const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
 
-    let path = ipc::install_root().join(ipc::AURORA_LOCK_FILE);
+    let path = ipc::instance_root().join(ipc::AURORA_LOCK_FILE);
 
     let relaunched = std::env::args().any(|arg| {
         matches!(

@@ -117,6 +117,12 @@ fn run_inner(
             format!("WARNING: could not remove the Add or Remove Programs entry: {e}"),
         );
     }
+    if let Err(e) = shared::oneclick::unregister_protocol() {
+        log_line(
+            ui,
+            format!("WARNING: could not remove the 1-click protocol: {e}"),
+        );
+    }
 
     log_line(ui, format!("Removing Aurora from {}...", app_dir.display()));
     if remove_app_dir(ui, app_dir)?

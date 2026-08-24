@@ -69,6 +69,8 @@ ureq = { version = "3", default-features = false, features = [
     "rustls",
     "gzip",
 ] }
+percent-encoding = "2"
+url = "2"
 
 [profile.dev.package.flate2]
 opt-level = 2

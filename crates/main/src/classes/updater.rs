@@ -66,19 +66,19 @@ impl Drop for UpdateRunningGuard {
 impl LaunchState {
     pub const fn to_code(&self) -> u8 {
         match self {
-            LaunchState::Launch => 0,
-            LaunchState::Launching => 1,
-            LaunchState::Running => 2,
-            LaunchState::Updating => 3,
+            Self::Launch => 0,
+            Self::Launching => 1,
+            Self::Running => 2,
+            Self::Updating => 3,
         }
     }
 
-    pub const fn from_code(code: u8) -> Option<LaunchState> {
+    pub const fn from_code(code: u8) -> Option<Self> {
         match code {
-            0 => Some(LaunchState::Launch),
-            1 => Some(LaunchState::Launching),
-            2 => Some(LaunchState::Running),
-            3 => Some(LaunchState::Updating),
+            0 => Some(Self::Launch),
+            1 => Some(Self::Launching),
+            2 => Some(Self::Running),
+            3 => Some(Self::Updating),
             _ => None,
         }
     }
@@ -510,6 +510,14 @@ impl UpdateHandler {
                     Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     Bridge::show_toast(window, "Update failed. Try again later.", "error");
+                    return Ok(());
+                }
+                Ok(Ok(Message::OneClick { .. })) => {
+                    Self::abort_update_session(
+                        window,
+                        "the updater sent a 1-click message",
+                        &mut child,
+                    );
                     return Ok(());
                 }
                 Ok(Err(e)) => {

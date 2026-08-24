@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::GameBananaApi;
-use shared::classes::gamebanana::types::{NteMod, NteModFile};
+use shared::classes::gamebanana::types::{ModProfile, NteMod, NteModFile};
 use shared::config::{self, key};
 use shared::utils::{format_bytes, get_gamebanana_download_dir, get_local_version};
 use slint::{Model, ModelRc, VecModel};
@@ -27,9 +27,10 @@ const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_hours(1);
 const DOWNLOAD_ATTEMPTS: u32 = 4;
 const DOWNLOAD_RETRY_BACKOFF: Duration = Duration::from_secs(2);
-const INSTALL_RUNNING: u8 = 0;
-const INSTALL_CANCELLED: u8 = 1;
-const INSTALL_COMMITTED: u8 = 2;
+const INSTALL_IDLE: u8 = 0;
+const INSTALL_RUNNING: u8 = 1;
+const INSTALL_CANCELLED: u8 = 2;
+const INSTALL_COMMITTED: u8 = 3;
 
 /// Must stay in the same order as the character list in gbbrowser.slint.
 pub const CHARACTERS: &[(&str, u32)] = &[
@@ -136,7 +137,7 @@ impl Default for GbState {
 }
 
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
-static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_RUNNING);
+static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_IDLE);
 static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
 
 pub fn runtime() -> &'static tokio::runtime::Runtime {
@@ -145,6 +146,10 @@ pub fn runtime() -> &'static tokio::runtime::Runtime {
 
 pub async fn mod_files(mod_id: u32) -> Option<Vec<NteModFile>> {
     API.get_mod_files(mod_id).await
+}
+
+pub async fn mod_profile(mod_id: u32) -> Result<ModProfile> {
+    API.get_mod_profile(mod_id).await
 }
 
 fn show_nsfw() -> bool {
@@ -491,8 +496,43 @@ impl GbBrowserHandler {
         }
     }
 
+    pub(crate) fn install_in_progress(window: &slint::Weak<MainWindow>) -> bool {
+        INSTALL_STATE.load(Ordering::SeqCst) != INSTALL_IDLE
+            || window
+                .upgrade()
+                .is_some_and(|w| w.get_progress_overlay_active())
+    }
+
+    fn finish_install() {
+        INSTALL_STATE.store(INSTALL_IDLE, Ordering::SeqCst);
+    }
+
     fn download_and_install(window: &slint::Weak<MainWindow>, mod_: GbMod, file: NteModFile) {
-        Self::start_download(window, mod_, file, None);
+        if !Self::start_download(window, mod_, file, None)
+            && let Some(w) = window.upgrade()
+        {
+            show_toast(&w, "warning", "Another install is in progress".into());
+        }
+    }
+
+    pub(crate) fn download_oneclick(
+        window: &slint::Weak<MainWindow>,
+        mod_id: u32,
+        author: String,
+        name: String,
+        file: NteModFile,
+    ) -> bool {
+        Self::start_download(
+            window,
+            GbMod {
+                id: mod_id,
+                author,
+                name,
+                thumb: None,
+            },
+            file,
+            None,
+        )
     }
 
     pub(crate) fn download_update(
@@ -507,7 +547,11 @@ impl GbBrowserHandler {
             name: source.name,
             thumb: None,
         };
-        Self::start_download(window, mod_, file, Some(folder));
+        if !Self::start_download(window, mod_, file, Some(folder))
+            && let Some(w) = window.upgrade()
+        {
+            show_toast(&w, "warning", "Another install is in progress".into());
+        }
     }
 
     fn start_download(
@@ -515,8 +559,19 @@ impl GbBrowserHandler {
         mod_: GbMod,
         file: NteModFile,
         update_folder: Option<std::path::PathBuf>,
-    ) {
-        INSTALL_STATE.store(INSTALL_RUNNING, Ordering::SeqCst);
+    ) -> bool {
+        if Self::install_in_progress(window)
+            || INSTALL_STATE
+                .compare_exchange(
+                    INSTALL_IDLE,
+                    INSTALL_RUNNING,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                )
+                .is_err()
+        {
+            return false;
+        }
         let updating = update_folder.is_some();
 
         let icon_png = if updating {
@@ -756,22 +811,33 @@ impl GbBrowserHandler {
                     };
 
                     if let Some(folder) = update_folder {
-                        ModManagerHandler::apply_update(&ww, folder, path, source);
+                        ModManagerHandler::apply_update(
+                            &ww,
+                            folder,
+                            path,
+                            source,
+                            Some(Box::new(|_| Self::finish_install())),
+                        );
                     } else {
                         ModManagerHandler::install_paths_with_done(
                             &ww,
                             vec![path],
                             Some(source),
-                            Some(Box::new(|w| w.set_progress_overlay_active(false))),
+                            Some(Box::new(|w| {
+                                Self::finish_install();
+                                w.set_progress_overlay_active(false);
+                            })),
                             icon_png,
                         );
                     }
                 }
                 Ok(None) => {
                     info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
+                    Self::finish_install();
                 }
                 Err(e) => {
                     warn!("GameBanana Browser Backend: could not download '{}': {e}", file.name);
+                    Self::finish_install();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww.upgrade() {
                             w.set_progress_overlay_active(false);
@@ -781,6 +847,7 @@ impl GbBrowserHandler {
                 }
             }
         });
+        true
     }
 
     // [CALLBACKS]

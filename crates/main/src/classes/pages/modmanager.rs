@@ -769,7 +769,7 @@ fn write_icon(mod_: &Mod, png: &[u8]) -> Result<()> {
         .with_context(|| format!("could not write the icon of '{}'", mod_.path.display()))
 }
 
-fn report_icon_error(window: &slint::Weak<MainWindow>, mod_: &Mod, error: anyhow::Error) {
+fn report_icon_error(window: &slint::Weak<MainWindow>, mod_: &Mod, error: &anyhow::Error) {
     error!("{error:#}");
     let name = mod_.folder_name.clone();
     let text = format!("Could not change the icon of {name} - {error:#}");
@@ -784,6 +784,15 @@ fn report_icon_error(window: &slint::Weak<MainWindow>, mod_: &Mod, error: anyhow
 pub struct ModManagerHandler;
 
 impl ModManagerHandler {
+    pub(crate) fn is_source_installed(mod_id: u32, file_id: u32) -> bool {
+        ModManager::scan_mods().is_ok_and(|groups| {
+            groups.into_iter().flat_map(|group| group.mods).any(|mod_| {
+                mod_.source
+                    .is_some_and(|source| source.mod_id == mod_id && source.file_id == file_id)
+            })
+        })
+    }
+
     pub fn setup(window: &slint::Weak<MainWindow>) {
         info!("setup() called");
         Self::bind(window);
@@ -1158,7 +1167,13 @@ impl ModManagerHandler {
                         #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
                         progress((done as f64 / total as f64).min(1.0) as f32);
                     }
-                })
+                })?;
+                if !ModManager::contains_pak(&staging.to_path_buf()) {
+                    return Err(anyhow!(
+                        "archive contains no .pak, .utoc, or .ucas mod files"
+                    ));
+                }
+                Ok(())
             })?;
         } else {
             return Err(anyhow!("unsupported file type '.{ext}'"));
@@ -1172,6 +1187,7 @@ impl ModManagerHandler {
         folder: PathBuf,
         downloaded: PathBuf,
         source: ModSource,
+        on_done: Option<InstallDoneCallback>,
     ) {
         let ww = window.clone();
         std::thread::spawn(move || {
@@ -1227,6 +1243,9 @@ impl ModManagerHandler {
                     Some(e) => {
                         Self::show_toast(&win, "error", format!("Could not update {name} - {e}"));
                     }
+                }
+                if let Some(on_done) = on_done {
+                    on_done(&win);
                 }
             });
 
@@ -2885,7 +2904,7 @@ impl ModManagerHandler {
                     .and_then(|bytes| write_icon(&m, bytes));
 
                 if let Err(e) = outcome {
-                    report_icon_error(&ww, &m, e);
+                    report_icon_error(&ww, &m, &e);
                 } else {
                     info!("set the icon of '{}' to '{slug}'", m.folder_name);
                 }
@@ -2917,7 +2936,7 @@ impl ModManagerHandler {
                     .and_then(|png| write_icon(&m, &png));
 
                 if let Err(e) = outcome {
-                    report_icon_error(&ww, &m, e);
+                    report_icon_error(&ww, &m, &e);
                 } else {
                     info!(
                         "set the icon of '{}' from '{}'",
@@ -2957,7 +2976,7 @@ impl ModManagerHandler {
                 };
 
                 if let Err(e) = outcome {
-                    report_icon_error(&ww, &m, e);
+                    report_icon_error(&ww, &m, &e);
                 } else {
                     info!("removed the custom icon of '{}'", m.folder_name);
                 }

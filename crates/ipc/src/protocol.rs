@@ -42,6 +42,12 @@ pub enum Message {
     Error { message: String },
     /// Updater -> Aurora: manifest matches local state, updater exits.
     NoUpdate,
+    /// Second Aurora instance -> running Aurora: browser 1-click request.
+    OneClick {
+        url: String,
+        model: String,
+        item_id: u32,
+    },
 }
 
 pub fn write_message<W: Write>(writer: &mut W, msg: &Message) -> io::Result<()> {
@@ -145,6 +151,11 @@ mod tests {
                 message: "boom".into(),
             },
             Message::NoUpdate,
+            Message::OneClick {
+                url: "https://gamebanana.com/mmdl/1".into(),
+                model: "Mod".into(),
+                item_id: 2,
+            },
         ];
 
         let mut buf = Vec::new();

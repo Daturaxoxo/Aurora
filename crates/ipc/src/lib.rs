@@ -30,6 +30,7 @@ pub const MANIFEST_URL_FALLBACK: &str = concat!(
 
 const MAIN_PIPE_BASE: &str = "aurora-updater";
 const INIT_PIPE_BASE: &str = "aurora-updater-init";
+const ONECLICK_PIPE_BASE: &str = "aurora-oneclick";
 
 pub fn manifest_urls() -> impl Iterator<Item = &'static str> {
     [MANIFEST_URL_PRIMARY, MANIFEST_URL_FALLBACK]
@@ -40,7 +41,7 @@ pub fn manifest_urls() -> impl Iterator<Item = &'static str> {
 pub fn install_id() -> &'static str {
     static ID: OnceLock<String> = OnceLock::new();
     ID.get_or_init(|| {
-        let root = install_root();
+        let root = instance_root();
         let mut key = root.to_string_lossy().into_owned();
         if cfg!(windows) {
             key = key.to_lowercase();
@@ -56,6 +57,10 @@ pub fn main_pipe_name() -> String {
 
 pub fn init_pipe_name() -> String {
     format!("{INIT_PIPE_BASE}-{}", install_id())
+}
+
+pub fn oneclick_pipe_name() -> String {
+    format!("{ONECLICK_PIPE_BASE}-{}", install_id())
 }
 
 #[cfg(windows)]
@@ -111,6 +116,15 @@ pub fn install_root() -> PathBuf {
         .ok()
         .and_then(|exe| exe.parent().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+pub fn instance_root() -> PathBuf {
+    #[cfg(target_os = "linux")]
+    if appimage_path().is_some() {
+        return state_root();
+    }
+
+    install_root()
 }
 
 #[cfg(target_os = "linux")]

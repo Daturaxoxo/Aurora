@@ -1,5 +1,8 @@
 use super::cache::CacheManager;
-use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
+use super::types::{
+    ApiFile, ApiRecord, ModProfile, NteMod, NteModFile, ProfilePage, SearchResponse,
+    SubfeedResponse,
+};
 use crate::utils::{error_chain, get_local_version};
 use anyhow::{Context, Result, anyhow};
 use futures::{StreamExt, stream};
@@ -11,7 +14,7 @@ use std::time::Duration;
 use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
-const NTE_GAME_ID: u32 = 23012;
+pub const NTE_GAME_ID: u32 = 23012;
 const FETCH_CONCURRENCY: usize = 6;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -209,6 +212,23 @@ impl GameBananaApi {
             .unwrap_or_default();
 
         root.contains("nsfw") || sub.contains("nsfw")
+    }
+
+    fn map_files(files: Option<Vec<ApiFile>>) -> Vec<NteModFile> {
+        files
+            .unwrap_or_default()
+            .into_iter()
+            .map(|file| NteModFile {
+                id: file.id,
+                name: file.file_name,
+                size: file.file_size,
+                download_count: file.download_count,
+                url: file.download_url,
+                md5: file.md5_checksum,
+                is_archived: file.is_archived,
+                has_contents: file.has_contents,
+            })
+            .collect()
     }
 
     async fn fetch_thumbnail(client: &Client, url: &str) -> Vec<u8> {
@@ -478,21 +498,32 @@ impl GameBananaApi {
             }
         };
 
-        let mut output = Vec::new();
-        if let Some(files) = profile.files {
-            for f in files {
-                output.push(NteModFile {
-                    id: f.id,
-                    name: f.file_name,
-                    size: f.file_size,
-                    download_count: f.download_count,
-                    url: f.download_url,
-                    md5: f.md5_checksum,
-                    is_archived: f.is_archived,
-                    has_contents: f.has_contents,
-                });
-            }
-        }
-        Some(output)
+        Some(Self::map_files(profile.files))
+    }
+
+    pub async fn get_mod_profile(&self, mod_id: u32) -> Result<ModProfile> {
+        let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
+        let request = self.client.get(&url);
+        let what = format!("the profile of mod {mod_id}");
+        let profile: ProfilePage = Self::fetch_json(request, &what).await?;
+        let game_id = profile
+            .game
+            .as_ref()
+            .map(|game| game.id)
+            .ok_or_else(|| anyhow!("{what} did not identify its game"))?;
+        let author = profile.record.submitter.as_ref().map_or_else(
+            || "Unknown".to_owned(),
+            |submitter| submitter.name.clone(),
+        );
+        let is_nsfw = Self::detect_nsfw(&profile.record);
+
+        Ok(ModProfile {
+            id: profile.record.id,
+            game_id,
+            name: profile.record.name,
+            author,
+            is_nsfw,
+            files: Self::map_files(profile.files),
+        })
     }
 }

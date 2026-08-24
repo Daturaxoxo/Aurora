@@ -7,6 +7,7 @@ pub mod config;
 pub mod desktop_entry;
 pub mod display;
 pub mod logger;
+pub mod oneclick;
 pub mod pathfind;
 #[cfg(target_os = "windows")]
 pub mod repair;
