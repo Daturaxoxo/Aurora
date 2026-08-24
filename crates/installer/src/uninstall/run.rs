@@ -1,6 +1,8 @@
 use crate::UninstallerWindow;
+use crate::logfile;
 use crate::owned;
 use crate::plan::Plan;
+use log::{error, info, warn};
 use shared::utils::format_bytes;
 use slint::{Model, SharedString, VecModel, Weak};
 use std::fs;
@@ -27,7 +29,7 @@ pub fn run(ui: Weak<UninstallerWindow>, plan: Plan, app_dir: PathBuf, options: O
         let (backup, error) = match result {
             Ok(backup) => (backup.unwrap_or_default(), String::new()),
             Err(e) => {
-                log_line(&ui, format!("ERROR: {e}"));
+                error_line(&ui, &e);
                 (String::new(), e)
             }
         };
@@ -44,7 +46,7 @@ pub fn run(ui: Weak<UninstallerWindow>, plan: Plan, app_dir: PathBuf, options: O
 }
 
 pub fn fail(ui: &Weak<UninstallerWindow>, error: String) {
-    log_line(ui, format!("ERROR: {error}"));
+    error_line(ui, &error);
 
     let ui = ui.clone();
     let _ = slint::invoke_from_event_loop(move || {
@@ -106,22 +108,16 @@ fn run_inner(
     log_line(ui, "Removing shortcuts...".into());
     shared::desktop_entry::uninstall();
     if let Err(e) = shared::desktop_entry::remove_desktop_shortcut() {
-        log_line(
-            ui,
-            format!("WARNING: could not remove the desktop shortcut: {e}"),
-        );
+        warn_line(ui, format!("could not remove the desktop shortcut: {e}"));
     }
     if let Err(e) = unregister_uninstall_entry() {
-        log_line(
+        warn_line(
             ui,
-            format!("WARNING: could not remove the Add or Remove Programs entry: {e}"),
+            format!("could not remove the Add or Remove Programs entry: {e}"),
         );
     }
     if let Err(e) = shared::oneclick::unregister_protocol() {
-        log_line(
-            ui,
-            format!("WARNING: could not remove the 1-click protocol: {e}"),
-        );
+        warn_line(ui, format!("could not remove the 1-click protocol: {e}"));
     }
 
     log_line(ui, format!("Removing Aurora from {}...", app_dir.display()));
@@ -192,10 +188,10 @@ fn remove_app_dir(ui: &Weak<UninstallerWindow>, dir: &Path) -> Result<bool, Stri
 
     let owned = owned::resolve(dir);
     if !owned.from_manifest {
-        log_line(
+        warn_line(
             ui,
             format!(
-                "WARNING: no install manifest in {}, so only Aurora's standard files are removed.",
+                "no install manifest in {}, so only Aurora's standard files are removed.",
                 dir.display()
             ),
         );
@@ -205,6 +201,7 @@ fn remove_app_dir(ui: &Weak<UninstallerWindow>, dir: &Path) -> Result<bool, Stri
         .unwrap_or_default()
         .canonicalize()
         .ok();
+    let active_log = logfile::path().and_then(|path| path.canonicalize().ok());
     let mut skipped = false;
 
     for tree in &owned.trees {
@@ -214,7 +211,8 @@ fn remove_app_dir(ui: &Weak<UninstallerWindow>, dir: &Path) -> Result<bool, Stri
 
     for file in &owned.files {
         if !file.exists() {continue}
-        if self_exe.is_some() && self_exe == file.canonicalize().ok() {
+        let canonical = file.canonicalize().ok();
+        if canonical.is_some() && (canonical == self_exe || canonical == active_log) {
             skipped = true;
             continue;
         }
@@ -306,7 +304,7 @@ pub fn cleanup_target() -> Option<PathBuf> {
 
 pub fn run_cleanup(target: &Path) {
     if target.is_dir() {
-        eprintln!(
+        error!(
             "Refusing to clean up {}: expected a file, not a folder",
             target.display()
         );
@@ -320,7 +318,7 @@ pub fn run_cleanup(target: &Path) {
             Ok(()) => break,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
             Err(e) if Instant::now() >= deadline => {
-                eprintln!("Gave up deleting {}: {e}", target.display());
+                error!("Gave up deleting {}: {e}", target.display());
                 break;
             }
             Err(_) => std::thread::sleep(CLEANUP_RETRY_INTERVAL),
@@ -348,7 +346,7 @@ fn delete_self_on_reboot() {
         .collect();
 
     if unsafe { MoveFileExW(wide.as_ptr(), std::ptr::null(), MOVEFILE_DELAY_UNTIL_REBOOT) } == 0 {
-        eprintln!(
+        warn!(
             "Could not schedule {} for deletion on reboot",
             exe.display()
         );
@@ -380,7 +378,7 @@ pub fn cleanup_after_exit(target: &Path) {
     };
 
     if let Err(e) = schedule() {
-        eprintln!("Failed to schedule cleanup of {}: {e}", target.display());
+        error!("Failed to schedule cleanup of {}: {e}", target.display());
     }
 }
 
@@ -393,6 +391,21 @@ fn ratio(done: usize, total: usize) -> f32 {
 }
 
 fn log_line(ui: &Weak<UninstallerWindow>, message: String) {
+    info!("{message}");
+    push_line(ui, message);
+}
+
+fn warn_line(ui: &Weak<UninstallerWindow>, message: String) {
+    warn!("{message}");
+    push_line(ui, format!("WARNING: {message}"));
+}
+
+fn error_line(ui: &Weak<UninstallerWindow>, message: &str) {
+    error!("{message}");
+    push_line(ui, format!("ERROR: {message}"));
+}
+
+fn push_line(ui: &Weak<UninstallerWindow>, message: String) {
     let ui = ui.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(w) = ui.upgrade() {

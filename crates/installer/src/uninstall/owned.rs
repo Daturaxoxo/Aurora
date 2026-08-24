@@ -2,11 +2,13 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use ipc::manifest::{LocalManifest, Manifest, is_trusted_url};
 pub const UNINSTALLER_EXE: &str = "AuroraUninstaller.exe";
-const RUNTIME_FILES: [&str; 4] = [
+const RUNTIME_FILES: [&str; 6] = [
     ipc::LOCAL_MANIFEST_FILE,
     ipc::AURORA_LOCK_FILE,
     ipc::UPDATER_LOCK_FILE,
     "updater.log",
+    "AuroraInstaller.log",
+    "AuroraUninstaller.log",
 ];
 const FALLBACK_FILES: [&str; 3] = [ipc::AURORA_EXE, ipc::UPDATER_EXE, UNINSTALLER_EXE];
 type PackagedCheck = fn(&str) -> bool;

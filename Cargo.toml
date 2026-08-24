@@ -67,6 +67,7 @@ mslnk = "0.1"
 md5 = "0.8.1"
 ureq = { version = "3", default-features = false, features = [
     "rustls",
+    "platform-verifier",
     "gzip",
 ] }
 percent-encoding = "2"

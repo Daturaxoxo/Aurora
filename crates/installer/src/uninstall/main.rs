@@ -3,12 +3,15 @@
 include!(concat!(env!("OUT_DIR"), "/uninstall.rs"));
 
 mod elevate;
+#[path = "../logfile.rs"]
+mod logfile;
 mod owned;
 mod plan;
 #[path = "../registry.rs"]
 mod registry;
 mod run;
 
+use log::{error, info, warn};
 use shared::display::{center_window, on_drag};
 
 use slint::{ComponentHandle, LogicalPosition, ModelRc, SharedString, VecModel, WindowPosition};
@@ -45,6 +48,14 @@ fn show_app_dir(ui: &UninstallerWindow, plan: &Plan) {
 
 fn start(ui: &UninstallerWindow, options: Options) {
     let plan = current_plan();
+    info!(
+        "Uninstall requested (delete config: {}, delete mods: {}, preserve mods: {})",
+        options.delete_config, options.delete_mods, options.preserve_mods
+    );
+    info!(
+        "App dir: {:?}, mods dir: {:?}, data dir: {}",
+        plan.app_dir, plan.mods_dir, plan.data_dir.display()
+    );
 
     let Some(app_dir) = plan.app_dir.clone() else {
         ui.set_current_step(1);
@@ -53,12 +64,15 @@ fn start(ui: &UninstallerWindow, options: Options) {
     };
 
     if !elevate::is_relaunch() && elevate::needed(&plan, options) {
+        info!("Elevation required; restarting as administrator");
         match elevate::relaunch(&plan, options) {
             Ok(()) => {
+                logfile::keep();
                 let _ = ui.hide();
                 let _ = slint::quit_event_loop();
             }
             Err(e) => {
+                error!("Could not restart as administrator: {e}");
                 ui.set_current_step(1);
                 run::fail(&ui.as_weak(), e);
             }
@@ -70,9 +84,23 @@ fn start(ui: &UninstallerWindow, options: Options) {
     run::run(ui.as_weak(), plan, app_dir, options);
 }
 
-fn main() -> Result<(), slint::PlatformError> {
+fn main() {
+    logfile::init(elevate::is_relaunch());
+
+    if let Err(e) = run() {
+        logfile::fatal(&format!(
+            "The Aurora uninstaller could not start.\n\n{e}\n\n\
+             This usually means the window could not be created on this machine."
+        ));
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), slint::PlatformError> {
     if let Some(dir) = run::cleanup_target() {
+        info!("Running post-exit cleanup of {}", dir.display());
         run::run_cleanup(&dir);
+        logfile::finish();
         return Ok(());
     }
 
@@ -83,7 +111,7 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_size(slint::LogicalSize::new(850.0, 580.0));
     match center_window(window) {
         Ok(()) => {}
-        Err(e) => eprintln!("Failed to center window: {e}"),
+        Err(e) => warn!("Failed to center window: {e}"),
     }
 
     let plan = current_plan();
@@ -206,7 +234,13 @@ fn main() -> Result<(), slint::PlatformError> {
 
     ui.show()?;
     slint::run_event_loop_until_quit()?;
-    if let Some(dir) = run::take_pending_cleanup() {
+
+    info!("Uninstaller exiting");
+    let pending = run::take_pending_cleanup();
+
+    logfile::finish();
+
+    if let Some(dir) = pending {
         run::cleanup_after_exit(&dir);
     }
 

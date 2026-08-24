@@ -19,6 +19,11 @@ fn agent(global_timeout: Duration) -> ureq::Agent {
         .timeout_connect(Some(ipc::HTTP_CONNECT_TIMEOUT))
         .timeout_recv_response(Some(ipc::HTTP_MANIFEST_TIMEOUT))
         .timeout_global(Some(global_timeout))
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build()
         .into()
 }
