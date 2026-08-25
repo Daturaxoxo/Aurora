@@ -21,7 +21,6 @@ shared = { path = "../shared", default-features = false }
 ipc = { path = "../ipc" }
 
 slint = { workspace = true }
-open = { workspace = true }
 dirs = { workspace = true }
 log = { workspace = true }
 anyhow = { workspace = true }
