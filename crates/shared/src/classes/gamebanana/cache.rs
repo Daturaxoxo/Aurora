@@ -1,9 +1,12 @@
 use crate::utils::get_cache_dir;
 
 use super::types::NteMod;
+use bincode::config::standard;
+use bincode::serde::{decode_from_slice, encode_to_vec};
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tokio::fs;
 
@@ -11,8 +14,17 @@ const CACHE_TTL_SECONDS: u64 = 3600;
 // 128 MB
 const CACHE_MAX_BYTES: u64 = 128 * 1024 * 1024;
 
-#[derive(Serialize, Deserialize)]
-struct CacheWrapper {
+#[derive(Serialize)]
+struct CacheWrapper<'a> {
+    cached_at: u64,
+    page: Option<u32>,
+    query: Option<String>,
+    mods: Vec<&'a NteMod>,
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct DecodedCache {
     cached_at: u64,
     page: Option<u32>,
     query: Option<String>,
@@ -56,7 +68,11 @@ impl CacheManager {
         let mut total: u64 = 0;
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_file() || path.extension().is_none_or(|ext| ext != "json") {
+            if !path.is_file()
+                || path
+                    .extension()
+                    .is_none_or(|ext| ext != "json" && ext != "bin")
+            {
                 continue;
             }
             let size = entry.metadata().map(|m| m.len()).unwrap_or_default();
@@ -96,21 +112,9 @@ impl CacheManager {
         }
     }
 
-    #[allow(clippy::unused_self)]
-    fn is_valid(&self, cache_file: &PathBuf) -> bool {
-        if !cache_file.exists() {
-            return false;
-        }
-        if let Ok(data) = std::fs::read_to_string(cache_file)
-            && let Ok(wrapper) = serde_json::from_str::<CacheWrapper>(&data) {
-                return Self::current_timestamp().abs_diff(wrapper.cached_at) < CACHE_TTL_SECONDS;
-            }
-        false
-    }
-
     fn cache_path(&self, prefix: &str, key: &str) -> PathBuf {
         self.base_dir
-            .join(format!("{prefix}_{:x}.json", md5::compute(key.as_bytes())))
+            .join(format!("{prefix}_{:x}.bin", md5::compute(key.as_bytes())))
     }
 
     fn feed_path(&self, page: u32) -> PathBuf {
@@ -130,15 +134,18 @@ impl CacheManager {
         self.load_cache(&path).await
     }
 
-    pub async fn save_feed_cache(&self, page: u32, mods: Vec<NteMod>) {
+    pub async fn save_feed_cache(&self, page: u32, mods: &[Arc<NteMod>]) {
         let path = self.feed_path(page);
-        let wrapper = CacheWrapper {
-            cached_at: Self::current_timestamp(),
-            page: Some(page),
-            query: None,
-            mods,
-        };
-        self.save_cache(&path, wrapper).await;
+        self.save_cache(
+            &path,
+            CacheWrapper {
+                cached_at: Self::current_timestamp(),
+                page: Some(page),
+                query: None,
+                mods: mods.iter().map(std::convert::AsRef::as_ref).collect(),
+            },
+        )
+        .await;
     }
 
     pub async fn get_search_cache(&self, query: &str, page: u32) -> Option<Vec<NteMod>> {
@@ -146,15 +153,18 @@ impl CacheManager {
         self.load_cache(&path).await
     }
 
-    pub async fn save_search_cache(&self, query: &str, page: u32, mods: Vec<NteMod>) {
+    pub async fn save_search_cache(&self, query: &str, page: u32, mods: &[Arc<NteMod>]) {
         let path = self.search_path(query, page);
-        let wrapper = CacheWrapper {
-            cached_at: Self::current_timestamp(),
-            page: Some(page),
-            query: Some(query.to_string()),
-            mods,
-        };
-        self.save_cache(&path, wrapper).await;
+        self.save_cache(
+            &path,
+            CacheWrapper {
+                cached_at: Self::current_timestamp(),
+                page: Some(page),
+                query: Some(query.to_string()),
+                mods: mods.iter().map(std::convert::AsRef::as_ref).collect(),
+            },
+        )
+        .await;
     }
 
     pub async fn get_category_cache(&self, category_id: u32, page: u32) -> Option<Vec<NteMod>> {
@@ -162,15 +172,18 @@ impl CacheManager {
         self.load_cache(&path).await
     }
 
-    pub async fn save_category_cache(&self, category_id: u32, page: u32, mods: Vec<NteMod>) {
+    pub async fn save_category_cache(&self, category_id: u32, page: u32, mods: &[Arc<NteMod>]) {
         let path = self.category_path(category_id, page);
-        let wrapper = CacheWrapper {
-            cached_at: Self::current_timestamp(),
-            page: Some(page),
-            query: None,
-            mods,
-        };
-        self.save_cache(&path, wrapper).await;
+        self.save_cache(
+            &path,
+            CacheWrapper {
+                cached_at: Self::current_timestamp(),
+                page: Some(page),
+                query: None,
+                mods: mods.iter().map(std::convert::AsRef::as_ref).collect(),
+            },
+        )
+        .await;
     }
 
     pub async fn clear(&self) -> std::io::Result<()> {
@@ -181,18 +194,26 @@ impl CacheManager {
         fs::create_dir_all(&self.base_dir).await
     }
 
-    async fn load_cache(&self, path: &PathBuf) -> Option<Vec<NteMod>> {
-        if self.is_valid(path) {
-            let data = fs::read_to_string(path).await.ok()?;
-            let wrapper: CacheWrapper = serde_json::from_str(&data).ok()?;
-            return Some(wrapper.mods);
-        }
-        None
+    async fn load_cache(&self, path: &Path) -> Option<Vec<NteMod>> {
+        let data = match fs::read(path).await {
+            Ok(data) => data,
+            // Nothing has been cached yet
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(e) => {
+                warn!("Could not read the GameBanana cache '{}': {e}", path.display());
+                return None;
+            }
+        };
+        
+        let (wrapper, _) =
+            decode_from_slice::<DecodedCache, _>(&data, standard()).ok()?;
+        (Self::current_timestamp().abs_diff(wrapper.cached_at) < CACHE_TTL_SECONDS)
+            .then_some(wrapper.mods)
     }
 
-    async fn save_cache(&self, path: &PathBuf, wrapper: CacheWrapper) {
-        if let Ok(json) = serde_json::to_string(&wrapper) {
-            let _ = fs::write(path, json).await;
+    async fn save_cache(&self, path: &Path, wrapper: CacheWrapper<'_>) {
+        if let Ok(bytes) = encode_to_vec(&wrapper, standard()) {
+            let _ = fs::write(path, bytes).await;
         }
     }
 }

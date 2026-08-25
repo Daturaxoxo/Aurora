@@ -31,6 +31,7 @@ twox-hash = { version = "2", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+bincode = { version = "2", features = ["serde"] }
 reqwest = { version = "0.13", default-features = false, features = [
     "blocking",
     "json",
@@ -60,6 +61,7 @@ windows-sys = { version = "0.61.2", features = [
 slint-build = "1.17.1"
 winresource = "0.1.31"
 image = { version = "0.25.10", default-features = false, features = [
+    "rayon",
     "png",
     "jpeg",
 ] }

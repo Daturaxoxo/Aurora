@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use log::*;
+use once_cell::sync::Lazy;
 
 use ipc::manifest::hash_file;
 #[cfg(windows)]
@@ -708,7 +709,7 @@ impl UpdateHandler {
     ) -> Result<()> {
         use std::io::Write;
 
-        let client = http_client()?;
+        let client = http_client();
         let mut response = client
             .get(url)
             .send()
@@ -858,7 +859,7 @@ impl UpdateHandler {
             return Ok(());
         };
 
-        let client = http_client()?;
+        let client = http_client();
         let mut last_err = anyhow!("no download sources available");
         let mut downloaded = None;
         for url in entry.download_urls() {
@@ -1161,13 +1162,20 @@ impl UpdateHandler {
     }
 }
 
-fn http_client() -> Result<reqwest::blocking::Client> {
+static HTTP_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
     reqwest::blocking::Client::builder()
         .user_agent(ipc::user_agent(&shared::utils::get_local_version()))
         .connect_timeout(ipc::HTTP_CONNECT_TIMEOUT)
         .timeout(ipc::HTTP_STALL_TIMEOUT)
         .build()
-        .context("failed to build the HTTP client")
+        .unwrap_or_else(|e| {
+            error!("failed to build the HTTP client, falling back to default: {e}");
+            reqwest::blocking::Client::default()
+        })
+});
+
+fn http_client() -> &'static reqwest::blocking::Client {
+    &HTTP_CLIENT
 }
 
 fn read_response(response: &mut Response, url: &str, budget: Duration) -> Result<Vec<u8>> {
@@ -1193,7 +1201,7 @@ fn read_response(response: &mut Response, url: &str, budget: Duration) -> Result
 }
 
 fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {
-    let client = http_client()?;
+    let client = http_client();
     let mut response = client
         .get(url)
         .send()

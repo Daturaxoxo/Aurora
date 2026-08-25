@@ -74,6 +74,10 @@ pub fn tr(key: &str) -> String {
 
 pub fn apply_language(ui: &MainWindow, lang_code: &str) {
     ui.global::<crate::Tr>().set_values(build_values(lang_code));
+
+    if matches!(lang_code, "ko" | "zh-CN" | "jp") {
+        crate::ensure_cjk_fallback();
+    }
 }
 
 pub fn apply_language_to_log_window(ui: &LogWindow, lang_code: &str) {

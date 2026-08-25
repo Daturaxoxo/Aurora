@@ -428,6 +428,8 @@ export component GameBananaBrowser inherits Rectangle {
     callback file-chosen(int /* index */);
     callback preview-requested(int /* id */);
     callback preview-nav(int /* new index */);
+    callback preview-closed();
+    callback visible-range(int /* first index */, int /* last index */);
 
     // Built in gbbrowser.rs so the names and their icons stay in one place.
     in property <[GbCharacter]> characters: [];
@@ -694,8 +696,24 @@ export component GameBananaBrowser inherits Rectangle {
                     }
                 }
 
-                changed viewport-y => { self.maybe-load-more(); }
-                changed viewport-height => { self.maybe-load-more(); }
+                property <int> first-visible-row: max(0, Math.floor(
+                    (-self.viewport-y - 16px) / (self.cell-h + self.gap)));
+                property <int> last-visible-row: Math.floor(
+                    (-self.viewport-y + self.height - 16px) / (self.cell-h + self.gap));
+
+                function report-visible-range() {
+                    if (root.mods.length == 0 || self.columns <= 0) {
+                        return;
+                    }
+                    root.visible-range(
+                        self.first-visible-row * self.columns,
+                        min(self.last-visible-row * self.columns + self.columns - 1,
+                            root.mods.length - 1)
+                    );
+                }
+
+                changed viewport-y => { self.maybe-load-more(); self.report-visible-range(); }
+                changed viewport-height => { self.maybe-load-more(); self.report-visible-range(); }
 
                 for item[i] in root.mods: GbModCard {
                     x: 20px + Math.mod(i, grid-scroll.columns) * (grid-scroll.cell-w + grid-scroll.gap);
@@ -887,7 +905,7 @@ export component GameBananaBrowser inherits Rectangle {
             : "");
         has-previous: root.preview-count > 1 && root.preview-index > 0;
         has-next: root.preview-count > 1 && root.preview-index < root.preview-count - 1;
-        closed => { root.preview-visible = false; }
+        closed => { root.preview-visible = false; root.preview-closed(); }
         previous => { root.preview-nav(root.preview-index - 1); }
         next => { root.preview-nav(root.preview-index + 1); }
     }

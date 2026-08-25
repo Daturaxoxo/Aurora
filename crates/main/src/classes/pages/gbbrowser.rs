@@ -14,11 +14,13 @@ use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 const PAGE_SIZE: usize = 15;
+const THUMB_MAX: u32 = 1024;
+const THUMB_KEEP_ENTRIES: usize = PAGE_SIZE * 10;
 const DOWNLOAD_BUFFER: usize = 1 << 20;
 const MIN_SEARCH_LEN: usize = 3;
 const DOWNLOAD_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
@@ -77,10 +79,8 @@ static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
 });
 
 #[derive(Debug, Clone)]
-struct Thumbnail {
-    pixels: Vec<u8>,
-    width: u32,
-    height: u32,
+struct Thumb {
+    buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,14 +96,27 @@ struct GbMod {
     id: u32,
     author: String,
     name: String,
-    thumb: Option<Thumbnail>,
+    thumb: Option<Thumb>,
+}
+
+struct GbEntry {
+    id: u32,
+    name: String,
+    author: String,
+    view_count: u32,
+    download_count: u32,
+    like_count: u32,
+    is_nsfw: bool,
+    mod_url: String,
+    preview_urls: Vec<String>,
+    thumb: Option<Thumb>,
 }
 
 struct PreviewState {
     mod_id: u32,
     urls: Vec<String>,
     index: usize,
-    cached_images: HashMap<usize, Thumbnail>,
+    cached_images: HashMap<usize, Thumb>,
 }
 
 struct GbState {
@@ -112,7 +125,7 @@ struct GbState {
     generation: u64,
     loading: bool,
     end_reached: bool,
-    mods: Vec<(NteMod, Option<Thumbnail>)>,
+    mods: Vec<GbEntry>,
     seen: HashSet<u32>,
     files: Vec<NteModFile>,
     files_mod: GbMod,
@@ -139,6 +152,8 @@ impl Default for GbState {
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
 static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_IDLE);
 static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
+static RESTORING: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static RESTORE_FAILED: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 
 pub fn runtime() -> &'static tokio::runtime::Runtime {
     &RUNTIME
@@ -156,48 +171,55 @@ fn show_nsfw() -> bool {
     config::get(key::GB_NSFW).as_bool().unwrap_or(false)
 }
 
-fn decode_thumb(bytes: &[u8]) -> Option<Thumbnail> {
+fn decode_thumb(bytes: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     if bytes.is_empty() {
         return None;
     }
-    let img = image::load_from_memory(bytes).ok()?.to_rgba8();
-    let (w, h) = img.dimensions();
-    Some(Thumbnail {
-        pixels: img.into_raw(),
-        width: w,
-        height: h,
-    })
+    let img = image::load_from_memory(bytes).ok()?;
+    let img = if img.width() > THUMB_MAX || img.height() > THUMB_MAX {
+        img.thumbnail(THUMB_MAX, THUMB_MAX)
+    } else {
+        img
+    };
+    let rgba = img.into_rgba8();
+    let (w, h) = rgba.dimensions();
+    Some((rgba.into_raw(), w, h))
 }
 
-fn encode_png(t: &Thumbnail) -> Option<Vec<u8>> {
-    let img = image::RgbaImage::from_raw(t.width, t.height, t.pixels.clone())?;
+fn encode_png(t: &Thumb) -> Option<Vec<u8>> {
+    use image::ImageEncoder as _;
+
     let mut out = std::io::Cursor::new(Vec::new());
-    img.write_to(&mut out, image::ImageFormat::Png)
+    image::codecs::png::PngEncoder::new(&mut out)
+        .write_image(
+            t.buf.as_bytes(),
+            t.buf.width(),
+            t.buf.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .map_err(|e| warn!("GameBanana Browser Backend: could not encode the icon png: {e}"))
         .ok()?;
     Some(out.into_inner())
 }
 
-fn to_item(m: &NteMod, thumb: Option<&Thumbnail>, hide_downloads: bool) -> GbModItem {
-    let thumbnail = thumb.map_or_else(slint::Image::default, |t| {
-        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
-            &t.pixels, t.width, t.height,
-        );
-        slint::Image::from_rgba8(buffer)
-    });
+fn to_item(e: &GbEntry, hide_downloads: bool) -> GbModItem {
+    let thumbnail = e
+        .thumb
+        .as_ref()
+        .map_or_else(slint::Image::default, |t| slint::Image::from_rgba8(t.buf.clone()));
 
     GbModItem {
-        id: i32::try_from(m.id).unwrap_or(0),
-        name: m.name.as_str().into(),
-        author: m.author.as_str().into(),
+        id: i32::try_from(e.id).unwrap_or(0),
+        name: e.name.as_str().into(),
+        author: e.author.as_str().into(),
         thumbnail,
-        has_thumbnail: thumb.is_some(),
-        likes: i32::try_from(m.like_count).unwrap_or(0),
-        views: i32::try_from(m.view_count).unwrap_or(0),
+        has_thumbnail: e.thumb.is_some(),
+        likes: i32::try_from(e.like_count).unwrap_or(0),
+        views: i32::try_from(e.view_count).unwrap_or(0),
         downloads: if hide_downloads {
             "".into()
         } else {
-            m.download_count.to_string().into()
+            e.download_count.to_string().into()
         },
     }
 }
@@ -215,7 +237,6 @@ impl GbBrowserHandler {
         let w = window.unwrap();
         w.set_gb_show_nsfw(show_nsfw());
         w.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
-        w.set_gb_characters(Self::character_model());
         Self::bind(window);
         info!("GameBanana Browser Backend: setup() complete");
     }
@@ -248,6 +269,191 @@ impl GbBrowserHandler {
         }
     }
 
+    fn evict_thumbs(state: &mut GbState) -> Vec<u32> {
+        if state.mods.len() <= THUMB_KEEP_ENTRIES {
+            return Vec::new();
+        }
+        
+        let cutoff = state.mods.len() - THUMB_KEEP_ENTRIES;
+        let mut stale = Vec::new();
+        for entry in &mut state.mods[..cutoff] {
+            if entry.thumb.take().is_some() {
+                stale.push(entry.id);
+            }
+        }
+        
+        stale
+    }
+
+    fn clear_row_thumbnail(w: &MainWindow, id: u32) {
+        let Ok(target) = i32::try_from(id) else {
+            return;
+        };
+        if let Some(model) = w
+            .get_gb_mods()
+            .as_any()
+            .downcast_ref::<VecModel<GbModItem>>()
+        {
+            for i in 0..model.row_count() {
+                let Some(mut row) = model.row_data(i) else {
+                    continue;
+                };
+                if row.id == target && row.has_thumbnail {
+                    row.thumbnail = slint::Image::default();
+                    row.has_thumbnail = false;
+                    model.set_row_data(i, row);
+                }
+            }
+        }
+    }
+
+    fn show_row_thumbnail(w: &MainWindow, id: u32, thumb: &Thumb) {
+        let Ok(target) = i32::try_from(id) else {
+            return;
+        };
+        if let Some(model) = w
+            .get_gb_mods()
+            .as_any()
+            .downcast_ref::<VecModel<GbModItem>>()
+        {
+            for i in 0..model.row_count() {
+                let Some(mut row) = model.row_data(i) else {
+                    continue;
+                };
+                if row.id == target && !row.has_thumbnail {
+                    row.thumbnail = slint::Image::from_rgba8(thumb.buf.clone());
+                    row.has_thumbnail = true;
+                    model.set_row_data(i, row);
+                }
+            }
+        }
+    }
+
+    fn restore_visible_thumbs(window: &slint::Weak<MainWindow>, first: i32, last: i32) {
+        let Some(w) = window.upgrade() else {
+            return;
+        };
+
+        let missing: Vec<u32> = {
+            let model_rc = w.get_gb_mods();
+            let Some(model) = model_rc.as_any().downcast_ref::<VecModel<GbModItem>>() else {
+                return;
+            };
+            let count = model.row_count();
+            let Ok(start) = usize::try_from(first.max(0)) else {
+                return;
+            };
+            if start >= count {
+                return;
+            }
+            let end = usize::try_from(last.max(0))
+                .unwrap_or(0)
+                .min(count.saturating_sub(1));
+
+            let mut missing = Vec::new();
+            for i in start..=end {
+                let Some(row) = model.row_data(i) else {
+                    continue;
+                };
+                if !row.has_thumbnail
+                    && let Ok(id) = u32::try_from(row.id)
+                    && id > 0
+                {
+                    missing.push(id);
+                }
+            }
+            missing
+        };
+        if missing.is_empty() {
+            return;
+        }
+
+        let (generation, targets) = {
+            let state = STATE.lock().unwrap();
+            let mut restoring = RESTORING.lock().unwrap();
+            let mut failed = RESTORE_FAILED.lock().unwrap();
+            if failed.len() >= 500 {
+                failed.clear();
+            }
+
+            let mut targets = Vec::new();
+            for id in missing {
+                if !restoring.insert(id) || failed.contains(&id) {
+                    continue;
+                }
+                let Some(entry) = state.mods.iter().find(|e| e.id == id) else {
+                    continue;
+                };
+                if entry.preview_urls.is_empty() {
+                    continue;
+                }
+                targets.push((id, entry.preview_urls[0].clone()));
+            }
+            drop((restoring, failed));
+            (state.generation, targets)
+        };
+
+        for (id, url) in targets {
+            let ww = window.clone();
+            RUNTIME.spawn(async move {
+                let thumb_raw = match HTTP.get(&url).send().await {
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(bytes) => tokio::task::spawn_blocking(move || decode_thumb(&bytes))
+                            .await
+                            .unwrap_or_else(|e| {
+                                warn!(
+                                    "GameBanana Browser Backend: thumbnail decode panicked: {e}"
+                                );
+                                None
+                            }),
+                        Err(e) => {
+                            warn!("GameBanana Browser Backend: could not read thumbnail '{url}': {e}");
+                            None
+                        }
+                    },
+                    Err(e) => {
+                        warn!("GameBanana Browser Backend: could not fetch thumbnail '{url}': {e}");
+                        None
+                    }
+                };
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    RESTORING.lock().unwrap().remove(&id);
+
+                    let Some(w) = ww.upgrade() else {
+                        return;
+                    };
+                    let Some(raw) = thumb_raw else {
+                        RESTORE_FAILED.lock().unwrap().insert(id);
+                        return;
+                    };
+
+                    let thumb = Thumb {
+                        buf: slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                            &raw.0, raw.1, raw.2,
+                        ),
+                    };
+
+                    let mut state = STATE.lock().unwrap();
+                    if state.generation != generation {
+                        return;
+                    }
+                    let Some(entry) = state.mods.iter_mut().find(|e| e.id == id) else {
+                        return;
+                    };
+                    if entry.thumb.is_some() {
+                        return;
+                    }
+                    entry.thumb = Some(thumb.clone());
+                    drop(state);
+
+                    // Hidden entries simply have no matching row
+                    Self::show_row_thumbnail(&w, id, &thumb);
+                });
+            });
+        }
+    }
+
     fn rebuild_model(w: &MainWindow) {
         let state = STATE.lock().unwrap();
         let nsfw = show_nsfw();
@@ -255,8 +461,8 @@ impl GbBrowserHandler {
         let items: Vec<GbModItem> = state
             .mods
             .iter()
-            .filter(|(m, _)| nsfw || !m.is_nsfw)
-            .map(|(m, t)| to_item(m, t.as_ref(), hide_downloads))
+            .filter(|e| nsfw || !e.is_nsfw)
+            .map(|e| to_item(e, hide_downloads))
             .collect();
         drop(state);
         w.set_gb_mods(Rc::new(VecModel::from(items)).into());
@@ -329,7 +535,7 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         RUNTIME.spawn(async move {
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<NteMod>();
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Arc<NteMod>>();
 
             let api_mode = mode.clone();
             let fetch = tokio::spawn(async move {
@@ -343,8 +549,8 @@ impl GbBrowserHandler {
 
             let hide_downloads = matches!(mode, Mode::Category(_));
             while let Some(m) = rx.recv().await {
-                let bytes = m.thumbnail.clone();
-                let thumb = tokio::task::spawn_blocking(move || decode_thumb(&bytes))
+                let m2 = Arc::clone(&m);
+                let thumb_raw = tokio::task::spawn_blocking(move || decode_thumb(&m2.thumbnail))
                     .await
                     .unwrap_or_else(|e| {
                         warn!("GameBanana Browser Backend: thumbnail decode panicked: {e}");
@@ -358,11 +564,32 @@ impl GbBrowserHandler {
                         return;
                     }
                     let visible = show_nsfw() || !m.is_nsfw;
-                    let item = to_item(&m, thumb.as_ref(), hide_downloads);
-                    state.mods.push((m, thumb));
+                    let entry = GbEntry {
+                        id: m.id,
+                        name: m.name.clone(),
+                        author: m.author.clone(),
+                        view_count: m.view_count,
+                        download_count: m.download_count,
+                        like_count: m.like_count,
+                        is_nsfw: m.is_nsfw,
+                        mod_url: m.mod_url.clone(),
+                        preview_urls: m.preview_urls.clone(),
+                        thumb: thumb_raw.map(|(raw, width, height)| Thumb {
+                            buf: slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                                &raw, width, height,
+                            ),
+                        }),
+                    };
+                    let item = to_item(&entry, hide_downloads);
+                    state.mods.push(entry);
+                    let stale_ids = Self::evict_thumbs(&mut state);
                     drop(state);
+
                     if visible {
                         Self::push_row(&w, item);
+                    }
+                    for id in stale_ids {
+                        Self::clear_row_thumbnail(&w, id);
                     }
                 });
             }
@@ -407,14 +634,8 @@ impl GbBrowserHandler {
         });
     }
 
-    fn set_preview_image(w: &MainWindow, thumb: Option<&Thumbnail>) {
-        let image = thumb.map_or_else(slint::Image::default, |t| {
-            let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
-                &t.pixels, t.width, t.height,
-            );
-            slint::Image::from_rgba8(buffer)
-        });
-        w.set_gb_preview_image(image);
+    fn set_preview_image(w: &MainWindow, t: &Thumb) {
+        w.set_gb_preview_image(slint::Image::from_rgba8(t.buf.clone()));
     }
 
     fn fetch_preview(window: &slint::Weak<MainWindow>, mod_id: u32, index: usize) {
@@ -437,7 +658,7 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         RUNTIME.spawn(async move {
-            let thumb = match HTTP.get(&url).send().await {
+            let thumb_raw = match HTTP.get(&url).send().await {
                 Ok(resp) => match resp.bytes().await {
                     Ok(bytes) => decode_thumb(&bytes),
                     Err(e) => {
@@ -461,14 +682,20 @@ impl GbBrowserHandler {
                     return;
                 }
                 let is_current = p.index == index;
-                let apply = thumb.as_ref().filter(|_| is_current).cloned();
+                let thumb = thumb_raw.map(|(raw, width, height)| Thumb {
+                    buf: slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                        &raw, width, height,
+                    ),
+                });
+                let apply = thumb.clone().filter(|_| is_current);
                 if let Some(t) = thumb {
                     p.cached_images.insert(index, t);
+                    p.cached_images.retain(|k, _| k.abs_diff(p.index) <= 1);
                 }
                 drop(state);
 
                 if let Some(t) = apply {
-                    Self::set_preview_image(&w, Some(&t));
+                    Self::set_preview_image(&w, &t);
                 }
                 if is_current {
                     w.set_gb_preview_loading(false);
@@ -857,7 +1084,9 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         w.on_gb_opened(move || {
+            crate::ensure_cjk_fallback();
             let Some(win) = ww.upgrade() else { return };
+            win.set_gb_characters(Self::character_model());
             win.set_gb_show_nsfw(show_nsfw());
             win.set_gb_search_text("".into());
             win.set_gb_selected_character(-1);
@@ -902,6 +1131,11 @@ impl GbBrowserHandler {
         let ww = window.clone();
         w.on_gb_load_more(move || {
             Self::load(&ww, false);
+        });
+
+        let ww = window.clone();
+        w.on_gb_visible_range(move |first, last| {
+            Self::restore_visible_thumbs(&ww, first, last);
         });
 
         let ww = window.clone();
@@ -961,12 +1195,12 @@ impl GbBrowserHandler {
                 .unwrap()
                 .mods
                 .iter()
-                .find(|(m, _)| m.id == mod_id)
-                .map(|(m, t)| GbMod {
-                    id: m.id,
-                    author: m.author.clone(),
-                    name: m.name.clone(),
-                    thumb: t.clone(),
+                .find(|e| e.id == mod_id)
+                .map(|e| GbMod {
+                    id: e.id,
+                    author: e.author.clone(),
+                    name: e.name.clone(),
+                    thumb: e.thumb.clone(),
                 })
                 .unwrap_or_default();
 
@@ -1038,12 +1272,12 @@ impl GbBrowserHandler {
 
             let opened = {
                 let mut state = STATE.lock().unwrap();
-                let Some((m, thumb)) = state.mods.iter().find(|(m, _)| m.id == mod_id) else {
+                let Some(entry) = state.mods.iter().find(|e| e.id == mod_id) else {
                     return;
                 };
-                let urls = m.preview_urls.clone();
-                let name = m.name.clone();
-                let thumb = thumb.clone();
+                let urls = entry.preview_urls.clone();
+                let name = entry.name.clone();
+                let thumb = entry.thumb.clone();
                 state.preview = Some(PreviewState {
                     mod_id,
                     urls: urls.clone(),
@@ -1060,7 +1294,10 @@ impl GbBrowserHandler {
             win.set_gb_preview_index(0);
             win.set_gb_preview_count(i32::try_from(urls.len().max(1)).unwrap_or(1));
             win.set_gb_preview_loading(false);
-            Self::set_preview_image(&win, thumb.as_ref());
+            match &thumb {
+                Some(t) => Self::set_preview_image(&win, t),
+                None => win.set_gb_preview_image(slint::Image::default()),
+            }
             win.set_gb_preview_visible(true);
 
             if !urls.is_empty() {
@@ -1089,7 +1326,7 @@ impl GbBrowserHandler {
 
             win.set_gb_preview_index(i32::try_from(new_index).unwrap_or(0));
             if let Some(t) = cached {
-                Self::set_preview_image(&win, Some(&t));
+                Self::set_preview_image(&win, &t);
                 win.set_gb_preview_loading(false);
             } else {
                 // Keep showing the current image while the next one loads
@@ -1126,12 +1363,38 @@ impl GbBrowserHandler {
                 .unwrap()
                 .mods
                 .iter()
-                .find(|(m, _)| m.id == mod_id)
-                .map(|(m, _)| m.mod_url.clone());
+                .find(|e| e.id == mod_id)
+                .map(|e| e.mod_url.clone());
             let Some(url) = url else { return };
             if let Err(e) = open::that(&url) {
                 warn!("GameBanana Browser Backend: could not open '{url}': {e}");
             }
+        });
+
+        let ww = window.clone();
+        w.on_gb_preview_closed(move || {
+            STATE.lock().unwrap().preview.take();
+            if let Some(win) = ww.upgrade() {
+                win.set_gb_preview_image(slint::Image::default());
+            }
+        });
+
+        let ww = window.clone();
+        w.on_gb_closed(move || {
+            let Some(win) = ww.upgrade() else { return };
+            let mut state = STATE.lock().unwrap();
+            let generation = state.generation + 1;
+            *state = GbState::default();
+            state.generation = generation;
+            drop(state);
+            RESTORING.lock().unwrap().clear();
+            RESTORE_FAILED.lock().unwrap().clear();
+            win.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
+            win.set_gb_files(Rc::new(VecModel::<GbFileItem>::default()).into());
+            win.set_gb_files_visible(false);
+            win.set_gb_preview_visible(false);
+            win.set_gb_preview_image(slint::Image::default());
+            win.set_gb_loading(false);
         });
     }
 }

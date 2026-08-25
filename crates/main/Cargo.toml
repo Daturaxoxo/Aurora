@@ -14,12 +14,6 @@ rfd = { version = "0.17", default-features = false, features = [
     "xdg-portal",
     "wayland",
 ] }
-image = { version = "0.25", default-features = false, features = [
-    "png",
-    "jpeg",
-    "webp",
-    "bmp",
-] }
 arboard = { version = "3", default-features = false, features = [
     "image-data",
     "wayland-data-control",
@@ -27,6 +21,7 @@ arboard = { version = "3", default-features = false, features = [
 backend = { path = "../backend" }
 shared = { path = "../shared" }
 ipc = { path = "../ipc" }
+image = { workspace = true }
 archive = { workspace = true }
 open = { workspace = true }
 slint = { workspace = true }
