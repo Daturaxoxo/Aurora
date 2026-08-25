@@ -19,6 +19,7 @@ use crate::MainWindow;
 use crate::bridge::{Bridge, PopupSpec};
 use crate::classes::pages::gbbrowser::{self, GbBrowserHandler};
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::translations::tr;
 
 pub const POPUP_ID: &str = "gb-oneclick";
 
@@ -317,18 +318,18 @@ impl OneClickHandler {
             }
 
             let notice = if is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
-                "This mod is marked NSFW on GameBanana."
+                tr("popup.oneclick.nsfw-notice")
             } else {
-                ""
+                String::new()
             };
 
             let mut details = vec![
-                ("File".to_owned(), pending.file.name.clone()),
-                ("Size".to_owned(), format_bytes(pending.file.size)),
+                (tr("popup.detail.file"), pending.file.name.clone()),
+                (tr("popup.detail.size"), format_bytes(pending.file.size)),
             ];
             if pending.file.download_count > 0 {
                 details.push((
-                    "Downloads".to_owned(),
+                    tr("popup.detail.downloads"),
                     pending.file.download_count.to_string(),
                 ));
             }
@@ -336,12 +337,12 @@ impl OneClickHandler {
             let spec = PopupSpec {
                 id: POPUP_ID.to_owned(),
                 kind: "install".to_owned(),
-                title: "Install Mod?".to_owned(),
+                title: tr("popup.oneclick.title"),
                 subject: pending.name.clone(),
-                subject_note: format!("by {}", pending.author),
+                subject_note: format!("{}{}", tr("popup.oneclick.author-prefix"), pending.author),
                 details,
-                notice: notice.to_owned(),
-                confirm_label: "Install".to_owned(),
+                notice,
+                confirm_label: tr("global.button.install"),
                 ..PopupSpec::default()
             };
 

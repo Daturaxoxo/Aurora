@@ -1,4 +1,5 @@
 use crate::bridge::PopupSpec;
+use crate::translations::tr;
 use crate::{MainWindow, ScreenshotItem};
 
 use chrono::{DateTime, Local, NaiveDateTime};
@@ -814,17 +815,18 @@ impl ScreenshotHandler {
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default()
         } else {
-            format!("{} screenshots", paths.len())
+            format!("{} {}", paths.len(), tr("screenshots.count-suffix"))
         };
-        let title = if single {
-            "Delete screenshot?"
+        let (title, message) = if single {
+            (
+                tr("popup.screenshot-delete.title"),
+                tr("popup.screenshot-delete.message"),
+            )
         } else {
-            "Delete screenshots?"
-        };
-        let message = if single {
-            "This screenshot will be permanently deleted. This cannot be undone."
-        } else {
-            "These screenshots will be permanently deleted. This cannot be undone."
+            (
+                tr("popup.screenshot-delete.title-multiple"),
+                tr("popup.screenshot-delete.message-multiple"),
+            )
         };
 
         STATE.lock().unwrap().pending_delete = paths;
@@ -832,8 +834,8 @@ impl ScreenshotHandler {
         PopupSpec {
             id: "screenshot-delete".to_owned(),
             kind: "danger".to_owned(),
-            title: title.to_owned(),
-            message: message.to_owned(),
+            title,
+            message,
             subject,
             ..PopupSpec::default()
         }

@@ -14,8 +14,8 @@ use slint::{Model, ModelRc, VecModel};
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const PAGE_SIZE: usize = 15;
@@ -203,10 +203,9 @@ fn encode_png(t: &Thumb) -> Option<Vec<u8>> {
 }
 
 fn to_item(e: &GbEntry, hide_downloads: bool) -> GbModItem {
-    let thumbnail = e
-        .thumb
-        .as_ref()
-        .map_or_else(slint::Image::default, |t| slint::Image::from_rgba8(t.buf.clone()));
+    let thumbnail = e.thumb.as_ref().map_or_else(slint::Image::default, |t| {
+        slint::Image::from_rgba8(t.buf.clone())
+    });
 
     GbModItem {
         id: i32::try_from(e.id).unwrap_or(0),
@@ -273,7 +272,7 @@ impl GbBrowserHandler {
         if state.mods.len() <= THUMB_KEEP_ENTRIES {
             return Vec::new();
         }
-        
+
         let cutoff = state.mods.len() - THUMB_KEEP_ENTRIES;
         let mut stale = Vec::new();
         for entry in &mut state.mods[..cutoff] {
@@ -281,7 +280,7 @@ impl GbBrowserHandler {
                 stale.push(entry.id);
             }
         }
-        
+
         stale
     }
 
@@ -401,13 +400,13 @@ impl GbBrowserHandler {
                         Ok(bytes) => tokio::task::spawn_blocking(move || decode_thumb(&bytes))
                             .await
                             .unwrap_or_else(|e| {
-                                warn!(
-                                    "GameBanana Browser Backend: thumbnail decode panicked: {e}"
-                                );
+                                warn!("GameBanana Browser Backend: thumbnail decode panicked: {e}");
                                 None
                             }),
                         Err(e) => {
-                            warn!("GameBanana Browser Backend: could not read thumbnail '{url}': {e}");
+                            warn!(
+                                "GameBanana Browser Backend: could not read thumbnail '{url}': {e}"
+                            );
                             None
                         }
                     },

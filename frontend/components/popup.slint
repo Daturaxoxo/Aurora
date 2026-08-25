@@ -357,7 +357,9 @@ export component PopupDialog inherits Rectangle {
                                             spacing: 12px;
 
                                             Text {
-                                                width: 58px;
+                                                // Wide enough for the longest
+                                                // translated label
+                                                width: 96px;
                                                 text: detail.label;
                                                 font-size: 11px;
                                                 font-weight: 600;

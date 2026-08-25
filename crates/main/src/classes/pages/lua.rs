@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::bridge::PopupSpec;
+use crate::translations::tr;
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
@@ -208,10 +209,8 @@ impl LuaScriptsHandler {
                     PopupSpec {
                         id: "lua-delete".to_owned(),
                         kind: "danger".to_owned(),
-                        title: "Delete script?".to_owned(),
-                        message: "This script will be permanently deleted. You cannot undo \
-                                  this action."
-                            .to_owned(),
+                        title: tr("popup.script-delete.title"),
+                        message: tr("popup.script-delete.message"),
                         subject: item.name.to_string(),
                         ..PopupSpec::default()
                     }

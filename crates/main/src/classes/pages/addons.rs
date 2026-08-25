@@ -1,6 +1,7 @@
 use crate::bridge::PopupSpec;
 use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
+use crate::translations::tr;
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
@@ -347,10 +348,8 @@ impl AddonsHandler {
             PopupSpec {
                 id: "addon-delete".to_owned(),
                 kind: "danger".to_owned(),
-                title: "Delete addon?".to_owned(),
-                message: "This addon will be uninstalled and its files permanently deleted. \
-                          You can install it again later."
-                    .to_owned(),
+                title: tr("popup.addon-delete.title"),
+                message: tr("popup.addon-delete.message"),
                 subject: row.name.to_string(),
                 ..PopupSpec::default()
             }
