@@ -16,7 +16,7 @@ use slint::ComponentHandle as _;
 use url::Url;
 
 use crate::MainWindow;
-use crate::bridge::Bridge;
+use crate::bridge::{Bridge, PopupSpec};
 use crate::classes::pages::gbbrowser::{self, GbBrowserHandler};
 use crate::classes::pages::modmanager::ModManagerHandler;
 
@@ -316,21 +316,37 @@ impl OneClickHandler {
                 return;
             }
 
-            let nsfw = if is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
-                "\n\nWarning: this mod is marked NSFW."
+            let notice = if is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
+                "This mod is marked NSFW on GameBanana."
             } else {
                 ""
             };
-            let message = format!(
-                "{}\nby {}\n\n{} ({}){}",
-                pending.name,
-                pending.author,
-                pending.file.name,
-                format_bytes(pending.file.size),
-                nsfw,
-            );
+
+            let mut details = vec![
+                ("File".to_owned(), pending.file.name.clone()),
+                ("Size".to_owned(), format_bytes(pending.file.size)),
+            ];
+            if pending.file.download_count > 0 {
+                details.push((
+                    "Downloads".to_owned(),
+                    pending.file.download_count.to_string(),
+                ));
+            }
+
+            let spec = PopupSpec {
+                id: POPUP_ID.to_owned(),
+                kind: "install".to_owned(),
+                title: "Install Mod?".to_owned(),
+                subject: pending.name.clone(),
+                subject_note: format!("by {}", pending.author),
+                details,
+                notice: notice.to_owned(),
+                confirm_label: "Install".to_owned(),
+                ..PopupSpec::default()
+            };
+
             *PENDING.lock().unwrap() = Some(pending);
-            Bridge::show_popup(&window, POPUP_ID, "Install mod?", &message);
+            spec.apply(&w);
         });
     }
 

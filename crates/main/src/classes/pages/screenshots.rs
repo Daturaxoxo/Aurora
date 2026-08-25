@@ -1,3 +1,4 @@
+use crate::bridge::PopupSpec;
 use crate::{MainWindow, ScreenshotItem};
 
 use chrono::{DateTime, Local, NaiveDateTime};
@@ -771,25 +772,37 @@ impl ScreenshotHandler {
             return;
         }
 
-        let message = if paths.len() == 1 {
-            let name = paths[0]
+        let single = paths.len() == 1;
+        let subject = if single {
+            paths[0]
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            format!("\"{name}\" will be permanently deleted. This cannot be undone.")
+                .unwrap_or_default()
         } else {
-            format!(
-                "{} screenshots will be permanently deleted. This cannot be undone.",
-                paths.len()
-            )
+            format!("{} screenshots", paths.len())
+        };
+        let title = if single {
+            "Delete screenshot?"
+        } else {
+            "Delete screenshots?"
+        };
+        let message = if single {
+            "This screenshot will be permanently deleted. This cannot be undone."
+        } else {
+            "These screenshots will be permanently deleted. This cannot be undone."
         };
 
         STATE.lock().unwrap().pending_delete = paths;
 
-        w.set_popup_id("screenshot-delete".into());
-        w.set_popup_title("Delete Screenshots?".into());
-        w.set_popup_message(message.into());
-        w.set_popup_active(true);
+        PopupSpec {
+            id: "screenshot-delete".to_owned(),
+            kind: "danger".to_owned(),
+            title: title.to_owned(),
+            message: message.to_owned(),
+            subject,
+            ..PopupSpec::default()
+        }
+        .apply(w);
     }
 
     // [CALLBACKS]

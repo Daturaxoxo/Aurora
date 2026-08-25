@@ -137,6 +137,8 @@ impl UpdateHandler {
                     slint::invoke_from_event_loop(move || {
                         if let Some(w) = w.upgrade() {
                             w.set_popup_id("beta-phase-inactive".into());
+                            w.set_popup_kind("warning".into());
+                            w.set_popup_escape_locked(true);
                             w.set_popup_title("Beta phase ended".into());
                             w.set_popup_message(
                                 "The beta phase for this version has ended and no newer \
@@ -826,6 +828,7 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 w.set_popup_id("update-manual".into());
+                w.set_popup_kind("install".into());
                 w.set_popup_title("Update available".into());
                 w.set_popup_message(message.into());
                 w.set_popup_confirm_delay(0);
@@ -964,6 +967,7 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 w.set_popup_id("update-popup".into());
+                w.set_popup_kind("install".into());
                 w.set_popup_title("Update available".into());
                 w.set_popup_message(message.into());
                 w.set_popup_confirm_delay(0);

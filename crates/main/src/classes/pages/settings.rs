@@ -334,6 +334,7 @@ impl SettingsHandler {
             let message = Self::translation(&w, keys.get_popup_ignore_checksum_message());
 
             w.set_popup_id(IGNORE_CHECKSUM_POPUP_ID.into());
+            w.set_popup_kind("warning".into());
             w.set_popup_title(title);
             w.set_popup_message(message);
             w.set_popup_confirm_delay(0);

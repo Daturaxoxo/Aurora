@@ -8,6 +8,92 @@ export struct CheckboxItem {
     checked: bool,
 }
 
+export struct PopupDetail {
+    label: string,
+    value: string,
+}
+
+component KeyCap inherits Rectangle {
+    in property <string> label;
+    in property <bool> dimmed: false;
+
+    width: cap-text.preferred-width + 12px;
+    height: 17px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: root.dimmed ? #ffffff10 : #ffffff20;
+    background: root.dimmed ? #ffffff05 : #ffffff0e;
+
+    cap-text := Text {
+        text: root.label;
+        font-size: 9px;
+        font-weight: 600;
+        color: root.dimmed ? #ffffff2a : #ffffff7a;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component DialogButton inherits Rectangle {
+    in property <string> label;
+    in property <string> keycap;
+    in property <bool> primary: false;
+    in property <bool> ready: true;
+    in property <color> accent;
+
+    callback clicked();
+
+    min-width: 116px;
+    height: 36px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: root.primary
+        ? (root.ready ? root.accent.transparentize(0.55) : #ffffff14)
+        : (btn-ta.has-hover ? #ffffff30 : #ffffff1c);
+    background: root.primary
+        ? (root.ready
+            ? (btn-ta.has-hover ? root.accent.transparentize(0.7) : root.accent.transparentize(0.84))
+            : #ffffff05)
+        : (btn-ta.has-hover ? #ffffff12 : #ffffff06);
+
+    animate background { duration: 100ms; }
+    animate border-color { duration: 200ms; }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 8px;
+        alignment: center;
+
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: root.label;
+                font-size: 13px;
+                font-weight: 600;
+                color: root.primary
+                    ? (root.ready ? Palette.text-primary : #ffffff33)
+                    : Palette.text-secondary;
+                vertical-alignment: center;
+                animate color { duration: 200ms; }
+            }
+        }
+
+        if root.keycap != "": VerticalLayout {
+            alignment: center;
+            KeyCap {
+                label: root.keycap;
+                dimmed: !root.ready;
+            }
+        }
+    }
+
+    btn-ta := TouchArea {
+        enabled: root.ready;
+        clicked => { root.clicked(); }
+    }
+}
+
 export component PopupDialog inherits Rectangle {
     in property <bool> active;
     in property <string> title;
@@ -15,6 +101,15 @@ export component PopupDialog inherits Rectangle {
     in property <int> confirm-delay: 0;
     in-out property <[CheckboxItem]> checkbox-items: [];
     in property <int> required-count: 0;
+
+    in property <string> kind: "info"; // info, install, warning, danger
+    in property <string> subtitle;
+    in property <string> subject;
+    in property <string> subject-note;
+    in property <[PopupDetail]> details: [];
+    in property <string> notice;
+    in property <string> confirm-label;
+    in property <bool> escape-locked: false;
 
     callback confirm();
     callback cancel();
@@ -34,11 +129,33 @@ export component PopupDialog inherits Rectangle {
 
     private property <bool> confirm-ready: root.timer-ready && root.all-required-checked;
 
+    private property <string> confirm-text: root.confirm-label != ""
+        ? root.confirm-label
+        : Tr.values[TrKey.global-popup-confirm-button];
+
+    private property <color> accent:
+        root.kind == "danger" ? #ee4937
+        : root.kind == "warning" ? #e8a020
+        : #6db3f2;
+
+    // thx claude for generating the svg paths :3
+    private property <string> glyph:
+        root.kind == "danger"
+            ? "M4 7 L20 7 M9.5 7 L9.5 3.5 L14.5 3.5 L14.5 7 M6.5 7 L7.6 20.5 L16.4 20.5 L17.5 7 M10 10.5 L10 17 M14 10.5 L14 17"
+        : root.kind == "warning"
+            ? "M12 3.2 L22 20.5 L2 20.5 Z M12 9 L12 14.6 M12 17.6 L12 17.7"
+        : root.kind == "install"
+            ? "M12 3 L12 14.8 M7 10 L12 15.4 L17 10 M3.5 18 L3.5 20.5 L20.5 20.5 L20.5 18"
+        : "M21 12 A9 9 0 1 1 3 12 A9 9 0 1 1 21 12 M12 7.3 L12 7.4 M12 11 L12 16.7";
+
     changed active => {
         if (root.active) {
             root.countdown = root.confirm-delay;
             root.countdown-frac = 0.0;
             root.timer-ready = root.confirm-delay <= 0;
+            key-scope.focus();
+        } else {
+            key-scope.clear-focus();
         }
     }
 
@@ -75,17 +192,42 @@ export component PopupDialog inherits Rectangle {
         viewport-height: self.height + 1px;
     }
 
+    key-scope := FocusScope {
+        width: 0px;
+        height: 0px;
+        enabled: root.active;
+
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                if (!root.escape-locked) {
+                    root.cancel();
+                }
+                return accept;
+            }
+            if (event.text == Key.Return) {
+                if (root.confirm-ready) {
+                    root.confirm();
+                }
+                return accept;
+            }
+            reject
+        }
+    }
+
     VerticalLayout {
         alignment: center;
+        padding: 36px;
+
         HorizontalLayout {
             alignment: center;
 
             modal-box := Rectangle {
-                width: 440px;
+                width: 460px;
                 background: Palette.glass-background;
                 border-color: Palette.glass-border;
                 border-width: 1px;
-                border-radius: 12px;
+                border-radius: 14px;
+                clip: true;
                 drop-shadow-color: Palette.shadow-color;
                 drop-shadow-blur: 24px;
                 drop-shadow-offset-y: 8px;
@@ -97,149 +239,277 @@ export component PopupDialog inherits Rectangle {
                 }
 
                 VerticalLayout {
-                    padding: 24px;
-                    spacing: 18px;
+                    // Header
+                    HorizontalLayout {
+                        padding: 20px;
+                        padding-bottom: 16px;
+                        spacing: 14px;
 
-                    // Title
-                    Text {
-                        text: root.title;
-                        font-size: 18px;
-                        font-weight: 700;
-                        color: Palette.text-primary;
+                        VerticalLayout {
+                            alignment: center;
+
+                            Rectangle {
+                                width: 40px;
+                                height: 40px;
+                                border-radius: 11px;
+                                border-width: 1px;
+                                border-color: root.accent.transparentize(0.72);
+                                background: root.accent.transparentize(0.87);
+
+                                Path {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    width: 20px;
+                                    height: 20px;
+                                    viewbox-x: 0;
+                                    viewbox-y: 0;
+                                    viewbox-width: 24;
+                                    viewbox-height: 24;
+                                    commands: root.glyph;
+                                    stroke: root.accent;
+                                    stroke-width: 1.7px;
+                                    stroke-line-cap: round;
+                                    stroke-line-join: round;
+                                    fill: transparent;
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 3px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: root.title;
+                                font-size: 17px;
+                                font-weight: 700;
+                                color: Palette.text-primary;
+                                wrap: word-wrap;
+                            }
+
+                            if root.subtitle != "": Text {
+                                text: root.subtitle;
+                                font-size: 11px;
+                                font-weight: 600;
+                                color: root.accent.transparentize(0.2);
+                                wrap: word-wrap;
+                            }
+                        }
                     }
 
-                    // Message
-                    Text {
-                        text: root.message;
-                        font-size: 13px;
-                        color: Palette.text-secondary;
-                        wrap: word-wrap;
+                    Rectangle {
+                        height: 1px;
+                        background: #ffffff12;
                     }
 
-                    // Checkbox
-                    if root.checkbox-items.length > 0: VerticalLayout {
-                        spacing: 10px;
+                    ScrollView {
+                        vertical-stretch: 1;
+                        min-height: 60px;
+                        preferred-height: body.preferred-height;
+                        viewport-width: self.width;
+                        viewport-height: body.preferred-height;
 
-                        for item[i] in root.checkbox-items: Rectangle {
-                            height: 20px;
+                        body := VerticalLayout {
+                            padding: 20px;
+                            padding-right: 24px;
+                            spacing: 14px;
+                            alignment: start;
 
-                            HorizontalLayout {
-                                width: parent.width;
-                                height: parent.height;
-                                spacing: 10px;
-                                alignment: start;
+                            if root.message != "": Text {
+                                text: root.message;
+                                font-size: 13px;
+                                color: Palette.text-secondary;
+                                wrap: word-wrap;
+                            }
+
+                            // Subject card
+                            if root.subject != "": Rectangle {
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #ffffff14;
+                                background: #ffffff08;
 
                                 VerticalLayout {
-                                    alignment: center;
-                                    Rectangle {
-                                        width: 16px;
-                                        height: 16px;
-                                        border-radius: 4px;
-                                        border-width: 1px;
-                                        border-color: root.checkbox-items[i].checked
-                                            ? (item.required ? #ffffff88 : #ffffff55)
-                                            : (item.required ? #ffffff44 : #ffffff22);
-                                        background: root.checkbox-items[i].checked ? #ffffff18 : transparent;
-                                        animate background { duration: 120ms; }
-                                        animate border-color { duration: 120ms; }
+                                    padding: 14px;
+                                    spacing: 2px;
 
-                                        if root.checkbox-items[i].checked: Path {
-                                            x: 2px;
-                                            y: 3px;
-                                            width: 12px;
-                                            height: 10px;
-                                            viewbox-x: 0;
-                                            viewbox-y: 0;
-                                            viewbox-width: 12;
-                                            viewbox-height: 10;
-                                            commands: "M1 5 L4 8 L11 1";
-                                            stroke: Palette.text-primary;
-                                            stroke-width: 1.8px;
-                                            fill: transparent;
+                                    Text {
+                                        text: root.subject;
+                                        font-size: 14px;
+                                        font-weight: 700;
+                                        color: Palette.text-primary;
+                                        wrap: word-wrap;
+                                    }
+
+                                    if root.subject-note != "": Text {
+                                        text: root.subject-note;
+                                        font-size: 12px;
+                                        color: #ffffff77;
+                                        wrap: word-wrap;
+                                    }
+
+                                    if root.details.length > 0: VerticalLayout {
+                                        padding-top: 10px;
+                                        spacing: 6px;
+
+                                        for detail in root.details: HorizontalLayout {
+                                            spacing: 12px;
+
+                                            Text {
+                                                width: 58px;
+                                                text: detail.label;
+                                                font-size: 11px;
+                                                font-weight: 600;
+                                                color: #ffffff55;
+                                                overflow: elide;
+                                            }
+
+                                            Text {
+                                                horizontal-stretch: 1;
+                                                text: detail.value;
+                                                font-size: 11px;
+                                                color: Palette.text-secondary;
+                                                wrap: word-wrap;
+                                            }
                                         }
                                     }
                                 }
+                            }
 
-                                VerticalLayout {
-                                    alignment: center;
-                                    horizontal-stretch: 1;
+                            if root.notice != "": Rectangle {
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #e8a02038;
+                                background: #e8a02014;
+
+                                HorizontalLayout {
+                                    padding: 11px;
+                                    spacing: 10px;
+
+                                    VerticalLayout {
+                                        alignment: start;
+                                        Path {
+                                            width: 15px;
+                                            height: 15px;
+                                            viewbox-x: 0;
+                                            viewbox-y: 0;
+                                            viewbox-width: 24;
+                                            viewbox-height: 24;
+                                            commands: "M12 3.2 L22 20.5 L2 20.5 Z M12 9 L12 14.6 M12 17.6 L12 17.7";
+                                            stroke: #e8a020;
+                                            stroke-width: 1.7px;
+                                            stroke-line-cap: round;
+                                            stroke-line-join: round;
+                                            fill: transparent;
+                                        }
+                                    }
+
                                     Text {
-                                        text: item.label;
+                                        horizontal-stretch: 1;
+                                        text: root.notice;
                                         font-size: 12px;
-                                        color: item.required ? Palette.text-secondary : #ffffff55;
+                                        color: #e8c184;
                                         wrap: word-wrap;
                                     }
                                 }
                             }
 
-                            TouchArea {
-                                width: parent.width;
-                                height: parent.height;
-                                clicked => {
-                                    root.checkbox-items[i].checked = !root.checkbox-items[i].checked;
+                            // Checkboxes
+                            if root.checkbox-items.length > 0: VerticalLayout {
+                                spacing: 10px;
+
+                                for item[i] in root.checkbox-items: Rectangle {
+                                    height: 20px;
+
+                                    HorizontalLayout {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        spacing: 10px;
+                                        alignment: start;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 16px;
+                                                height: 16px;
+                                                border-radius: 4px;
+                                                border-width: 1px;
+                                                border-color: root.checkbox-items[i].checked
+                                                    ? (item.required ? #ffffff88 : #ffffff55)
+                                                    : (item.required ? #ffffff44 : #ffffff22);
+                                                background: root.checkbox-items[i].checked ? #ffffff18 : transparent;
+                                                animate background { duration: 120ms; }
+                                                animate border-color { duration: 120ms; }
+
+                                                if root.checkbox-items[i].checked: Path {
+                                                    x: 2px;
+                                                    y: 3px;
+                                                    width: 12px;
+                                                    height: 10px;
+                                                    viewbox-x: 0;
+                                                    viewbox-y: 0;
+                                                    viewbox-width: 12;
+                                                    viewbox-height: 10;
+                                                    commands: "M1 5 L4 8 L11 1";
+                                                    stroke: Palette.text-primary;
+                                                    stroke-width: 1.8px;
+                                                    fill: transparent;
+                                                }
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            horizontal-stretch: 1;
+                                            Text {
+                                                text: item.label;
+                                                font-size: 12px;
+                                                color: item.required ? Palette.text-secondary : #ffffff55;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                    }
+
+                                    TouchArea {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        clicked => {
+                                            root.checkbox-items[i].checked = !root.checkbox-items[i].checked;
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
+                    Rectangle {
+                        height: 1px;
+                        background: #ffffff12;
+                    }
+
                     // Buttons
                     HorizontalLayout {
+                        padding: 18px;
                         alignment: end;
-                        spacing: 12px;
+                        spacing: 10px;
 
-                        // Cancel
-                        Rectangle {
-                            width: 100px;
-                            height: 34px;
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: Palette.glass-border;
-                            background: ta-cancel.has-hover ? #ffffff10 : transparent;
-                            animate background { duration: 100ms; }
-
-                            Text {
-                                text: Tr.values[TrKey.global-popup-cancel-button];
-                                color: Palette.text-secondary;
-                                font-size: 13px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            ta-cancel := TouchArea {
-                                clicked => { root.cancel(); }
-                            }
+                        DialogButton {
+                            label: Tr.values[TrKey.global-popup-cancel-button];
+                            keycap: "Esc";
+                            accent: root.accent;
+                            clicked => { root.cancel(); }
                         }
 
-                        // Confirm
-                        Rectangle {
-                            width: 100px;
-                            height: 34px;
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: root.confirm-ready ? Palette.glass-border : #ffffff18;
-                            background: root.confirm-ready
-                                ? (ta-confirm.has-hover ? #ffffff20 : #ffffff0c)
-                                : #ffffff05;
-                            animate background { duration: 100ms; }
-                            animate border-color { duration: 200ms; }
-
-                            Text {
-                                text: root.timer-ready
-                                    ? Tr.values[TrKey.global-popup-confirm-button]
-                                    : "(" + root.countdown + ") " + Tr.values[TrKey.global-popup-confirm-button];
-                                color: root.confirm-ready ? Palette.text-primary : #ffffff33;
-                                font-size: 13px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                                animate color { duration: 200ms; }
-                            }
-
-                            ta-confirm := TouchArea {
-                                enabled: root.confirm-ready;
-                                clicked => { root.confirm(); }
-                            }
+                        DialogButton {
+                            primary: true;
+                            ready: root.confirm-ready;
+                            accent: root.accent;
+                            keycap: "Enter";
+                            label: root.timer-ready
+                                ? root.confirm-text
+                                : "(" + root.countdown + ") " + root.confirm-text;
+                            clicked => { root.confirm(); }
                         }
                     }
                 }

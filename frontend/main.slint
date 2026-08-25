@@ -3,7 +3,7 @@ import { Tr, TrKey } from "translations.slint";
 export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
-import { PopupDialog, CheckboxItem } from "components/popup.slint";
+import { PopupDialog, CheckboxItem, PopupDetail } from "components/popup.slint";
 import { ProgressOverlay } from "components/progressoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
@@ -187,6 +187,14 @@ export component MainWindow inherits Window {
     in-out property <int> popup-confirm-delay: 0;
     in-out property <int> popup-required-count: 0;
     in-out property <[CheckboxItem]> popup-checkboxes: [];
+    in-out property <string> popup-kind: "info";
+    in-out property <string> popup-subtitle: "";
+    in-out property <string> popup-subject: "";
+    in-out property <string> popup-subject-note: "";
+    in-out property <[PopupDetail]> popup-details: [];
+    in-out property <string> popup-notice: "";
+    in-out property <string> popup-confirm-label: "";
+    in-out property <bool> popup-escape-locked: false;
     callback popup-confirm-callback(string);
     callback popup-cancel-callback(string);
 
@@ -337,6 +345,14 @@ export component MainWindow inherits Window {
         root.popup-confirm-delay = 0;
         root.popup-required-count = 0;
         root.popup-checkboxes = [];
+        root.popup-kind = "info";
+        root.popup-subtitle = "";
+        root.popup-subject = "";
+        root.popup-subject-note = "";
+        root.popup-details = [];
+        root.popup-notice = "";
+        root.popup-confirm-label = "";
+        root.popup-escape-locked = false;
     }
 
     Rectangle {
@@ -1262,6 +1278,14 @@ export component MainWindow inherits Window {
             confirm-delay: root.popup-confirm-delay;
             required-count: root.popup-required-count;
             checkbox-items: root.popup-checkboxes;
+            kind: root.popup-kind;
+            subtitle: root.popup-subtitle;
+            subject: root.popup-subject;
+            subject-note: root.popup-subject-note;
+            details: root.popup-details;
+            notice: root.popup-notice;
+            confirm-label: root.popup-confirm-label;
+            escape-locked: root.popup-escape-locked;
             confirm => { root.popup-confirm-callback(root.popup-id); reset-popup() }
             cancel => { root.popup-cancel-callback(root.popup-id); reset-popup() }
         }

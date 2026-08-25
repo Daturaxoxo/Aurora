@@ -13,6 +13,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
+use crate::bridge::PopupSpec;
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
@@ -208,16 +209,17 @@ impl LuaScriptsHandler {
                 if let Some((idx, item)) = find_by_id(&model, &id) {
                     *PENDING_DELETE.lock().unwrap() = Some(idx);
 
-                    win.set_popup_id("lua-delete".into());
-                    win.set_popup_title("Delete Script?".into());
-                    win.set_popup_message(
-                        format!(
-                            "\"{}\" will be permanently deleted. You cannot undo this action.",
-                            item.name
-                        )
-                        .into(),
-                    );
-                    win.set_popup_active(true);
+                    PopupSpec {
+                        id: "lua-delete".to_owned(),
+                        kind: "danger".to_owned(),
+                        title: "Delete script?".to_owned(),
+                        message: "This script will be permanently deleted. You cannot undo \
+                                  this action."
+                            .to_owned(),
+                        subject: item.name.to_string(),
+                        ..PopupSpec::default()
+                    }
+                    .apply(&win);
                 }
             });
         }

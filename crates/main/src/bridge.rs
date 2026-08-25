@@ -2,11 +2,59 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::{LaunchState, MainWindow, classes::updater};
+use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
 use backend::handler::{self, EngineCommand, EngineEvent, EngineHandler};
 use log::*;
 use shared::config::{self, key};
+
+#[derive(Default)]
+pub struct PopupSpec {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub kind: String,
+    pub subtitle: String,
+    pub subject: String,
+    pub subject_note: String,
+    pub details: Vec<(String, String)>,
+    pub notice: String,
+    pub confirm_label: String,
+    pub escape_locked: bool,
+}
+
+impl PopupSpec {
+    pub fn apply(self, w: &MainWindow) {
+        let details: Vec<PopupDetail> = self
+            .details
+            .into_iter()
+            .map(|(label, value)| PopupDetail {
+                label: label.into(),
+                value: value.into(),
+            })
+            .collect();
+
+        w.set_popup_id(self.id.into());
+        w.set_popup_title(self.title.into());
+        w.set_popup_message(self.message.into());
+        w.set_popup_kind(if self.kind.is_empty() {
+            "info".into()
+        } else {
+            self.kind.into()
+        });
+        w.set_popup_subtitle(self.subtitle.into());
+        w.set_popup_subject(self.subject.into());
+        w.set_popup_subject_note(self.subject_note.into());
+        w.set_popup_details(slint::ModelRc::new(slint::VecModel::from(details)));
+        w.set_popup_notice(self.notice.into());
+        w.set_popup_confirm_label(self.confirm_label.into());
+        w.set_popup_escape_locked(self.escape_locked);
+        w.set_popup_confirm_delay(0);
+        w.set_popup_required_count(0);
+        w.set_popup_checkboxes(slint::ModelRc::default());
+        w.set_popup_active(true);
+    }
+}
 
 pub struct Bridge;
 
@@ -264,19 +312,22 @@ impl Bridge {
     }
 
     pub fn show_popup(window: &slint::Weak<MainWindow>, id: &str, title: &str, message: &str) {
-        let id = id.to_string();
-        let title = title.to_string();
-        let message = message.to_string();
+        Self::show_popup_spec(
+            window,
+            PopupSpec {
+                id: id.to_owned(),
+                title: title.to_owned(),
+                message: message.to_owned(),
+                ..PopupSpec::default()
+            },
+        );
+    }
+
+    pub fn show_popup_spec(window: &slint::Weak<MainWindow>, spec: PopupSpec) {
         let w = window.clone();
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
-                w.set_popup_id(id.into());
-                w.set_popup_title(title.into());
-                w.set_popup_message(message.into());
-                w.set_popup_confirm_delay(0);
-                w.set_popup_required_count(0);
-                w.set_popup_checkboxes(slint::ModelRc::default());
-                w.set_popup_active(true);
+                spec.apply(&w);
             }
         })
         .ok();

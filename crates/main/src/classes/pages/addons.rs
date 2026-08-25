@@ -1,3 +1,4 @@
+use crate::bridge::PopupSpec;
 use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::{AddonItem, MainWindow};
@@ -314,16 +315,17 @@ impl AddonsHandler {
 
             *PENDING_DELETE.lock().unwrap() = Some(i);
 
-            win.set_popup_id("addon-delete".into());
-            win.set_popup_title("Delete Addon?".into());
-            win.set_popup_message(
-                format!(
-                    "\"{}\" will be uninstalled and its files permanently deleted. You can install it again later.",
-                    row.name
-                )
-                .into(),
-            );
-            win.set_popup_active(true);
+            PopupSpec {
+                id: "addon-delete".to_owned(),
+                kind: "danger".to_owned(),
+                title: "Delete addon?".to_owned(),
+                message: "This addon will be uninstalled and its files permanently deleted. \
+                          You can install it again later."
+                    .to_owned(),
+                subject: row.name.to_string(),
+                ..PopupSpec::default()
+            }
+            .apply(&win);
         });
 
         info!("Addons bind() complete");
