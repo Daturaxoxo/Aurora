@@ -17,6 +17,7 @@ use shared::config::{self, key};
 use shared::utils::{get_cache_dir, get_mods_path, open_folder, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -24,6 +25,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
+use std::time::SystemTime;
 
 // prefixes & shit, done so we have an easy job later on when adding new game support (even tho we will probably have to change these to arrays later on...) -datura
 const GROUP_PREFIX: &str = "AU GRP - ";
@@ -645,9 +647,42 @@ fn rekey_mod_config(old: &str, new: &str) {
     }
 }
 
+thread_local! {
+    static ICON_CACHE: RefCell<HashMap<PathBuf, (Option<SystemTime>, slint::Image)>> =
+        RefCell::new(HashMap::new());
+}
+
+fn local_icon(path: &Path) -> Option<slint::Image> {
+    let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+
+    if let Some((stamp, image)) = ICON_CACHE.with(|c| c.borrow().get(path).cloned())
+        && stamp == modified
+    {
+        return Some(image);
+    }
+
+    let img = image::open(path).ok()?;
+    let img = if img.width() > 512 || img.height() > 512 {
+        img.thumbnail(512, 512)
+    } else {
+        img
+    };
+    let rgba = img.into_rgba8();
+    let (width, height) = rgba.dimensions();
+    let buffer =
+        slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, width, height);
+    let image = slint::Image::from_rgba8(buffer);
+
+    ICON_CACHE.with(|c| {
+        c.borrow_mut()
+            .insert(path.to_path_buf(), (modified, image.clone()));
+    });
+    Some(image)
+}
+
 fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
     if mod_.has_icon_png
-        && let Ok(image) = slint::Image::load_from_path(&mod_.path.join("icon.png"))
+        && let Some(image) = local_icon(&mod_.path.join("icon.png"))
     {
         return image;
     }

@@ -294,6 +294,9 @@ export component MainWindow inherits Window {
     callback gb-install(int);
     callback gb-open-page(int);
     callback gb-file-chosen(int);
+    callback gb-preview-closed();
+    callback gb-closed();
+    callback gb-visible-range(int /* first */, int /* last */);
 
     // Modules Page Properties
     in-out property <[ModItem]> modules-list: [];
@@ -1191,7 +1194,9 @@ export component MainWindow inherits Window {
             preview-name: root.gb-preview-name;
             preview-requested(id) => { root.gb-preview-requested(id); }
             preview-nav(i) => { root.gb-preview-nav(i); }
-            close => { root.show-gb-browser = false; }
+            preview-closed => { root.gb-preview-closed(); }
+            visible-range(f, l) => { root.gb-visible-range(f, l); }
+            close => { root.show-gb-browser = false; root.gb-closed(); }
             search-changed(text) => { root.gb-search-changed(text); }
             character-selected(i) => { root.gb-character-selected(i); }
             nsfw-toggled(v) => { root.gb-nsfw-toggled(v); }

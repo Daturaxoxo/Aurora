@@ -9,7 +9,6 @@ use std::rc::Rc;
 use anyhow::{Result, anyhow};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
@@ -23,9 +22,6 @@ const RESERVED_DEVICE_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
-
-static RUNTIME: Lazy<tokio::runtime::Runtime> =
-    Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
 
 static PENDING_DELETE: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
 static MODS_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
@@ -245,7 +241,7 @@ impl LuaScriptsHandler {
 
     /// UE4SS Install Main
     fn start_install(window: Weak<MainWindow>, bin_dir: PathBuf) {
-        RUNTIME.spawn(async move {
+        crate::classes::pages::gbbrowser::runtime().spawn(async move {
             let result = Self::download_and_extract(&bin_dir, &window).await;
 
             let window = window.clone();

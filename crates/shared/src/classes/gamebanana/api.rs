@@ -9,6 +9,7 @@ use futures::{StreamExt, stream};
 use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::*;
@@ -281,7 +282,10 @@ impl GameBananaApi {
             .map(|images| {
                 images
                     .iter()
-                    .map(|img| format!("{}/{}", img.base_url, img.file))
+                    .map(|img| {
+                        let filename = img.file_800.as_ref().unwrap_or(&img.file);
+                        format!("{}/{filename}", img.base_url)
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -305,16 +309,17 @@ impl GameBananaApi {
     async fn collect_mods(
         &self,
         records: Vec<ApiRecord>,
-        on_mod_ready: Option<&UnboundedSender<NteMod>>,
-    ) -> Vec<NteMod> {
+        on_mod_ready: Option<&UnboundedSender<Arc<NteMod>>>,
+    ) -> Vec<Arc<NteMod>> {
         let mut stream = stream::iter(records)
             .map(|record| Self::fetch_one(&self.client, record))
             .buffered(FETCH_CONCURRENCY);
 
         let mut mods = Vec::new();
         while let Some(m) = stream.next().await {
+            let m = Arc::new(m);
             if let Some(tx) = on_mod_ready {
-                let _ = tx.send(m.clone());
+                let _ = tx.send(Arc::clone(&m));
             }
             mods.push(m);
         }
@@ -346,13 +351,14 @@ impl GameBananaApi {
         &self,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
         if !force_refresh
             && let Some(cached) = self.cache.get_feed_cache(page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
@@ -372,7 +378,7 @@ impl GameBananaApi {
         let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
         if nte_mods.len() == expected {
-            self.cache.save_feed_cache(page, nte_mods.clone()).await;
+            self.cache.save_feed_cache(page, &nte_mods).await;
         }
 
         Ok(nte_mods)
@@ -383,17 +389,18 @@ impl GameBananaApi {
         query: &str,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
         if query.len() < 3 {
             return Ok(Vec::new());
         }
 
         if !force_refresh
             && let Some(cached) = self.cache.get_search_cache(query, page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
@@ -423,17 +430,16 @@ impl GameBananaApi {
         let mut nte_mods = Vec::new();
         while let Some(m) = stream.next().await {
             if let Some(m) = m {
+                let m = Arc::new(m);
                 if let Some(tx) = &on_mod_ready {
-                    let _ = tx.send(m.clone());
+                    let _ = tx.send(Arc::clone(&m));
                 }
                 nte_mods.push(m);
             }
         }
 
         if nte_mods.len() == expected {
-            self.cache
-                .save_search_cache(query, page, nte_mods.clone())
-                .await;
+            self.cache.save_search_cache(query, page, &nte_mods).await;
         }
 
         Ok(nte_mods)
@@ -444,13 +450,14 @@ impl GameBananaApi {
         category_id: u32,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
         if !force_refresh
             && let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
@@ -478,7 +485,7 @@ impl GameBananaApi {
 
         if nte_mods.len() == expected {
             self.cache
-                .save_category_cache(category_id, page, nte_mods.clone())
+                .save_category_cache(category_id, page, &nte_mods)
                 .await;
         }
 

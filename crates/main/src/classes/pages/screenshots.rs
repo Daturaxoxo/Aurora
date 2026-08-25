@@ -10,7 +10,7 @@ use shared::utils::open_folder;
 use slint::{Model, VecModel};
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -59,9 +59,44 @@ static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
 
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
+const THUMB_CACHE_MAX: usize = 200;
+
+#[derive(Default)]
+struct ThumbCache {
+    images: HashMap<PathBuf, slint::Image>,
+    order: VecDeque<PathBuf>,
+}
+
+impl ThumbCache {
+    fn get(&self, path: &Path) -> Option<&slint::Image> {
+        self.images.get(path)
+    }
+
+    fn contains_key(&self, path: &Path) -> bool {
+        self.images.contains_key(path)
+    }
+
+    fn retain(&mut self, listed: &HashSet<PathBuf>) {
+        self.images.retain(|p, _| listed.contains(p));
+        self.order.retain(|p| listed.contains(p));
+    }
+
+    fn insert(&mut self, path: PathBuf, image: slint::Image) {
+        if self.images.insert(path.clone(), image).is_none() {
+            self.order.push_back(path);
+        }
+
+        while self.order.len() > THUMB_CACHE_MAX {
+            let Some(evicted) = self.order.pop_front() else {
+                break;
+            };
+            self.images.remove(&evicted);
+        }
+    }
+}
+
 thread_local! {
-    static THUMB_CACHE: RefCell<HashMap<PathBuf, slint::Image>> =
-        RefCell::new(HashMap::new());
+    static THUMB_CACHE: RefCell<ThumbCache> = RefCell::new(ThumbCache::default());
 }
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 static COPY_GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -602,7 +637,7 @@ impl ScreenshotHandler {
 
                     THUMB_CACHE.with(|cache| {
                         let mut cache = cache.borrow_mut();
-                        cache.retain(|p, _| all_paths.contains(p));
+                        cache.retain(&all_paths);
 
                         let items: Vec<ScreenshotItem> = shots
                             .iter()

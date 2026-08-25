@@ -8,7 +8,6 @@ mod translations;
 
 use anyhow::{Result, anyhow};
 use log::*;
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use backend::classes::addons;
 use shared::config::{self, key};
@@ -138,7 +137,6 @@ fn main() -> Result<()> {
     let slint_window = window.window();
 
     window.set_ui_font_family("Segoe UI".into());
-    register_cjk_fallback();
     translations::apply_saved_language(&window);
 
     let monitor_size = match get_monitor_size() {
@@ -236,16 +234,12 @@ fn main() -> Result<()> {
         slint::CloseRequestResponse::HideWindow
     });
 
-    let s = System::new_with_specifics(
-        RefreshKind::nothing().with_cpu(
-            CpuRefreshKind::everything()
-                .without_cpu_usage()
-                .without_frequency(),
-        ),
-    );
-
     let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(s.cpus().iter().count() / 2)
+        .num_threads(
+            std::thread::available_parallelism()
+                .map_or(1, |n| n.get() / 2)
+                .max(1),
+        )
         .build_global();
 
     ToastHandler::setup(window.as_weak());
@@ -379,8 +373,14 @@ fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> 
     Ok(None)
 }
 
-fn register_cjk_fallback() {
+pub(crate) fn ensure_cjk_fallback() {
     use slint::fontique_010::fontique;
+
+    static REGISTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if REGISTERED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+
     let font_data = {
         #[cfg(target_os = "windows")]
         {

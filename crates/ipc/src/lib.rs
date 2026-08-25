@@ -120,7 +120,7 @@ pub fn install_root() -> PathBuf {
 
 pub fn instance_root() -> PathBuf {
     #[cfg(target_os = "linux")]
-    if appimage_path().is_some() {
+    if is_appimage() {
         return state_root();
     }
 
@@ -132,6 +132,11 @@ pub fn state_root() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("Aurora")
+}
+
+#[cfg(target_os = "linux")]
+pub fn is_appimage() -> bool {
+    appimage_path().is_some() || appimage_mount().is_some()
 }
 
 #[cfg(target_os = "linux")]

@@ -83,7 +83,7 @@ pub fn get_bin_path() -> Option<PathBuf> {
     }
     #[cfg(not(debug_assertions))]
     {
-        Some(ipc::install_root().join("Bin"))
+        Some(ipc::instance_root().join("Bin"))
     }
 }
 
