@@ -29,7 +29,7 @@ const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
 #[cfg(feature = "beta")]
 const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
 #[cfg(feature = "beta")]
-const CURRENT_BETA_PHASE: i32 = 5;
+const CURRENT_BETA_PHASE: i32 = 1;
 
 #[cfg(feature = "beta")]
 #[allow(dead_code)]
@@ -1155,8 +1155,8 @@ impl UpdateHandler {
 
     #[cfg(feature = "beta")]
     fn check_beta_phasing() -> Result<bool> {
-        let res: BetaPhaseResponse = fetch_json(BETA_PHASE_CHECK_URL)
-            .context("could not read the beta phasing endpoint")?;
+        let res: BetaPhaseResponse =
+            fetch_json(BETA_PHASE_CHECK_URL).context("could not read the beta phasing endpoint")?;
 
         Ok(res.active && res.phase == CURRENT_BETA_PHASE)
     }
