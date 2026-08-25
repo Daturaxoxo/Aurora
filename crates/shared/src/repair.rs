@@ -109,7 +109,7 @@ fn restore(entry: &FileEntry, dest: &Path) -> Result<()> {
 }
 
 pub fn restore_missing_files() -> RepairReport {
-    restore_missing_files_in(&ipc::install_root())
+    restore_missing_files_in(&ipc::instance_root())
 }
 
 pub fn restore_missing_files_in(root: &Path) -> RepairReport {
