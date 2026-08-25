@@ -1127,8 +1127,7 @@ impl UpdateHandler {
     #[cfg(not(debug_assertions))]
     #[cfg(windows)]
     fn update_available() -> Result<bool> {
-        let root =
-            ipc::install_root_result().context("could not determine the install directory")?;
+        let root = ipc::install_root();
         let manifest = Self::fetch_manifest()?;
         let local = match LocalManifest::load(&root) {
             Ok(Some(local)) => local,

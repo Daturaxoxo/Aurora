@@ -36,6 +36,10 @@ const ABOUT_LINKS: &[(&str, &str)] = &[
     ("github", "https://github.com/Daturaxoxo/Aurora"),
     ("docs", "https://docs.getaurora.moe"),
     (
+        "launch-arguments",
+        "https://docs.getaurora.moe/engine/launch-arguments",
+    ),
+    (
         "contributors",
         "https://github.com/Daturaxoxo/Aurora/graphs/contributors",
     ),
