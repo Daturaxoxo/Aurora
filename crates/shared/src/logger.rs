@@ -4,7 +4,7 @@ use std::{
     hint::cold_path,
     io::Write,
     path::Path,
-    sync::{mpsc::SyncSender, Mutex},
+    sync::{Mutex, mpsc::SyncSender},
 };
 
 use env_filter::{Builder, Filter};
@@ -12,7 +12,7 @@ use env_filter::{Builder, Filter};
 use log::*;
 use termcolor::{Buffer, BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
-use crate::telemetry::{spawn_error_worker, ErrorEvent};
+use crate::telemetry::{ErrorEvent, spawn_error_worker};
 
 const FILTER_ENV: &str = "AURORA_LOG";
 
@@ -296,15 +296,14 @@ impl Log for Logger {
             }
         }
 
-        if level == Level::Error && !crate::telemetry::is_reporting_thread() {
-            if let Some(tx) = &self.error_tx {
+        if level == Level::Error && !crate::telemetry::is_reporting_thread()
+            && let Some(tx) = &self.error_tx {
                 let _ = tx.try_send(ErrorEvent {
                     timestamp,
                     module: module.to_string(),
                     message: record.args().to_string(),
                 });
             }
-        }
     }
 
     fn flush(&self) {}

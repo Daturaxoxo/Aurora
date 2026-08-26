@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
+
 use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 use shared::utils::read_dir_recursive;

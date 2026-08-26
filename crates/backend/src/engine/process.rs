@@ -5,12 +5,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-use super::locks;
 use super::AuroraEngine;
+use super::locks;
 
 /// How long to wait for a process to actually disappear after asking it to die.
 const KILL_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
@@ -47,7 +47,7 @@ fn matches_process(process: &Process, target_lower: &str) -> bool {
 
 #[cfg(target_os = "windows")]
 mod win {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_PARAMETER};
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, GetLastError};
     use windows_sys::Win32::Globalization::{GetOEMCP, MultiByteToWideChar};
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,

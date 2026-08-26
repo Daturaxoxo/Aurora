@@ -1,0 +1,4638 @@
+{
+    "-nofpslimit": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "t.MaxFPS",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "bSmoothFrameRate",
+                "value": "False",
+                "default": ""
+            }
+        ]
+    },
+    "-maxfps": {
+        "fallback": 0,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "t.MaxFPS",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-nothrottle": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "Slate.bAllowThrottling",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-lowlatency": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.OneFrameThreadLag",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-motionblur": {
+        "fallback": 4,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.DefaultFeature.MotionBlur",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.MotionBlurQuality",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-motionbluramount": {
+        "fallback": 0.5,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.MotionBlur.Amount",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-nomotionblur": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.DefaultFeature.MotionBlur",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MotionBlurQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MotionBlur.Amount",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-nofilmgrain": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.FilmGrain",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Tonemapper.GrainQuantization",
+                "value": 1,
+                "default": ""
+            }
+        ]
+    },
+    "-noca": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.SceneColorFringeQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.SceneColorFringe.Max",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.NT.Lens.ChromaticAberration.Intensity",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-sharpen": {
+        "fallback": 1.5,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.Tonemapper.Sharpen",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-taasharpness": {
+        "fallback": 0,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.TemporalAASharpness",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-noflicker": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.TSR.ShadingRejection.Flickering",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.TSR.ShadingRejection.Flickering.Period",
+                "value": 3,
+                "default": ""
+            }
+        ]
+    },
+    "-maxaniso": {
+        "fallback": 16,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.MaxAnisotropy",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-nanitedetail": {
+        "fallback": 1.5,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.Nanite.MaxPixelsPerEdge",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-shadowpages": {
+        "fallback": 2048,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.Shadow.Virtual.MaxPhysicalPages",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-shadowbias": {
+        "fallback": -0.5,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectional",
+                "value": "{}",
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-texturepool": {
+        "fallback": 60,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[TextureStreaming]",
+                "key": "PoolSizeVRAMPercentage",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-rawmouse": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.InputSettings]",
+                "key": "bRawMouseInput",
+                "value": "True",
+                "default": ""
+            },
+            {
+                "key": "bDisableMouseAcceleration",
+                "value": "True",
+                "default": ""
+            },
+            {
+                "key": "bEnableMouseSmoothing",
+                "value": "False",
+                "default": ""
+            },
+            {
+                "key": "bViewAccelerationEnabled",
+                "value": "False",
+                "default": ""
+            }
+        ]
+    },
+    "-nocrashupload": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[CrashReportClient]",
+                "key": "bAgreeToCrashUpload",
+                "value": "False",
+                "default": ""
+            },
+            {
+                "key": "bImplicitSend",
+                "value": "False",
+                "default": ""
+            }
+        ]
+    },
+    "-notelemetry": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/WInstrumentedProfilersSettings.WTelemetrySettings]",
+                "key": "bEnableTelemetry",
+                "value": "False",
+                "default": ""
+            }
+        ]
+    },
+    "-fastload": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.ShaderPipelineCache.Enabled",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.ShaderPipelineCache.LazyLoadShadersWhenPSOCacheIsPresent",
+                "value": 1,
+                "default": ""
+            }
+        ]
+    },
+    "-cacheshadows": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.Shadow.CacheWholeSceneShadows",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.CacheNonWholeSceneShadows",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-nodof": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.DefaultFeature.DOF",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField.MaxSize",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField.FarBlur",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Recombine.Quality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Gather.RingCount",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-nobloom": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.BloomQuality",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-novignette": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.Vignette",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-nolensflare": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.DefaultFeature.LensFlare",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-nossr": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.SSR.Quality",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-noao": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.MaxAOQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.AmbientOcclusionLevels",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-lowwater": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.Water.SingleLayer.DistanceFieldShadow",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.EnableShallowWaterSimulation",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.EnableUnderWaterPostprocess",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.Reflections.MaxRoughness",
+                "value": 0.0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.SingleLayer.DampenSkylight",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.SingleLayer.SSR",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-lowfog": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.VolumetricFog.GlobalDensity",
+                "value": 0.001,
+                "default": ""
+            },
+            {
+                "key": "r.VolumetricFog.ScatteringDistribution",
+                "value": 0.001,
+                "default": ""
+            }
+        ]
+    },
+    "-shadowquality": {
+        "fallback": 0,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.ShadowQuality",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-shadowres": {
+        "fallback": 164,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.ShadowMaxResolution",
+                "value": "{}",
+                "default": ""
+            },
+            {
+                "key": "r.ShadowMaxCSMResolution",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-aaquality": {
+        "fallback": 2,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.PostProcessAAQuality",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-detailmode": {
+        "fallback": 0,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.DetailMode",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-maxparticles": {
+        "fallback": 1000,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "FX.MaxCPUParticlesPerEmitter",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-lowspec": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.NT.Lens.ChromaticAberration.Intensity",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Tonemapper.GrainQuantization",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DefaultFeature.LensFlare",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DefaultFeature.MotionBlur",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DefaultFeature.DOF",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MotionBlurQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField.MaxSize",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DepthOfField.FarBlur",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Kernel.MaxBackgroundRadius",
+                "value": 0.0001,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Kernel.MaxForegroundRadius",
+                "value": 0.0001,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Recombine.EnableBokehSettings",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Recombine.Quality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DOF.Gather.RingCount",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.SceneColorFringeQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.SceneColorFringe.Max",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MeshParticle.MinDetailModeForMotionBlur",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MotionBlurScatter",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.BlurGBuffer",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.FilmGrain",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Vignette",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Tonemapper.Sharpen",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MaxAnisotropy",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.PostProcessAAQuality",
+                "value": 2,
+                "default": ""
+            },
+            {
+                "key": "r.BloomQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.EffectsQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.RefractionQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.ReflectionQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.SSR.Quality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.MaxAOQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.AmbientOcclusionLevels",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.DetailMode",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.SingleLayer.DistanceFieldShadow",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.EnableShallowWaterSimulation",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.EnableUnderWaterPostprocess",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.Reflections.MaxRoughness",
+                "value": 0.0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.SingleLayer.DampenSkylight",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Water.SingleLayer.SSR",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Nanite.ShadowMode",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.ShadowQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.ShadowMaxResolution",
+                "value": 164,
+                "default": ""
+            },
+            {
+                "key": "r.ShadowMaxCSMResolution",
+                "value": 164,
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.PerObject",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.ContactShadow",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.LPV.RSMResolution",
+                "value": 164,
+                "default": ""
+            },
+            {
+                "key": "r.SSR.MaxRoughness",
+                "value": 0.2,
+                "default": ""
+            },
+            {
+                "key": "r.AsyncCompute",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "FX.MaxCPUParticlesPerEmitter",
+                "value": 1000,
+                "default": ""
+            },
+            {
+                "key": "r.ShaderPipelineCache.Enabled",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.ShaderPipelineCache.LazyLoadShadersWhenPSOCacheIsPresent",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "fx.EnableNiagaraSpriteRendering",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.CacheWholeSceneShadows",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.Shadow.CacheNonWholeSceneShadows",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "r.VolumetricFog.GlobalDensity",
+                "value": 0.001,
+                "default": ""
+            },
+            {
+                "key": "r.VolumetricFog.ScatteringDistribution",
+                "value": 0.001,
+                "default": ""
+            },
+            {
+                "section": "[ScalabilityGroups]",
+                "key": "sg.CharacterTextureDetailQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.ClothQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.ScreenSpaceShadowQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.TiledResourcesQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.TranslucencyQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.LandscapeQuality",
+                "value": 0,
+                "default": ""
+            },
+            {
+                "key": "sg.CapsuleShadowQuality",
+                "value": 0,
+                "default": ""
+            }
+        ]
+    },
+    "-highspec": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/Engine.Engine]",
+                "key": "bAllowMultiThreadedShaderCompile",
+                "value": 1
+            },
+            {
+                "key": "vm.FreeUnoptimizedByteCode",
+                "value": 1
+            },
+            {
+                "key": "vm.OptimizeVMByteCode",
+                "value": 1
+            },
+            {
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.FilmGrain",
+                "value": 0
+            },
+            {
+                "key": "r.Tonemapper.GrainQuantization",
+                "value": 1
+            },
+            {
+                "key": "r.MotionBlur.Amount",
+                "value": "0.25"
+            },
+            {
+                "key": "r.MotionBlur.Max",
+                "value": "0.40"
+            },
+            {
+                "key": "r.MotionBlurPause",
+                "value": 1
+            },
+            {
+                "key": "r.MotionBlurPerObjectSize",
+                "value": "0.6"
+            },
+            {
+                "key": "r.MotionBlurQuality",
+                "value": 4
+            },
+            {
+                "key": "r.MotionBlur.Scale",
+                "value": "1.0"
+            },
+            {
+                "key": "r.MotionBlur.Separate",
+                "value": 1
+            },
+            {
+                "key": "r.NT.Lens.ChromaticAberration.Intensity",
+                "value": 0
+            },
+            {
+                "key": "r.SceneColorFringe.Max",
+                "value": 0
+            },
+            {
+                "key": "r.SceneColorFringeQuality",
+                "value": 0
+            },
+            {
+                "key": "r.MaxAnisotropy",
+                "value": 16
+            },
+            {
+                "key": "r.Tonemapper.Sharpen",
+                "value": "1.5"
+            },
+            {
+                "key": "r.AntiAliasingMethod",
+                "value": 2
+            },
+            {
+                "key": "r.DefaultFeature.AntiAliasing",
+                "value": 2
+            },
+            {
+                "key": "r.PostProcessAAQuality",
+                "value": 4
+            },
+            {
+                "key": "r.TemporalAA.Algorithm",
+                "value": 1
+            },
+            {
+                "key": "r.TemporalAACatmullRom",
+                "value": 0
+            },
+            {
+                "key": "r.TemporalAACurrentFrameWeight",
+                "value": "0.2"
+            },
+            {
+                "key": "r.TemporalAAFilterSize",
+                "value": "0.7"
+            },
+            {
+                "key": "r.TemporalAASamples",
+                "value": 8
+            },
+            {
+                "key": "r.TemporalAASharpness",
+                "value": 0
+            },
+            {
+                "key": "r.TemporalAA.Upsampling",
+                "value": 1
+            },
+            {
+                "key": "r.FidelityFX.FSR.RCAS",
+                "value": 0
+            },
+            {
+                "key": "r.FidelityFX.FSR2.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.FSR3.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.FSR4.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.RCAS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.FidelityFX.RCAS",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.DLSS.DilateMotionVectors",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.DLSS.PreferNISSharpen",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.DLSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.NIS.Enable",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.DilateMotionVectors",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.NIS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.DLSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.XeSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.TSR.ShadingRejection.Flickering.Period",
+                "value": 3
+            },
+            {
+                "key": "r.TSR.ShadingRejection.Flickering",
+                "value": 1
+            },
+            {
+                "key": "r.TSR.Velocity.Extrapolation",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.Enable",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.OutputTranslucentClippedDepth.Supported",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.TemporalResponsiveness.Supported",
+                "value": 1
+            },
+            {
+                "key": "r.AOAsyncBuildQueue",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute.AdaptiveBuffer",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute.ParallelDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCreateLightPrimitiveInteractions",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncPipelineCompile",
+                "value": 1
+            },
+            {
+                "key": "r.Bloom.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.CompileShadersForDevelopment",
+                "value": 0
+            },
+            {
+                "key": "r.CookOutUnusedDetailModeComponents",
+                "value": 1
+            },
+            {
+                "key": "r.D3D.RemoveUnusedInterpolators",
+                "value": 1
+            },
+            {
+                "key": "r.EnableAsyncComputeVolumetricFog",
+                "value": 1
+            },
+            {
+                "key": "r.StochasticLighting.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.UseAsyncShaderPrecompilation",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.GPUCrashDebuggingMode",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.GPUTimeout",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrash.Collectionenable",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrash.DataDepth",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging.Aftermath.Callstack",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging.Aftermath.Markers",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDump",
+                "value": 0
+            },
+            {
+                "key": "r.GPUDefrag.MaxRelocations",
+                "value": 10
+            },
+            {
+                "key": "r.GraphicsThread.EnableBackgroundThreads",
+                "value": 1
+            },
+            {
+                "key": "r.GraphicsThread.UseThreadedDestruction",
+                "value": 1
+            },
+            {
+                "key": "r.GTSyncType",
+                "value": 2
+            },
+            {
+                "key": "r.RHICmdUseParallelAlgorithms",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdUseThread",
+                "value": 1
+            },
+            {
+                "key": "r.RHIThread.Priority",
+                "value": 2
+            },
+            {
+                "key": "r.RHIThread",
+                "value": 1
+            },
+            {
+                "key": "RHI.ResourceTableCaching",
+                "value": 1
+            },
+            {
+                "key": "RHI.SyncAllowEarlyKick",
+                "value": 1
+            },
+            {
+                "key": "RHI.SyncThreshold",
+                "value": 512
+            },
+            {
+                "key": "r.RHI.UseParallelDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdBuffer.EnableThreadedCompletion",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdBypass",
+                "value": 0
+            },
+            {
+                "key": "r.RDG.AsyncClothTick",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.AsyncPipelineCompile",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.ParallelExecute",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.ParallelUpdateRenderGraph",
+                "value": 1
+            },
+            {
+                "key": "r.IO.DirectStorage.BatchingGranularity",
+                "value": 64
+            },
+            {
+                "key": "r.IO.DirectStorage.MinSizeKB",
+                "value": 1024
+            },
+            {
+                "key": "r.IO.UseDirectStorage",
+                "value": 1
+            },
+            {
+                "key": "r.IO.VirtualTextures",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ASVGF.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.DiffuseIndirect.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.HardwareRayTracing.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.HardwareRayTracing.ShaderExecutionReordering",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.Reflections.RadianceCache",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.StochasticInterpolation",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.TemporalFilterProbes",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.DirectLighting.OffscreenShadowing.TraceMeshSDFs",
+                "value": 0
+            },
+            {
+                "key": "r.LumenScene.FarField.OcclusionOnly",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.Lighting.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.MeshCardsPerTask",
+                "value": 384
+            },
+            {
+                "key": "r.LumenScene.ParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.PrimitivesPerTask",
+                "value": 384
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.Feedback.MinPageHits",
+                "value": "32.0"
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.MaxFramesPerUpdate",
+                "value": 4
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.RemovesPerFrame",
+                "value": 128
+            },
+            {
+                "key": "r.Nanite.Builder.AsyncHelpers",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.CompressedStreamingPages",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Culling.MinLOD",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.LargePageRectThreshold",
+                "value": 512
+            },
+            {
+                "key": "r.Nanite.MaterialVisibility.Async",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.MaxPixelsPerEdge",
+                "value": "1.5"
+            },
+            {
+                "key": "r.Nanite.PrimeHZB",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.Async",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.MaxPageInstallsPerFrame",
+                "value": 32
+            },
+            {
+                "key": "r.Nanite.Streaming.MaxPendingPages",
+                "value": 32
+            },
+            {
+                "key": "r.Nanite.VSMMeshShaderRasterization",
+                "value": 1
+            },
+            {
+                "key": "r.FogDensityVolumes.Parallel",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheConversion",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheConversionAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCompression",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCompressionAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationEvaluation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationRetargeting",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationRetargetingAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationStreamingAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAsyncComputeSkinCache",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAsyncComputeTranslucency",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelBasePass",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelBatchDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelCulling",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDestruction",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDistanceField",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDistributedScene",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelGraphics",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelInitViews",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeLayerUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplatAtlas",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplineSegmentCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplineUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingBuild",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingComposition",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingInject",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingPropagation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingSetup",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshBuildUseJobCulling",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshBuildUseJobMerging",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshDrawCommands",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshMerge",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshProcessing",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsInit",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavOctreeUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelParticleUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPhysicsScene",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPhysicsStepAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPostProcessing",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPrePass",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelReflectionCaptures",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelReflectionEnvironment",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelRendering",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelRenderUploads",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSceneCapture",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSceneColorGather",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelShaderCompile",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothBoundsCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothGather",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothPrepareSim",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothSimulate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothSkinning",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdateBounds",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdateVerts",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTaskShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTonemapping",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTranslucency",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelVelocity",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelZPrepass",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimEvaluation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimInterpolation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimUpdate",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelBlendSpaceEvaluation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelTransitionEvaluation",
+                "value": 1
+            },
+            {
+                "key": "ai.AllowParallelQueries",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelAtlasUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelBuild",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelCulling",
+                "value": 1
+            },
+            {
+                "key": "r.Grass.ParallelCull",
+                "value": 1
+            },
+            {
+                "key": "r.HZBOcclusion.Parallel",
+                "value": 1
+            },
+            {
+                "key": "r.Landscape.ParallelSectionUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.Materials.ParallelCaching",
+                "value": 1
+            },
+            {
+                "key": "r.Materials.ParallelCompile",
+                "value": 1
+            },
+            {
+                "key": "r.Materials.ParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.MeshDrawCommands.ParallelPassSetup",
+                "value": 1
+            },
+            {
+                "key": "r.MeshDrawCommands.UseParallelPassSetup",
+                "value": 1
+            },
+            {
+                "key": "r.Occlusion.ParallelPrimFetch",
+                "value": 1
+            },
+            {
+                "key": "r.PipelineStateCache.AsyncCompileAfterTypes",
+                "value": 1
+            },
+            {
+                "key": "r.PreTileTextures",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Renderer.UseGPUInstancing",
+                "value": 1
+            },
+            {
+                "key": "r.RenderThread.EnableTaskGraphThread",
+                "value": 1
+            },
+            {
+                "key": "r.RenderThread.Priority",
+                "value": 2
+            },
+            {
+                "key": "r.ShaderLibrary.PrintExtendedStats",
+                "value": 0
+            },
+            {
+                "key": "r.RayTracing.Shadows.EnableTwoSidedGeometry",
+                "value": 0
+            },
+            {
+                "key": "r.Shadow.CacheWPOPrimitives",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.CSMCaching",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.AllocateViaLRU",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.MaxLightAgeSinceLastRequest",
+                "value": 8
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.StaticSeparate",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.MaxPhysicalPages",
+                "value": 2048
+            },
+            {
+                "key": "r.Shadow.Virtual.NonNanite.IncludeInCoarsePages",
+                "value": 0
+            },
+            {
+                "key": "r.Shadow.Virtual.ParallelBuild",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.ParallelProjection",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectional",
+                "value": "-0.50"
+            },
+            {
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving",
+                "value": "-0.50"
+            },
+            {
+                "key": "r.Shadow.Virtual.SMRT.SamplesPerRayDirectional",
+                "value": 4
+            },
+            {
+                "key": "r.Shadow.Virtual.SMRT.SamplesPerRayLocal",
+                "value": 4
+            },
+            {
+                "key": "r.SkyAtmosphere.AerialPerspectiveLUT.FastApplyOnOpaque",
+                "value": 1
+            },
+            {
+                "key": "r.SSS.Burley.EnableProfileIdCache",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.SoftwareVRS",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.BasePass",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.ContrastAdaptiveShading",
+                "value": 0
+            },
+            {
+                "key": "r.VRS.Enable",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.EnableImage",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.EnableSoftware",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.LightFunctions",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.MaterialAdaptiveShading",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.Method",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.MotionAdaptiveShading",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.NaniteEmitGBuffer",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.ReflectionEnvironmentSky",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.SSAO",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.SSR",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.Tier",
+                "value": 2
+            },
+            {
+                "key": "r.VRS.Translucency",
+                "value": 1
+            },
+            {
+                "key": "r.VT.ParallelFeedbackTasks",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming.DiscardUnusedMips",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming.UseBackgroundThreadPool",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming.UseDeferredLock",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ThreadPool.BackgroundThreadPriority",
+                "value": 0
+            },
+            {
+                "key": "r.ThreadPool.EnableBackgroundThreads",
+                "value": 1
+            },
+            {
+                "key": "r.ThreadPool.EnableHighPriorityThreads",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.AmortizeCPUToGPUCopy",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.BuildTextureStreamingDataOnLoad",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.DefragDynamicBounds",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.EnableAssetUpdateAbandons",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.FramesForFullUpdate",
+                "value": 2
+            },
+            {
+                "key": "r.Streaming.LimitPoolSizeToVRAM",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.MinMipForSplitRequest",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.ParallelRenderAssetsNumWorkgroups",
+                "value": 4
+            },
+            {
+                "key": "r.Streaming.StressTest.ExtraAsyncLatency",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.UseAsyncRequestsForDDC",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UseBackgroundThreadPool",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UseFixedPoolSize",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.UseNewMetrics",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UsePerTextureBias",
+                "value": 1
+            },
+            {
+                "key": "r.AllowMultiThreadedShaderCreation",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.DRED",
+                "value": 0
+            },
+            {
+                "key": "r.D3D.ForceDXC",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.ExecuteContextInParallel",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.LightweightDRED",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.RayTracing.AllowSpecializedStateObjects",
+                "value": 0
+            },
+            {
+                "key": "r.DFShadowAsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.DontLimitOnBattery",
+                "value": 1
+            },
+            {
+                "key": "r.DumpGPU",
+                "value": 0
+            },
+            {
+                "key": "r.Emitter.FastPoolEnable",
+                "value": 1
+            },
+            {
+                "key": "r.EnableDebugSpam_GetObjectPositionAndScale",
+                "value": 0
+            },
+            {
+                "key": "r.EnableMultiThreadedRendering",
+                "value": 1
+            },
+            {
+                "key": "r.FinishCurrentFrame",
+                "value": 0
+            },
+            {
+                "key": "r.Foliage.UsePrecomputedLODScreenSize",
+                "value": 1
+            },
+            {
+                "key": "r.ForceAllCoresForShaderCompiling",
+                "value": 1
+            },
+            {
+                "key": "r.ForceDebugViewModes",
+                "value": 0
+            },
+            {
+                "key": "r.ForceOcclusionQueryBatching",
+                "value": 1
+            },
+            {
+                "key": "r.GeometryCollection.Nanite.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.GeometryCollection.Nanite",
+                "value": 1
+            },
+            {
+                "key": "r.GPUDefrag.MaxRelocationsPerFrame",
+                "value": 5
+            },
+            {
+                "key": "r.InstanceCulling.OcclusionCull",
+                "value": 1
+            },
+            {
+                "key": "r.MeshDrawCommands.DynamicInstancing",
+                "value": 1
+            },
+            {
+                "key": "r.NGX.LogLevel",
+                "value": 0
+            },
+            {
+                "key": "r.NumBufferedOcclusionQueries",
+                "value": 2
+            },
+            {
+                "key": "r.Occlusion.SingleRHIThreadStall",
+                "value": 1
+            },
+            {
+                "key": "r.OneFrameThreadLag",
+                "value": 1
+            },
+            {
+                "key": "r.pso.EnableAsyncCacheConsolidation",
+                "value": 1
+            },
+            {
+                "key": "r.pso.evictiontime",
+                "value": 30
+            },
+            {
+                "key": "r.pso.precachecompilationcost",
+                "value": 150
+            },
+            {
+                "key": "r.pso.precaching",
+                "value": 1
+            },
+            {
+                "key": "r.RayTracing.Culling",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderDrawDebug",
+                "value": 0
+            },
+            {
+                "key": "r.Shaders.Optimize",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.RemoveDeadCode",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.RemoveUnusedInterpolators",
+                "value": 1
+            },
+            {
+                "key": "r.SupportAllShaderPermutations",
+                "value": 0
+            },
+            {
+                "key": "r.ThreadedShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "r.Translucency.AutoBeforeDOF",
+                "value": 1
+            },
+            {
+                "key": "r.UniformBufferPooling",
+                "value": 1
+            },
+            {
+                "key": "r.Visibility.FrustumCull.UseSphereTestFirst",
+                "value": 1
+            },
+            {
+                "key": "r.Visibility.TaskSchedule",
+                "value": 0
+            },
+            {
+                "key": "r.VolumetricFog.GridPixelSize",
+                "value": 16
+            },
+            {
+                "key": "r.VolumetricFog.InjectShadowedLightsSeparately",
+                "value": 1
+            },
+            {
+                "key": "r.VolumetricFog.Jitter",
+                "value": 1
+            },
+            {
+                "key": "r.VT.CsvStats",
+                "value": 0
+            },
+            {
+                "section": "[/Script/D3D12RHI.D3D12Options]",
+                "key": "D3D12.AFRUseFramePacing",
+                "value": 1
+            },
+            {
+                "key": "D3D12.Aftermath",
+                "value": 0
+            },
+            {
+                "key": "D3D12.AllowPoolAllocateIndirectArgBuffers",
+                "value": 1
+            },
+            {
+                "key": "D3D12.AsyncDeferredDeletion",
+                "value": 1
+            },
+            {
+                "key": "D3D12.ExecuteContextInParallel",
+                "value": 1
+            },
+            {
+                "key": "D3D12.ForceThirtyHz",
+                "value": 0
+            },
+            {
+                "key": "D3D12.InsertOuterOcclusionQuery",
+                "value": 1
+            },
+            {
+                "key": "D3D12.MaxCommandsPerCommandList",
+                "value": 20000
+            },
+            {
+                "key": "D3D12.MaximumFrameLatency",
+                "value": 1
+            },
+            {
+                "key": "D3D12.MultithreadedCommandListBuilding",
+                "value": 1
+            },
+            {
+                "key": "D3D12.PSO.DiskCache",
+                "value": 1
+            },
+            {
+                "key": "D3D12.PSO.DriverOptimizedDiskCache",
+                "value": 1
+            },
+            {
+                "key": "D3D12.RayTracing.AllowSpecializedStateObjects",
+                "value": 0
+            },
+            {
+                "key": "D3D12.ResidencyManagement",
+                "value": 1
+            },
+            {
+                "key": "D3D12.VRAMBufferPoolDefrag",
+                "value": 1
+            },
+            {
+                "key": "D3D12.VRAMBufferPoolDefrag.MaxCopySizePerFrame",
+                "value": 16777216
+            },
+            {
+                "key": "D3D12.VRAMTexturePoolDefrag",
+                "value": 1
+            },
+            {
+                "key": "D3D12.VRAMTexturePoolDefrag.MaxCopySizePerFrame",
+                "value": 16777216
+            },
+            {
+                "key": "D3D12.ZeroBufferSizeInMB",
+                "value": 32
+            },
+            {
+                "section": "[TextureStreaming]",
+                "key": "PoolSizeVRAMPercentage",
+                "value": 60
+            },
+            {
+                "section": "[/Script/Engine.StreamingSettings]",
+                "key": "r.Streaming.Boost",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.FullyLoadUsedTextures",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.MinFudgeFactor",
+                "value": "0.5"
+            },
+            {
+                "key": "r.Streaming.PredictiveBoost",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.PredictiveBoostHintSize",
+                "value": 512
+            },
+            {
+                "key": "r.Streaming.UseMaterialDataStreaming",
+                "value": 1
+            },
+            {
+                "key": "s.AdaptiveAddToWorld.Enabled",
+                "value": 1
+            },
+            {
+                "key": "s.AllowParallelUObjectCreationFromRequests",
+                "value": 1
+            },
+            {
+                "key": "s.AsyncLoadingThreadEnabled",
+                "value": 1
+            },
+            {
+                "key": "s.AsyncLoadingThreadPriority",
+                "value": 2
+            },
+            {
+                "key": "s.AsyncLoadingTimeLimit",
+                "value": "3.0"
+            },
+            {
+                "key": "s.GroupedComponentMovement.Enable",
+                "value": 1
+            },
+            {
+                "key": "s.IoDispatcherBufferMemoryMB",
+                "value": 64
+            },
+            {
+                "key": "s.IoDispatcherCacheSizeMB",
+                "value": 2048
+            },
+            {
+                "key": "s.IoDispatcherDecompressionWorkerCount",
+                "value": 4
+            },
+            {
+                "key": "s.IoDispatcherUseAsyncPriority",
+                "value": 1
+            },
+            {
+                "key": "s.MaxIncomingRequestsToStall",
+                "value": 1
+            },
+            {
+                "key": "s.MaxLevelRequestsAtOnceWhileInMatch",
+                "value": 4
+            },
+            {
+                "key": "s.MaxReadyRequestsToStallMB",
+                "value": 0
+            },
+            {
+                "key": "s.MinBulkDataSizeForAsyncLoading",
+                "value": 0
+            },
+            {
+                "key": "s.PriorityAsyncLoadingExtraTime",
+                "value": "0.0"
+            },
+            {
+                "key": "s.PriorityLevelStreamingActorsUpdateExtraTime",
+                "value": "0.0"
+            },
+            {
+                "key": "s.ProcessPrestreamingRequests",
+                "value": 1
+            },
+            {
+                "key": "s.Zen.AllowAsyncIO",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupEnabled",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupNanite",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupVT",
+                "value": 0
+            },
+            {
+                "key": "wp.Runtime.HLODStreaming.Async",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLODStreaming",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeForWP",
+                "value": 128
+            },
+            {
+                "key": "wp.Runtime.MaxLoadingStreamingCells",
+                "value": 12
+            },
+            {
+                "key": "wp.Runtime.PartitionStreaming.Async",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.PartitionStreaming.NumThreads",
+                "value": 4
+            },
+            {
+                "key": "wp.runtime.UpdateStreaming.EnableAsyncUpdate",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.UpdateStreaming.UseAsyncWorkloadProfile",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.UpdateStreamingStateTimeLimit",
+                "value": "0.25"
+            },
+            {
+                "section": "[/Script/Niagara.NiagaraSettings]",
+                "key": "fx.Niagara.GpuComputeDebug.DrawDebugEnabled",
+                "value": 0
+            },
+            {
+                "key": "fx.Niagara.WarnComponentRenderCount",
+                "value": 999999
+            },
+            {
+                "key": "fx.NiagaraAllowRuntimeScalabilityChanges",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraBatcher.FreeBufferEarly",
+                "value": 0
+            },
+            {
+                "key": "fx.NiagaraDataBufferMinSize",
+                "value": 2048
+            },
+            {
+                "key": "fx.NiagaraParallelSpawn",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraRuntimeCycleHistorySize",
+                "value": 30
+            },
+            {
+                "section": "[/Script/Engine.GarbageCollectionSettings]",
+                "key": "gc.AllowParallelDestruction",
+                "value": 1
+            },
+            {
+                "key": "gc.AllowParallelGC",
+                "value": 1
+            },
+            {
+                "key": "gc.CreateGCClusters",
+                "value": 1
+            },
+            {
+                "key": "gc.MultithreadedDestructionEnabled",
+                "value": 1
+            },
+            {
+                "key": "r.bForceGCAfterLevelStreamedOut",
+                "value": 0
+            },
+            {
+                "section": "[ShaderCompiler]",
+                "key": "bAllowAsynchronousShaderCompiling",
+                "value": 1
+            },
+            {
+                "key": "bAllowCompilingThroughWorkerThreads",
+                "value": 1
+            },
+            {
+                "key": "bAsyncShaderCompileWorkerThreads",
+                "value": 1
+            },
+            {
+                "key": "bEnableOptimizedShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "MaxShaderJobBatchSize",
+                "value": 150
+            },
+            {
+                "key": "MaxShaderJobs",
+                "value": 1000
+            },
+            {
+                "key": "NumUnusedShaderCompilingThreads",
+                "value": 2
+            },
+            {
+                "key": "r.GPUDefrag.AllowOverlappedMoves",
+                "value": 1
+            },
+            {
+                "key": "r.GPUDefrag.EnableTimeLimits",
+                "value": 1
+            },
+            {
+                "section": "[ShaderPipelineCache]",
+                "key": "r.ShaderPipelineCache.AsyncCompileRate",
+                "value": 32
+            },
+            {
+                "key": "r.ShaderPipelineCache.BackgroundBatchSize",
+                "value": 4
+            },
+            {
+                "key": "r.ShaderPipelineCache.BatchSize",
+                "value": 30
+            },
+            {
+                "key": "r.ShaderPipelineCache.BatchTime",
+                "value": 16
+            },
+            {
+                "key": "r.ShaderPipelineCache.Enabled",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderPipelineCache.GameFileMaskEnabled",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileBatchSize",
+                "value": 30
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileBatchTime",
+                "value": 16
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileFrameTime",
+                "value": 50
+            },
+            {
+                "key": "r.ShaderPipelineCache.StartupCache",
+                "value": 1
+            },
+            {
+                "section": "[DevOptions.Shaders]",
+                "key": "bAllowShaderCompilingWorker",
+                "value": 1
+            },
+            {
+                "key": "bOptimizeForLocalShaderBuilds",
+                "value": 1
+            },
+            {
+                "key": "bUseBackgroundCompiling",
+                "value": 1
+            },
+            {
+                "key": "WorkerThreadPriority",
+                "value": 0
+            },
+            {
+                "section": "[Engine.InputSettings]",
+                "key": "bDisableMouseAcceleration",
+                "value": 1
+            },
+            {
+                "key": "bEnableMouseSmoothing",
+                "value": 0
+            },
+            {
+                "key": "bRawMouseInput",
+                "value": 1
+            },
+            {
+                "key": "bViewAccelerationEnabled",
+                "value": 0
+            },
+            {
+                "key": "RawMouseInputEnabled",
+                "value": 1
+            },
+            {
+                "section": "[RenderingThread]",
+                "key": "bAllowAsyncRenderThreadUpdates",
+                "value": 1
+            },
+            {
+                "key": "bAllowThreadedRendering",
+                "value": 1
+            },
+            {
+                "section": "[Physics]",
+                "key": "p.AsyncSceneEnabled",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.PerParticleCollision.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Solver.Joint.UseSimd",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Spherical.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Spring.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.TriangleMesh.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.VelocityField.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.VisualDebuggerEnable",
+                "value": 0
+            },
+            {
+                "section": "[/Script/Engine.AudioSettings]",
+                "key": "au.streamcache.StreamCacheSize",
+                "value": 131072
+            },
+            {
+                "key": "PlatformFormat",
+                "value": "OGG"
+            },
+            {
+                "key": "PlatformStreamingFormat",
+                "value": "OGG"
+            },
+            {
+                "section": "[/Script/AKAudio.AkSettings]",
+                "key": "bEnableMultiCoreRendering",
+                "value": 1
+            },
+            {
+                "section": "[Engine.ErrorHandling]",
+                "key": "bPromptForRemoteDebugging",
+                "value": 0
+            },
+            {
+                "key": "bPromptForRemoteDebugOnEnsure",
+                "value": 0
+            },
+            {
+                "section": "[ConsoleVariables]",
+                "key": "r.FilmGrain",
+                "value": 0
+            },
+            {
+                "key": "r.Tonemapper.GrainQuantization",
+                "value": 1
+            },
+            {
+                "key": "r.MotionBlur.Amount",
+                "value": "0.25"
+            },
+            {
+                "key": "r.MotionBlur.Max",
+                "value": "0.40"
+            },
+            {
+                "key": "r.MotionBlurPause",
+                "value": 1
+            },
+            {
+                "key": "r.MotionBlurPerObjectSize",
+                "value": "0.6"
+            },
+            {
+                "key": "r.MotionBlurQuality",
+                "value": 4
+            },
+            {
+                "key": "r.MotionBlur.Scale",
+                "value": "1.0"
+            },
+            {
+                "key": "r.MotionBlur.Separate",
+                "value": 1
+            },
+            {
+                "key": "r.NT.Lens.ChromaticAberration.Intensity",
+                "value": 0
+            },
+            {
+                "key": "r.SceneColorFringe.Max",
+                "value": 0
+            },
+            {
+                "key": "r.SceneColorFringeQuality",
+                "value": 0
+            },
+            {
+                "key": "a.ForceParallelAnimUpdate",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimEvaluation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimInterpolation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelAnimUpdate",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelBlendSpaceEvaluation",
+                "value": 1
+            },
+            {
+                "key": "a.ParallelTransitionEvaluation",
+                "value": 1
+            },
+            {
+                "key": "ai.AllowParallelQueries",
+                "value": 1
+            },
+            {
+                "key": "ai.DestroyNavDataInCleanUpAndMarkPendingKill",
+                "value": 0
+            },
+            {
+                "key": "AllowAsyncRenderThreadUpdatesDuringGamethreadUpdates",
+                "value": 0
+            },
+            {
+                "key": "Async.ParallelFor.YieldingTimeout",
+                "value": 99
+            },
+            {
+                "key": "AttemptStuckThreadResuscitation",
+                "value": 1
+            },
+            {
+                "key": "au.BakedAnalysisEnabled",
+                "value": 0
+            },
+            {
+                "key": "au.DisableParallelSourceProcessing",
+                "value": 0
+            },
+            {
+                "key": "au.streamcache.StreamCacheSize",
+                "value": 131072
+            },
+            {
+                "key": "au.voip.AlwaysPlayVoiceComponent",
+                "value": 0
+            },
+            {
+                "key": "AudioThread.AboveNormalPriority",
+                "value": 1
+            },
+            {
+                "key": "AudioThread.BatchAsyncBatchSize",
+                "value": 256
+            },
+            {
+                "key": "AudioThread.EnableBatchProcessing",
+                "value": 1
+            },
+            {
+                "key": "bAllowAsynchronousShaderCompiling",
+                "value": 1
+            },
+            {
+                "key": "bAllowAsyncRenderThreadUpdates",
+                "value": 1
+            },
+            {
+                "key": "bAllowCompilingThroughWorkerThreads",
+                "value": 1
+            },
+            {
+                "key": "bAllowMultiThreadedAnimationUpdate",
+                "value": 1
+            },
+            {
+                "key": "bAllowMultiThreadedShaderCompile",
+                "value": 1
+            },
+            {
+                "key": "bAllowShaderCompilingWorker",
+                "value": 1
+            },
+            {
+                "key": "bAllowThreadedRendering",
+                "value": 1
+            },
+            {
+                "key": "bAsyncShaderCompileWorkerThreads",
+                "value": 1
+            },
+            {
+                "key": "bCanBlueprintsTickByDefault",
+                "value": 0
+            },
+            {
+                "key": "bDisableMouseAcceleration",
+                "value": 1
+            },
+            {
+                "key": "bEnableMouseSmoothing",
+                "value": 0
+            },
+            {
+                "key": "bEnableMultiCoreRendering",
+                "value": 1
+            },
+            {
+                "key": "bEnableOptimizedShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "bOptimizeAnimBlueprintMemberVariableAccess",
+                "value": 1
+            },
+            {
+                "key": "bOptimizeForLocalShaderBuilds",
+                "value": 1
+            },
+            {
+                "key": "bPromptForRemoteDebugging",
+                "value": 0
+            },
+            {
+                "key": "bPromptForRemoteDebugOnEnsure",
+                "value": 0
+            },
+            {
+                "key": "bRawMouseInput",
+                "value": 1
+            },
+            {
+                "key": "bSupportsGPUScene",
+                "value": 1
+            },
+            {
+                "key": "bSupportsWaveOperations",
+                "value": 1
+            },
+            {
+                "key": "bUseAsyncComputeContext",
+                "value": 1
+            },
+            {
+                "key": "bUseBackgroundCompiling",
+                "value": 1
+            },
+            {
+                "key": "bViewAccelerationEnabled",
+                "value": 0
+            },
+            {
+                "key": "csv.trackWaitsGT",
+                "value": 0
+            },
+            {
+                "key": "csv.trackWaitsRT",
+                "value": 0
+            },
+            {
+                "key": "D3D12.AFRUseFramePacing",
+                "value": 1
+            },
+            {
+                "key": "D3D12.Aftermath",
+                "value": 0
+            },
+            {
+                "key": "D3D12.AllowPoolAllocateIndirectArgBuffers",
+                "value": 1
+            },
+            {
+                "key": "D3D12.AsyncDeferredDeletion",
+                "value": 1
+            },
+            {
+                "key": "D3D12.ExecuteContextInParallel",
+                "value": 1
+            },
+            {
+                "key": "D3D12.ForceThirtyHz",
+                "value": 0
+            },
+            {
+                "key": "D3D12.InsertOuterOcclusionQuery",
+                "value": 1
+            },
+            {
+                "key": "D3D12.MaxCommandsPerCommandList",
+                "value": 20000
+            },
+            {
+                "key": "D3D12.MaximumFrameLatency",
+                "value": 1
+            },
+            {
+                "key": "D3D12.MultithreadedCommandListBuilding",
+                "value": 1
+            },
+            {
+                "key": "D3D12.PSO.DriverOptimizedDiskCache",
+                "value": 1
+            },
+            {
+                "key": "D3D12.RayTracing.AllowSpecializedStateObjects",
+                "value": 0
+            },
+            {
+                "key": "D3D12.ResidencyManagement",
+                "value": 1
+            },
+            {
+                "key": "D3D12.VRAMBufferPoolDefrag.MaxCopySizePerFrame",
+                "value": 16777216
+            },
+            {
+                "key": "D3D12.VRAMBufferPoolDefrag",
+                "value": 1
+            },
+            {
+                "key": "D3D12.VRAMTexturePoolDefrag.MaxCopySizePerFrame",
+                "value": 16777216
+            },
+            {
+                "key": "D3D12.VRAMTexturePoolDefrag",
+                "value": 1
+            },
+            {
+                "key": "D3D12.ZeroBufferSizeInMB",
+                "value": 32
+            },
+            {
+                "key": "EnableMathOptimisations",
+                "value": 1
+            },
+            {
+                "key": "foliage.MaxOcclusionQueriesPerComponent",
+                "value": 8
+            },
+            {
+                "key": "foliage.MinOcclusionQueriesPerComponent",
+                "value": 3
+            },
+            {
+                "key": "FX.AllowAsyncTick",
+                "value": 1
+            },
+            {
+                "key": "fx.AllowFastPathFunctionLibrary",
+                "value": 1
+            },
+            {
+                "key": "FX.BatchAsync",
+                "value": 1
+            },
+            {
+                "key": "FX.BatchAsyncBatchSize",
+                "value": 8
+            },
+            {
+                "key": "fx.DeferrPSCDeactivation",
+                "value": 1
+            },
+            {
+                "key": "FX.EarlyScheduleAsync",
+                "value": 1
+            },
+            {
+                "key": "fx.EnableCircularAnimTrailDump",
+                "value": 0
+            },
+            {
+                "key": "fx.GPUSimulationTextureSizeX",
+                "value": 512
+            },
+            {
+                "key": "fx.GPUSimulationTextureSizeY",
+                "value": 512
+            },
+            {
+                "key": "FX.GPUSpawnWarningThreshold",
+                "value": 99999999
+            },
+            {
+                "key": "fx.Niagara.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "fx.Niagara.DebugDraw.Enabled",
+                "value": 0
+            },
+            {
+                "key": "fx.Niagara.GpuComputeDebug.DrawDebugEnabled",
+                "value": 0
+            },
+            {
+                "key": "fx.Niagara.WarnComponentRenderCount",
+                "value": 999999
+            },
+            {
+                "key": "fx.NiagaraAllowAsyncWork",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraAllowRuntimeScalabilityChanges",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraBatcher.FreeBufferEarly",
+                "value": 0
+            },
+            {
+                "key": "fx.NiagaraDataBufferMinSize",
+                "value": 2048
+            },
+            {
+                "key": "fx.NiagaraParallelSpawn",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "fx.NiagaraRuntimeCycleHistorySize",
+                "value": 30
+            },
+            {
+                "key": "fx.ParticlePerfStats.Enabled",
+                "value": 0
+            },
+            {
+                "key": "fx.ScalabilityManParallelThreshold",
+                "value": 25
+            },
+            {
+                "key": "fx.ScalabilityMaxUpdatesPerFrame",
+                "value": 25
+            },
+            {
+                "key": "fx.SkipVectorVMBackendOptimizations",
+                "value": 0
+            },
+            {
+                "key": "gc.AllowParallelDestruction",
+                "value": 1
+            },
+            {
+                "key": "gc.AllowParallelGC",
+                "value": 1
+            },
+            {
+                "key": "gc.CreateGCClusters",
+                "value": 1
+            },
+            {
+                "key": "gc.MultithreadedDestructionEnabled",
+                "value": 1
+            },
+            {
+                "key": "GeometryCache.OffloadUpdate",
+                "value": 1
+            },
+            {
+                "key": "grass.MaxAsyncTasks",
+                "value": 8
+            },
+            {
+                "key": "grass.MaxCreatePerFrame",
+                "value": 6
+            },
+            {
+                "key": "grass.UseHaltonDistribution",
+                "value": 1
+            },
+            {
+                "key": "landscape.RenderNanite",
+                "value": 1
+            },
+            {
+                "key": "LevelSequence.InvalidBindingTagWarnings",
+                "value": 0
+            },
+            {
+                "key": "MaxShaderJobBatchSize",
+                "value": 150
+            },
+            {
+                "key": "MaxShaderJobs",
+                "value": 1000
+            },
+            {
+                "key": "memory.logGenericPlatformMemoryStats",
+                "value": 0
+            },
+            {
+                "key": "niagara.CreateShadersOnLoad",
+                "value": 1
+            },
+            {
+                "key": "NumUnusedShaderCompilingThreads",
+                "value": 2
+            },
+            {
+                "key": "p.AsyncSceneEnabled",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.PerParticleCollision.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Solver.Joint.UseSimd",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Spherical.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.Spring.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.TriangleMesh.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.VelocityField.ISPC",
+                "value": 1
+            },
+            {
+                "key": "p.Chaos.VisualDebuggerEnable",
+                "value": 0
+            },
+            {
+                "key": "p.RemoveFarBodiesFromBVH",
+                "value": 1
+            },
+            {
+                "key": "pakcache.CachePerPakFile",
+                "value": 1
+            },
+            {
+                "key": "pakcache.MaxBlockMemory",
+                "value": 384
+            },
+            {
+                "key": "pakcache.MaxRequestSizeToLowerLevellKB",
+                "value": 3072
+            },
+            {
+                "key": "pakcache.MaxRequestsToLowerLevel",
+                "value": 3
+            },
+            {
+                "key": "pakcache.NumUnreferencedBlocksToCache",
+                "value": 20
+            },
+            {
+                "key": "pakcache.UseNewTrim",
+                "value": 1
+            },
+            {
+                "key": "PlatformFormat",
+                "value": "OGG"
+            },
+            {
+                "key": "PlatformStreamingFormat",
+                "value": "OGG"
+            },
+            {
+                "key": "PoolSizeVRAMPercentage",
+                "value": 60
+            },
+            {
+                "key": "r.AllowAsyncRenderThreadUpdatesDuringGamethreadUpdates",
+                "value": 0
+            },
+            {
+                "key": "r.AllowMultiThreadedShaderCreation",
+                "value": 1
+            },
+            {
+                "key": "r.AOAsyncBuildQueue",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute.AdaptiveBuffer",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute.ParallelDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncCreateLightPrimitiveInteractions",
+                "value": 1
+            },
+            {
+                "key": "r.AsyncPipelineCompile",
+                "value": 1
+            },
+            {
+                "key": "r.bForceGCAfterLevelStreamedOut",
+                "value": 0
+            },
+            {
+                "key": "r.Bloom.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.CompileShadersForDevelopment",
+                "value": 0
+            },
+            {
+                "key": "r.CookOutUnusedDetailModeComponents",
+                "value": 1
+            },
+            {
+                "key": "r.D3D.ForceDXC",
+                "value": 1
+            },
+            {
+                "key": "r.D3D.RemoveUnusedInterpolators",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.DRED",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.ExecuteContextInParallel",
+                "value": 1
+            },
+            {
+                "key": "r.D3D12.GPUCrashDebuggingMode",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.GPUTimeout",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.LightweightDRED",
+                "value": 0
+            },
+            {
+                "key": "r.D3D12.RayTracing.AllowSpecializedStateObjects",
+                "value": 0
+            },
+            {
+                "key": "r.DefaultFeature.AntiAliasing",
+                "value": 2
+            },
+            {
+                "key": "r.DFShadowAsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelAtlasUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelBuild",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelCulling",
+                "value": 1
+            },
+            {
+                "key": "r.DistanceFields.ParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.DontLimitOnBattery",
+                "value": 1
+            },
+            {
+                "key": "r.DumpGPU",
+                "value": 0
+            },
+            {
+                "key": "r.Emitter.FastPoolEnable",
+                "value": 1
+            },
+            {
+                "key": "r.EnableAsyncComputeVolumetricFog",
+                "value": 1
+            },
+            {
+                "key": "r.EnableDebugSpam_GetObjectPositionAndScale",
+                "value": 0
+            },
+            {
+                "key": "r.EnableMultiThreadedRendering",
+                "value": 1
+            },
+            {
+                "key": "r.FidelityFX.FSR.RCAS",
+                "value": 0
+            },
+            {
+                "key": "r.FidelityFX.FSR2.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.FSR3.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.FSR4.Sharpness",
+                "value": "0.0"
+            },
+            {
+                "key": "r.FidelityFX.RCAS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.FidelityFX.RCAS",
+                "value": 0
+            },
+            {
+                "key": "r.FinishCurrentFrame",
+                "value": 0
+            },
+            {
+                "key": "r.FogDensityVolumes.Parallel",
+                "value": 1
+            },
+            {
+                "key": "r.Foliage.UsePrecomputedLODScreenSize",
+                "value": 1
+            },
+            {
+                "key": "r.ForceAllCoresForShaderCompiling",
+                "value": 1
+            },
+            {
+                "key": "r.ForceDebugViewModes",
+                "value": 0
+            },
+            {
+                "key": "r.ForceOcclusionQueryBatching",
+                "value": 1
+            },
+            {
+                "key": "r.ForceParallelAnimUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.GameThread.PriorityRedirectThreshold",
+                "value": 3
+            },
+            {
+                "key": "r.GeometryCollection.Nanite.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.GeometryCollection.Nanite",
+                "value": 1
+            },
+            {
+                "key": "r.GPUCrash.Collectionenable",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrash.DataDepth",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging.Aftermath.Callstack",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging.Aftermath.Enabled",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging.Aftermath.Markers",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDebugging",
+                "value": 0
+            },
+            {
+                "key": "r.GPUCrashDump",
+                "value": 0
+            },
+            {
+                "key": "r.GPUDefrag.AllowOverlappedMoves",
+                "value": 1
+            },
+            {
+                "key": "r.GPUDefrag.EnableTimeLimits",
+                "value": 1
+            },
+            {
+                "key": "r.GPUDefrag.MaxRelocations",
+                "value": 10
+            },
+            {
+                "key": "r.GPUDefrag.MaxRelocationsPerFrame",
+                "value": 5
+            },
+            {
+                "key": "r.GraphicsThread.EnableBackgroundThreads",
+                "value": 1
+            },
+            {
+                "key": "r.GraphicsThread.UseThreadedDestruction",
+                "value": 1
+            },
+            {
+                "key": "r.Grass.ParallelCull",
+                "value": 1
+            },
+            {
+                "key": "r.GTSyncType",
+                "value": 2
+            },
+            {
+                "key": "r.HZBOcclusion.Parallel",
+                "value": 1
+            },
+            {
+                "key": "r.InstanceCulling.OcclusionCull",
+                "value": 1
+            },
+            {
+                "key": "r.IO.DirectStorage.BatchingGranularity",
+                "value": 64
+            },
+            {
+                "key": "r.IO.DirectStorage.MinSizeKB",
+                "value": 1024
+            },
+            {
+                "key": "r.IO.UseDirectStorage",
+                "value": 1
+            },
+            {
+                "key": "r.IO.VirtualTextures",
+                "value": 1
+            },
+            {
+                "key": "r.Landscape.ParallelSectionUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ASVGF.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.DiffuseIndirect.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.HardwareRayTracing.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.HardwareRayTracing.ShaderExecutionReordering",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.Reflections.RadianceCache",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.StochasticInterpolation",
+                "value": 1
+            },
+            {
+                "key": "r.Lumen.ScreenProbeGather.TemporalFilterProbes",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.DirectLighting.OffscreenShadowing.TraceMeshSDFs",
+                "value": 0
+            },
+            {
+                "key": "r.LumenScene.FarField.OcclusionOnly",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.Lighting.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.MeshCardsPerTask",
+                "value": 384
+            },
+            {
+                "key": "r.LumenScene.ParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.LumenScene.PrimitivesPerTask",
+                "value": 384
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.Feedback.MinPageHits",
+                "value": "32.0"
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.MaxFramesPerUpdate",
+                "value": 4
+            },
+            {
+                "key": "r.LumenScene.SurfaceCache.RemovesPerFrame",
+                "value": 128
+            },
+            {
+                "key": "r.Materials.ParallelCaching",
+                "value": 1
+            },
+            {
+                "key": "r.Materials.ParallelCompile",
+                "value": 1
+            },
+            {
+                "key": "r.Materials.ParallelUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.MaxAnisotropy",
+                "value": 16
+            },
+            {
+                "key": "r.MeshDrawCommands.DynamicInstancing",
+                "value": 1
+            },
+            {
+                "key": "r.MeshDrawCommands.ParallelPassSetup",
+                "value": 1
+            },
+            {
+                "key": "r.MeshDrawCommands.UseParallelPassSetup",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Builder.AsyncHelpers",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.CompressedStreamingPages",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Culling.MinLOD",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.LargePageRectThreshold",
+                "value": 512
+            },
+            {
+                "key": "r.Nanite.MaterialVisibility.Async",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.MaxPixelsPerEdge",
+                "value": "1.5"
+            },
+            {
+                "key": "r.Nanite.PrimeHZB",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.SoftwareVRS",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.Async",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Nanite.Streaming.MaxPageInstallsPerFrame",
+                "value": 32
+            },
+            {
+                "key": "r.Nanite.Streaming.MaxPendingPages",
+                "value": 32
+            },
+            {
+                "key": "r.Nanite.VSMMeshShaderRasterization",
+                "value": 1
+            },
+            {
+                "key": "r.NGX.DLSS.DilateMotionVectors",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.DLSS.PreferNISSharpen",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.DLSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.NGX.LogLevel",
+                "value": 0
+            },
+            {
+                "key": "r.NIS.Enable",
+                "value": 0
+            },
+            {
+                "key": "r.NumBufferedOcclusionQueries",
+                "value": 2
+            },
+            {
+                "key": "r.Occlusion.ParallelPrimFetch",
+                "value": 1
+            },
+            {
+                "key": "r.Occlusion.SingleRHIThreadStall",
+                "value": 1
+            },
+            {
+                "key": "r.OneFrameThreadLag",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheConversion",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheConversionAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCacheStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCompression",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationCompressionAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationEvaluation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationRetargeting",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationRetargetingAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationStreamingAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAnimationUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAsyncComputeSkinCache",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelAsyncComputeTranslucency",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelBasePass",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelBatchDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelCulling",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDestruction",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDistanceField",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelDistributedScene",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelGraphics",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelInitViews",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeLayerUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplatAtlas",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplineSegmentCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLandscapeSplineUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingBuild",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingComposition",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingInject",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingPropagation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelLightingSetup",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshBuildUseJobCulling",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshBuildUseJobMerging",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshDrawCommands",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshMerge",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelMeshProcessing",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsInit",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavBoundsUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelNavOctreeUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelParticleUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPhysicsScene",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPhysicsStepAsync",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPostProcessing",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelPrePass",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelReflectionCaptures",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelReflectionEnvironment",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelRendering",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelRenderUploads",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSceneCapture",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSceneColorGather",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelShaderCompile",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothBoundsCalc",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothGather",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothPrepareSim",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothSimulate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothSkinning",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdate",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdateBounds",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelSkeletalClothUpdateVerts",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTaskShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTonemapping",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelTranslucency",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelVelocity",
+                "value": 1
+            },
+            {
+                "key": "r.ParallelZPrepass",
+                "value": 1
+            },
+            {
+                "key": "r.PipelineStateCache.AsyncCompileAfterTypes",
+                "value": 1
+            },
+            {
+                "key": "r.PostProcessAAQuality",
+                "value": 4
+            },
+            {
+                "key": "r.PreTileTextures",
+                "value": 1
+            },
+            {
+                "key": "r.pso.EnableAsyncCacheConsolidation",
+                "value": 1
+            },
+            {
+                "key": "r.pso.evictiontime",
+                "value": 30
+            },
+            {
+                "key": "r.pso.precachecompilationcost",
+                "value": 150
+            },
+            {
+                "key": "r.pso.precaching",
+                "value": 1
+            },
+            {
+                "key": "r.RayTracing.Culling",
+                "value": 1
+            },
+            {
+                "key": "r.RayTracing.Shadows.EnableTwoSidedGeometry",
+                "value": 0
+            },
+            {
+                "key": "r.RDG.AsyncClothTick",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.AsyncPipelineCompile",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.ParallelExecute",
+                "value": 1
+            },
+            {
+                "key": "r.RDG.ParallelUpdateRenderGraph",
+                "value": 1
+            },
+            {
+                "key": "r.Renderer.UseGPUInstancing",
+                "value": 1
+            },
+            {
+                "key": "r.RenderThread.EnableTaskGraphThread",
+                "value": 1
+            },
+            {
+                "key": "r.RenderThread.Priority",
+                "value": 2
+            },
+            {
+                "key": "r.RHI.UseParallelDispatch",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdBalanceParallelLists",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdBuffer.EnableThreadedCompletion",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdBypass",
+                "value": 0
+            },
+            {
+                "key": "r.RHICmdUseParallelAlgorithms",
+                "value": 1
+            },
+            {
+                "key": "r.RHICmdUseThread",
+                "value": 1
+            },
+            {
+                "key": "r.RHIThread.Priority",
+                "value": 2
+            },
+            {
+                "key": "r.RHIThread",
+                "value": 1
+            },
+            {
+                "key": "r.SceneRenderingThreadAffinity",
+                "value": -1
+            },
+            {
+                "key": "r.ShaderCompiler.AllowDistributedCompilation",
+                "value": 0
+            },
+            {
+                "key": "r.ShaderDrawDebug",
+                "value": 0
+            },
+            {
+                "key": "r.ShaderLibrary.PrintExtendedStats",
+                "value": 0
+            },
+            {
+                "key": "r.ShaderPipelineCache.AsyncCompileRate",
+                "value": 32
+            },
+            {
+                "key": "r.ShaderPipelineCache.BackgroundBatchSize",
+                "value": 4
+            },
+            {
+                "key": "r.ShaderPipelineCache.BatchSize",
+                "value": 30
+            },
+            {
+                "key": "r.ShaderPipelineCache.BatchTime",
+                "value": 16
+            },
+            {
+                "key": "r.ShaderPipelineCache.Enabled",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderPipelineCache.GameFileMaskEnabled",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileBatchSize",
+                "value": 30
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileBatchTime",
+                "value": 16
+            },
+            {
+                "key": "r.ShaderPipelineCache.PrecompileFrameTime",
+                "value": 50
+            },
+            {
+                "key": "r.ShaderPipelineCache.PreOptimizeEnabled",
+                "value": 1
+            },
+            {
+                "key": "r.ShaderPipelineCache.StartupCache",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.Optimize",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.OptimizePreload",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.Precompile",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.RemoveDeadCode",
+                "value": 1
+            },
+            {
+                "key": "r.Shaders.RemoveUnusedInterpolators",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.CacheWPOPrimitives",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.CSMCaching",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.AllocateViaLRU",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.MaxLightAgeSinceLastRequest",
+                "value": 8
+            },
+            {
+                "key": "r.Shadow.Virtual.Cache.StaticSeparate",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.MaxPhysicalPages",
+                "value": 2048
+            },
+            {
+                "key": "r.Shadow.Virtual.NonNanite.IncludeInCoarsePages",
+                "value": 0
+            },
+            {
+                "key": "r.Shadow.Virtual.ParallelBuild",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.ParallelProjection",
+                "value": 1
+            },
+            {
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectional",
+                "value": "-0.50"
+            },
+            {
+                "key": "r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving",
+                "value": "-0.50"
+            },
+            {
+                "key": "r.Shadow.Virtual.SMRT.SamplesPerRayDirectional",
+                "value": 4
+            },
+            {
+                "key": "r.Shadow.Virtual.SMRT.SamplesPerRayLocal",
+                "value": 4
+            },
+            {
+                "key": "r.SkyAtmosphere.AerialPerspectiveLUT.FastApplyOnOpaque",
+                "value": 1
+            },
+            {
+                "key": "r.Skylight.RealTimeCapture.TimeSlice",
+                "value": 1
+            },
+            {
+                "key": "r.SkyLight.RealTimeReflectionCapture.TimeSlice",
+                "value": 1
+            },
+            {
+                "key": "r.SSS.Burley.EnableProfileIdCache",
+                "value": 1
+            },
+            {
+                "key": "r.StochasticLighting.AsyncCompute",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.AmortizeCPUToGPUCopy",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.Boost",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.BuildTextureStreamingDataOnLoad",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.DefragDynamicBounds",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.EnableAssetUpdateAbandons",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.FramesForFullUpdate",
+                "value": 2
+            },
+            {
+                "key": "r.Streaming.FullyLoadUsedTextures",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.HLODStrategy",
+                "value": 2
+            },
+            {
+                "key": "r.Streaming.LimitPoolSizeToVRAM",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.MinFudgeFactor",
+                "value": "0.5"
+            },
+            {
+                "key": "r.Streaming.MinMipForSplitRequest",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.ParallelRenderAssetsNumWorkgroups",
+                "value": 4
+            },
+            {
+                "key": "r.Streaming.PredictiveBoost",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.PredictiveBoostHintSize",
+                "value": 512
+            },
+            {
+                "key": "r.Streaming.StressTest.ExtraAsyncLatency",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.UseAsyncRequestsForDDC",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UseBackgroundThreadPool",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UseFixedPoolSize",
+                "value": 0
+            },
+            {
+                "key": "r.Streaming.UseMaterialDataStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UseNewMetrics",
+                "value": 1
+            },
+            {
+                "key": "r.Streaming.UsePerTextureBias",
+                "value": 1
+            },
+            {
+                "key": "r.Streamline.DilateMotionVectors",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.DLSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.NIS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.TagUIColorAlpha",
+                "value": 0
+            },
+            {
+                "key": "r.Streamline.XeSS.Sharpness",
+                "value": 0
+            },
+            {
+                "key": "r.SupportAllShaderPermutations",
+                "value": 0
+            },
+            {
+                "key": "r.TemporalAA.Algorithm",
+                "value": 1
+            },
+            {
+                "key": "r.TemporalAA.Upsampling",
+                "value": 1
+            },
+            {
+                "key": "r.TemporalAACatmullRom",
+                "value": 0
+            },
+            {
+                "key": "r.TemporalAACurrentFrameWeight",
+                "value": "0.2"
+            },
+            {
+                "key": "r.TemporalAAFilterSize",
+                "value": "0.7"
+            },
+            {
+                "key": "r.TemporalAASamples",
+                "value": 8
+            },
+            {
+                "key": "r.TemporalAASharpness",
+                "value": 0
+            },
+            {
+                "key": "r.TextureStreaming.DiscardUnusedMips",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming.UseBackgroundThreadPool",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming.UseDeferredLock",
+                "value": 1
+            },
+            {
+                "key": "r.TextureStreaming",
+                "value": 1
+            },
+            {
+                "key": "r.ThreadedShaderCompilation",
+                "value": 1
+            },
+            {
+                "key": "r.Threading.AllowWorkerThreadStall",
+                "value": 0
+            },
+            {
+                "key": "r.Threading.ThreadPriority",
+                "value": 3
+            },
+            {
+                "key": "r.ThreadPool.BackgroundThreadPriority",
+                "value": 0
+            },
+            {
+                "key": "r.ThreadPool.EnableBackgroundThreads",
+                "value": 1
+            },
+            {
+                "key": "r.ThreadPool.EnableHighPriorityThreads",
+                "value": 1
+            },
+            {
+                "key": "r.Tonemapper.Sharpen",
+                "value": "1.5"
+            },
+            {
+                "key": "r.Translucency.AutoBeforeDOF",
+                "value": 1
+            },
+            {
+                "key": "r.TSR.ShadingRejection.Flickering.Period",
+                "value": 3
+            },
+            {
+                "key": "r.TSR.ShadingRejection.Flickering",
+                "value": 1
+            },
+            {
+                "key": "r.TSR.Velocity.Extrapolation",
+                "value": 1
+            },
+            {
+                "key": "r.UniformBufferPooling",
+                "value": 1
+            },
+            {
+                "key": "r.UseAsyncShaderPrecompilation",
+                "value": 1
+            },
+            {
+                "key": "r.UseMultiThreadedRendering",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.Enable",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.OutputTranslucentClippedDepth.Supported",
+                "value": 1
+            },
+            {
+                "key": "r.Velocity.TemporalResponsiveness.Supported",
+                "value": 1
+            },
+            {
+                "key": "r.Visibility.FrustumCull.UseSphereTestFirst",
+                "value": 1
+            },
+            {
+                "key": "r.Visibility.TaskSchedule",
+                "value": 0
+            },
+            {
+                "key": "r.VolumetricFog.GridPixelSize",
+                "value": 16
+            },
+            {
+                "key": "r.VolumetricFog.InjectShadowedLightsSeparately",
+                "value": 1
+            },
+            {
+                "key": "r.VolumetricFog.Jitter",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.BasePass",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.ContrastAdaptiveShading",
+                "value": 0
+            },
+            {
+                "key": "r.VRS.Enable",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.EnableImage",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.EnableSoftware",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.LightFunctions",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.MaterialAdaptiveShading",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.Method",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.MotionAdaptiveShading",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.NaniteEmitGBuffer",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.ReflectionEnvironmentSky",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.SSAO",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.SSR",
+                "value": 1
+            },
+            {
+                "key": "r.VRS.Tier",
+                "value": 2
+            },
+            {
+                "key": "r.VRS.Translucency",
+                "value": 1
+            },
+            {
+                "key": "r.VT.CsvStats",
+                "value": 0
+            },
+            {
+                "key": "r.VT.ParallelFeedbackTasks",
+                "value": 1
+            },
+            {
+                "key": "RawMouseInputEnabled",
+                "value": 1
+            },
+            {
+                "key": "RHI.ResourceTableCaching",
+                "value": 1
+            },
+            {
+                "key": "RHI.SyncAllowEarlyKick",
+                "value": 1
+            },
+            {
+                "key": "RHI.SyncThreshold",
+                "value": 512
+            },
+            {
+                "key": "s.AdaptiveAddToWorld.Enabled",
+                "value": 1
+            },
+            {
+                "key": "s.AllowParallelUObjectCreationFromRequests",
+                "value": 1
+            },
+            {
+                "key": "s.AsyncLoadingThreadEnabled",
+                "value": 1
+            },
+            {
+                "key": "s.AsyncLoadingThreadPriority",
+                "value": 2
+            },
+            {
+                "key": "s.AsyncLoadingTimeLimit",
+                "value": "3.0"
+            },
+            {
+                "key": "s.GroupedComponentMovement.Enable",
+                "value": 1
+            },
+            {
+                "key": "s.IoDispatcherBufferMemoryMB",
+                "value": 64
+            },
+            {
+                "key": "s.IoDispatcherCacheSizeMB",
+                "value": 2048
+            },
+            {
+                "key": "s.IoDispatcherDecompressionWorkerCount",
+                "value": 4
+            },
+            {
+                "key": "s.IoDispatcherUseAsyncPriority",
+                "value": 1
+            },
+            {
+                "key": "s.MaxIncomingRequestsToStall",
+                "value": 1
+            },
+            {
+                "key": "s.MaxLevelRequestsAtOnceWhileInMatch",
+                "value": 4
+            },
+            {
+                "key": "s.MaxReadyRequestsToStallMB",
+                "value": 0
+            },
+            {
+                "key": "s.MinBulkDataSizeForAsyncLoading",
+                "value": 0
+            },
+            {
+                "key": "s.PriorityAsyncLoadingExtraTime",
+                "value": "0.0"
+            },
+            {
+                "key": "s.PriorityLevelStreamingActorsUpdateExtraTime",
+                "value": "0.0"
+            },
+            {
+                "key": "s.ProcessPrestreamingRequests",
+                "value": 1
+            },
+            {
+                "key": "s.UseUnifiedTimeBudgetForStreaming",
+                "value": 1
+            },
+            {
+                "key": "s.Zen.AllowAsyncIO",
+                "value": 1
+            },
+            {
+                "key": "Slate.bAllowThrottling",
+                "value": 0
+            },
+            {
+                "key": "TaskGraph.Enable",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableBackgroundWorkers",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableCompaction",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableFastScheduler",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableForkJoin",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableThreaded",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.EnableThreadPriorities",
+                "value": 1
+            },
+            {
+                "key": "TaskGraph.ForkedProcessMaxWorkerThreads",
+                "value": 4
+            },
+            {
+                "key": "TaskGraph.NumForegroundWorkers",
+                "value": -1
+            },
+            {
+                "key": "TaskGraph.NumWorkerThreads",
+                "value": -1
+            },
+            {
+                "key": "TaskGraph.NumWorkerThreadsToSpawn",
+                "value": -1
+            },
+            {
+                "key": "TaskGraph.PrintBroadcastWarnings",
+                "value": 0
+            },
+            {
+                "key": "tick.AllowAsyncTickDispatch",
+                "value": 1
+            },
+            {
+                "key": "tick.AllowBatchedTicks",
+                "value": 1
+            },
+            {
+                "key": "TimerManager.DumpTimerLogResolveVirtualFunctions",
+                "value": 0
+            },
+            {
+                "key": "TimerManager.DumpTimerLogSymbolNames",
+                "value": 0
+            },
+            {
+                "key": "UseAllCores",
+                "value": 1
+            },
+            {
+                "key": "vm.FreeUnoptimizedByteCode",
+                "value": 1
+            },
+            {
+                "key": "vm.OptimizeVMByteCode",
+                "value": 1
+            },
+            {
+                "key": "WorkerThreadPriority",
+                "value": 0
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupEnabled",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupNanite",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLOD.WarmupVT",
+                "value": 0
+            },
+            {
+                "key": "wp.Runtime.HLODStreaming.Async",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.HLODStreaming",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.LevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeForWP",
+                "value": 128
+            },
+            {
+                "key": "wp.Runtime.MaxLoadingStreamingCells",
+                "value": 12
+            },
+            {
+                "key": "wp.Runtime.PartitionStreaming.Async",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.PartitionStreaming.NumThreads",
+                "value": 4
+            },
+            {
+                "key": "wp.Runtime.UpdateStreaming.EnableAsyncUpdate",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.UpdateStreaming.UseAsyncWorkloadProfile",
+                "value": 1
+            },
+            {
+                "key": "wp.Runtime.UpdateStreamingStateTimeLimit",
+                "value": "0.25"
+            }
+        ]
+    },
+    "-rtx": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.Lumen.HardwareRayTracing",
+                "value": 1,
+                "default": ""
+            }
+        ]
+    },
+    "-dx11": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/WindowsTargetPlatform.WindowsTargetSettings]",
+                "key": "DefaultGraphicsRHI",
+                "value": "DefaultGraphicsRHI_DX11",
+                "default": ""
+            }
+        ]
+    },
+    "-dx12": {
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[/Script/WindowsTargetPlatform.WindowsTargetSettings]",
+                "key": "DefaultGraphicsRHI",
+                "value": "DefaultGraphicsRHI_DX12",
+                "default": ""
+            }
+        ]
+    }
+}

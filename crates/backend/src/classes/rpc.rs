@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use discord_rich_presence::{
-    activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
+    activity::{Activity, Assets, Button, Timestamps},
 };
 use log::*;
 use shared::config::{self, key};
@@ -141,13 +141,12 @@ impl DiscordRpc {
                         }
                         RpcCommand::ClearActivity => {
                             desired = None;
-                            if connected {
-                                if let Err(e) = client.clear_activity() {
+                            if connected
+                                && let Err(e) = client.clear_activity() {
                                     debug!("Discord RPC clear failed, dropping connection: {e:?}");
                                     let _ = client.close();
                                     connected = false;
                                 }
-                            }
                             continue;
                         }
                         RpcCommand::Reconnect => {

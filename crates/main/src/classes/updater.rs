@@ -1,17 +1,18 @@
-#[cfg(windows)]
-use std::io;
-#[cfg(windows)]
-use std::path::Path;
+use std::io::Read;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(windows)]
-use std::sync::mpsc;
-#[cfg(windows)]
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Context, Result};
+#[cfg(windows)]
+use std::{
+    io,
+    path::Path,
+    sync::{Arc, mpsc},
+};
+
+use anyhow::{Context, Result, anyhow};
 use log::*;
+use once_cell::sync::Lazy;
 
 use ipc::manifest::hash_file;
 #[cfg(windows)]
@@ -29,7 +30,7 @@ const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
 #[cfg(feature = "beta")]
 const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
 #[cfg(feature = "beta")]
-const CURRENT_BETA_PHASE: i32 = 5;
+const CURRENT_BETA_PHASE: i32 = 1;
 
 #[cfg(feature = "beta")]
 #[allow(dead_code)]
@@ -42,6 +43,18 @@ struct BetaPhaseResponse {
 
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static UI_LOCKED: AtomicBool = AtomicBool::new(false);
+static POST_UPDATE_PENDING: AtomicBool = AtomicBool::new(false);
+
+const NO_SAVED_STATE: u8 = u8::MAX;
+static PRE_LOCK_STATE: AtomicU8 = AtomicU8::new(NO_SAVED_STATE);
+static PRE_LOCK_DISABLED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UpdateKind {
+    Minor,
+    Major,
+    Downgrade,
+}
 
 struct UpdateRunningGuard;
 
@@ -51,38 +64,50 @@ impl Drop for UpdateRunningGuard {
     }
 }
 
+impl LaunchState {
+    pub const fn to_code(&self) -> u8 {
+        match self {
+            Self::Launch => 0,
+            Self::Launching => 1,
+            Self::Running => 2,
+            Self::Updating => 3,
+        }
+    }
+
+    pub const fn from_code(code: u8) -> Option<Self> {
+        match code {
+            0 => Some(Self::Launch),
+            1 => Some(Self::Launching),
+            2 => Some(Self::Running),
+            3 => Some(Self::Updating),
+            _ => None,
+        }
+    }
+}
+
 pub struct UpdateHandler;
 
 impl UpdateHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
-        let args: Vec<String> = std::env::args().collect();
-        #[cfg(feature = "beta")]
-        let mut skip_beta_phasing = false;
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        let has = |flag: &str| args.iter().any(|arg| arg == flag);
 
-        for arg in args {
-            match arg.as_str() {
-                ipc::POST_UPDATE_ARG => {
-                    info!("launched post-update. Sending init_confirmed");
-                    std::thread::spawn(Self::send_init_confirmed);
-                    return;
-                }
-                ipc::SKIP_UPDATE_CHECK_ARG => {
-                    warn!("startup update check skipped");
-                    return;
-                }
-                #[cfg(feature = "beta")]
-                SKIP_BETA_PHASING_ARG => {
-                    info!("skipping beta phasing");
-                    skip_beta_phasing = true;
-                }
+        if has(ipc::POST_UPDATE_ARG) {
+            info!("launched post-update; init will be confirmed once the window is up");
+            POST_UPDATE_PENDING.store(true, Ordering::SeqCst);
+            return;
+        }
 
-                _ => {}
-            }
+        if has(ipc::SKIP_UPDATE_CHECK_ARG) {
+            warn!("startup update check skipped");
+            return;
         }
 
         #[cfg(feature = "beta")]
         {
-            if !skip_beta_phasing {
+            if has(SKIP_BETA_PHASING_ARG) {
+                info!("skipping beta phasing");
+            } else {
                 let w = window.clone();
                 std::thread::spawn(move || Self::run_beta_phase_gate(&w));
                 return;
@@ -90,6 +115,13 @@ impl UpdateHandler {
         }
 
         Self::run_update_check(window, false);
+    }
+
+    pub fn on_window_shown() {
+        if POST_UPDATE_PENDING.swap(false, Ordering::SeqCst) {
+            info!("window is up; sending init_confirmed");
+            std::thread::spawn(Self::send_init_confirmed);
+        }
     }
 
     #[cfg(feature = "beta")]
@@ -106,8 +138,15 @@ impl UpdateHandler {
                     slint::invoke_from_event_loop(move || {
                         if let Some(w) = w.upgrade() {
                             w.set_popup_id("beta-phase-inactive".into());
-                            w.set_popup_title("Beta phase inactive".into());
-                            w.set_popup_message("The beta phase corresponding to this version is inactive. Please update or download the latest version.".into());
+                            w.set_popup_kind("warning".into());
+                            w.set_popup_escape_locked(true);
+                            w.set_popup_title("Beta phase ended".into());
+                            w.set_popup_message(
+                                "The beta phase for this version has ended and no newer \
+                                 build is available yet. You can keep using this version \
+                                 for now. Please update once a new build is published."
+                                    .into(),
+                            );
                             w.set_popup_confirm_delay(0);
                             w.set_popup_required_count(0);
                             w.set_popup_checkboxes(slint::ModelRc::default());
@@ -146,20 +185,36 @@ impl UpdateHandler {
             return;
         }
 
+        if show_toast {
+            Bridge::show_toast(window, "Checking for updates...", "info");
+        }
+
         let w = window.clone();
         std::thread::spawn(move || {
-            let _running = UpdateRunningGuard;
-            if let Err(e) = Self::run_update_flow(&w, show_toast) {
-                warn!("update flow failed: {e}");
-                if show_toast {
-                    Bridge::show_toast(&w, "Could not check for updates.", "error");
+            let prompt = {
+                let _running = UpdateRunningGuard;
+                match Self::run_update_flow(&w, show_toast) {
+                    Ok(prompt) => prompt,
+                    Err(e) => {
+                        warn!("update flow failed: {e}");
+                        if show_toast {
+                            Bridge::show_toast(&w, "Could not check for updates.", "error");
+                        }
+                        None
+                    }
                 }
+            };
+            if let Some(version) = prompt {
+                Self::show_update_popup(&w, &version);
             }
         });
     }
 
     #[cfg(windows)]
-    fn run_update_flow(window: &slint::Weak<MainWindow>, interactive: bool) -> Result<()> {
+    fn run_update_flow(
+        window: &slint::Weak<MainWindow>,
+        interactive: bool,
+    ) -> Result<Option<String>> {
         let root = ipc::install_root();
         let manifest = Self::fetch_manifest()?;
 
@@ -167,7 +222,11 @@ impl UpdateHandler {
 
         let local = match LocalManifest::load(&root) {
             Ok(Some(local)) => local,
-            _ => LocalManifest::build_manifest_from_disk(&root, &manifest),
+            Ok(None) => LocalManifest::build_manifest_from_disk(&root, &manifest),
+            Err(e) => {
+                warn!("local manifest unreadable ({e}); rebuilding it from disk");
+                LocalManifest::build_manifest_from_disk(&root, &manifest)
+            }
         };
 
         if manifest.changed_files(&root, &local).is_empty() {
@@ -175,33 +234,58 @@ impl UpdateHandler {
             if interactive {
                 Bridge::show_toast(window, "Aurora is up to date.", "success");
             }
-            return Ok(());
+            return Ok(None);
         }
 
         let local_version = shared::utils::get_local_version();
-        if Self::is_minor_update(&local_version, &manifest.version) {
-            info!(
-                "minor update {} -> {} available; updating silently",
-                local_version.trim(),
-                manifest.version
-            );
-            Self::begin_locked_update(window);
-            if let Err(e) = Self::run_updater(window, true) {
-                warn!("silent update failed: {e}");
-                Self::set_update_overlay(window, false);
-                Self::set_locked(window, false);
-                Bridge::show_toast(window, "Update failed. Try again later.", "error");
+        match Self::update_kind(&local_version, &manifest.version) {
+            UpdateKind::Downgrade => {
+                warn!(
+                    "the manifest offers {} but {} is installed; ignoring the downgrade",
+                    manifest.version,
+                    local_version.trim()
+                );
+                if interactive {
+                    Bridge::show_toast(window, "Aurora is up to date.", "success");
+                }
             }
-            return Ok(());
-        }
+            UpdateKind::Minor => {
+                if Bridge::game_busy() {
+                    info!(
+                        "minor update {} is available but the game is running; it will be applied on the next start",
+                        manifest.version
+                    );
+                    return Ok(None);
+                }
 
-        info!("update {} available; asking the user", manifest.version);
-        Self::show_update_popup(window, &manifest.version);
-        Ok(())
+                info!(
+                    "minor update {} -> {} available; updating silently",
+                    local_version.trim(),
+                    manifest.version
+                );
+                Self::begin_locked_update(window);
+
+                if let Err(e) = Self::run_updater(window, true) {
+                    warn!("silent update failed: {e}");
+                    Self::set_update_overlay(window, false);
+                    Self::set_locked(window, false);
+                    Bridge::show_toast(window, "Update failed. Try again later.", "error");
+                }
+            }
+            UpdateKind::Major => {
+                info!("update {} available; asking the user", manifest.version);
+
+                return Ok(Some(manifest.version));
+            }
+        }
+        Ok(None)
     }
 
     #[cfg(target_os = "linux")]
-    fn run_update_flow(window: &slint::Weak<MainWindow>, interactive: bool) -> Result<()> {
+    fn run_update_flow(
+        window: &slint::Weak<MainWindow>,
+        interactive: bool,
+    ) -> Result<Option<String>> {
         let Some(appimage) = ipc::appimage_path() else {
             info!("not running from an AppImage; self-update is unavailable");
             if interactive {
@@ -211,18 +295,18 @@ impl UpdateHandler {
                     "info",
                 );
             }
-            return Ok(());
+            return Ok(None);
         };
 
         let manifest = Self::fetch_linux_manifest()?;
         let current = hash_file(&appimage)
             .with_context(|| format!("failed to hash {}", appimage.display()))?;
-        if current == manifest.appimage.sha256 {
+        if ipc::manifest::hash_eq(&current, &manifest.appimage.sha256) {
             info!("no update available");
             if interactive {
                 Bridge::show_toast(window, "Aurora is up to date.", "success");
             }
-            return Ok(());
+            return Ok(None);
         }
 
         if !Self::appimage_is_replaceable(&appimage) {
@@ -231,45 +315,86 @@ impl UpdateHandler {
                 appimage.display()
             );
             Self::show_manual_update_popup(window, &manifest.version);
-            return Ok(());
+            return Ok(None);
         }
 
         let local_version = shared::utils::get_local_version();
-        if Self::is_minor_update(&local_version, &manifest.version) {
-            info!(
-                "minor update {} -> {} available; updating silently",
-                local_version.trim(),
-                manifest.version
-            );
-            Self::begin_locked_update(window);
-            if let Err(e) = Self::run_appimage_update(window, true) {
-                warn!("silent update failed: {e}");
-                Self::set_update_overlay(window, false);
-                Self::set_locked(window, false);
-                Bridge::show_toast(window, "Update failed. Try again later.", "error");
+        match Self::update_kind(&local_version, &manifest.version) {
+            UpdateKind::Downgrade => {
+                warn!(
+                    "the manifest offers {} but {} is installed; ignoring the downgrade",
+                    manifest.version,
+                    local_version.trim()
+                );
+                if interactive {
+                    Bridge::show_toast(window, "Aurora is up to date.", "success");
+                }
             }
-            return Ok(());
+            UpdateKind::Minor => {
+                if Bridge::game_busy() {
+                    info!(
+                        "minor update {} is available but the game is running; it will be applied on the next start",
+                        manifest.version
+                    );
+                    return Ok(None);
+                }
+                info!(
+                    "minor update {} -> {} available; updating silently",
+                    local_version.trim(),
+                    manifest.version
+                );
+                Self::begin_locked_update(window);
+
+                if let Err(e) = Self::run_appimage_update(window, true, Some(manifest)) {
+                    warn!("silent update failed: {e}");
+                    Self::set_update_overlay(window, false);
+                    Self::set_locked(window, false);
+                    Bridge::show_toast(window, "Update failed. Try again later.", "error");
+                }
+            }
+            UpdateKind::Major => {
+                info!("update {} available; asking the user", manifest.version);
+                return Ok(Some(manifest.version));
+            }
+        }
+        Ok(None)
+    }
+
+    fn parse_version(version: &str) -> Option<Vec<u64>> {
+        let trimmed = version.trim().trim_start_matches(['v', 'V']);
+        let core = trimmed.split(['-', '+']).next()?;
+        let parts = core
+            .split('.')
+            .map(|part| part.parse::<u64>().ok())
+            .collect::<Option<Vec<u64>>>()?;
+        (!parts.is_empty()).then_some(parts)
+    }
+
+    fn compare_versions(local: &[u64], remote: &[u64]) -> std::cmp::Ordering {
+        let width = local.len().max(remote.len());
+        let at = |v: &[u64], i: usize| v.get(i).copied().unwrap_or(0);
+        (0..width)
+            .map(|i| at(local, i).cmp(&at(remote, i)))
+            .find(|ordering| ordering.is_ne())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }
+
+    fn update_kind(local: &str, remote: &str) -> UpdateKind {
+        let (Some(local_parts), Some(remote_parts)) =
+            (Self::parse_version(local), Self::parse_version(remote))
+        else {
+            return UpdateKind::Major;
+        };
+
+        if Self::compare_versions(&local_parts, &remote_parts) == std::cmp::Ordering::Greater {
+            return UpdateKind::Downgrade;
         }
 
-        info!("update {} available; asking the user", manifest.version);
-        Self::show_update_popup(window, &manifest.version);
-        Ok(())
-    }
-
-    fn parse_staple_major(version: &str) -> Option<(u64, u64)> {
-        let mut parts = version.trim().split('.');
-        let staple = parts.next()?.parse().ok()?;
-        let major = parts.next()?.parse().ok()?;
-        Some((staple, major))
-    }
-
-    fn is_minor_update(local: &str, remote: &str) -> bool {
-        match (
-            Self::parse_staple_major(local),
-            Self::parse_staple_major(remote),
-        ) {
-            (Some(l), Some(r)) => l == r,
-            _ => false,
+        let staple_major = |parts: &[u64]| (parts.first().copied(), parts.get(1).copied());
+        if staple_major(&local_parts) == staple_major(&remote_parts) {
+            UpdateKind::Minor
+        } else {
+            UpdateKind::Major
         }
     }
 
@@ -286,7 +411,7 @@ impl UpdateHandler {
             #[cfg(windows)]
             let result = Self::run_updater(&w, false);
             #[cfg(target_os = "linux")]
-            let result = Self::run_appimage_update(&w, false);
+            let result = Self::run_appimage_update(&w, false, None);
 
             if let Err(e) = result {
                 warn!("update failed: {e}");
@@ -302,24 +427,27 @@ impl UpdateHandler {
         let root = ipc::install_root();
 
         let listener =
-            protocol::listen(ipc::MAIN_PIPE_NAME).context("failed to open updater pipe")?;
+            protocol::listen(&ipc::main_pipe_name()).context("failed to open updater pipe")?;
 
         let updater_path = root.join(ipc::UPDATER_EXE);
-        Command::new(&updater_path)
-            .current_dir(&root)
-            .spawn()
-            .with_context(|| format!("failed to launch {}", updater_path.display()))?;
+        let mut child = Some(
+            Command::new(&updater_path)
+                .current_dir(&root)
+                .spawn()
+                .with_context(|| format!("failed to launch {}", updater_path.display()))?,
+        );
 
         let stream = match protocol::accept_timeout(&listener, ipc::UPDATER_CONNECT_TIMEOUT) {
             Ok(stream) => Arc::new(stream),
             Err(e) if e.kind() == io::ErrorKind::TimedOut => {
-                Self::abort_update_session(window, "the updater never connected");
+                Self::abort_update_session(window, "the updater never connected", &mut child);
                 return Ok(());
             }
             Err(e) => {
                 Self::abort_update_session(
                     window,
                     &format!("failed to accept the updater connection: {e}"),
+                    &mut child,
                 );
                 return Ok(());
             }
@@ -366,6 +494,9 @@ impl UpdateHandler {
                     info!("updater: no update available");
                     Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
+                    if !silent {
+                        Bridge::show_toast(window, "Aurora is already up to date.", "info");
+                    }
                     return Ok(());
                 }
                 Ok(Ok(Message::CloseNow)) => {
@@ -378,24 +509,42 @@ impl UpdateHandler {
                 }
                 Ok(Ok(Message::Error { message })) => {
                     error!("updater reported an error: {message}");
+                    Self::kill_updater(&mut child);
                     Self::set_update_overlay(window, false);
                     Self::set_locked(window, false);
                     Bridge::show_toast(window, "Update failed. Try again later.", "error");
+                    return Ok(());
+                }
+                Ok(Ok(Message::OneClick { .. })) => {
+                    Self::abort_update_session(
+                        window,
+                        "the updater sent a 1-click message",
+                        &mut child,
+                    );
                     return Ok(());
                 }
                 Ok(Err(e)) => {
                     Self::abort_update_session(
                         window,
                         &format!("the updater connection failed: {e}"),
+                        &mut child,
                     );
                     return Ok(());
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
-                    Self::abort_update_session(window, "the updater stopped sending heartbeats");
+                    Self::abort_update_session(
+                        window,
+                        "the updater stopped sending heartbeats",
+                        &mut child,
+                    );
                     return Ok(());
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    Self::abort_update_session(window, "the updater closed the connection");
+                    Self::abort_update_session(
+                        window,
+                        "the updater closed the connection",
+                        &mut child,
+                    );
                     return Ok(());
                 }
             }
@@ -403,8 +552,13 @@ impl UpdateHandler {
     }
 
     #[cfg(windows)]
-    fn abort_update_session(window: &slint::Weak<MainWindow>, reason: &str) {
+    fn abort_update_session(
+        window: &slint::Weak<MainWindow>,
+        reason: &str,
+        child: &mut Option<std::process::Child>,
+    ) {
         error!("update session ended abnormally: {reason}; unlocking UI");
+        Self::kill_updater(child);
         UPDATE_RUNNING.store(false, Ordering::SeqCst);
         Self::set_update_overlay(window, false);
         Self::set_locked(window, false);
@@ -415,13 +569,46 @@ impl UpdateHandler {
         );
     }
 
+    #[cfg(windows)]
+    fn kill_updater(child: &mut Option<std::process::Child>) {
+        let Some(mut child) = child.take() else {
+            return;
+        };
+
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                info!("the updater had already exited ({status})");
+                return;
+            }
+            Ok(None) => {}
+            Err(e) => warn!("could not query the updater process: {e}"),
+        }
+
+        info!("terminating the updater process");
+        if let Err(e) = child.kill() {
+            warn!("could not terminate the updater: {e}");
+        }
+
+        if let Err(e) = child.wait() {
+            warn!("could not reap the updater: {e}");
+        }
+    }
+
     #[cfg(target_os = "linux")]
-    fn run_appimage_update(window: &slint::Weak<MainWindow>, silent: bool) -> Result<()> {
+    fn run_appimage_update(
+        window: &slint::Weak<MainWindow>,
+        silent: bool,
+        manifest: Option<ipc::manifest::LinuxManifest>,
+    ) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
 
         let appimage =
             ipc::appimage_path().ok_or_else(|| anyhow!("not running from an AppImage"))?;
-        let manifest = Self::fetch_linux_manifest()?;
+
+        let manifest = match manifest {
+            Some(manifest) => manifest,
+            None => Self::fetch_linux_manifest()?,
+        };
 
         Self::set_locked(window, true);
         Self::set_update_overlay(window, true);
@@ -436,7 +623,7 @@ impl UpdateHandler {
         }
 
         let actual = hash_file(&tmp).context("failed to hash the downloaded AppImage")?;
-        if actual != manifest.appimage.sha256 {
+        if !ipc::manifest::hash_eq(&actual, &manifest.appimage.sha256) {
             let _ = std::fs::remove_file(&tmp);
             return Err(anyhow!(
                 "AppImage hash mismatch: expected {}, got {actual}",
@@ -450,8 +637,24 @@ impl UpdateHandler {
             return Err(anyhow!("failed to make the new AppImage executable: {e}"));
         }
 
+        let backup = appimage.with_file_name(format!("{}.bak", ipc::APPIMAGE_NAME));
+        let _ = std::fs::remove_file(&backup);
+        let backed_up = match std::fs::rename(&appimage, &backup) {
+            Ok(()) => true,
+            Err(e) => {
+                warn!(
+                    "could not set {} aside before the swap: {e}",
+                    appimage.display()
+                );
+                false
+            }
+        };
+
         if let Err(e) = std::fs::rename(&tmp, &appimage) {
             let _ = std::fs::remove_file(&tmp);
+            if backed_up {
+                let _ = std::fs::rename(&backup, &appimage);
+            }
             return Err(anyhow!("failed to replace {}: {e}", appimage.display()));
         }
         info!(
@@ -460,10 +663,17 @@ impl UpdateHandler {
             manifest.version
         );
 
+        if Bridge::game_busy() {
+            info!("update applied while the game is running; deferring the restart");
+            let _ = std::fs::remove_file(&backup);
+            Self::restart_failed(window);
+            return Ok(());
+        }
+
         if silent {
             info!("silent update applied; restarting Aurora");
         }
-        Self::relaunch_appimage(window, &appimage);
+        Self::relaunch_appimage(window, &appimage, backed_up.then_some(backup.as_path()));
         Ok(())
     }
 
@@ -499,12 +709,16 @@ impl UpdateHandler {
         url: &str,
         dst: &std::path::Path,
     ) -> Result<()> {
-        use std::io::{Read, Write};
+        use std::io::Write;
 
-        let mut response = reqwest::blocking::get(url)
+        let client = http_client();
+        let mut response = client
+            .get(url)
+            .send()
             .and_then(Response::error_for_status)
             .with_context(|| format!("failed to download {url}"))?;
         let total = response.content_length().unwrap_or(0);
+        let deadline = Instant::now() + ipc::HTTP_DOWNLOAD_TIMEOUT;
 
         let mut file = std::fs::File::create(dst)
             .with_context(|| format!("failed to create {}", dst.display()))?;
@@ -513,6 +727,12 @@ impl UpdateHandler {
         let mut last_progress = std::time::Instant::now();
 
         loop {
+            if Instant::now() >= deadline {
+                return Err(anyhow!(
+                    "downloading {url} exceeded {}s and was abandoned",
+                    ipc::HTTP_DOWNLOAD_TIMEOUT.as_secs()
+                ));
+            }
             let n = response.read(&mut buf).context("download interrupted")?;
             if n == 0 {
                 break;
@@ -550,12 +770,27 @@ impl UpdateHandler {
     }
 
     #[cfg(target_os = "linux")]
-    fn relaunch_appimage(window: &slint::Weak<MainWindow>, appimage: &std::path::Path) {
+    fn relaunch_appimage(
+        window: &slint::Weak<MainWindow>,
+        appimage: &std::path::Path,
+        backup: Option<&std::path::Path>,
+    ) {
         if let Err(e) = Command::new(appimage).arg(ipc::RELAUNCH_ARG).spawn() {
             error!("failed to relaunch the updated AppImage: {e}");
+            if let Some(backup) = backup {
+                match std::fs::rename(backup, appimage) {
+                    Ok(()) => warn!("restored the previous AppImage after a failed relaunch"),
+                    Err(e) => error!("could not restore the previous AppImage: {e}"),
+                }
+            }
             Self::restart_failed(window);
             return;
         }
+
+        if let Some(backup) = backup {
+            let _ = std::fs::remove_file(backup);
+        }
+
         slint::invoke_from_event_loop(|| {
             let _ = slint::quit_event_loop();
         })
@@ -566,10 +801,7 @@ impl UpdateHandler {
     fn fetch_linux_manifest() -> Result<ipc::manifest::LinuxManifest> {
         let mut last_err = anyhow!("no manifest sources configured");
         for url in ipc::manifest_urls() {
-            let result = reqwest::blocking::get(url)
-                .and_then(Response::error_for_status)
-                .and_then(Response::json::<ipc::manifest::LinuxManifest>);
-            match result {
+            match fetch_json::<ipc::manifest::LinuxManifest>(url) {
                 Ok(manifest) => {
                     if let Err(e) = manifest.appimage.validate_url() {
                         warn!("manifest from {url} rejected: {e}");
@@ -580,7 +812,7 @@ impl UpdateHandler {
                 }
                 Err(e) => {
                     warn!("manifest fetch failed from {url}: {e}");
-                    last_err = e.into();
+                    last_err = e;
                 }
             }
         }
@@ -597,6 +829,7 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 w.set_popup_id("update-manual".into());
+                w.set_popup_kind("install".into());
                 w.set_popup_title("Update available".into());
                 w.set_popup_message(message.into());
                 w.set_popup_confirm_delay(0);
@@ -616,23 +849,31 @@ impl UpdateHandler {
         } else {
             String::new()
         };
-        if local_hash == manifest.updater_hash {
+        if ipc::manifest::hash_eq(&local_hash, &manifest.updater_hash) {
             return Ok(());
         }
 
         info!("updater is outdated; downloading new version");
-        let entry = manifest
-            .files
-            .iter()
-            .find(|f| f.path == ipc::UPDATER_EXE)
-            .ok_or_else(|| anyhow!("manifest has no entry for {}", ipc::UPDATER_EXE))?;
+        let Some(entry) = manifest.files.iter().find(|f| f.path == ipc::UPDATER_EXE) else {
+            warn!(
+                "the manifest has no entry for {}; keeping the installed updater",
+                ipc::UPDATER_EXE
+            );
+            return Ok(());
+        };
 
+        let client = http_client();
         let mut last_err = anyhow!("no download sources available");
         let mut downloaded = None;
         for url in entry.download_urls() {
-            let result = reqwest::blocking::get(&url)
-                .and_then(reqwest::blocking::Response::error_for_status)
-                .and_then(reqwest::blocking::Response::bytes);
+            let result = client
+                .get(&url)
+                .send()
+                .and_then(Response::error_for_status)
+                .map_err(anyhow::Error::from)
+                .and_then(|mut response| {
+                    read_response(&mut response, &url, ipc::HTTP_DOWNLOAD_TIMEOUT)
+                });
             match result {
                 Ok(bytes) => {
                     downloaded = Some(bytes);
@@ -640,7 +881,7 @@ impl UpdateHandler {
                 }
                 Err(e) => {
                     warn!("updater download failed from {url}: {e}");
-                    last_err = e.into();
+                    last_err = e;
                 }
             }
         }
@@ -648,30 +889,63 @@ impl UpdateHandler {
             downloaded.ok_or_else(|| last_err.context("all updater download sources failed"))?;
 
         let actual = ipc::manifest::hash_bytes(&bytes);
-        if actual != manifest.updater_hash {
+        if !ipc::manifest::hash_eq(&actual, &manifest.updater_hash) {
             return Err(anyhow!(
                 "updater hash mismatch: expected {}, got {actual}",
                 manifest.updater_hash
             ));
         }
 
-        let tmp = root.join(format!("{}.tmp", ipc::UPDATER_EXE));
-        std::fs::write(&tmp, &bytes).context("failed to write updater .tmp")?;
-        std::fs::rename(&tmp, &updater_path).context("failed to swap in new updater")?;
+        let tmp = root.join(format!("{}.{}.tmp", ipc::UPDATER_EXE, std::process::id()));
+        let write_and_verify = || -> Result<()> {
+            std::fs::write(&tmp, &bytes).context("failed to write updater .tmp")?;
+            let written = hash_file(&tmp).context("failed to hash the downloaded updater")?;
+            if !ipc::manifest::hash_eq(&written, &manifest.updater_hash) {
+                return Err(anyhow!("the updater was corrupted on the way to disk"));
+            }
+            Ok(())
+        };
+        if let Err(e) = write_and_verify() {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e);
+        }
+
+        if let Err(e) = Self::replace_with_retry(&tmp, &updater_path) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(anyhow!("failed to swap in new updater: {e}"));
+        }
         info!("updater self-update complete.");
         Ok(())
+    }
+
+    #[cfg(windows)]
+    fn replace_with_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+        const ATTEMPTS: u32 = 8;
+        const DELAY: Duration = Duration::from_millis(250);
+
+        let mut last = None;
+        for attempt in 0..ATTEMPTS {
+            match std::fs::rename(from, to) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    last = Some(e);
+                    if attempt + 1 < ATTEMPTS {
+                        std::thread::sleep(DELAY);
+                    }
+                }
+            }
+        }
+        Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
     }
 
     #[cfg(windows)]
     fn fetch_manifest() -> Result<Manifest> {
         let mut last_err = anyhow!("no manifest sources configured");
         for url in ipc::manifest_urls() {
-            let result = reqwest::blocking::get(url)
-                .and_then(Response::error_for_status)
-                .and_then(Response::json::<Manifest>);
-            match result {
+            match fetch_json::<Manifest>(url) {
                 Ok(manifest) => {
-                    if let Err(e) = manifest.validate_urls() {
+                    let checked = manifest.validate_urls().and_then(|()| manifest.validate());
+                    if let Err(e) = checked {
                         warn!("manifest from {url} rejected: {e}");
                         last_err = anyhow!(e);
                         continue;
@@ -680,7 +954,7 @@ impl UpdateHandler {
                 }
                 Err(e) => {
                     warn!("manifest fetch failed from {url}: {e}");
-                    last_err = e.into();
+                    last_err = e;
                 }
             }
         }
@@ -694,6 +968,7 @@ impl UpdateHandler {
         slint::invoke_from_event_loop(move || {
             if let Some(w) = w.upgrade() {
                 w.set_popup_id("update-popup".into());
+                w.set_popup_kind("install".into());
                 w.set_popup_title("Update available".into());
                 w.set_popup_message(message.into());
                 w.set_popup_confirm_delay(0);
@@ -710,16 +985,8 @@ impl UpdateHandler {
     }
 
     fn begin_locked_update(window: &slint::Weak<MainWindow>) {
-        UI_LOCKED.store(true, Ordering::SeqCst);
-        let w = window.clone();
-        slint::invoke_from_event_loop(move || {
-            crate::classes::logwindow::hide();
-            if let Some(w) = w.upgrade() {
-                w.set_launch_disabled(true);
-                w.set_launch_state(LaunchState::Updating);
-            }
-        })
-        .ok();
+        Self::set_locked(window, true);
+        slint::invoke_from_event_loop(crate::classes::logwindow::hide).ok();
         Self::set_update_overlay(window, true);
     }
 
@@ -760,13 +1027,11 @@ impl UpdateHandler {
         };
         let overall = ((f64::from(file_index) + file_frac) / f64::from(count)).clamp(0.0, 1.0);
         let text = if file_index >= file_count {
-            "Finishing update...".to_string()
+            crate::translations::tr("progress.updating-aurora-finishing")
         } else {
-            format!(
-                "Downloading file {} of {}",
-                file_index.saturating_add(1),
-                file_count
-            )
+            crate::translations::tr("progress.updating-aurora-downloading")
+                .replace("{0}", &file_index.saturating_add(1).to_string())
+                .replace("{1}", &file_count.to_string())
         };
 
         let w = window.clone();
@@ -781,6 +1046,12 @@ impl UpdateHandler {
 
     #[cfg(windows)]
     fn restart_app(window: &slint::Weak<MainWindow>) {
+        if Bridge::game_busy() {
+            info!("update applied while the game is running; deferring the restart");
+            Self::restart_failed(window);
+            return;
+        }
+
         let exe = match std::env::current_exe() {
             Ok(exe) => exe,
             Err(e) => {
@@ -820,13 +1091,25 @@ impl UpdateHandler {
         UI_LOCKED.store(locked, Ordering::SeqCst);
         let w = window.clone();
         slint::invoke_from_event_loop(move || {
-            if let Some(w) = w.upgrade() {
-                w.set_launch_disabled(locked);
-                w.set_launch_state(if locked {
-                    LaunchState::Updating
-                } else {
-                    LaunchState::Launch
-                });
+            let Some(w) = w.upgrade() else { return };
+            if locked {
+                PRE_LOCK_STATE.store(w.get_launch_state().to_code(), Ordering::SeqCst);
+                PRE_LOCK_DISABLED.store(w.get_launch_disabled(), Ordering::SeqCst);
+                w.set_launch_disabled(true);
+                w.set_launch_state(LaunchState::Updating);
+                return;
+            }
+
+            let saved = PRE_LOCK_STATE.swap(NO_SAVED_STATE, Ordering::SeqCst);
+            match LaunchState::from_code(saved) {
+                Some(LaunchState::Updating) | None => {
+                    w.set_launch_state(LaunchState::Launch);
+                    w.set_launch_disabled(false);
+                }
+                Some(state) => {
+                    w.set_launch_state(state);
+                    w.set_launch_disabled(PRE_LOCK_DISABLED.load(Ordering::SeqCst));
+                }
             }
         })
         .ok();
@@ -834,11 +1117,11 @@ impl UpdateHandler {
 
     fn send_init_confirmed() {
         for _ in 0..10 {
-            if let Ok(mut stream) = protocol::connect(ipc::INIT_PIPE_NAME) {
-                if protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok() {
-                    info!("init_confirmed sent");
-                    return;
-                }
+            if let Ok(mut stream) = protocol::connect(&ipc::init_pipe_name())
+                && protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok()
+            {
+                info!("init_confirmed sent");
+                return;
             }
             std::thread::sleep(Duration::from_millis(300));
         }
@@ -853,7 +1136,11 @@ impl UpdateHandler {
         let manifest = Self::fetch_manifest()?;
         let local = match LocalManifest::load(&root) {
             Ok(Some(local)) => local,
-            _ => LocalManifest::build_manifest_from_disk(&root, &manifest),
+            Ok(None) => LocalManifest::build_manifest_from_disk(&root, &manifest),
+            Err(e) => {
+                warn!("local manifest unreadable ({e}); rebuilding it from disk");
+                LocalManifest::build_manifest_from_disk(&root, &manifest)
+            }
         };
         Ok(!manifest.changed_files(&root, &local).is_empty())
     }
@@ -867,16 +1154,63 @@ impl UpdateHandler {
         let manifest = Self::fetch_linux_manifest()?;
         let current = hash_file(&appimage)
             .with_context(|| format!("failed to hash {}", appimage.display()))?;
-        Ok(current != manifest.appimage.sha256)
+        Ok(!ipc::manifest::hash_eq(&current, &manifest.appimage.sha256))
     }
 
     #[cfg(feature = "beta")]
     fn check_beta_phasing() -> Result<bool> {
-        let res: BetaPhaseResponse = reqwest::blocking::get(BETA_PHASE_CHECK_URL)
-            .with_context(|| "Couldn't connect to beta phasing endpoint")?
-            .json()
-            .with_context(|| "Couldn't parse JSON from beta phasing endpoint")?;
+        let res: BetaPhaseResponse =
+            fetch_json(BETA_PHASE_CHECK_URL).context("could not read the beta phasing endpoint")?;
 
         Ok(res.active && res.phase == CURRENT_BETA_PHASE)
     }
+}
+
+static HTTP_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
+    reqwest::blocking::Client::builder()
+        .user_agent(ipc::user_agent(&shared::utils::get_local_version()))
+        .connect_timeout(ipc::HTTP_CONNECT_TIMEOUT)
+        .timeout(ipc::HTTP_STALL_TIMEOUT)
+        .build()
+        .unwrap_or_else(|e| {
+            error!("failed to build the HTTP client, falling back to default: {e}");
+            reqwest::blocking::Client::default()
+        })
+});
+
+fn http_client() -> &'static reqwest::blocking::Client {
+    &HTTP_CLIENT
+}
+
+fn read_response(response: &mut Response, url: &str, budget: Duration) -> Result<Vec<u8>> {
+    let started = Instant::now();
+    let mut body = Vec::new();
+    let mut chunk = vec![0u8; 64 * 1024];
+    loop {
+        if started.elapsed() > budget {
+            return Err(anyhow!(
+                "{url} did not finish sending within {}s",
+                budget.as_secs()
+            ));
+        }
+        let n = response
+            .read(&mut chunk)
+            .with_context(|| format!("failed to read the response from {url}"))?;
+        if n == 0 {
+            return Ok(body);
+        }
+
+        body.extend_from_slice(&chunk[..n]);
+    }
+}
+
+fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {
+    let client = http_client();
+    let mut response = client
+        .get(url)
+        .send()
+        .and_then(Response::error_for_status)
+        .with_context(|| format!("request to {url} failed"))?;
+    let body = read_response(&mut response, url, ipc::HTTP_MANIFEST_TIMEOUT)?;
+    serde_json::from_slice(&body).with_context(|| format!("invalid JSON from {url}"))
 }

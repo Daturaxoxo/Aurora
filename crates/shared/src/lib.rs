@@ -7,13 +7,13 @@ pub mod config;
 pub mod desktop_entry;
 pub mod display;
 pub mod logger;
+pub mod oneclick;
 pub mod pathfind;
 #[cfg(target_os = "windows")]
 pub mod repair;
 pub mod telemetry;
 pub mod utils;
 pub mod classes {
-    pub mod export;
     pub mod gamebanana;
     pub mod games;
     pub mod info;

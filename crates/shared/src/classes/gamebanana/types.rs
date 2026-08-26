@@ -29,6 +29,16 @@ pub struct NteModFile {
     pub has_contents: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct ModProfile {
+    pub id: u32,
+    pub game_id: u32,
+    pub name: String,
+    pub author: String,
+    pub is_nsfw: bool,
+    pub files: Vec<NteModFile>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SubfeedResponse {
     #[serde(rename = "_aRecords")]
@@ -80,6 +90,14 @@ pub struct ProfilePage {
     pub record: ApiRecord,
     #[serde(rename = "_aFiles", default)]
     pub files: Option<Vec<ApiFile>>,
+    #[serde(rename = "_aGame", default)]
+    pub game: Option<ApiGame>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ApiGame {
+    #[serde(rename = "_idRow")]
+    pub id: u32,
 }
 
 #[derive(Debug, Deserialize, Clone)]

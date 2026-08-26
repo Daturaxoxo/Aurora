@@ -3,8 +3,9 @@ use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
+use backend::classes::launch_args;
 use backend::classes::rpc::RPC;
-use backend::handler::{get_tx, EngineCommand, GAME_RUNNING};
+use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::config::{self, key};
@@ -34,6 +35,10 @@ const ABOUT_LINKS: &[(&str, &str)] = &[
     ("discord", "https://discord.gg/565jfeYsbp"),
     ("github", "https://github.com/Daturaxoxo/Aurora"),
     ("docs", "https://docs.getaurora.moe"),
+    (
+        "launch-arguments",
+        "https://docs.getaurora.moe/engine/launch-arguments",
+    ),
     (
         "contributors",
         "https://github.com/Daturaxoxo/Aurora/graphs/contributors",
@@ -79,10 +84,8 @@ impl SettingsHandler {
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
         debug!("discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
         w.set_discord_rpc(discord_rpc);
-        if discord_rpc {
-            if let Err(e) = RPC.set_idle() {
-                error!("could not set Discord RPC to idle: {e}");
-            }
+        if discord_rpc && let Err(e) = RPC.set_idle() {
+            error!("could not set Discord RPC to idle: {e}");
         }
 
         // Launcher
@@ -113,6 +116,11 @@ impl SettingsHandler {
         let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
         debug!("ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
         w.set_ignore_checksum(ignore_checksum);
+
+        let raw_launch_args = config::get(key::LAUNCH_ARGS);
+        let launch_args = raw_launch_args.as_str().unwrap_or("").to_string();
+        debug!("launch_args: raw={raw_launch_args:?} → {launch_args:?}");
+        w.set_launch_args(launch_args.into());
 
         // Linux only
         w.set_is_linux(cfg!(target_os = "linux"));
@@ -164,39 +172,201 @@ impl SettingsHandler {
         use backend::classes::linux;
 
         let builds = linux::installed_dwproton_builds();
-        debug!("installed DW-Proton builds: {builds:?}");
+        let customs = linux::custom_proton_builds();
+        debug!("installed DW-Proton builds: {builds:?}, added manually: {customs:?}");
+
+        let builtin_count = builds.len() + 1;
+
+        let raw_custom = config::get(key::PROTON_CUSTOM_PATH);
+        let selected_custom = raw_custom.as_str().unwrap_or("").trim().to_string();
         let raw_version = config::get(key::PROTON_VERSION);
         let saved = raw_version.as_str().unwrap_or("").trim().to_string();
-        let index = if saved.is_empty() {
-            0
-        } else {
-            builds
+
+        let index = if !selected_custom.is_empty() {
+            customs
                 .iter()
-                .position(|build| *build == saved)
-                .and_then(|i| i32::try_from(i).ok())
+                .position(|dir| dir.to_string_lossy() == selected_custom)
                 .map_or_else(
                     || {
                         warn!(
-                            "saved proton_version {saved:?} is not installed any \
-                                 more, showing Automatic instead"
+                            "the selected Proton installation {selected_custom:?} is gone, \
+                             showing Automatic instead"
                         );
                         0
                     },
-                    |i| i + 1,
+                    |i| builtin_count + i,
                 )
+        } else if saved.is_empty() {
+            0
+        } else {
+            builds.iter().position(|build| *build == saved).map_or_else(
+                || {
+                    warn!(
+                        "saved proton_version {saved:?} is not installed any \
+                         more, showing Automatic instead"
+                    );
+                    0
+                },
+                |i| i + 1,
+            )
         };
-        debug!("proton_version: raw={raw_version:?} → index={index}");
+        debug!("proton_version: raw={raw_version:?} custom={raw_custom:?} → index={index}");
 
-        let mut options = Vec::with_capacity(builds.len() + 1);
+        let mut names = builds;
+        names.extend(customs.iter().map(|dir| Self::proton_build_name(dir)));
+
+        // Index 0 is "Automatic"
+        let selected_name = index
+            .checked_sub(1)
+            .and_then(|i| names.get(i))
+            .cloned()
+            .unwrap_or_default();
+
+        let mut options = Vec::with_capacity(names.len() + 1);
         options.push(slint::SharedString::from(crate::translations::tr(
             "settings.proton-version.automatic",
         )));
-        options.extend(builds.iter().map(slint::SharedString::from));
+        options.extend(names.iter().map(slint::SharedString::from));
 
         w.set_proton_versions(slint::ModelRc::new(slint::VecModel::from(options)));
-        w.set_proton_version_index(index);
+        w.set_proton_version_index(i32::try_from(index).unwrap_or(0));
+        w.set_proton_builtin_count(i32::try_from(builtin_count).unwrap_or(1));
+        w.set_proton_version_not_recommended(linux::is_proton_version_not_recommended(
+            &selected_name,
+        ));
+    }
 
-        w.set_proton_version_not_recommended(linux::is_proton_version_not_recommended(&saved));
+    /// The name a manually added Proton installation is listed under.
+    #[cfg(target_os = "linux")]
+    fn proton_build_name(dir: &std::path::Path) -> String {
+        dir.file_name()
+            .unwrap_or(dir.as_os_str())
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn select_proton_version(window: &slint::Weak<MainWindow>, index: i32) {
+        let _ = (window, index);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn select_proton_version(window: &slint::Weak<MainWindow>, index: i32) {
+        use backend::classes::linux;
+
+        let Some(w) = window.upgrade() else {
+            error!("window handle dead when changing proton_version");
+            return;
+        };
+
+        let name = usize::try_from(index)
+            .ok()
+            .filter(|_| index > 0)
+            .and_then(|index| w.get_proton_versions().row_data(index))
+            .map(|name| name.to_string())
+            .unwrap_or_default();
+
+        if let Ok(custom_index) = usize::try_from(index - w.get_proton_builtin_count()) {
+            let path = linux::custom_proton_builds()
+                .get(custom_index)
+                .map(|dir| dir.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            info!("proton_version changed → manually added {path:?}");
+            config::set(key::PROTON_CUSTOM_PATH, path);
+            config::set(key::PROTON_VERSION, String::new());
+        } else {
+            info!("proton_version changed → index={index}, build={name:?}");
+            config::set(key::PROTON_CUSTOM_PATH, String::new());
+            config::set(key::PROTON_VERSION, name.clone());
+        }
+        debug!("proton_version saved to config");
+
+        w.set_proton_version_not_recommended(linux::is_proton_version_not_recommended(&name));
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn browse_proton_directory(window: &slint::Weak<MainWindow>) {
+        let _ = window;
+    }
+
+    #[cfg(target_os = "linux")]
+    fn browse_proton_directory(window: &slint::Weak<MainWindow>) {
+        use backend::classes::linux;
+
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let Some(picked) = rfd::FileDialog::new()
+                .set_title("Select Proton Installation")
+                .pick_folder()
+            else {
+                info!("browse_proton_directory cancelled - no folder selected");
+                return;
+            };
+
+            let found = linux::resolve_proton_dirs(&picked);
+            if found.is_empty() {
+                warn!("{} holds no Proton installation", picked.display());
+                ToastHandler::show(
+                    &ww,
+                    crate::translations::tr("settings.proton-version-invalid"),
+                    "error",
+                );
+                return;
+            }
+
+            info!(
+                "adding {} Proton installation(s) from {}",
+                found.len(),
+                picked.display()
+            );
+            linux::add_custom_proton_builds(&found);
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = ww.upgrade() {
+                    Self::load_proton_versions(&w);
+                } else {
+                    error!("window handle dead when listing the added Proton installations");
+                }
+            });
+        });
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn remove_proton_version(window: &slint::Weak<MainWindow>, index: i32) {
+        let _ = (window, index);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn remove_proton_version(window: &slint::Weak<MainWindow>, index: i32) {
+        use backend::classes::linux;
+
+        let Some(w) = window.upgrade() else {
+            error!("window handle dead when removing a Proton installation");
+            return;
+        };
+
+        let customs = linux::custom_proton_builds();
+        let removed = usize::try_from(index - w.get_proton_builtin_count())
+            .ok()
+            .and_then(|custom_index| customs.get(custom_index));
+
+        let Some(removed) = removed else {
+            warn!("no manually added Proton installation at index {index}");
+            return;
+        };
+
+        info!(
+            "removing the manually added Proton installation {}",
+            removed.display()
+        );
+        let selected = config::get(key::PROTON_CUSTOM_PATH);
+        if selected.as_str() == Some(&removed.to_string_lossy()) {
+            debug!("it was the selected one, falling back to Automatic");
+            config::set(key::PROTON_CUSTOM_PATH, String::new());
+        }
+        linux::remove_custom_proton_build(removed);
+
+        Self::load_proton_versions(&w);
     }
 
     fn bind(window: &slint::Weak<MainWindow>) {
@@ -326,6 +496,7 @@ impl SettingsHandler {
             let message = Self::translation(&w, keys.get_popup_ignore_checksum_message());
 
             w.set_popup_id(IGNORE_CHECKSUM_POPUP_ID.into());
+            w.set_popup_kind("warning".into());
             w.set_popup_title(title);
             w.set_popup_message(message);
             w.set_popup_confirm_delay(0);
@@ -374,6 +545,25 @@ impl SettingsHandler {
             }
         });
 
+        let ww = window.clone();
+        w.on_launch_args_changed(move |args| {
+            info!("launch_args changed -> {args:?}");
+            config::set(key::LAUNCH_ARGS, args.as_str());
+            debug!("launch_args saved to config");
+
+            match launch_args::apply(args.as_str()) {
+                Ok(()) => debug!("launch_args written to the game's config files"),
+                Err(e) => {
+                    error!("launch_args could not be applied: {e}");
+                    ToastHandler::show(
+                        &ww,
+                        format!("Could not apply launch arguments: {e}"),
+                        "error",
+                    );
+                }
+            }
+        });
+
         // [LINUX]
         w.on_proton_launch_args_changed(move |args| {
             info!("proton_launch_args changed → {args:?}");
@@ -383,29 +573,18 @@ impl SettingsHandler {
 
         let ww = window.clone();
         w.on_proton_version_index_changed(move |index| {
-            let name = if index <= 0 {
-                String::new()
-            } else {
-                ww.upgrade()
-                    .zip(usize::try_from(index).ok())
-                    .and_then(|(w, index)| {
-                        use slint::Model;
-                        w.get_proton_versions().row_data(index)
-                    })
-                    .map(|s| s.to_string())
-                    .unwrap_or_default()
-            };
+            Self::select_proton_version(&ww, index);
+        });
 
-            #[cfg(target_os = "linux")]
-            if let Some(w) = ww.upgrade() {
-                w.set_proton_version_not_recommended(
-                    backend::classes::linux::is_proton_version_not_recommended(&name),
-                );
-            }
+        let ww = window.clone();
+        w.on_browse_proton_directory(move || {
+            info!("browse_proton_directory triggered - opening folder picker");
+            Self::browse_proton_directory(&ww);
+        });
 
-            info!("proton_version changed → index={index}, build={name:?}");
-            config::set(key::PROTON_VERSION, name);
-            debug!("proton_version saved to config");
+        let ww = window.clone();
+        w.on_remove_proton_version(move |index| {
+            Self::remove_proton_version(&ww, index);
         });
 
         w.on_desktop_entry_changed(move |enabled| {
@@ -564,7 +743,10 @@ impl SettingsHandler {
             .map_or("en", |l| l.code.as_str());
 
         if result == "en" && index != 0 {
-            warn!("index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"", LANGUAGES.len());
+            warn!(
+                "index_to_code: index={index} is out of range ({} langs loaded), falling back to \"en\"",
+                LANGUAGES.len()
+            );
         }
 
         result

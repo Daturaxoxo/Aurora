@@ -6,13 +6,14 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
+use crate::bridge::PopupSpec;
+use crate::translations::tr;
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
 const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
@@ -22,9 +23,6 @@ const RESERVED_DEVICE_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
-
-static RUNTIME: Lazy<tokio::runtime::Runtime> =
-    Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
 
 static PENDING_DELETE: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
 static MODS_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
@@ -208,16 +206,15 @@ impl LuaScriptsHandler {
                 if let Some((idx, item)) = find_by_id(&model, &id) {
                     *PENDING_DELETE.lock().unwrap() = Some(idx);
 
-                    win.set_popup_id("lua-delete".into());
-                    win.set_popup_title("Delete Script?".into());
-                    win.set_popup_message(
-                        format!(
-                            "\"{}\" will be permanently deleted. You cannot undo this action.",
-                            item.name
-                        )
-                        .into(),
-                    );
-                    win.set_popup_active(true);
+                    PopupSpec {
+                        id: "lua-delete".to_owned(),
+                        kind: "danger".to_owned(),
+                        title: tr("popup.script-delete.title"),
+                        message: tr("popup.script-delete.message"),
+                        subject: item.name.to_string(),
+                        ..PopupSpec::default()
+                    }
+                    .apply(&win);
                 }
             });
         }
@@ -243,7 +240,7 @@ impl LuaScriptsHandler {
 
     /// UE4SS Install Main
     fn start_install(window: Weak<MainWindow>, bin_dir: PathBuf) {
-        RUNTIME.spawn(async move {
+        crate::classes::pages::gbbrowser::runtime().spawn(async move {
             let result = Self::download_and_extract(&bin_dir, &window).await;
 
             let window = window.clone();
@@ -290,13 +287,13 @@ impl LuaScriptsHandler {
 
         let script_dir = mods_dir.join(item.name.as_str());
 
-        if let Err(e) = fs::remove_dir_all(&script_dir) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                error!(
-                    "Failed to delete script folder '{}': {e}",
-                    script_dir.display()
-                );
-            }
+        if let Err(e) = fs::remove_dir_all(&script_dir)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            error!(
+                "Failed to delete script folder '{}': {e}",
+                script_dir.display()
+            );
         }
 
         unregister_mod_from_config(mods_dir, &item.name);
@@ -527,10 +524,10 @@ fn read_debug_enabled(bin_dir: &Path) -> bool {
         if !in_debug_section {
             continue;
         }
-        if let Some((key, value)) = trimmed.split_once('=') {
-            if key.trim().eq_ignore_ascii_case("GuiConsoleEnabled") {
-                return value.trim() == "1";
-            }
+        if let Some((key, value)) = trimmed.split_once('=')
+            && key.trim().eq_ignore_ascii_case("GuiConsoleEnabled")
+        {
+            return value.trim() == "1";
         }
     }
 
@@ -567,16 +564,14 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) -> Result<()> {
             continue;
         }
 
-        if debug_section {
-            if let Some((key, _)) = trimmed.split_once('=') {
-                let key_name = key.trim();
-                if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
-                    || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
-                {
-                    let _ = write!(updated, "{key_name} = {value}");
-                    updated.push_str(line_ending);
-                    continue;
-                }
+        if debug_section && let Some((key, _)) = trimmed.split_once('=') {
+            let key_name = key.trim();
+            if key_name.eq_ignore_ascii_case("GuiConsoleEnabled")
+                || key_name.eq_ignore_ascii_case("GuiConsoleVisible")
+            {
+                let _ = write!(updated, "{key_name} = {value}");
+                updated.push_str(line_ending);
+                continue;
             }
         }
 

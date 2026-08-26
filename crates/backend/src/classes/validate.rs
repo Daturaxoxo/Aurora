@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use jwalk::WalkDir;
 use shared::archive::ARCHIVE_EXTENSIONS;
 

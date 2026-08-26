@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use std::path::{Path, PathBuf};
 
@@ -83,7 +83,7 @@ pub fn get_bin_path() -> Option<PathBuf> {
     }
     #[cfg(not(debug_assertions))]
     {
-        Some(ipc::state_root().join("Bin"))
+        Some(ipc::instance_root().join("Bin"))
     }
 }
 

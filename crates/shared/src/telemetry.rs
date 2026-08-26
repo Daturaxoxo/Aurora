@@ -4,7 +4,7 @@ use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
     io::Write as _,
     path::{Path, PathBuf},
-    sync::mpsc::{sync_channel, SyncSender},
+    sync::mpsc::{SyncSender, sync_channel},
     thread,
     time::{Duration, Instant},
 };
@@ -22,8 +22,8 @@ use sysinfo::{Disks, RefreshKind, System};
 
 use crate::{
     classes::info::{
-        paths::{get_version_paths, CLIENT_PAK_DIR},
-        version::{detect_distribution, detect_version, BypassMethod},
+        paths::{CLIENT_PAK_DIR, get_version_paths},
+        version::{BypassMethod, detect_distribution, detect_version},
     },
     config::{self, get_all_configs, key},
     pathfind::get_game_directory,
@@ -341,7 +341,9 @@ impl Budget {
     }
 
     fn admit(&mut self, event: &ErrorEvent) -> bool {
-        if self.seen.len() >= MAX_EVENTS_PER_SESSION {return false}
+        if self.seen.len() >= MAX_EVENTS_PER_SESSION {
+            return false;
+        }
         let mut hasher = DefaultHasher::new();
         event.module.hash(&mut hasher);
         event.message.hash(&mut hasher);
@@ -354,10 +356,16 @@ impl Budget {
                 .recent
                 .front()
                 .is_some_and(|at| at.elapsed() >= SEND_WINDOW)
-            {self.recent.pop_front();}
+            {
+                self.recent.pop_front();
+            }
 
-            if self.recent.len() < SEND_BURST {break}
-            let Some(oldest) = self.recent.front().copied() else {break};
+            if self.recent.len() < SEND_BURST {
+                break;
+            }
+            let Some(oldest) = self.recent.front().copied() else {
+                break;
+            };
             thread::sleep(SEND_WINDOW.saturating_sub(oldest.elapsed()));
         }
 
@@ -390,9 +398,13 @@ pub(crate) fn spawn_error_worker() -> SyncSender<ErrorEvent> {
                 if config::get(config::key::TELEMETRY_OPT_OUT)
                     .as_bool()
                     .unwrap_or(false)
-                {continue}
+                {
+                    continue;
+                }
 
-                if !budget.admit(&event) {continue}
+                if !budget.admit(&event) {
+                    continue;
+                }
 
                 let payload = serde_json::json!({
                     "message": scrub_username(&event.message),

@@ -1,7 +1,7 @@
 use crate::classes::pages::modmanager::{config_map, config_map_set};
-use crate::{MainWindow, ModItem};
+use crate::{MainWindow, ModItem, ModTag};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -11,8 +11,8 @@ use slint::{Model, VecModel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const DISABLED_SUFFIX: &str = ".disabled";
 const MODULE_EXTENSIONS: [&str; 1] = ["asi"];
@@ -210,6 +210,8 @@ impl ModulesHandler {
                     is_group_header: false,
                     collapsed: false,
                     restart_required: false,
+                    tag: ModTag::None,
+                    has_icon_png: false,
                 })
                 .collect();
 
@@ -425,10 +427,10 @@ impl ModulesHandler {
             let id = id.to_string();
             let ww = ww.clone();
             std::thread::spawn(move || {
-                if let Some(m) = Self::module_by_id(&id) {
-                    if let Err(e) = Self::toggle_module(&m) {
-                        error!("[Modules] could not toggle '{}': {e}", m.id);
-                    }
+                if let Some(m) = Self::module_by_id(&id)
+                    && let Err(e) = Self::toggle_module(&m)
+                {
+                    error!("[Modules] could not toggle '{}': {e}", m.id);
                 }
                 Self::reload(&ww);
             });
@@ -541,12 +543,12 @@ impl ModulesHandler {
     fn update_row(w: &MainWindow, id: &str, change: impl Fn(&mut ModItem)) {
         let model = w.get_modules_list();
         for i in 0..model.row_count() {
-            if let Some(mut row) = model.row_data(i) {
-                if row.id == id {
-                    change(&mut row);
-                    model.set_row_data(i, row);
-                    break;
-                }
+            if let Some(mut row) = model.row_data(i)
+                && row.id == id
+            {
+                change(&mut row);
+                model.set_row_data(i, row);
+                break;
             }
         }
     }

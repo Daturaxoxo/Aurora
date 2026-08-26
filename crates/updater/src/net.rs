@@ -1,7 +1,8 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::{Duration, Instant};
 
 use ipc::manifest::Manifest;
 use ipc::manifest_urls;
@@ -10,10 +11,19 @@ use shared::utils;
 
 use crate::logfile::log;
 
-fn agent() -> ureq::Agent {
+const CHUNK: usize = 64 * 1024;
+
+fn agent(global_timeout: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
-        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
-        .timeout_connect(Some(Duration::from_secs(10)))
+        .user_agent(ipc::user_agent(&utils::get_local_version()))
+        .timeout_connect(Some(ipc::HTTP_CONNECT_TIMEOUT))
+        .timeout_recv_response(Some(ipc::HTTP_MANIFEST_TIMEOUT))
+        .timeout_global(Some(global_timeout))
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build()
         .into()
 }
@@ -35,7 +45,7 @@ pub fn fetch_manifest() -> Result<Manifest, String> {
 }
 
 fn fetch_manifest_from(url: &str) -> Result<Manifest, String> {
-    let mut response = agent()
+    let mut response = agent(ipc::HTTP_MANIFEST_TIMEOUT)
         .get(url)
         .call()
         .map_err(|e| format!("request failed: {e}"))?;
@@ -56,8 +66,16 @@ pub fn download_from_any(
 ) -> Result<(), String> {
     let mut last_err = String::from("no download sources available");
     for (i, url) in urls.iter().enumerate() {
-        match download(url, dest, &mut *progress) {
+        let attempt = attempt_path(dest, i);
+        let _ = std::fs::remove_file(&attempt);
+        match download(url, &attempt, &mut *progress) {
             Ok(()) => {
+                if let Err(e) = std::fs::rename(&attempt, dest) {
+                    let _ = std::fs::remove_file(&attempt);
+                    last_err = format!("failed to move the download into place: {e}");
+                    log(&last_err);
+                    continue;
+                }
                 if i > 0 {
                     log(&format!("fell back to {url}"));
                 }
@@ -65,7 +83,7 @@ pub fn download_from_any(
             }
             Err(e) => {
                 log(&format!("download failed from {url}: {e}"));
-                let _ = std::fs::remove_file(dest);
+                let _ = std::fs::remove_file(&attempt);
                 last_err = e;
             }
         }
@@ -75,8 +93,73 @@ pub fn download_from_any(
     ))
 }
 
+fn attempt_path(dest: &Path, attempt: usize) -> PathBuf {
+    let name = dest
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    dest.with_file_name(format!("{name}.{attempt}.part"))
+}
+
+pub fn cleanup_attempts(dest: &Path) {
+    for i in 0..8 {
+        let path = attempt_path(dest, i);
+        if path.exists() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+enum Tick {
+    Progress { done: u64, total: u64 },
+    Done(Result<u64, String>),
+}
+
 pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {
-    let response = agent()
+    let (tx, rx) = mpsc::channel();
+    let url_owned = url.to_owned();
+    let dest_owned = dest.to_path_buf();
+    std::thread::spawn(move || {
+        let result = stream_to_file(&url_owned, &dest_owned, &tx);
+        let _ = tx.send(Tick::Done(result));
+    });
+
+    let deadline = Instant::now() + ipc::HTTP_DOWNLOAD_TIMEOUT;
+    let mut done = 0u64;
+    loop {
+        let budget =
+            ipc::HTTP_STALL_TIMEOUT.min(deadline.saturating_duration_since(Instant::now()));
+        if budget.is_zero() {
+            return Err(format!(
+                "download of {url} exceeded {}s and was abandoned",
+                ipc::HTTP_DOWNLOAD_TIMEOUT.as_secs()
+            ));
+        }
+        match rx.recv_timeout(budget) {
+            Ok(Tick::Progress { done: d, total }) => {
+                done = d;
+                progress(done, total);
+            }
+            Ok(Tick::Done(result)) => {
+                let written = result?;
+                return verify_size(dest, written);
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                return Err(format!(
+                    "download of {url} made no progress for {}s ({done} bytes received); \
+                     the connection appears to be stalled",
+                    ipc::HTTP_STALL_TIMEOUT.as_secs()
+                ));
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(format!("download of {url} ended unexpectedly"));
+            }
+        }
+    }
+}
+
+fn stream_to_file(url: &str, dest: &Path, tx: &mpsc::Sender<Tick>) -> Result<u64, String> {
+    let response = agent(ipc::HTTP_DOWNLOAD_TIMEOUT)
         .get(url)
         .call()
         .map_err(|e| format!("download request failed for {url}: {e}"))?;
@@ -86,7 +169,7 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
         File::create(dest).map_err(|e| format!("failed to create {}: {e}", dest.display()))?;
 
     let mut done: u64 = 0;
-    let mut buf = vec![0u8; 64 * 1024];
+    let mut buf = vec![0u8; CHUNK];
     loop {
         let n = reader
             .read(&mut buf)
@@ -97,13 +180,18 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
         file.write_all(&buf[..n])
             .map_err(|e| format!("failed to write {}: {e}", dest.display()))?;
         done += n as u64;
-        progress(done, total);
+        if tx.send(Tick::Progress { done, total }).is_err() {
+            return Err("download abandoned".to_owned());
+        }
     }
 
     file.sync_all()
         .map_err(|e| format!("failed to flush {}: {e}", dest.display()))?;
     drop(file);
+    Ok(done)
+}
 
+fn verify_size(dest: &Path, written: u64) -> Result<(), String> {
     let size = std::fs::metadata(dest)
         .map_err(|e| {
             format!(
@@ -112,9 +200,9 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
             )
         })?
         .len();
-    if size != done {
+    if size != written {
         return Err(format!(
-            "{} is {size} bytes on disk but {done} bytes were written (likely antivirus)",
+            "{} is {size} bytes on disk but {written} bytes were written (likely antivirus)",
             dest.display()
         ));
     }

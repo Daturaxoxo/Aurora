@@ -3,7 +3,7 @@ import { Tr, TrKey } from "translations.slint";
 export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
 import { WindowToast } from "components/toast.slint";
-import { PopupDialog, CheckboxItem } from "components/popup.slint";
+import { PopupDialog, CheckboxItem, PopupDetail } from "components/popup.slint";
 import { ProgressOverlay } from "components/progressoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
@@ -19,6 +19,8 @@ import {
     GroupOption,
     FilterOption,
     ModFilters,
+    ModStatusFilter,
+    IconChoice,
 } from "components/pages/modmanager.slint";
 import {
     GameBananaBrowser,
@@ -143,6 +145,7 @@ export component MainWindow inherits Window {
     in-out property <int> engine-scale: 100;
     in-out property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
+    in-out property <string> launch-args: "";
     in-out property <bool> developer-mode: false;
     in-out property <bool> extensive-logging: false;
     in-out property <bool> is-linux: false;
@@ -151,6 +154,7 @@ export component MainWindow inherits Window {
     in-out property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;
     in property <bool> proton-version-not-recommended: false;
+    in property <int> proton-builtin-count: 1;
     in-out property <bool> telemetry-opt-out: false;
     callback browse-game-directory();
     callback export-telemetry();
@@ -160,10 +164,13 @@ export component MainWindow inherits Window {
     callback engine-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
+    callback launch-args-changed(string);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
+    callback browse-proton-directory();
+    callback remove-proton-version(int);
     callback desktop-entry-changed(bool);
     callback telemetry-opt-out-changed(bool);
 
@@ -183,6 +190,14 @@ export component MainWindow inherits Window {
     in-out property <int> popup-confirm-delay: 0;
     in-out property <int> popup-required-count: 0;
     in-out property <[CheckboxItem]> popup-checkboxes: [];
+    in-out property <string> popup-kind: "info";
+    in-out property <string> popup-subtitle: "";
+    in-out property <string> popup-subject: "";
+    in-out property <string> popup-subject-note: "";
+    in-out property <[PopupDetail]> popup-details: [];
+    in-out property <string> popup-notice: "";
+    in-out property <string> popup-confirm-label: "";
+    in-out property <bool> popup-escape-locked: false;
     callback popup-confirm-callback(string);
     callback popup-cancel-callback(string);
 
@@ -202,6 +217,7 @@ export component MainWindow inherits Window {
     in-out property <int> mods-selected-group-count: 0;
     callback mods-delete-selected-groups();
     callback mod-toggle(string);
+    callback mod-update(string);
     callback mod-delete(string);
     callback mod-rename(string, string);
     callback mod-select(string);
@@ -221,7 +237,7 @@ export component MainWindow inherits Window {
     callback mods-toggle-selected();
     callback mods-delete-selected();
     callback mods-search-changed(string);
-    in-out property <ModFilters> mods-filters: { status: 0, group-id: "" };
+    in-out property <ModFilters> mods-filters: { status: ModStatusFilter.all, group-id: "" };
     in-out property <[FilterOption]> mods-filter-characters: [];
     in-out property <[FilterOption]> mods-filter-authors: [];
     in-out property <[FilterOption]> mods-filter-groups: [];
@@ -237,9 +253,21 @@ export component MainWindow inherits Window {
     callback mod-group-toggle(string);
     callback mod-group-collapse(string);
     callback mod-group-select(string);
+    callback mod-open-add-existing(string /* group id */);
+    in-out property <bool> mods-add-existing-open: false;
+    in-out property <string> mods-add-existing-group-id: "";
+    in-out property <string> mods-add-existing-group-name: "";
+    in-out property <[FilterOption]> mods-add-existing-options: [];
+    in-out property <string> mods-add-existing-search: "";
+    callback mods-add-existing-search-changed(string);
+    callback mods-add-existing-confirm(string /* group id */);
     callback mods-install-archive();
     callback mods-install-folder();
     in-out property <bool> mods-file-hover: false;
+    in property <[IconChoice]> mods-icon-choices: [];
+    callback mods-pick-icon-character(string /* id */, string /* slug */);
+    callback mods-browse-icon(string /* id */);
+    callback mods-remove-icon(string /* id */);
 
     // GameBanana Browser Properties
     in-out property <bool> show-gb-browser: false;
@@ -269,6 +297,9 @@ export component MainWindow inherits Window {
     callback gb-install(int);
     callback gb-open-page(int);
     callback gb-file-chosen(int);
+    callback gb-preview-closed();
+    callback gb-closed();
+    callback gb-visible-range(int /* first */, int /* last */);
 
     // Modules Page Properties
     in-out property <[ModItem]> modules-list: [];
@@ -320,6 +351,14 @@ export component MainWindow inherits Window {
         root.popup-confirm-delay = 0;
         root.popup-required-count = 0;
         root.popup-checkboxes = [];
+        root.popup-kind = "info";
+        root.popup-subtitle = "";
+        root.popup-subject = "";
+        root.popup-subject-note = "";
+        root.popup-details = [];
+        root.popup-notice = "";
+        root.popup-confirm-label = "";
+        root.popup-escape-locked = false;
     }
 
     Rectangle {
@@ -1080,6 +1119,7 @@ export component MainWindow inherits Window {
             }
             close-mod-manager => { root.show-mod-manager = false; }
             toggle-mod(id) => { root.mod-toggle(id); }
+            update-mod(id) => { root.mod-update(id); }
             delete-mod(id) => { root.mod-delete(id); }
             rename-mod(id, name) => { root.mod-rename(id, name); }
             select-mod(id) => { root.mod-select(id); }
@@ -1108,6 +1148,14 @@ export component MainWindow inherits Window {
             groups: root.mods-groups;
             move-selected-to-group(group) => { root.mods-move-selected-to-group(group); }
             create-group-with-selected(name) => { root.mods-create-group-with-selected(name); }
+            open-add-existing(group) => { root.mod-open-add-existing(group); }
+            add-existing-open <=> root.mods-add-existing-open;
+            add-existing-group-id <=> root.mods-add-existing-group-id;
+            add-existing-group-name <=> root.mods-add-existing-group-name;
+            add-existing-options <=> root.mods-add-existing-options;
+            add-existing-search <=> root.mods-add-existing-search;
+            add-existing-search-changed(text) => { root.mods-add-existing-search-changed(text); }
+            add-existing-confirmed(group) => { root.mods-add-existing-confirm(group); }
             drop-mod-on-zone(id, zone) => { root.mod-drop-on-zone(id, zone); }
             drag-target-group: root.mods-drag-target;
             editing-group-id <=> root.mods-editing-group-id;
@@ -1115,6 +1163,10 @@ export component MainWindow inherits Window {
             mod-drag-dropped(id, y) => { root.mod-drag-dropped(id, y); }
             refresh => { root.mods-refresh(); }
             open-mods-folder => { root.open-mods-folder(); }
+            icon-choices: root.mods-icon-choices;
+            pick-icon-character(id, slug) => { root.mods-pick-icon-character(id, slug); }
+            browse-mod-icon(id) => { root.mods-browse-icon(id); }
+            remove-mod-icon(id) => { root.mods-remove-icon(id); }
             open-gamebanana => {
                 root.popup-id = "gamebanana-popup";
                 root.popup-title = Tr.values[TrKey.popup-gamebanana-title];
@@ -1145,7 +1197,9 @@ export component MainWindow inherits Window {
             preview-name: root.gb-preview-name;
             preview-requested(id) => { root.gb-preview-requested(id); }
             preview-nav(i) => { root.gb-preview-nav(i); }
-            close => { root.show-gb-browser = false; }
+            preview-closed => { root.gb-preview-closed(); }
+            visible-range(f, l) => { root.gb-visible-range(f, l); }
+            close => { root.show-gb-browser = false; root.gb-closed(); }
             search-changed(text) => { root.gb-search-changed(text); }
             character-selected(i) => { root.gb-character-selected(i); }
             nsfw-toggled(v) => { root.gb-nsfw-toggled(v); }
@@ -1182,6 +1236,7 @@ export component MainWindow inherits Window {
             engine-scale <=> root.engine-scale;
             show-engine-scale: root.show-engine-scale;
             ignore-checksum <=> root.ignore-checksum;
+            launch-args <=> root.launch-args;
             developer-mode <=> root.developer-mode;
             extensive-logging <=> root.extensive-logging;
             is-linux: root.is-linux;
@@ -1190,6 +1245,7 @@ export component MainWindow inherits Window {
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
             proton-version-not-recommended: root.proton-version-not-recommended;
+            proton-builtin-count: root.proton-builtin-count;
             telemetry-opt-out <=> root.telemetry-opt-out;
             app-version: root.app-version;
             build-timestamp: root.build-timestamp;
@@ -1204,10 +1260,13 @@ export component MainWindow inherits Window {
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
+            launch-args-changed(v) => { root.launch-args-changed(v); }
             developer-mode-changed(v) => { root.developer-mode-changed(v); }
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
             proton-version-index-changed(i) => { root.proton-version-index-changed(i); }
+            browse-proton-directory => { root.browse-proton-directory(); }
+            remove-proton-version(i) => { root.remove-proton-version(i); }
             desktop-entry-changed(v) => { root.desktop-entry-changed(v); }
             telemetry-opt-out-changed(v) => { root.telemetry-opt-out-changed(v); }
         }
@@ -1230,6 +1289,14 @@ export component MainWindow inherits Window {
             confirm-delay: root.popup-confirm-delay;
             required-count: root.popup-required-count;
             checkbox-items: root.popup-checkboxes;
+            kind: root.popup-kind;
+            subtitle: root.popup-subtitle;
+            subject: root.popup-subject;
+            subject-note: root.popup-subject-note;
+            details: root.popup-details;
+            notice: root.popup-notice;
+            confirm-label: root.popup-confirm-label;
+            escape-locked: root.popup-escape-locked;
             confirm => { root.popup-confirm-callback(root.popup-id); reset-popup() }
             cancel => { root.popup-cancel-callback(root.popup-id); reset-popup() }
         }

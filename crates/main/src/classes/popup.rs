@@ -1,4 +1,5 @@
 use crate::bridge::Bridge;
+use crate::classes::oneclick::OneClickHandler;
 use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
@@ -36,7 +37,7 @@ impl PopupHandler {
                         LuaScriptsHandler::confirm_delete(&w);
                     }
                     "beta-phase-inactive" => {
-                        std::process::exit(0);
+                        log::info!("continuing on a version whose beta phase has ended");
                     }
                     crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID => {
                         SettingsHandler::confirm_ignore_checksum();
@@ -63,6 +64,9 @@ impl PopupHandler {
                             }
                         }
                     }
+                    crate::classes::oneclick::POPUP_ID => {
+                        OneClickHandler::confirm(&w);
+                    }
                     _ => {}
                 }
             }
@@ -81,6 +85,10 @@ impl PopupHandler {
 
                 if id.as_str() == crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID {
                     SettingsHandler::cancel_ignore_checksum(&w);
+                }
+
+                if id.as_str() == crate::classes::oneclick::POPUP_ID {
+                    OneClickHandler::cancel();
                 }
 
                 #[cfg(target_os = "linux")]

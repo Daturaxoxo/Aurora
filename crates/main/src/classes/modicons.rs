@@ -13,8 +13,20 @@ use shared::utils::{self, get_cache_dir};
 use crate::MainWindow;
 
 const TIMEOUT: Duration = Duration::from_secs(20);
+const DECODED_CAP: usize = 128;
 static IN_FLIGHT: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 static FAILED: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+
+static HTTP: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
+    reqwest::blocking::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
+        .timeout(TIMEOUT)
+        .build()
+        .unwrap_or_else(|e| {
+            warn!("[ModIcons] could not build the http client, falling back to default: {e}");
+            reqwest::blocking::Client::default()
+        })
+});
 
 thread_local! {
     static DECODED: RefCell<HashMap<String, slint::Image>> = RefCell::new(HashMap::new());
@@ -33,12 +45,19 @@ pub fn load(
     let requests: Vec<(String, String)> = {
         let mut in_flight = IN_FLIGHT.lock().unwrap_or_else(PoisonError::into_inner);
         let failed = FAILED.lock().unwrap_or_else(PoisonError::into_inner);
-        requests
+
+        if in_flight.len() >= 500 {
+            in_flight.clear();
+        }
+
+        let requests: Vec<(String, String)> = requests
             .into_iter()
             .filter(|(_, url)| {
                 cached(url).is_none() && !failed.contains(url) && in_flight.insert(url.clone())
             })
-            .collect()
+            .collect();
+        drop((in_flight, failed));
+        requests
     };
 
     if requests.is_empty() {
@@ -55,10 +74,13 @@ pub fn load(
                 .remove(&url);
 
             let Some((pixels, width, height)) = decoded else {
-                FAILED
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(url);
+                let mut failed = FAILED.lock().unwrap_or_else(PoisonError::into_inner);
+
+                if failed.len() >= 500 {
+                    failed.clear();
+                }
+                failed.insert(url);
+                drop(failed);
                 continue;
             };
 
@@ -71,7 +93,14 @@ pub fn load(
                 );
                 let image = slint::Image::from_rgba8(buffer);
 
-                DECODED.with(|decoded| decoded.borrow_mut().insert(url, image.clone()));
+                DECODED.with(|decoded| {
+                    let mut decoded = decoded.borrow_mut();
+
+                    if decoded.len() >= DECODED_CAP {
+                        decoded.clear();
+                    }
+                    decoded.insert(url, image.clone());
+                });
                 apply(&w, &id, &image);
             });
         }
@@ -96,12 +125,7 @@ fn fetch(url: &str) -> Option<Vec<u8>> {
 
     debug!("[ModIcons] downloading {url}");
 
-    let response = reqwest::blocking::Client::builder()
-        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
-        .timeout(TIMEOUT)
-        .build()
-        .map_err(|e| warn!("[ModIcons] could not build the http client: {e}"))
-        .ok()?
+    let response = HTTP
         .get(url)
         .send()
         .map_err(|e| warn!("[ModIcons] could not download '{url}': {e}"))
@@ -131,8 +155,13 @@ fn fetch(url: &str) -> Option<Vec<u8>> {
 fn decode(url: &str, bytes: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     let decoded = image::load_from_memory(bytes)
         .map_err(|e| warn!("[ModIcons] could not decode '{url}': {e}"))
-        .ok()?
-        .into_rgba8();
+        .ok()?;
+    let decoded = if decoded.width() > 512 || decoded.height() > 512 {
+        decoded.thumbnail(512, 512)
+    } else {
+        decoded
+    };
+    let decoded = decoded.into_rgba8();
 
     let (width, height) = decoded.dimensions();
     Some((decoded.into_raw(), width, height))

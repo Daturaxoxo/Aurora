@@ -411,6 +411,7 @@ export component ModulesPage inherits Rectangle {
 
     delete-dialog := PopupDialog {
         active: root.pending-delete-id != "" || root.pending-delete-selected;
+        kind: "danger";
         title: root.pending-delete-selected
             ? Tr.values[TrKey.modules-delete-selected-title]
             : Tr.values[TrKey.modules-delete-title];

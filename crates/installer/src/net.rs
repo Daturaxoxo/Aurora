@@ -5,10 +5,16 @@ use std::time::Duration;
 
 use ipc::manifest::Manifest;
 use ipc::manifest_urls;
+use log::{debug, info, warn};
 
 fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build()
         .into()
 }
@@ -16,9 +22,16 @@ fn agent() -> ureq::Agent {
 pub fn fetch_manifest() -> Result<Manifest, String> {
     let mut last_err = String::from("no manifest sources configured");
     for url in manifest_urls() {
+        info!("Fetching manifest from {url}");
         match fetch_manifest_from(url) {
-            Ok(manifest) => return Ok(manifest),
-            Err(e) => last_err = e,
+            Ok(manifest) => {
+                info!("Manifest {} fetched from {url}", manifest.version);
+                return Ok(manifest);
+            }
+            Err(e) => {
+                warn!("Manifest source {url} failed: {e}");
+                last_err = e;
+            }
         }
     }
     Err(format!(
@@ -46,6 +59,7 @@ pub fn file_size_any(urls: &[String]) -> Option<u64> {
 }
 
 pub fn file_size(url: &str) -> Option<u64> {
+    debug!("HEAD {url}");
     let response = agent().head(url).call().ok()?;
     if let Some(len) = response.body().content_length()
         && len > 0
@@ -68,6 +82,7 @@ pub fn download_from_any(
         match download(url, dest, &mut *progress) {
             Ok(()) => return Ok(()),
             Err(e) => {
+                warn!("Download source {url} failed: {e}");
                 let _ = std::fs::remove_file(dest);
                 last_err = e;
             }
@@ -84,6 +99,7 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
         .call()
         .map_err(|e| format!("download request failed for {url}: {e}"))?;
     let total = response.body().content_length().unwrap_or(0);
+    debug!("GET {url} -> {total} byte(s)");
     let mut reader = response.into_body().into_reader();
     let mut file =
         File::create(dest).map_err(|e| format!("failed to create {}: {e}", dest.display()))?;

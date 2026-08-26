@@ -1,7 +1,7 @@
 [package]
 name = "shared"
 version = "2.0.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 default = ["extract"]
@@ -20,14 +20,15 @@ extract = [
 
 [dependencies]
 display-info = "0.5"
-env_logger = { version = "0.11", default-features = false }
 env_filter = { version = "2.0.0", default-features = false, features = ["std"] }
 termcolor = "1.4"
 futures = { version = "0.3", default-features = false }
 iana-time-zone = "0.1.65"
 cpu_info = "=0.1.0"
 unrar = { package = "unrar-ng", version = "0.7", optional = true }
-zip = { version = "9.0.0-pre2", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.0-pre2", default-features = false, features = [
+    "deflate",
+] }
 ipc = { path = "../ipc" }
 archive = { workspace = true, optional = true }
 slint = { workspace = true }
@@ -38,12 +39,14 @@ log = { workspace = true }
 dirs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 sysinfo = { workspace = true }
 md5 = { workspace = true }
 open = { workspace = true }
+percent-encoding = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true }

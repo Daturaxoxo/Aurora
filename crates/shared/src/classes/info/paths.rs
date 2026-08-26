@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::classes::info::{version::Distribution, Target, NTE_GAME_EXE};
+use crate::classes::info::{NTE_GAME_EXE, Target, version::Distribution};
 
 use super::version::{BypassMethod, Version};
 

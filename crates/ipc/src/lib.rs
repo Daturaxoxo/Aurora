@@ -3,6 +3,7 @@ pub mod manifest;
 pub mod protocol;
 
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 pub const DOWNLOAD_BASE_PRIMARY: &str = "https://host.getaurora.moe/files/app/";
@@ -27,14 +28,40 @@ pub const MANIFEST_URL_FALLBACK: &str = concat!(
     "linux__manifest.json"
 );
 
+const MAIN_PIPE_BASE: &str = "aurora-updater";
+const INIT_PIPE_BASE: &str = "aurora-updater-init";
+const ONECLICK_PIPE_BASE: &str = "aurora-oneclick";
+
 pub fn manifest_urls() -> impl Iterator<Item = &'static str> {
     [MANIFEST_URL_PRIMARY, MANIFEST_URL_FALLBACK]
         .into_iter()
         .filter(|url| !url.is_empty())
 }
 
-pub const MAIN_PIPE_NAME: &str = "aurora-updater";
-pub const INIT_PIPE_NAME: &str = "aurora-updater-init";
+pub fn install_id() -> &'static str {
+    static ID: OnceLock<String> = OnceLock::new();
+    ID.get_or_init(|| {
+        let root = instance_root();
+        let mut key = root.to_string_lossy().into_owned();
+        if cfg!(windows) {
+            key = key.to_lowercase();
+        }
+        let digest = manifest::hash_bytes(key.as_bytes());
+        digest[..8].to_owned()
+    })
+}
+
+pub fn main_pipe_name() -> String {
+    format!("{MAIN_PIPE_BASE}-{}", install_id())
+}
+
+pub fn init_pipe_name() -> String {
+    format!("{INIT_PIPE_BASE}-{}", install_id())
+}
+
+pub fn oneclick_pipe_name() -> String {
+    format!("{ONECLICK_PIPE_BASE}-{}", install_id())
+}
 
 #[cfg(windows)]
 pub const AURORA_EXE: &str = "Aurora.exe";
@@ -68,14 +95,21 @@ pub const QUICK_START_ARG: &str = "--quick-start";
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
-pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(30);
-pub const UPDATER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// How long the updater waits for the running Aurora to release its singleton
-/// lock after `close_now` before swapping the exe and starting the new one.
-pub const AURORA_EXIT_TIMEOUT: Duration = Duration::from_secs(20);
-/// How long a relaunched Aurora keeps retrying the singleton lock while the
-/// instance that spawned it finishes shutting down.
-pub const RELAUNCH_LOCK_TIMEOUT: Duration = Duration::from_secs(20);
+pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(60);
+pub const UPDATER_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+pub const UPDATER_CONNECT_ATTEMPTS: u32 = 10;
+pub const UPDATER_CONNECT_RETRY_DELAY: Duration = Duration::from_millis(500);
+pub const AURORA_EXIT_TIMEOUT: Duration = Duration::from_secs(30);
+pub const RELAUNCH_LOCK_TIMEOUT: Duration = Duration::from_secs(60);
+
+pub const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+pub const HTTP_STALL_TIMEOUT: Duration = Duration::from_secs(20);
+pub const HTTP_MANIFEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub const HTTP_DOWNLOAD_TIMEOUT: Duration = Duration::from_mins(30);
+
+pub fn user_agent(version: &str) -> String {
+    format!("AuroraLauncher/{}", version.trim())
+}
 
 pub fn install_root() -> PathBuf {
     std::env::current_exe()
@@ -84,8 +118,12 @@ pub fn install_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-#[cfg(windows)]
-pub fn state_root() -> PathBuf {
+pub fn instance_root() -> PathBuf {
+    #[cfg(target_os = "linux")]
+    if is_appimage() {
+        return state_root();
+    }
+
     install_root()
 }
 
@@ -94,6 +132,11 @@ pub fn state_root() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("Aurora")
+}
+
+#[cfg(target_os = "linux")]
+pub fn is_appimage() -> bool {
+    appimage_path().is_some() || appimage_mount().is_some()
 }
 
 #[cfg(target_os = "linux")]

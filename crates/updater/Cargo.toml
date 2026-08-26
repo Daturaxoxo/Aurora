@@ -1,7 +1,7 @@
 [package]
 name = "updater"
 version = "2.0.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 ipc = { path = "../ipc" }
@@ -9,6 +9,9 @@ shared = { path = "../shared" }
 
 serde_json = { workspace = true }
 ureq = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"
