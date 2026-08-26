@@ -41,8 +41,11 @@ export component Dropdown inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     out property <bool> opened: popup.is-open;
+    // Rows from this index on get a remove button; -1 hides them all.
+    in property <int> removable-from: -1;
 
     callback selection-changed(int);
+    callback remove-requested(int);
 
     width: 140px;
     height: 32px;
@@ -111,6 +114,26 @@ export component Dropdown inherits Rectangle {
                         clicked => {
                             root.selected-index = index;
                             root.selection-changed(index);
+                        }
+                    }
+
+                    if root.removable-from >= 0 && index >= root.removable-from: Rectangle {
+                        x: parent.width - self.width - 4px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+                        background: remove-ta.has-hover ? #ffffff18 : transparent;
+
+                        Text {
+                            text: "×";
+                            color: remove-ta.has-hover ? Palette.text-primary : Palette.text-secondary;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        remove-ta := TouchArea {
+                            clicked => { root.remove-requested(index); }
                         }
                     }
                 }
@@ -496,6 +519,9 @@ export component SettingsPage inherits Rectangle {
     in property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;     // 0=Automatic
     in property <bool> proton-version-not-recommended: false;
+    in property <int> proton-builtin-count: 1;         // Automatic + installed builds
+    callback browse-proton-directory();
+    callback remove-proton-version(int);
 
     // DEVELOPER
     in-out property <bool> developer-mode: false;
@@ -913,10 +939,23 @@ export component SettingsPage inherits Rectangle {
                                         spacing: 6px;
                                         alignment: center;
 
-                                        Dropdown {
-                                            options: root.proton-versions;
-                                            selected-index <=> root.proton-version-index;
-                                            selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            alignment: end;
+
+                                            Dropdown {
+                                                width: 140px;
+                                                options: root.proton-versions;
+                                                selected-index <=> root.proton-version-index;
+                                                removable-from: root.proton-builtin-count;
+                                                selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                                remove-requested(idx) => { root.remove-proton-version(idx); }
+                                            }
+
+                                            CardButton {
+                                                text: Tr.values[TrKey.settings-proton-version-browse];
+                                                clicked => { root.browse-proton-directory(); }
+                                            }
                                         }
 
                                         if root.proton-version-not-recommended: Text {

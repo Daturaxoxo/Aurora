@@ -394,12 +394,120 @@ pub fn installed_dwproton_builds() -> Vec<String> {
         .collect()
 }
 
+pub fn resolve_proton_dirs(picked: &Path) -> Vec<PathBuf> {
+    if is_proton_dir(picked) {
+        return vec![picked.to_path_buf()];
+    }
+
+    let Ok(entries) = std::fs::read_dir(picked) else {
+        warn!("could not read {}", picked.display());
+        return Vec::new();
+    };
+
+    let mut dirs: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| is_proton_dir(path))
+        .collect();
+
+    dirs.sort();
+    dirs
+}
+
+fn is_proton_dir(dir: &Path) -> bool {
+    dir.join("proton").is_file()
+}
+
+fn saved_custom_paths() -> Vec<PathBuf> {
+    let configured = shared::config::get(shared::config::key::PROTON_CUSTOM_PATHS);
+    let Some(paths) = configured.as_array() else {
+        return Vec::new();
+    };
+
+    paths
+        .iter()
+        .filter_map(|path| path.as_str())
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn save_custom_paths(paths: &[PathBuf]) {
+    let paths: Vec<String> = paths
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+
+    shared::config::set(shared::config::key::PROTON_CUSTOM_PATHS, paths);
+}
+
+pub fn custom_proton_builds() -> Vec<PathBuf> {
+    saved_custom_paths()
+        .into_iter()
+        .filter(|dir| {
+            let valid = is_proton_dir(dir);
+            if !valid {
+                debug!("custom Proton installation {} is gone", dir.display());
+            }
+            valid
+        })
+        .collect()
+}
+
+pub fn add_custom_proton_builds(dirs: &[PathBuf]) {
+    let mut paths = saved_custom_paths();
+
+    for dir in dirs {
+        if paths.contains(dir) {
+            debug!("{} was already added", dir.display());
+        } else {
+            paths.push(dir.clone());
+        }
+    }
+
+    save_custom_paths(&paths);
+}
+
+pub fn remove_custom_proton_build(dir: &Path) {
+    let mut paths = saved_custom_paths();
+    paths.retain(|path| path != dir);
+    save_custom_paths(&paths);
+}
+
+fn selected_custom_proton() -> Option<PathBuf> {
+    let configured = shared::config::get(shared::config::key::PROTON_CUSTOM_PATH);
+    let configured = configured.as_str().unwrap_or("").trim().to_string();
+
+    if configured.is_empty() {
+        return None;
+    }
+
+    let dir = PathBuf::from(configured);
+    if !is_proton_dir(&dir) {
+        warn!(
+            "the selected Proton installation {} no longer exists; \
+             falling back to automatic selection",
+            dir.display()
+        );
+        return None;
+    }
+
+    Some(dir)
+}
+
 pub fn is_proton_version_not_recommended(version: &str) -> bool {
     debug!("is_proton_version_not_recommended: version={version:?}");
     !version.contains("10.") && !version.is_empty()
 }
 
 fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
+    if let Some(dir) = selected_custom_proton() {
+        info!(
+            "Using the manually selected Proton installation at {}",
+            dir.display()
+        );
+        return Some(dir.join("proton"));
+    }
+
     let builds = dwproton_builds(steam_root);
 
     let configured = shared::config::get(shared::config::key::PROTON_VERSION);

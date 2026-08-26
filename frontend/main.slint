@@ -154,6 +154,7 @@ export component MainWindow inherits Window {
     in-out property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;
     in property <bool> proton-version-not-recommended: false;
+    in property <int> proton-builtin-count: 1;
     in-out property <bool> telemetry-opt-out: false;
     callback browse-game-directory();
     callback export-telemetry();
@@ -168,6 +169,8 @@ export component MainWindow inherits Window {
     callback extensive-logging-changed(bool);
     callback proton-launch-args-changed(string);
     callback proton-version-index-changed(int);
+    callback browse-proton-directory();
+    callback remove-proton-version(int);
     callback desktop-entry-changed(bool);
     callback telemetry-opt-out-changed(bool);
 
@@ -1242,6 +1245,7 @@ export component MainWindow inherits Window {
             proton-versions: root.proton-versions;
             proton-version-index <=> root.proton-version-index;
             proton-version-not-recommended: root.proton-version-not-recommended;
+            proton-builtin-count: root.proton-builtin-count;
             telemetry-opt-out <=> root.telemetry-opt-out;
             app-version: root.app-version;
             build-timestamp: root.build-timestamp;
@@ -1261,6 +1265,8 @@ export component MainWindow inherits Window {
             extensive-logging-changed(v) => { root.extensive-logging-changed(v); }
             proton-launch-args-changed(v) => { root.proton-launch-args-changed(v); }
             proton-version-index-changed(i) => { root.proton-version-index-changed(i); }
+            browse-proton-directory => { root.browse-proton-directory(); }
+            remove-proton-version(i) => { root.remove-proton-version(i); }
             desktop-entry-changed(v) => { root.desktop-entry-changed(v); }
             telemetry-opt-out-changed(v) => { root.telemetry-opt-out-changed(v); }
         }

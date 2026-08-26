@@ -65,6 +65,8 @@ pub mod key {
     pub const SELECTED_GAME: &str = "selected_game";
     pub const PROTON_ARGS: &str = "proton_args";
     pub const PROTON_VERSION: &str = "proton_version";
+    pub const PROTON_CUSTOM_PATHS: &str = "proton_custom_paths";
+    pub const PROTON_CUSTOM_PATH: &str = "proton_custom_path";
     pub const QUICK_START_CREATED: &str = "quick_start_created";
     pub const DESKTOP_ENTRY: &str = "desktop_entry";
     pub const DESKTOP_ENTRY_PROMPTED: &str = "desktop_entry_prompted";
@@ -102,7 +104,8 @@ pub fn default_value(k: &str) -> Value {
         | key::SELECTED_GAME
         | key::PROTON_ARGS
         | key::PROTON_VERSION
-        | key::LAUNCH_ARGS => json!(""),
+        | key::LAUNCH_ARGS
+        | key::PROTON_CUSTOM_PATH => json!(""),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES
@@ -111,7 +114,8 @@ pub fn default_value(k: &str) -> Value {
         | key::MOD_NOTES
         | key::MOD_DISPLAY_NAMES
         | key::SCREENSHOT_FAVORITES
-        | key::INJECTED_PLUGINS => json!([]),
+        | key::INJECTED_PLUGINS
+        | key::PROTON_CUSTOM_PATHS => json!([]),
 
         key::LANGUAGE => json!("en"),
 
@@ -135,9 +139,10 @@ pub fn config_file_path() -> PathBuf {
     let config_path = get_userdata_path().join("config.json");
 
     if !config_path.parent().unwrap().exists()
-        && let Err(e) = fs::create_dir_all(config_path.parent().unwrap()) {
-            error!("Failed to create config directory: {e}");
-        }
+        && let Err(e) = fs::create_dir_all(config_path.parent().unwrap())
+    {
+        error!("Failed to create config directory: {e}");
+    }
 
     config_path
 }
@@ -348,9 +353,7 @@ const REMOVED_ADDONS: [&str; 2] = ["col_tim", "collectibles"];
 
 pub fn migrate() {
     let existing = get_all_configs();
-    let stale = REMOVED_ADDONS
-        .iter()
-        .any(|key| existing.contains_key(*key));
+    let stale = REMOVED_ADDONS.iter().any(|key| existing.contains_key(*key));
 
     if !stale && !existing.contains_key(LEGACY_ERROR_TELEMETRY) {
         return;
