@@ -14,7 +14,8 @@
         "jp": "設定",
         "ko": "설정",
         "pt": "DEFINIÇÕES",
-        "pt-BR": "CONFIGURAÇÕES"
+        "pt-BR": "CONFIGURAÇÕES",
+        "id": "PENGATURAN"
     },
     {
         "key": "settings.tab-general",
@@ -31,7 +32,8 @@
         "jp": "一般",
         "ko": "일반",
         "pt": "Geral",
-        "pt-BR": "Geral"
+        "pt-BR": "Geral",
+        "id": "Umum"
     },
     {
         "key": "settings.tab-launcher",
@@ -48,7 +50,8 @@
         "jp": "ランチャー",
         "ko": "런처",
         "pt": "Launcher",
-        "pt-BR": "Launcher"
+        "pt-BR": "Launcher",
+        "id": "Peluncur"
     },
     {
         "key": "settings.tab-linux",
@@ -65,7 +68,8 @@
         "jp": "Linux",
         "ko": "Linux",
         "pt": "Linux",
-        "pt-BR": "Linux"
+        "pt-BR": "Linux",
+        "id": "Linux"
     },
     {
         "key": "settings.tab-developer",
@@ -82,7 +86,8 @@
         "jp": "開発者",
         "ko": "개발자",
         "pt": "Programador",
-        "pt-BR": "Desenvolvedor"
+        "pt-BR": "Desenvolvedor",
+        "id": "Pengembang"
     },
     {
         "key": "settings.section.appearance",
@@ -99,7 +104,8 @@
         "jp": "外観",
         "ko": "모양",
         "pt": "APARÊNCIA",
-        "pt-BR": "APARÊNCIA"
+        "pt-BR": "APARÊNCIA",
+        "id": "TAMPILAN"
     },
     {
         "key": "settings.language.title",
@@ -116,7 +122,8 @@
         "jp": "言語",
         "ko": "언어",
         "pt": "Idioma",
-        "pt-BR": "Idioma"
+        "pt-BR": "Idioma",
+        "id": "Bahasa"
     },
     {
         "key": "settings.language.subtitle",
@@ -133,7 +140,8 @@
         "jp": "インターフェースの表示言語",
         "ko": "인터페이스 표시 언어",
         "pt": "Idioma de apresentação da interface",
-        "pt-BR": "Idioma de exibição da interface"
+        "pt-BR": "Idioma de exibição da interface",
+        "id": "Bahasa antarmuka"
     },
     {
         "key": "settings.interface-minimization.title",
@@ -150,7 +158,8 @@
         "jp": "インターフェースの最小化",
         "ko": "인터페이스 최소화",
         "pt": "Minimização da interface",
-        "pt-BR": "Minimização da interface"
+        "pt-BR": "Minimização da interface",
+        "id": "Minimisasi antarmuka"
     },
     {
         "key": "settings.interface-minimization.subtitle",
@@ -167,7 +176,8 @@
         "jp": "ゲームプロセスの起動後にランチャーウィンドウを閉じます。",
         "ko": "게임 프로세스가 시작된 후 런처 창을 닫습니다.",
         "pt": "Fecha a janela do launcher depois de o processo do jogo arrancar.",
-        "pt-BR": "Fecha a janela do launcher após o processo do jogo iniciar."
+        "pt-BR": "Fecha a janela do launcher após o processo do jogo iniciar.",
+        "id": "Tutup jendela antarmuka setelah proses game dimulai."
     },
     {
         "key": "settings.section.integration",
@@ -184,7 +194,8 @@
         "jp": "連携",
         "ko": "연동",
         "pt": "INTEGRAÇÃO",
-        "pt-BR": "INTEGRAÇÃO"
+        "pt-BR": "INTEGRAÇÃO",
+        "id": "INTEGRASI"
     },
     {
         "key": "settings.discord-rpc.title",
@@ -201,7 +212,8 @@
         "jp": "Discord RPC",
         "ko": "Discord RPC",
         "pt": "Discord RPC",
-        "pt-BR": "Discord RPC"
+        "pt-BR": "Discord RPC",
+        "id": "Discord RPC"
     },
     {
         "key": "settings.discord-rpc.subtitle",
@@ -218,7 +230,8 @@
         "jp": "内蔵の Rich Presence 表示を切り替えます。",
         "ko": "내장된 Rich Presence 상태를 켜거나 끕니다.",
         "pt": "Ativa ou desativa o estado Rich Presence integrado.",
-        "pt-BR": "Ativa ou desativa o status Rich Presence integrado."
+        "pt-BR": "Ativa ou desativa o status Rich Presence integrado.",
+        "id": "Alihkan status konfigurasi Rich Presence terintegrasi"
     },
     {
         "key": "settings.section.game-directory",
@@ -235,7 +248,8 @@
         "jp": "ゲームフォルダー",
         "ko": "게임 폴더",
         "pt": "PASTA DO JOGO",
-        "pt-BR": "PASTA DO JOGO"
+        "pt-BR": "PASTA DO JOGO",
+        "id": "DIREKTORI GAME"
     },
     {
         "key": "settings.game-directory.title",
@@ -252,7 +266,8 @@
         "jp": "ゲームフォルダー",
         "ko": "게임 폴더",
         "pt": "Pasta do jogo",
-        "pt-BR": "Pasta do jogo"
+        "pt-BR": "Pasta do jogo",
+        "id": "Direktori Game"
     },
     {
         "key": "settings.game-directory.browse",
@@ -269,7 +284,8 @@
         "jp": "参照",
         "ko": "찾아보기",
         "pt": "Procurar",
-        "pt-BR": "Procurar"
+        "pt-BR": "Procurar",
+        "id": "Jelajahi"
     },
     {
         "key": "settings.section.engine",
@@ -286,7 +302,8 @@
         "jp": "エンジン",
         "ko": "엔진",
         "pt": "MOTOR",
-        "pt-BR": "MOTOR"
+        "pt-BR": "MOTOR",
+        "id": "ENGINE"
     },
     {
         "key": "settings.engine-scale.title",
@@ -303,7 +320,8 @@
         "jp": "ゲームの拡大率",
         "ko": "게임 배율",
         "pt": "Escala do jogo",
-        "pt-BR": "Escala do jogo"
+        "pt-BR": "Escala do jogo",
+        "id": "Skala Game"
     },
     {
         "key": "settings.engine-scale.subtitle",
@@ -320,7 +338,8 @@
         "jp": "ゲームのインターフェースの大きさを設定します。次回のゲーム起動時に反映されます。",
         "ko": "게임 인터페이스의 크기를 설정합니다. 다음에 게임을 시작할 때 적용됩니다.",
         "pt": "Define o tamanho da interface do jogo. Aplica-se no próximo arranque do jogo.",
-        "pt-BR": "Define o tamanho da interface do jogo. Entra em vigor na próxima vez que o jogo iniciar."
+        "pt-BR": "Define o tamanho da interface do jogo. Entra em vigor na próxima vez que o jogo iniciar.",
+        "id": "Atur ukuran antarmuka game. Bekerja setelah game diluncurkan lagi berikutnya."
     },
     {
         "key": "settings.engine-method.title",
@@ -337,7 +356,8 @@
         "jp": "エンジンの方式",
         "ko": "엔진 방식",
         "pt": "Método do motor",
-        "pt-BR": "Método do motor"
+        "pt-BR": "Método do motor",
+        "id": "Metode Engine"
     },
     {
         "key": "settings.engine-method.subtitle",
@@ -354,7 +374,8 @@
         "jp": "エンジンが MOD を読み込む方式を選択します。",
         "ko": "엔진이 모드를 불러오는 방식을 선택합니다.",
         "pt": "Escolhe o método que o motor usa para carregar mods.",
-        "pt-BR": "Escolha o método que o motor usa para carregar os mods."
+        "pt-BR": "Escolha o método que o motor usa para carregar os mods.",
+        "id": "Pilih metode yang digunakan engine untuk memuat mods."
     },
     {
         "key": "settings.engine-method.default",
@@ -371,7 +392,8 @@
         "jp": "標準",
         "ko": "기본",
         "pt": "Predefinido",
-        "pt-BR": "Padrão"
+        "pt-BR": "Padrão",
+        "id": "Bawaan"
     },
     {
         "key": "settings.engine-method.alternate",
@@ -388,7 +410,8 @@
         "jp": "代替",
         "ko": "대체",
         "pt": "Alternativo",
-        "pt-BR": "Alternativo"
+        "pt-BR": "Alternativo",
+        "id": "Alternatif"
     },
     {
         "key": "settings.ignore-checksum.title",
@@ -405,7 +428,8 @@
         "jp": "チェックサム照合を無視",
         "ko": "체크섬 검사 무시",
         "pt": "Ignorar verificação de checksum",
-        "pt-BR": "Ignorar verificação de checksum"
+        "pt-BR": "Ignorar verificação de checksum",
+        "id": "Abaikan pencocokan checksum"
     },
     {
         "key": "settings.ignore-checksum.subtitle",
@@ -422,7 +446,8 @@
         "jp": "Aurora のゲームバージョン確認をスキップします。",
         "ko": "Aurora의 게임 버전 검사를 건너뜁니다.",
         "pt": "Ignora as verificações de versão do jogo do Aurora.",
-        "pt-BR": "Pula as verificações de versão do jogo do Aurora."
+        "pt-BR": "Pula as verificações de versão do jogo do Aurora.",
+        "id": "Lewati pemeriksaan versi game oleh Aurora."
     },
     {
         "key": "settings.section.debug",
@@ -439,7 +464,8 @@
         "jp": "デバッグ",
         "ko": "디버그",
         "pt": "DEPURAÇÃO",
-        "pt-BR": "DEPURAÇÃO"
+        "pt-BR": "DEPURAÇÃO",
+        "id": "DEBUG"
     },
     {
         "key": "settings.developer-mode.title",
@@ -456,7 +482,8 @@
         "jp": "開発者モード",
         "ko": "개발자 모드",
         "pt": "Modo de programador",
-        "pt-BR": "Modo desenvolvedor"
+        "pt-BR": "Modo desenvolvedor",
+        "id": "Mode Pengembang"
     },
     {
         "key": "settings.developer-mode.subtitle",
@@ -473,7 +500,8 @@
         "jp": "デバッグ用のログコンソールを表示します。",
         "ko": "디버깅용 로그 콘솔을 표시합니다.",
         "pt": "Mostra a consola de registos para depuração.",
-        "pt-BR": "Mostra o console de logs para depuração."
+        "pt-BR": "Mostra o console de logs para depuração.",
+        "id": "Tampilkan catatan konsol untuk debugging"
     },
     {
         "key": "settings.export-telemetry.title",
@@ -490,7 +518,8 @@
         "jp": "テレメトリのエクスポート",
         "ko": "텔레메트리 내보내기",
         "pt": "Exportar telemetria",
-        "pt-BR": "Exportar telemetria"
+        "pt-BR": "Exportar telemetria",
+        "id": "Ekspor Telemetri"
     },
     {
         "key": "settings.export-telemetry.subtitle",
@@ -507,7 +536,8 @@
         "jp": "Aurora のログとシステム情報をファイルに書き出します",
         "ko": "Aurora 로그와 시스템 정보를 파일로 내보냅니다",
         "pt": "Exporta os registos do Aurora e as informações do sistema para um ficheiro",
-        "pt-BR": "Exporta os logs do Aurora e as informações do sistema para um arquivo"
+        "pt-BR": "Exporta os logs do Aurora e as informações do sistema para um arquivo",
+        "id": "Ekspor catatan Aurora dan informasi sistem dalam bentuk file"
     },
     {
         "key": "settings.export-telemetry.button",
@@ -524,7 +554,8 @@
         "jp": "エクスポート",
         "ko": "내보내기",
         "pt": "Exportar",
-        "pt-BR": "Exportar"
+        "pt-BR": "Exportar",
+        "id": "Ekspor"
     },
     {
         "key": "popup.discord.title",
@@ -541,7 +572,8 @@
         "jp": "Discord に参加しますか？",
         "ko": "Discord에 참여할까요?",
         "pt": "Entrar no Discord?",
-        "pt-BR": "Entrar no Discord?"
+        "pt-BR": "Entrar no Discord?",
+        "id": "Gabung ke Discord?"
     },
     {
         "key": "popup.discord.message",
@@ -558,7 +590,8 @@
         "jp": "Discord サーバーに参加して、今後のアップデートや先行情報をチェックしたり、質問したりしましょう！",
         "ko": "Discord 서버에 참여해 앞으로의 업데이트와 미리보기 소식을 받고 질문도 남겨보세요!",
         "pt": "Entra no nosso servidor de Discord para acompanhar futuras atualizações e antevisões e colocar questões!",
-        "pt-BR": "Entre no nosso servidor do Discord para acompanhar atualizações e prévias e tirar suas dúvidas!"
+        "pt-BR": "Entre no nosso servidor do Discord para acompanhar atualizações e prévias e tirar suas dúvidas!",
+        "id": "Gabung ke server Discord kami untuk mendapatkan kabar terbaru mengenai pembaruan, sneakpeeks, dan bertanya!"
     },
     {
         "key": "popup.discord.agree-checkbox",
@@ -575,7 +608,8 @@
         "jp": "13 歳以上であることに同意します。",
         "ko": "만 13세 이상임에 동의합니다.",
         "pt": "Confirmo que tenho mais de 13 anos.",
-        "pt-BR": "Confirmo que tenho mais de 13 anos."
+        "pt-BR": "Confirmo que tenho mais de 13 anos.",
+        "id": "Saya menyetujui bahwa saya berusia 13 tahun keatas."
     },
     {
         "key": "popup.gamebanana.title",
@@ -592,7 +626,8 @@
         "jp": "GameBanana を開きますか？",
         "ko": "GameBanana를 열까요?",
         "pt": "Abrir o GameBanana?",
-        "pt-BR": "Abrir o GameBanana?"
+        "pt-BR": "Abrir o GameBanana?",
+        "id": "Buka GameBanana?"
     },
     {
         "key": "popup.gamebanana.message",
@@ -609,7 +644,8 @@
         "jp": "GameBanana は MOD 配信のパートナーサイトで、ゲーム用の MOD を入手できます。",
         "ko": "GameBanana는 저희 파트너 모드 배포 사이트로, 게임에 사용할 모드를 받을 수 있습니다.",
         "pt": "O GameBanana é o nosso site parceiro de alojamento de mods, onde podes obter mods para usar no jogo.",
-        "pt-BR": "O GameBanana é o nosso site parceiro de hospedagem de mods, onde você pode baixar mods para usar no jogo."
+        "pt-BR": "O GameBanana é o nosso site parceiro de hospedagem de mods, onde você pode baixar mods para usar no jogo.",
+        "id": "GameBanana adalah mitra situs hosting kami dimana kamu bisa mendapatkan mods untuk digunakan dalam game."
     },
     {
         "key": "popup.ignore-checksum.title",
@@ -626,7 +662,8 @@
         "jp": "チェックサム照合の警告",
         "ko": "체크섬 검사 경고",
         "pt": "Aviso de verificação de checksum",
-        "pt-BR": "Aviso de verificação de checksum"
+        "pt-BR": "Aviso de verificação de checksum",
+        "id": "Peringatan Pencocokan Checksum"
     },
     {
         "key": "popup.ignore-checksum.message",
@@ -643,7 +680,8 @@
         "jp": "Aurora のチェックサム確認を無視してもよろしいですか？ Aurora のエンジンに問題が発生する可能性があります。",
         "ko": "Aurora의 체크섬 검사를 무시하시겠습니까? Aurora 엔진에 문제가 발생할 수 있습니다.",
         "pt": "Tens a certeza de que queres ignorar as verificações de checksum do Aurora? Isto pode causar problemas com o motor do Aurora.",
-        "pt-BR": "Tem certeza de que deseja ignorar as verificações de checksum do Aurora? Isso pode causar problemas com o motor do Aurora."
+        "pt-BR": "Tem certeza de que deseja ignorar as verificações de checksum do Aurora? Isso pode causar problemas com o motor do Aurora.",
+        "id": "Yakin untuk mengabaikan pengecekan checksum oleh Aurora? Hal ini dapat menimbulkan masalah dengan engine Aurora."
     },
     {
         "key": "main.launch-button.launch",
@@ -660,7 +698,8 @@
         "jp": "起動",
         "ko": "실행",
         "pt": "Iniciar",
-        "pt-BR": "Iniciar"
+        "pt-BR": "Iniciar",
+        "id": "Luncurkan"
     },
     {
         "key": "main.launch-button.launching",
@@ -677,7 +716,8 @@
         "jp": "起動中...",
         "ko": "시작 중...",
         "pt": "A iniciar...",
-        "pt-BR": "Iniciando..."
+        "pt-BR": "Iniciando...",
+        "id": "Meluncurkan..."
     },
     {
         "key": "main.launch-button.running",
@@ -694,7 +734,8 @@
         "jp": "実行中...",
         "ko": "실행 중...",
         "pt": "Em execução...",
-        "pt-BR": "Em execução..."
+        "pt-BR": "Em execução...",
+        "id": "Berjalan..."
     },
     {
         "key": "main.launch-button.updating",
@@ -711,7 +752,8 @@
         "jp": "更新中...",
         "ko": "업데이트 중...",
         "pt": "A atualizar...",
-        "pt-BR": "Atualizando..."
+        "pt-BR": "Atualizando...",
+        "id": "Mengupdate..."
     },
     {
         "key": "main.launch-menu.option-repair",
@@ -728,7 +770,8 @@
         "jp": "Aurora を修復",
         "ko": "Aurora 복구",
         "pt": "Reparar o Aurora",
-        "pt-BR": "Reparar o Aurora"
+        "pt-BR": "Reparar o Aurora",
+        "id": "Perbaiki Aurora"
     },
     {
         "key": "main.launch-menu.option-updates",
@@ -745,7 +788,8 @@
         "jp": "アップデートを確認",
         "ko": "업데이트 확인",
         "pt": "Procurar atualizações",
-        "pt-BR": "Verificar atualizações"
+        "pt-BR": "Verificar atualizações",
+        "id": "Periksa Pembaruan"
     },
     {
         "key": "main.launch-menu.option-shortcut",
@@ -762,7 +806,8 @@
         "jp": "デスクトップにショートカットを作成",
         "ko": "바탕 화면 바로가기 만들기",
         "pt": "Criar atalho",
-        "pt-BR": "Criar atalho"
+        "pt-BR": "Criar atalho",
+        "id": "Tambahkan Pintasan Desktop"
     },
     {
         "key": "main.launch-menu.option-folder",
@@ -779,7 +824,8 @@
         "jp": "MOD フォルダーを開く",
         "ko": "모드 폴더 열기",
         "pt": "Abrir a pasta de mods",
-        "pt-BR": "Abrir a pasta de mods"
+        "pt-BR": "Abrir a pasta de mods",
+        "id": "Buka Folder Mods"
     },
     {
         "key": "main.launch-menu.option-kill",
@@ -796,7 +842,8 @@
         "jp": "ゲームを強制終了",
         "ko": "게임 강제 종료",
         "pt": "Forçar o fecho do jogo",
-        "pt-BR": "Forçar o fechamento do jogo"
+        "pt-BR": "Forçar o fechamento do jogo",
+        "id": "Matikan Game"
     },
     {
         "key": "main.button-row.mod-manager",
@@ -813,7 +860,8 @@
         "jp": "MOD マネージャー",
         "ko": "모드 관리자",
         "pt": "Gestor de mods",
-        "pt-BR": "Gerenciador de mods"
+        "pt-BR": "Gerenciador de mods",
+        "id": "Manajer Mods"
     },
     {
         "key": "global.popup.confirm-button",
@@ -830,7 +878,8 @@
         "jp": "確定",
         "ko": "확인",
         "pt": "Confirmar",
-        "pt-BR": "Confirmar"
+        "pt-BR": "Confirmar",
+        "id": "Konfirmasi"
     },
     {
         "key": "global.popup.cancel-button",
@@ -847,7 +896,8 @@
         "jp": "キャンセル",
         "ko": "취소",
         "pt": "Cancelar",
-        "pt-BR": "Cancelar"
+        "pt-BR": "Cancelar",
+        "id": "Batalkan"
     },
     {
         "key": "global.button.save",
@@ -864,7 +914,8 @@
         "jp": "保存",
         "ko": "저장",
         "pt": "Guardar",
-        "pt-BR": "Salvar"
+        "pt-BR": "Salvar",
+        "id": "Simpan"
     },
     {
         "key": "global.button.install",
@@ -881,7 +932,8 @@
         "jp": "インストール",
         "ko": "설치",
         "pt": "Instalar",
-        "pt-BR": "Instalar"
+        "pt-BR": "Instalar",
+        "id": "Install"
     },
     {
         "key": "global.button.rename",
@@ -898,7 +950,8 @@
         "jp": "名前を変更",
         "ko": "이름 변경",
         "pt": "Mudar o nome",
-        "pt-BR": "Renomear"
+        "pt-BR": "Renomear",
+        "id": "Rubah Nama"
     },
     {
         "key": "global.button.delete",
@@ -915,7 +968,8 @@
         "jp": "削除",
         "ko": "삭제",
         "pt": "Eliminar",
-        "pt-BR": "Excluir"
+        "pt-BR": "Excluir",
+        "id": "Hapus"
     },
     {
         "key": "global.button.toggle",
@@ -932,7 +986,8 @@
         "jp": "切り替え",
         "ko": "켜기/끄기",
         "pt": "Ativar/Desativar",
-        "pt-BR": "Ativar/Desativar"
+        "pt-BR": "Ativar/Desativar",
+        "id": "Alihkan"
     },
     {
         "key": "global.label.by",
@@ -949,7 +1004,8 @@
         "jp": "作者:",
         "ko": "제작:",
         "pt": "por",
-        "pt-BR": "por"
+        "pt-BR": "por",
+        "id": "oleh"
     },
     {
         "key": "global.filter.all",
@@ -966,7 +1022,8 @@
         "jp": "すべて",
         "ko": "전체",
         "pt": "Todos",
-        "pt-BR": "Todos"
+        "pt-BR": "Todos",
+        "id": "Semua"
     },
     {
         "key": "global.search.mods-placeholder",
@@ -983,7 +1040,8 @@
         "jp": "MOD を検索...",
         "ko": "모드 검색...",
         "pt": "Procurar mods...",
-        "pt-BR": "Buscar mods..."
+        "pt-BR": "Buscar mods...",
+        "id": "Mencari mods..."
     },
     {
         "key": "menu.title",
@@ -1000,7 +1058,8 @@
         "jp": "Aurora メニュー",
         "ko": "Aurora 메뉴",
         "pt": "Menu do Aurora",
-        "pt-BR": "Menu do Aurora"
+        "pt-BR": "Menu do Aurora",
+        "id": "Menu Aurora"
     },
     {
         "key": "menu.item.screenshots",
@@ -1017,7 +1076,8 @@
         "jp": "スクリーンショットマネージャー",
         "ko": "스크린샷 관리자",
         "pt": "Gestor de capturas de ecrã",
-        "pt-BR": "Gerenciador de capturas de tela"
+        "pt-BR": "Gerenciador de capturas de tela",
+        "id": "Manajer tangkapan layar"
     },
     {
         "key": "menu.item.movies",
@@ -1034,7 +1094,8 @@
         "jp": "動画マネージャー",
         "ko": "영상 관리자",
         "pt": "Gestor de vídeos",
-        "pt-BR": "Gerenciador de vídeos"
+        "pt-BR": "Gerenciador de vídeos",
+        "id": "Manajer Film"
     },
     {
         "key": "menu.item.lua",
@@ -1051,7 +1112,8 @@
         "jp": "Lua スクリプト",
         "ko": "Lua 스크립트",
         "pt": "Scripts Lua",
-        "pt-BR": "Scripts Lua"
+        "pt-BR": "Scripts Lua",
+        "id": "Skrip Lua"
     },
     {
         "key": "menu.item.modules",
@@ -1068,7 +1130,8 @@
         "jp": "サードパーティ モジュール",
         "ko": "서드파티 모듈",
         "pt": "Módulos de terceiros",
-        "pt-BR": "Módulos de terceiros"
+        "pt-BR": "Módulos de terceiros",
+        "id": "Modul Pihak Ketiga"
     },
     {
         "key": "menu.item.addons",
@@ -1085,7 +1148,8 @@
         "jp": "アドオン",
         "ko": "애드온",
         "pt": "Add-ons",
-        "pt-BR": "Add-ons"
+        "pt-BR": "Add-ons",
+        "id": "Addons"
     },
     {
         "key": "logwindow.title",
@@ -1102,7 +1166,8 @@
         "jp": "ログ",
         "ko": "로그",
         "pt": "REGISTOS",
-        "pt-BR": "LOGS"
+        "pt-BR": "LOGS",
+        "id": "LOG"
     },
     {
         "key": "logwindow.copy",
@@ -1119,7 +1184,8 @@
         "jp": "コピー",
         "ko": "복사",
         "pt": "Copiar",
-        "pt-BR": "Copiar"
+        "pt-BR": "Copiar",
+        "id": "Salin"
     },
     {
         "key": "logwindow.filter.error",
@@ -1136,7 +1202,8 @@
         "jp": "エラー",
         "ko": "오류",
         "pt": "Erro",
-        "pt-BR": "Erro"
+        "pt-BR": "Erro",
+        "id": "Error"
     },
     {
         "key": "logwindow.filter.warn",
@@ -1153,7 +1220,8 @@
         "jp": "警告",
         "ko": "경고",
         "pt": "Aviso",
-        "pt-BR": "Aviso"
+        "pt-BR": "Aviso",
+        "id": "Peringatan"
     },
     {
         "key": "logwindow.filter.info",
@@ -1170,7 +1238,8 @@
         "jp": "情報",
         "ko": "정보",
         "pt": "Info",
-        "pt-BR": "Info"
+        "pt-BR": "Info",
+        "id": "Info"
     },
     {
         "key": "logwindow.filter.debug",
@@ -1187,7 +1256,8 @@
         "jp": "デバッグ",
         "ko": "디버그",
         "pt": "Depuração",
-        "pt-BR": "Depuração"
+        "pt-BR": "Depuração",
+        "id": "Debug"
     },
     {
         "key": "logwindow.filter.trace",
@@ -1204,7 +1274,8 @@
         "jp": "トレース",
         "ko": "추적",
         "pt": "Rastreio",
-        "pt-BR": "Rastreamento"
+        "pt-BR": "Rastreamento",
+        "id": "Jejak"
     },
     {
         "key": "modcard.notes-placeholder",
@@ -1221,7 +1292,8 @@
         "jp": "メモを追加...",
         "ko": "메모 추가...",
         "pt": "Adicionar notas...",
-        "pt-BR": "Adicionar notas..."
+        "pt-BR": "Adicionar notas...",
+        "id": "Tambahkan catatan..."
     },
     {
         "key": "addons.title",
@@ -1238,7 +1310,8 @@
         "jp": "アドオンマネージャー",
         "ko": "애드온 관리자",
         "pt": "Gestor de add-ons",
-        "pt-BR": "Gerenciador de add-ons"
+        "pt-BR": "Gerenciador de add-ons",
+        "id": "Manajer Addons"
     },
     {
         "key": "addons.count-suffix",
@@ -1255,7 +1328,8 @@
         "jp": "個のアドオン",
         "ko": "개의 애드온",
         "pt": "add-ons",
-        "pt-BR": "add-ons"
+        "pt-BR": "add-ons",
+        "id": "addons"
     },
     {
         "key": "addons.action.installing",
@@ -1272,7 +1346,8 @@
         "jp": "インストール中...",
         "ko": "설치 중...",
         "pt": "A INSTALAR...",
-        "pt-BR": "INSTALANDO..."
+        "pt-BR": "INSTALANDO...",
+        "id": "MENGINSTALL..."
     },
     {
         "key": "addons.action.update",
@@ -1289,7 +1364,8 @@
         "jp": "更新",
         "ko": "업데이트",
         "pt": "ATUALIZAR",
-        "pt-BR": "ATUALIZAR"
+        "pt-BR": "ATUALIZAR",
+        "id": "PEMBARUAN"
     },
     {
         "key": "addons.action.install",
@@ -1306,7 +1382,8 @@
         "jp": "インストール",
         "ko": "설치",
         "pt": "INSTALAR",
-        "pt-BR": "INSTALAR"
+        "pt-BR": "INSTALAR",
+        "id": "INSTALL"
     },
     {
         "key": "addons.action.disable",
@@ -1323,7 +1400,8 @@
         "jp": "無効化",
         "ko": "비활성화",
         "pt": "DESATIVAR",
-        "pt-BR": "DESATIVAR"
+        "pt-BR": "DESATIVAR",
+        "id": "NONAKTIFKAN"
     },
     {
         "key": "addons.action.enable",
@@ -1340,7 +1418,8 @@
         "jp": "有効化",
         "ko": "활성화",
         "pt": "ATIVAR",
-        "pt-BR": "ATIVAR"
+        "pt-BR": "ATIVAR",
+        "id": "AKTIFKAN"
     },
     {
         "key": "addons.empty.title",
@@ -1357,7 +1436,8 @@
         "jp": "アドオンが見つかりません",
         "ko": "애드온을 찾을 수 없음",
         "pt": "Nenhum add-on encontrado",
-        "pt-BR": "Nenhum add-on encontrado"
+        "pt-BR": "Nenhum add-on encontrado",
+        "id": "Tidak ada addons ditemukan"
     },
     {
         "key": "addons.empty.subtitle",
@@ -1374,7 +1454,8 @@
         "jp": "インストールが破損しているか、アドオンマネージャーが正しく動作しなかった可能性があります。",
         "ko": "설치 파일이 손상되었거나 애드온 관리자가 제대로 동작하지 않았을 수 있습니다.",
         "pt": "Isto deve-se a uma instalação danificada ou ao facto de o gestor de add-ons não ter funcionado.",
-        "pt-BR": "Isso acontece por causa de uma instalação corrompida ou porque o gerenciador de add-ons não funcionou."
+        "pt-BR": "Isso acontece por causa de uma instalação corrompida ou porque o gerenciador de add-ons não funcionou.",
+        "id": "Hal ini bisa disebabkan oleh instalasi yang korup, atau Manajer Addons yang tidak bekerja."
     },
     {
         "key": "modules.add-modules",
@@ -1391,7 +1472,8 @@
         "jp": "モジュールを追加",
         "ko": "모듈 추가",
         "pt": "Adicionar módulos",
-        "pt-BR": "Adicionar módulos"
+        "pt-BR": "Adicionar módulos",
+        "id": "Tambahkan Modul"
     },
     {
         "key": "modules.search-placeholder",
@@ -1408,7 +1490,8 @@
         "jp": "モジュールを検索...",
         "ko": "모듈 검색...",
         "pt": "Procurar módulos...",
-        "pt-BR": "Buscar módulos..."
+        "pt-BR": "Buscar módulos...",
+        "id": "Mencari modul..."
     },
     {
         "key": "modules.enable-feature",
@@ -1425,7 +1508,8 @@
         "jp": "モジュールを有効化",
         "ko": "모듈 활성화",
         "pt": "Ativar módulos",
-        "pt-BR": "Ativar módulos"
+        "pt-BR": "Ativar módulos",
+        "id": "Aktifkan Modul"
     },
     {
         "key": "modules.empty",
@@ -1442,7 +1526,8 @@
         "jp": "モジュールがインストールされていません",
         "ko": "설치된 모듈이 없습니다",
         "pt": "Nenhum módulo instalado",
-        "pt-BR": "Nenhum módulo instalado"
+        "pt-BR": "Nenhum módulo instalado",
+        "id": "Tidak ada modul terpasang"
     },
     {
         "key": "modules.empty-search",
@@ -1459,7 +1544,8 @@
         "jp": "検索に一致するモジュールがありません",
         "ko": "검색과 일치하는 모듈이 없습니다",
         "pt": "Nenhum módulo corresponde à tua pesquisa",
-        "pt-BR": "Nenhum módulo corresponde à sua busca"
+        "pt-BR": "Nenhum módulo corresponde à sua busca",
+        "id": "Tidak ada modul yang cocok dengan pencarian"
     },
     {
         "key": "modules.delete.title",
@@ -1476,7 +1562,8 @@
         "jp": "モジュールを削除しますか？",
         "ko": "모듈을 삭제할까요?",
         "pt": "Eliminar o módulo?",
-        "pt-BR": "Excluir o módulo?"
+        "pt-BR": "Excluir o módulo?",
+        "id": "Hapus Modul?"
     },
     {
         "key": "modules.delete.message-prefix",
@@ -1493,7 +1580,8 @@
         "jp": "「",
         "ko": "\"",
         "pt": "Tens a certeza de que queres eliminar \"",
-        "pt-BR": "Tem certeza de que deseja excluir \""
+        "pt-BR": "Tem certeza de que deseja excluir \"",
+        "id": "Yakin ingin menghapus \""
     },
     {
         "key": "modules.delete.message-suffix",
@@ -1510,7 +1598,8 @@
         "jp": "」を削除しますか？",
         "ko": "\"을(를) 삭제할까요?",
         "pt": "\"?",
-        "pt-BR": "\"?"
+        "pt-BR": "\"?",
+        "id": "\"?"
     },
     {
         "key": "modules.delete-selected.title",
@@ -1527,7 +1616,8 @@
         "jp": "選択したモジュールを削除しますか？",
         "ko": "선택한 모듈을 삭제할까요?",
         "pt": "Eliminar os módulos selecionados?",
-        "pt-BR": "Excluir os módulos selecionados?"
+        "pt-BR": "Excluir os módulos selecionados?",
+        "id": "Hapus modul terpilih?"
     },
     {
         "key": "modules.delete-selected.message-prefix",
@@ -1544,7 +1634,8 @@
         "jp": "選択した ",
         "ko": "선택한 ",
         "pt": "Tens a certeza de que queres eliminar os ",
-        "pt-BR": "Tem certeza de que deseja excluir os "
+        "pt-BR": "Tem certeza de que deseja excluir os ",
+        "id": "Yakin ingin menghapus "
     },
     {
         "key": "modules.delete-selected.message-suffix",
@@ -1561,7 +1652,8 @@
         "jp": " 個のモジュールを削除しますか？",
         "ko": "개의 모듈을 삭제할까요?",
         "pt": " módulos selecionados?",
-        "pt-BR": " módulos selecionados?"
+        "pt-BR": " módulos selecionados?",
+        "id": " modul yang terpilih?"
     },
     {
         "key": "lua.install.title",
@@ -1578,7 +1670,8 @@
         "jp": "依存関係のインストール",
         "ko": "종속성 설치",
         "pt": "Instalar dependência",
-        "pt-BR": "Instalar dependência"
+        "pt-BR": "Instalar dependência",
+        "id": "Install Dependency"
     },
     {
         "key": "lua.install.description",
@@ -1595,7 +1688,8 @@
         "jp": "Lua スクリプトの実行には UE4SS が必要です。まず UE4SS をダウンロードしてください。",
         "ko": "Lua 스크립트를 실행하려면 UE4SS가 필요합니다. 먼저 UE4SS를 내려받으세요.",
         "pt": "Os scripts Lua requerem o UE4SS. Para executar scripts, tens de transferir primeiro o UE4SS.",
-        "pt-BR": "Os scripts Lua exigem o UE4SS. Para executar scripts, você precisa baixar o UE4SS primeiro."
+        "pt-BR": "Os scripts Lua exigem o UE4SS. Para executar scripts, você precisa baixar o UE4SS primeiro.",
+        "id": "Skrip Lua memerlukan instalasi UE4SS, untuk menjalankan skrip kamu harus mengunduh UE4SS."
     },
     {
         "key": "lua.install.download-size",
@@ -1612,7 +1706,8 @@
         "jp": "ダウンロードサイズ",
         "ko": "다운로드 크기",
         "pt": "Tamanho da transferência",
-        "pt-BR": "Tamanho do download"
+        "pt-BR": "Tamanho do download",
+        "id": "Ukuran download"
     },
     {
         "key": "lua.install.location",
@@ -1629,7 +1724,8 @@
         "jp": "インストール先",
         "ko": "설치 위치",
         "pt": "Local de instalação",
-        "pt-BR": "Local de instalação"
+        "pt-BR": "Local de instalação",
+        "id": "Lokasi instalasi"
     },
     {
         "key": "lua.new-script",
@@ -1646,7 +1742,8 @@
         "jp": "新規スクリプト",
         "ko": "새 스크립트",
         "pt": "Novo script",
-        "pt-BR": "Novo script"
+        "pt-BR": "Novo script",
+        "id": "Skrip Baru"
     },
     {
         "key": "lua.debugging",
@@ -1663,7 +1760,8 @@
         "jp": "デバッグ",
         "ko": "디버깅",
         "pt": "Depuração",
-        "pt-BR": "Depuração"
+        "pt-BR": "Depuração",
+        "id": "Debugging"
     },
     {
         "key": "lua.script-count.singular",
@@ -1680,7 +1778,8 @@
         "jp": "スクリプト",
         "ko": "스크립트",
         "pt": "script",
-        "pt-BR": "script"
+        "pt-BR": "script",
+        "id": "skrip"
     },
     {
         "key": "lua.script-count.plural",
@@ -1697,7 +1796,8 @@
         "jp": "スクリプト",
         "ko": "스크립트",
         "pt": "scripts",
-        "pt-BR": "scripts"
+        "pt-BR": "scripts",
+        "id": "skrip"
     },
     {
         "key": "lua.empty",
@@ -1714,7 +1814,8 @@
         "jp": "現在 Lua スクリプトはありません。「新規スクリプト」を押して作成してください。",
         "ko": "현재 Lua 스크립트가 없습니다. \"새 스크립트\"를 눌러 만들어 보세요.",
         "pt": "De momento não tens scripts Lua. Carrega em \"Novo script\" para criar um.",
-        "pt-BR": "Você ainda não tem scripts Lua. Clique em \"Novo script\" para criar um."
+        "pt-BR": "Você ainda não tem scripts Lua. Clique em \"Novo script\" para criar um.",
+        "id": "Saat ini kamu tidak memiliki skrip Lua, tekan \"Skrip Baru\" untuk membuat."
     },
     {
         "key": "screenshots.count-suffix",
@@ -1731,7 +1832,8 @@
         "jp": "枚のスクリーンショット",
         "ko": "개의 스크린샷",
         "pt": "capturas de ecrã",
-        "pt-BR": "capturas de tela"
+        "pt-BR": "capturas de tela",
+        "id": "tangkapan layar"
     },
     {
         "key": "screenshots.open-folder",
@@ -1748,7 +1850,8 @@
         "jp": "フォルダーを開く",
         "ko": "폴더 열기",
         "pt": "Abrir pasta",
-        "pt-BR": "Abrir pasta"
+        "pt-BR": "Abrir pasta",
+        "id": "Buka Folder"
     },
     {
         "key": "screenshots.sort.newest",
@@ -1765,7 +1868,8 @@
         "jp": "新しい順",
         "ko": "최신순",
         "pt": "Mais recentes primeiro",
-        "pt-BR": "Mais recentes primeiro"
+        "pt-BR": "Mais recentes primeiro",
+        "id": "Terbaru terlebih dahulu"
     },
     {
         "key": "screenshots.sort.oldest",
@@ -1782,7 +1886,8 @@
         "jp": "古い順",
         "ko": "오래된순",
         "pt": "Mais antigas primeiro",
-        "pt-BR": "Mais antigas primeiro"
+        "pt-BR": "Mais antigas primeiro",
+        "id": "Terlama terlebih dahulu"
     },
     {
         "key": "screenshots.sort.name",
@@ -1799,7 +1904,8 @@
         "jp": "名前順",
         "ko": "이름순",
         "pt": "Por nome",
-        "pt-BR": "Por nome"
+        "pt-BR": "Por nome",
+        "id": "Menurut Nama"
     },
     {
         "key": "screenshots.favorites",
@@ -1816,7 +1922,8 @@
         "jp": "お気に入り",
         "ko": "즐겨찾기",
         "pt": "Favoritos",
-        "pt-BR": "Favoritos"
+        "pt-BR": "Favoritos",
+        "id": "Favorit"
     },
     {
         "key": "screenshots.select",
@@ -1833,7 +1940,8 @@
         "jp": "選択",
         "ko": "선택",
         "pt": "Selecionar",
-        "pt-BR": "Selecionar"
+        "pt-BR": "Selecionar",
+        "id": "Pilih"
     },
     {
         "key": "screenshots.empty.title",
@@ -1850,7 +1958,8 @@
         "jp": "スクリーンショットが見つかりません",
         "ko": "스크린샷을 찾을 수 없음",
         "pt": "Nenhuma captura de ecrã encontrada",
-        "pt-BR": "Nenhuma captura de tela encontrada"
+        "pt-BR": "Nenhuma captura de tela encontrada",
+        "id": "Tidak ada tangkapan layar ditemukan"
     },
     {
         "key": "screenshots.empty.subtitle",
@@ -1867,7 +1976,8 @@
         "jp": "ゲーム内で撮影したスクリーンショットがここに表示されます。",
         "ko": "게임에서 찍은 스크린샷이 여기에 표시됩니다.",
         "pt": "As capturas de ecrã que tirares no jogo aparecem aqui.",
-        "pt-BR": "As capturas de tela que você tirar no jogo aparecerão aqui."
+        "pt-BR": "As capturas de tela que você tirar no jogo aparecerão aqui.",
+        "id": "Tangkapan layar yang kamu ambil dalam game akan tampil disini."
     },
     {
         "key": "screenshots.empty.favorites-title",
@@ -1884,7 +1994,8 @@
         "jp": "お気に入りのスクリーンショットはありません",
         "ko": "즐겨찾기한 스크린샷이 없습니다",
         "pt": "Sem capturas de ecrã favoritas",
-        "pt-BR": "Nenhuma captura de tela favorita"
+        "pt-BR": "Nenhuma captura de tela favorita",
+        "id": "Tidak ada tangkapan layar favorit"
     },
     {
         "key": "screenshots.empty.favorites-subtitle",
@@ -1901,7 +2012,8 @@
         "jp": "スクリーンショットにスターを付けるとここに表示されます。",
         "ko": "스크린샷에 별표를 지정하면 여기에 표시됩니다.",
         "pt": "Marca uma captura de ecrã com estrela para a veres aqui.",
-        "pt-BR": "Marque uma captura de tela com estrela para vê-la aqui."
+        "pt-BR": "Marque uma captura de tela com estrela para vê-la aqui.",
+        "id": "Bintangi tangkapan layar untuk melihatnya disini."
     },
     {
         "key": "screenshots.rename.title",
@@ -1918,7 +2030,8 @@
         "jp": "スクリーンショットの名前を変更",
         "ko": "스크린샷 이름 변경",
         "pt": "Mudar o nome da captura de ecrã",
-        "pt-BR": "Renomear captura de tela"
+        "pt-BR": "Renomear captura de tela",
+        "id": "Rubah nama tangkapan layar"
     },
     {
         "key": "gb.title",
@@ -1935,7 +2048,8 @@
         "jp": "GameBanana からインストール",
         "ko": "GameBanana에서 설치",
         "pt": "Instalar do GameBanana",
-        "pt-BR": "Instalar do GameBanana"
+        "pt-BR": "Instalar do GameBanana",
+        "id": "Install dari GameBanana"
     },
     {
         "key": "gb.nsfw",
@@ -1952,7 +2066,8 @@
         "jp": "NSFW",
         "ko": "NSFW",
         "pt": "NSFW",
-        "pt-BR": "NSFW"
+        "pt-BR": "NSFW",
+        "id": "konten 18+"
     },
     {
         "key": "gb.clear-cache",
@@ -1969,7 +2084,8 @@
         "jp": "キャッシュを削除",
         "ko": "캐시 지우기",
         "pt": "Limpar cache",
-        "pt-BR": "Limpar cache"
+        "pt-BR": "Limpar cache",
+        "id": "Bersihkan Cache"
     },
     {
         "key": "gb.all-characters",
@@ -1986,7 +2102,8 @@
         "jp": "すべてのキャラクター",
         "ko": "모든 캐릭터",
         "pt": "Todas as personagens",
-        "pt-BR": "Todos os personagens"
+        "pt-BR": "Todos os personagens",
+        "id": "Semua Karakter"
     },
     {
         "key": "gb.no-mods",
@@ -2003,7 +2120,8 @@
         "jp": "MOD が見つかりません",
         "ko": "모드를 찾을 수 없음",
         "pt": "Nenhum mod encontrado",
-        "pt-BR": "Nenhum mod encontrado"
+        "pt-BR": "Nenhum mod encontrado",
+        "id": "Tidak ada mods ditemukan"
     },
     {
         "key": "gb.loading",
@@ -2020,7 +2138,8 @@
         "jp": "読み込み中...",
         "ko": "불러오는 중...",
         "pt": "A carregar...",
-        "pt-BR": "Carregando..."
+        "pt-BR": "Carregando...",
+        "id": "Memuat..."
     },
     {
         "key": "gb.files.title",
@@ -2037,7 +2156,8 @@
         "jp": "ダウンロードするファイルを選択",
         "ko": "다운로드할 파일 선택",
         "pt": "Escolhe um ficheiro para transferir",
-        "pt-BR": "Escolha um arquivo para baixar"
+        "pt-BR": "Escolha um arquivo para baixar",
+        "id": "Pilih file untuk diunduh"
     },
     {
         "key": "gb.files.downloads-suffix",
@@ -2054,7 +2174,8 @@
         "jp": "回ダウンロード",
         "ko": "회 다운로드",
         "pt": "transferências",
-        "pt-BR": "downloads"
+        "pt-BR": "downloads",
+        "id": "unduhan"
     },
     {
         "key": "gb.preview.loading",
@@ -2071,7 +2192,8 @@
         "jp": "フル解像度を読み込み中...",
         "ko": "원본 해상도 불러오는 중...",
         "pt": "A carregar a resolução total...",
-        "pt-BR": "Carregando em resolução total..."
+        "pt-BR": "Carregando em resolução total...",
+        "id": "Memuat resolusi penuh..."
     },
     {
         "key": "modmanager.add-mods",
@@ -2088,7 +2210,8 @@
         "jp": "MOD を追加",
         "ko": "모드 추가",
         "pt": "Adicionar mods",
-        "pt-BR": "Adicionar mods"
+        "pt-BR": "Adicionar mods",
+        "id": "Tambahkan Mods"
     },
     {
         "key": "modmanager.install-archive",
@@ -2105,7 +2228,8 @@
         "jp": "アーカイブからインストール",
         "ko": "압축 파일에서 설치",
         "pt": "Instalar a partir de um arquivo",
-        "pt-BR": "Instalar de um arquivo compactado"
+        "pt-BR": "Instalar de um arquivo compactado",
+        "id": "Install dari Arsip"
     },
     {
         "key": "modmanager.install-folder",
@@ -2122,7 +2246,8 @@
         "jp": "フォルダーからインストール",
         "ko": "폴더에서 설치",
         "pt": "Instalar a partir de uma pasta",
-        "pt-BR": "Instalar de uma pasta"
+        "pt-BR": "Instalar de uma pasta",
+        "id": "Install dari Folder"
     },
     {
         "key": "modmanager.create-group",
@@ -2139,7 +2264,8 @@
         "jp": "グループを作成",
         "ko": "그룹 만들기",
         "pt": "Criar grupo",
-        "pt-BR": "Criar grupo"
+        "pt-BR": "Criar grupo",
+        "id": "Buat Grup"
     },
     {
         "key": "modmanager.filter.enabled",
@@ -2156,7 +2282,8 @@
         "jp": "有効",
         "ko": "활성화됨",
         "pt": "Ativados",
-        "pt-BR": "Ativados"
+        "pt-BR": "Ativados",
+        "id": "Aktif"
     },
     {
         "key": "modmanager.filter.disabled",
@@ -2173,7 +2300,8 @@
         "jp": "無効",
         "ko": "비활성화됨",
         "pt": "Desativados",
-        "pt-BR": "Desativados"
+        "pt-BR": "Desativados",
+        "id": "Non-aktif"
     },
     {
         "key": "modmanager.filter.button",
@@ -2190,7 +2318,8 @@
         "jp": "フィルター",
         "ko": "필터",
         "pt": "Filtrar",
-        "pt-BR": "Filtrar"
+        "pt-BR": "Filtrar",
+        "id": "Filter"
     },
     {
         "key": "modmanager.filter.title",
@@ -2207,7 +2336,8 @@
         "jp": "フィルター",
         "ko": "필터",
         "pt": "Filtros",
-        "pt-BR": "Filtros"
+        "pt-BR": "Filtros",
+        "id": "Filter"
     },
     {
         "key": "modmanager.filter.status",
@@ -2224,7 +2354,8 @@
         "jp": "状態",
         "ko": "상태",
         "pt": "Estado",
-        "pt-BR": "Status"
+        "pt-BR": "Status",
+        "id": "Status"
     },
     {
         "key": "modmanager.filter.characters",
@@ -2241,7 +2372,8 @@
         "jp": "キャラクター",
         "ko": "캐릭터",
         "pt": "Personagem",
-        "pt-BR": "Personagem"
+        "pt-BR": "Personagem",
+        "id": "Karakter"
     },
     {
         "key": "modmanager.filter.authors",
@@ -2258,7 +2390,8 @@
         "jp": "作者",
         "ko": "제작자",
         "pt": "Autor",
-        "pt-BR": "Autor"
+        "pt-BR": "Autor",
+        "id": "Pembuat"
     },
     {
         "key": "modmanager.filter.group",
@@ -2275,7 +2408,8 @@
         "jp": "グループ",
         "ko": "그룹",
         "pt": "Grupo",
-        "pt-BR": "Grupo"
+        "pt-BR": "Grupo",
+        "id": "Grup"
     },
     {
         "key": "modmanager.filter.ungrouped",
@@ -2292,7 +2426,8 @@
         "jp": "グループなし",
         "ko": "그룹 없음",
         "pt": "Sem grupo",
-        "pt-BR": "Sem grupo"
+        "pt-BR": "Sem grupo",
+        "id": "Tidak terkelompokkan"
     },
     {
         "key": "modmanager.filter.clear",
@@ -2309,7 +2444,8 @@
         "jp": "すべてのフィルターを解除",
         "ko": "모든 필터 지우기",
         "pt": "Limpar todos os filtros",
-        "pt-BR": "Limpar todos os filtros"
+        "pt-BR": "Limpar todos os filtros",
+        "id": "Bersihkan semua filter"
     },
     {
         "key": "modmanager.toggle-all",
@@ -2326,7 +2462,8 @@
         "jp": "すべて切り替え",
         "ko": "전체 켜기/끄기",
         "pt": "Alternar todos",
-        "pt-BR": "Alternar todos"
+        "pt-BR": "Alternar todos",
+        "id": "Alihkan Semua"
     },
     {
         "key": "modmanager.empty",
@@ -2343,7 +2480,8 @@
         "jp": "MOD がインストールされていません",
         "ko": "설치된 모드가 없습니다",
         "pt": "Nenhum mod instalado",
-        "pt-BR": "Nenhum mod instalado"
+        "pt-BR": "Nenhum mod instalado",
+        "id": "Tidak ada mods terpasang"
     },
     {
         "key": "modmanager.empty-search",
@@ -2360,7 +2498,8 @@
         "jp": "検索に一致する MOD がありません",
         "ko": "검색과 일치하는 모드가 없습니다",
         "pt": "Nenhum mod corresponde à tua pesquisa",
-        "pt-BR": "Nenhum mod corresponde à sua busca"
+        "pt-BR": "Nenhum mod corresponde à sua busca",
+        "id": "Tidak ada mods yang sesuai pencarian"
     },
     {
         "key": "modmanager.empty-filter",
@@ -2377,7 +2516,8 @@
         "jp": "フィルターに一致する MOD がありません",
         "ko": "필터와 일치하는 모드가 없습니다",
         "pt": "Nenhum mod corresponde ao teu filtro",
-        "pt-BR": "Nenhum mod corresponde ao seu filtro"
+        "pt-BR": "Nenhum mod corresponde ao seu filtro",
+        "id": "Tidak ada mods yang sesuai filter"
     },
     {
         "key": "modmanager.drag.mods-suffix",
@@ -2394,7 +2534,8 @@
         "jp": "個の MOD",
         "ko": "개의 모드",
         "pt": "mods",
-        "pt-BR": "mods"
+        "pt-BR": "mods",
+        "id": "mods"
     },
     {
         "key": "modmanager.drop-out-of-group",
@@ -2411,7 +2552,8 @@
         "jp": "離してグループの外に移動",
         "ko": "놓아서 그룹 밖으로 이동",
         "pt": "Larga para retirar do grupo",
-        "pt-BR": "Solte para tirar do grupo"
+        "pt-BR": "Solte para tirar do grupo",
+        "id": "Lepaskan untuk mengeluarkan dari grup"
     },
     {
         "key": "modmanager.drop-install.title",
@@ -2428,7 +2570,8 @@
         "jp": "ドロップしてインストール",
         "ko": "놓아서 설치",
         "pt": "Larga para instalar",
-        "pt-BR": "Solte para instalar"
+        "pt-BR": "Solte para instalar",
+        "id": "Taruh untuk menginstall"
     },
     {
         "key": "modmanager.drop-install.subtitle",
@@ -2445,7 +2588,8 @@
         "jp": "アーカイブ (.zip、.rar、.7z など)、MOD フォルダー、.pak ファイル",
         "ko": "압축 파일(.zip, .rar, .7z 등), 모드 폴더 또는 .pak 파일",
         "pt": "Arquivos (.zip, .rar, .7z, ...), pastas de mods ou ficheiros .pak",
-        "pt-BR": "Arquivos (.zip, .rar, .7z, ...), pastas de mods ou arquivos .pak"
+        "pt-BR": "Arquivos (.zip, .rar, .7z, ...), pastas de mods ou arquivos .pak",
+        "id": "Arsip (.zip, .rar, .7z, ...), folder mods atau file .pak"
     },
     {
         "key": "modmanager.delete-group.title",
@@ -2462,7 +2606,8 @@
         "jp": "グループを削除しますか？",
         "ko": "그룹을 삭제할까요?",
         "pt": "Eliminar o grupo?",
-        "pt-BR": "Excluir o grupo?"
+        "pt-BR": "Excluir o grupo?",
+        "id": "Hapus Grup?"
     },
     {
         "key": "modmanager.delete-group.message",
@@ -2479,7 +2624,8 @@
         "jp": "このグループを削除しますか？ 中の MOD は削除されず、グループの外に移動されます。",
         "ko": "이 그룹을 삭제할까요? 안에 있는 모드는 삭제되지 않고 그룹 밖으로 이동합니다.",
         "pt": "Tens a certeza de que queres eliminar este grupo? Os mods que estão dentro serão retirados do grupo, não eliminados.",
-        "pt-BR": "Tem certeza de que deseja excluir este grupo? Os mods que estão dentro serão tirados do grupo, não excluídos."
+        "pt-BR": "Tem certeza de que deseja excluir este grupo? Os mods que estão dentro serão tirados do grupo, não excluídos.",
+        "id": "Yakin untuk menghapus grup ini? Mods didalamnya akan dikeluarkan dari grup, bukan dihapus."
     },
     {
         "key": "modmanager.delete-mod.title",
@@ -2496,7 +2642,8 @@
         "jp": "MOD を削除しますか？",
         "ko": "모드를 삭제할까요?",
         "pt": "Eliminar o mod?",
-        "pt-BR": "Excluir o mod?"
+        "pt-BR": "Excluir o mod?",
+        "id": "Hapus Mod?"
     },
     {
         "key": "modmanager.delete-mod.message",
@@ -2513,7 +2660,8 @@
         "jp": "この MOD を削除しますか？",
         "ko": "이 모드를 삭제할까요?",
         "pt": "Tens a certeza de que queres eliminar este mod?",
-        "pt-BR": "Tem certeza de que deseja excluir este mod?"
+        "pt-BR": "Tem certeza de que deseja excluir este mod?",
+        "id": "Yakin untuk menghapus mod ini?"
     },
     {
         "key": "modmanager.delete-selected.title",
@@ -2530,7 +2678,8 @@
         "jp": "選択した MOD を削除しますか？",
         "ko": "선택한 모드를 삭제할까요?",
         "pt": "Eliminar os mods selecionados?",
-        "pt-BR": "Excluir os mods selecionados?"
+        "pt-BR": "Excluir os mods selecionados?",
+        "id": "Hapus mods terpilih?"
     },
     {
         "key": "modmanager.delete-selected.message-prefix",
@@ -2547,7 +2696,8 @@
         "jp": "選択した ",
         "ko": "선택한 ",
         "pt": "Tens a certeza de que queres eliminar os ",
-        "pt-BR": "Tem certeza de que deseja excluir os "
+        "pt-BR": "Tem certeza de que deseja excluir os ",
+        "id": "Yakin untuk menghapus "
     },
     {
         "key": "modmanager.delete-selected.message-suffix",
@@ -2564,7 +2714,8 @@
         "jp": " 個の MOD を削除しますか？",
         "ko": "개의 모드를 삭제할까요?",
         "pt": " mods selecionados?",
-        "pt-BR": " mods selecionados?"
+        "pt-BR": " mods selecionados?",
+        "id": " mods terpilih?"
     },
     {
         "key": "settings.game-directory.none",
@@ -2581,7 +2732,8 @@
         "jp": "フォルダーが選択されていません",
         "ko": "선택된 폴더 없음",
         "pt": "Nenhuma pasta selecionada",
-        "pt-BR": "Nenhuma pasta selecionada"
+        "pt-BR": "Nenhuma pasta selecionada",
+        "id": "Tidak ada direktori yang terpilih"
     },
     {
         "key": "settings.section.launch-options",
@@ -2598,7 +2750,8 @@
         "jp": "起動オプション",
         "ko": "실행 옵션",
         "pt": "OPÇÕES DE ARRANQUE",
-        "pt-BR": "OPÇÕES DE INICIALIZAÇÃO"
+        "pt-BR": "OPÇÕES DE INICIALIZAÇÃO",
+        "id": "OPSI PELUNCURAN"
     },
     {
         "key": "settings.linux-args.title",
@@ -2615,7 +2768,8 @@
         "jp": "起動引数",
         "ko": "실행 인수",
         "pt": "Argumentos de arranque",
-        "pt-BR": "Argumentos de inicialização"
+        "pt-BR": "Argumentos de inicialização",
+        "id": "Argumen Peluncuran"
     },
     {
         "key": "settings.linux-args.subtitle",
@@ -2632,7 +2786,8 @@
         "jp": "Steam の起動オプションと同じように Proton へ渡されます (例: KEY=VALUE mangohud %command%)。自動的に保存されます。",
         "ko": "Steam 실행 옵션과 같은 방식으로 Proton에 전달됩니다. 예: KEY=VALUE mangohud %command%. 자동으로 저장됩니다.",
         "pt": "São passados através do Proton tal como as opções de arranque da Steam, p. ex. KEY=VALUE mangohud %command%. Guarda automaticamente.",
-        "pt-BR": "São passados pelo Proton do mesmo jeito que as opções de inicialização da Steam, ex.: KEY=VALUE mangohud %command%. Salva automaticamente."
+        "pt-BR": "São passados pelo Proton do mesmo jeito que as opções de inicialização da Steam, ex.: KEY=VALUE mangohud %command%. Salva automaticamente.",
+        "id": "Diberikan kepada Proton seperti opsi peluncuran Steam, contoh: KEY=VALUE mangohud %command%. Tersimpan otomatis."
     },
     {
         "key": "settings.linux-args.saved",
@@ -2649,7 +2804,8 @@
         "jp": "保存しました ✓",
         "ko": "저장됨 ✓",
         "pt": "Guardado ✓",
-        "pt-BR": "Salvo ✓"
+        "pt-BR": "Salvo ✓",
+        "id": "Tersimpan ✓"
     },
     {
         "key": "settings.linux-args.placeholder",
@@ -2666,7 +2822,8 @@
         "jp": "例: KEY=VALUE mangohud %command%",
         "ko": "예: KEY=VALUE mangohud %command%",
         "pt": "ex.: KEY=VALUE mangohud %command%",
-        "pt-BR": "ex.: KEY=VALUE mangohud %command%"
+        "pt-BR": "ex.: KEY=VALUE mangohud %command%",
+        "id": "contoh: KEY=VALUE mangohud %command%"
     },
     {
         "key": "settings.section.desktop-integration",
@@ -2683,7 +2840,8 @@
         "jp": "デスクトップ統合",
         "ko": "데스크톱 통합",
         "pt": "INTEGRAÇÃO COM O AMBIENTE DE TRABALHO",
-        "pt-BR": "INTEGRAÇÃO COM A ÁREA DE TRABALHO"
+        "pt-BR": "INTEGRAÇÃO COM A ÁREA DE TRABALHO",
+        "id": "INTEGRASI DESKTOP"
     },
     {
         "key": "settings.desktop-entry.title",
@@ -2700,7 +2858,8 @@
         "jp": "デスクトップエントリ",
         "ko": "데스크톱 항목",
         "pt": "Entrada de ambiente de trabalho",
-        "pt-BR": "Entrada na área de trabalho"
+        "pt-BR": "Entrada na área de trabalho",
+        "id": "Pencatatan Desktop"
     },
     {
         "key": "settings.desktop-entry.subtitle",
@@ -2717,7 +2876,8 @@
         "jp": "Aurora をアプリケーションメニューに追加し、他のアプリと並べて表示します。",
         "ko": "Aurora를 애플리케이션 메뉴에 추가하여 다른 앱과 함께 표시되도록 합니다.",
         "pt": "Adiciona o Aurora ao menu de aplicações para aparecer junto das outras apps.",
-        "pt-BR": "Adiciona o Aurora ao menu de aplicativos para aparecer junto dos seus outros apps."
+        "pt-BR": "Adiciona o Aurora ao menu de aplicativos para aparecer junto dos seus outros apps.",
+        "id": "Tambahkan Aurora ke menu aplikasi agar tampil beserta aplikasi lainnya."
     },
     {
         "key": "popup.desktop-entry.title",
@@ -2734,7 +2894,8 @@
         "jp": "Aurora をデスクトップに追加しますか？",
         "ko": "Aurora를 데스크톱에 추가할까요?",
         "pt": "Adicionar o Aurora ao ambiente de trabalho?",
-        "pt-BR": "Adicionar o Aurora à área de trabalho?"
+        "pt-BR": "Adicionar o Aurora à área de trabalho?",
+        "id": "Tambahkan Aurora ke desktop?"
     },
     {
         "key": "popup.desktop-entry.message",
@@ -2751,7 +2912,8 @@
         "jp": "Aurora はデスクトップエントリをインストールして、他のアプリと並べてアプリケーションメニューに表示できます。この設定は後から「設定 → Linux」で変更できます。",
         "ko": "Aurora가 데스크톱 항목을 설치하면 애플리케이션 메뉴에서 다른 앱과 함께 표시됩니다. 나중에 설정 → Linux에서 변경할 수 있습니다.",
         "pt": "O Aurora pode instalar uma entrada de ambiente de trabalho para aparecer no menu de aplicações junto das outras apps. Pode alterar isto mais tarde em Definições → Linux.",
-        "pt-BR": "O Aurora pode instalar uma entrada na área de trabalho para aparecer no menu de aplicativos junto dos seus outros apps. Você pode mudar isso depois em Configurações → Linux."
+        "pt-BR": "O Aurora pode instalar uma entrada na área de trabalho para aparecer no menu de aplicativos junto dos seus outros apps. Você pode mudar isso depois em Configurações → Linux.",
+        "id": "Aurora dapat menginstall pencatatan dekstop agar tampil dalam menu aplikasi beserta aplikasi lainnya. Kamu dapat merubah ini nanti melalui Pengaturan → Linux."
     },
     {
         "key": "popup.legacy-mods.title",
@@ -2768,7 +2930,8 @@
         "jp": "既存の MOD を移行しますか？",
         "ko": "기존 모드를 이전할까요?",
         "pt": "Migrar os mods existentes?",
-        "pt-BR": "Migrar os mods existentes?"
+        "pt-BR": "Migrar os mods existentes?",
+        "id": "Pindahkan mods yang sudah ada?"
     },
     {
         "key": "popup.legacy-mods.message",
@@ -2785,7 +2948,8 @@
         "jp": "Aurora は既存の MOD フォルダーを検出しました。すべての MOD を Aurora の MOD フォルダーに移行しますか？",
         "ko": "Aurora가 이미 존재하는 모드 폴더를 감지했습니다. 모든 모드를 Aurora의 모드 폴더로 이전하시겠습니까?",
         "pt": "O Aurora detetou uma pasta de mods já existente. Pretende migrar todos os seus mods para a pasta de mods do Aurora?",
-        "pt-BR": "O Aurora detectou uma pasta de mods já existente. Deseja migrar todos os seus mods para a pasta de mods do Aurora?"
+        "pt-BR": "O Aurora detectou uma pasta de mods já existente. Deseja migrar todos os seus mods para a pasta de mods do Aurora?",
+        "id": "Aurora telah mendeteksi adanya folder mods, apakah kamu ingin memindahkan semua mods ke folder mods milik Aurora?"
     },
     {
         "key": "toast.launcher-opened",
@@ -2802,7 +2966,8 @@
         "jp": "ランチャーを開きました！NTE Launcher で「Play」を押してください",
         "ko": "런처가 열렸습니다! NTE Launcher에서 \"Play\"를 눌러 주세요",
         "pt": "Launcher aberto! Prime \"Play\" no NTE Launcher",
-        "pt-BR": "Launcher aberto! Pressione \"Play\" no NTE Launcher"
+        "pt-BR": "Launcher aberto! Pressione \"Play\" no NTE Launcher",
+        "id": "Peluncur terbuka! Silahkan tekan \"Play\" di peluncur NTE"
     },
     {
         "key": "progress.updating-aurora-title",
@@ -2819,7 +2984,8 @@
         "jp": "Aurora を更新中",
         "ko": "Aurora 업데이트 중",
         "pt": "A atualizar o Aurora",
-        "pt-BR": "Atualizando o Aurora"
+        "pt-BR": "Atualizando o Aurora",
+        "id": "Memperbarui Aurora"
     },
     {
         "key": "progress.updating-aurora-preparing",
@@ -2836,7 +3002,8 @@
         "jp": "更新を準備中...",
         "ko": "업데이트 준비 중...",
         "pt": "A preparar a atualização...",
-        "pt-BR": "Preparando a atualização..."
+        "pt-BR": "Preparando a atualização...",
+        "id": "Mempersiapkan pembaruan..."
     },
     {
         "key": "settings.proton-version.title",
@@ -2853,7 +3020,8 @@
         "jp": "Proton バージョン",
         "ko": "Proton 버전",
         "pt": "Versão do Proton",
-        "pt-BR": "Versão do Proton"
+        "pt-BR": "Versão do Proton",
+        "id": "Versi Proton"
     },
     {
         "key": "settings.proton-version.subtitle",
@@ -2870,7 +3038,8 @@
         "jp": "ゲームを実行するインストール済みの DW-Proton ビルド。自動では推奨のビルドが選ばれます。",
         "ko": "게임을 실행할 설치된 DW-Proton 빌드입니다. 자동은 권장 빌드를 선택합니다.",
         "pt": "Com que versão instalada do DW-Proton o jogo é executado. Automático escolhe a recomendada.",
-        "pt-BR": "Com qual versão instalada do DW-Proton o jogo é executado. Automático escolhe a recomendada."
+        "pt-BR": "Com qual versão instalada do DW-Proton o jogo é executado. Automático escolhe a recomendada.",
+        "id": "Pilih versi DW-Proton yang digunakan untuk menjalankan game. Secara otomatis memilih yang direkomendasikan."
     },
     {
         "key": "settings.proton-version.automatic",
@@ -2887,7 +3056,8 @@
         "jp": "自動",
         "ko": "자동",
         "pt": "Automático",
-        "pt-BR": "Automático"
+        "pt-BR": "Automático",
+        "id": "Otomatis"
     },
     {
         "key": "screenshots.copying",
@@ -2904,7 +3074,8 @@
         "jp": "コピー中…",
         "ko": "복사 중…",
         "pt": "A copiar…",
-        "pt-BR": "Copiando…"
+        "pt-BR": "Copiando…",
+        "id": "Menyalin..."
     },
     {
         "key": "screenshots.copied",
@@ -2921,7 +3092,8 @@
         "jp": "クリップボードにコピーしました",
         "ko": "클립보드에 복사됨",
         "pt": "Copiado para a área de transferência",
-        "pt-BR": "Copiado para a área de transferência"
+        "pt-BR": "Copiado para a área de transferência",
+        "id": "Tersalin ke papan klip"
     },
     {
         "key": "screenshots.copy-failed",
@@ -2938,7 +3110,8 @@
         "jp": "クリップボードにコピーできませんでした",
         "ko": "클립보드에 복사하지 못했습니다",
         "pt": "Não foi possível copiar para a área de transferência",
-        "pt-BR": "Não foi possível copiar para a área de transferência"
+        "pt-BR": "Não foi possível copiar para a área de transferência",
+        "id": "Tidak dapat menyalin ke papan klip"
     },
     {
         "key": "modmanager.move-to-group",
@@ -2955,7 +3128,8 @@
         "jp": "グループへ移動",
         "ko": "그룹으로 이동",
         "pt": "Mover para grupo",
-        "pt-BR": "Mover para grupo"
+        "pt-BR": "Mover para grupo",
+        "id": "Pindahkan ke Grup"
     },
     {
         "key": "modmanager.move-no-group",
@@ -2972,7 +3146,8 @@
         "jp": "グループなし",
         "ko": "그룹 없음",
         "pt": "Sem grupo",
-        "pt-BR": "Sem grupo"
+        "pt-BR": "Sem grupo",
+        "id": "Tidak ada Grup"
     },
     {
         "key": "modmanager.move-new-group",
@@ -2989,7 +3164,8 @@
         "jp": "新しいグループ…",
         "ko": "새 그룹…",
         "pt": "Novo grupo…",
-        "pt-BR": "Novo grupo…"
+        "pt-BR": "Novo grupo…",
+        "id": "Grup Baru..."
     },
     {
         "key": "modmanager.new-group-title",
@@ -3006,7 +3182,8 @@
         "jp": "新しいグループ",
         "ko": "새 그룹",
         "pt": "Novo grupo",
-        "pt-BR": "Novo grupo"
+        "pt-BR": "Novo grupo",
+        "id": "Grup Baru"
     },
     {
         "key": "modmanager.new-group-placeholder",
@@ -3023,7 +3200,8 @@
         "jp": "グループ名",
         "ko": "그룹 이름",
         "pt": "Nome do grupo",
-        "pt-BR": "Nome do grupo"
+        "pt-BR": "Nome do grupo",
+        "id": "Nama grup"
     },
     {
         "key": "global.button-create",
@@ -3040,7 +3218,8 @@
         "jp": "作成",
         "ko": "만들기",
         "pt": "Criar",
-        "pt-BR": "Criar"
+        "pt-BR": "Criar",
+        "id": "Buat"
     },
     {
         "key": "modmanager.delete-groups-button",
@@ -3057,7 +3236,8 @@
         "jp": "グループを削除",
         "ko": "그룹 삭제",
         "pt": "Eliminar grupos",
-        "pt-BR": "Excluir grupos"
+        "pt-BR": "Excluir grupos",
+        "id": "Hapus Grup"
     },
     {
         "key": "modmanager.delete-selected-groups.title",
@@ -3074,7 +3254,8 @@
         "jp": "選択したグループを削除しますか？",
         "ko": "선택한 그룹을 삭제할까요?",
         "pt": "Eliminar os grupos selecionados?",
-        "pt-BR": "Excluir os grupos selecionados?"
+        "pt-BR": "Excluir os grupos selecionados?",
+        "id": "Hapus Grup Terpilih?"
     },
     {
         "key": "modmanager.delete-selected-groups.message-prefix",
@@ -3091,7 +3272,8 @@
         "jp": "選択した ",
         "ko": "선택한 ",
         "pt": "Tens a certeza de que queres eliminar os ",
-        "pt-BR": "Tem certeza de que deseja excluir os "
+        "pt-BR": "Tem certeza de que deseja excluir os ",
+        "id": "Yakin untuk menghapus "
     },
     {
         "key": "modmanager.delete-selected-groups.message-suffix",
@@ -3108,7 +3290,8 @@
         "jp": " 個のグループを削除しますか？",
         "ko": "개의 그룹을 삭제할까요?",
         "pt": " grupos selecionados?",
-        "pt-BR": " grupos selecionados?"
+        "pt-BR": " grupos selecionados?",
+        "id": " grup terpilih?"
     },
     {
         "key": "settings.tab-privacy",
@@ -3125,7 +3308,8 @@
         "jp": "プライバシー",
         "ko": "개인정보",
         "pt": "Privacidade",
-        "pt-BR": "Privacidade"
+        "pt-BR": "Privacidade",
+        "id": "Privasi"
     },
     {
         "key": "settings.section.telemetry",
@@ -3142,7 +3326,8 @@
         "jp": "テレメトリ",
         "ko": "텔레메트리",
         "pt": "TELEMETRIA",
-        "pt-BR": "TELEMETRIA"
+        "pt-BR": "TELEMETRIA",
+        "id": "TELEMETRI"
     },
     {
         "key": "settings.telemetry-opt-out.title",
@@ -3159,7 +3344,8 @@
         "jp": "テレメトリ収集を無効にする",
         "ko": "텔레메트리 수집 거부",
         "pt": "Desativar a recolha de telemetria",
-        "pt-BR": "Desativar a coleta de telemetria"
+        "pt-BR": "Desativar a coleta de telemetria",
+        "id": "Tolak pelacakan telemetri"
     },
     {
         "key": "settings.telemetry-opt-out.subtitle",
@@ -3176,7 +3362,8 @@
         "jp": "ユーザー体験の向上を目的とした匿名テレメトリを Aurora が送信しないようにします。",
         "ko": "사용자 경험 개선을 목적으로 하는 익명 텔레메트리를 Aurora가 보내지 않도록 합니다.",
         "pt": "Impede que o Aurora envie telemetria anónima destinada a melhorar a experiência do utilizador.",
-        "pt-BR": "Impede que o Aurora envie telemetria anônima destinada a melhorar a experiência do usuário."
+        "pt-BR": "Impede que o Aurora envie telemetria anônima destinada a melhorar a experiência do usuário.",
+        "id": "Hentikan Aurora mengirimkan telemetri anonim yang bertujuan meningkatkan pengalaman pengguna."
     },
     {
         "key": "modmanager.restart-required",
@@ -3193,7 +3380,8 @@
         "jp": "再起動が必要",
         "ko": "재시작 필요",
         "pt": "Requer reinício",
-        "pt-BR": "Requer reinício"
+        "pt-BR": "Requer reinício",
+        "id": "Diperlukan Restart"
     },
     {
         "key": "settings.tab-about",
@@ -3210,7 +3398,8 @@
         "jp": "情報",
         "ko": "정보",
         "pt": "Acerca",
-        "pt-BR": "Sobre"
+        "pt-BR": "Sobre",
+        "id": "Tentang"
     },
     {
         "key": "settings.section-software",
@@ -3227,7 +3416,8 @@
         "jp": "ソフトウェア",
         "ko": "소프트웨어",
         "pt": "SOFTWARE",
-        "pt-BR": "SOFTWARE"
+        "pt-BR": "SOFTWARE",
+        "id": "PERANGKAT LUNAK"
     },
     {
         "key": "settings.about-version-title",
@@ -3244,7 +3434,8 @@
         "jp": "アプリのバージョン",
         "ko": "앱 버전",
         "pt": "Versão da aplicação",
-        "pt-BR": "Versão do aplicativo"
+        "pt-BR": "Versão do aplicativo",
+        "id": "Versi Aplikasi"
     },
     {
         "key": "settings.about-build-deployed",
@@ -3261,7 +3452,8 @@
         "jp": "ビルド配信日時:",
         "ko": "빌드 배포 시각:",
         "pt": "Compilação implementada em",
-        "pt-BR": "Compilação publicada em"
+        "pt-BR": "Compilação publicada em",
+        "id": "Build dipublikasikan pada"
     },
     {
         "key": "settings.about-build-unknown",
@@ -3278,7 +3470,8 @@
         "jp": "ビルド日時を取得できません",
         "ko": "빌드 날짜를 확인할 수 없음",
         "pt": "Data de compilação indisponível",
-        "pt-BR": "Data de compilação indisponível"
+        "pt-BR": "Data de compilação indisponível",
+        "id": "Tanggal build tidak tersedia"
     },
     {
         "key": "settings.about-copy-button",
@@ -3295,7 +3488,8 @@
         "jp": "コピー",
         "ko": "복사",
         "pt": "Copiar",
-        "pt-BR": "Copiar"
+        "pt-BR": "Copiar",
+        "id": "Salin"
     },
     {
         "key": "settings.about-copied",
@@ -3312,7 +3506,8 @@
         "jp": "ビルド情報をクリップボードにコピーしました",
         "ko": "빌드 정보를 클립보드에 복사했습니다",
         "pt": "Informação da compilação copiada para a área de transferência",
-        "pt-BR": "Informações da compilação copiadas para a área de transferência"
+        "pt-BR": "Informações da compilação copiadas para a área de transferência",
+        "id": "Info build tersalin ke papan klip"
     },
     {
         "key": "settings.about-copy-failed",
@@ -3329,7 +3524,8 @@
         "jp": "ビルド情報をコピーできませんでした",
         "ko": "빌드 정보를 복사하지 못했습니다",
         "pt": "Não foi possível copiar a informação da compilação",
-        "pt-BR": "Não foi possível copiar as informações da compilação"
+        "pt-BR": "Não foi possível copiar as informações da compilação",
+        "id": "Tidak dapat menyalin info build"
     },
     {
         "key": "settings.about-role-app",
@@ -3346,7 +3542,8 @@
         "jp": "アプリ開発者",
         "ko": "앱 개발자",
         "pt": "Programador da aplicação",
-        "pt-BR": "Desenvolvedor do aplicativo"
+        "pt-BR": "Desenvolvedor do aplicativo",
+        "id": "Pengembang Aplikasi"
     },
     {
         "key": "settings.about-role-engine",
@@ -3363,7 +3560,8 @@
         "jp": "エンジン開発者",
         "ko": "엔진 개발자",
         "pt": "Programador do motor",
-        "pt-BR": "Desenvolvedor da engine"
+        "pt-BR": "Desenvolvedor da engine",
+        "id": "Pengembang Engine"
     },
     {
         "key": "settings.about-role-website",
@@ -3380,7 +3578,8 @@
         "jp": "ウェブサイト開発者",
         "ko": "웹사이트 개발자",
         "pt": "Programador do site",
-        "pt-BR": "Desenvolvedor do site"
+        "pt-BR": "Desenvolvedor do site",
+        "id": "Pengembang Situs Web"
     },
     {
         "key": "settings.about-contributors-title",
@@ -3397,7 +3596,8 @@
         "jp": "コントリビューター",
         "ko": "기여자",
         "pt": "Contribuidores",
-        "pt-BR": "Contribuidores"
+        "pt-BR": "Contribuidores",
+        "id": "Kontributor"
     },
     {
         "key": "settings.about-contributors-subtitle",
@@ -3414,7 +3614,8 @@
         "jp": "GitHub で Aurora の開発に協力してくれたすべての方々。",
         "ko": "GitHub에서 Aurora를 만드는 데 도움을 준 모든 분들.",
         "pt": "Todas as pessoas que ajudaram a construir o Aurora no GitHub.",
-        "pt-BR": "Todas as pessoas que ajudaram a construir o Aurora no GitHub."
+        "pt-BR": "Todas as pessoas que ajudaram a construir o Aurora no GitHub.",
+        "id": "Semua yang telah membantu pengembangan Aurora di GitHub"
     },
     {
         "key": "settings.section-links",
@@ -3431,7 +3632,8 @@
         "jp": "リンク",
         "ko": "링크",
         "pt": "LIGAÇÕES",
-        "pt-BR": "LINKS"
+        "pt-BR": "LINKS",
+        "id": "TAUTAN"
     },
     {
         "key": "settings.about-website-title",
@@ -3448,7 +3650,8 @@
         "jp": "ウェブサイト",
         "ko": "웹사이트",
         "pt": "Site",
-        "pt-BR": "Site"
+        "pt-BR": "Site",
+        "id": "Situs Web"
     },
     {
         "key": "settings.about-discord-title",
@@ -3465,7 +3668,8 @@
         "jp": "Discord",
         "ko": "Discord",
         "pt": "Discord",
-        "pt-BR": "Discord"
+        "pt-BR": "Discord",
+        "id": "Discord"
     },
     {
         "key": "settings.about-github-title",
@@ -3482,7 +3686,8 @@
         "jp": "GitHub",
         "ko": "GitHub",
         "pt": "GitHub",
-        "pt-BR": "GitHub"
+        "pt-BR": "GitHub",
+        "id": "GitHub"
     },
     {
         "key": "settings.about-docs-title",
@@ -3499,7 +3704,8 @@
         "jp": "ドキュメント",
         "ko": "문서",
         "pt": "Documentação",
-        "pt-BR": "Documentação"
+        "pt-BR": "Documentação",
+        "id": "Dokumentasi"
     },
     {
         "key": "settings.section-license",
@@ -3516,7 +3722,8 @@
         "jp": "ライセンス",
         "ko": "라이선스",
         "pt": "LICENÇA",
-        "pt-BR": "LICENÇA"
+        "pt-BR": "LICENÇA",
+        "id": "LISENSI"
     },
     {
         "key": "settings.about-license-title",
@@ -3533,7 +3740,8 @@
         "jp": "ライセンス",
         "ko": "라이선스",
         "pt": "Licença",
-        "pt-BR": "Licença"
+        "pt-BR": "Licença",
+        "id": "Lisensi"
     },
     {
         "key": "settings.about-license-subtitle",
@@ -3550,7 +3758,8 @@
         "jp": "Aurora のソースコードは独自ライセンスのもとで公開されています。",
         "ko": "Aurora의 소스 코드는 자체 라이선스에 따라 공개되어 있습니다.",
         "pt": "O código-fonte do Aurora está disponível sob uma licença personalizada.",
-        "pt-BR": "O código-fonte do Aurora está disponível sob uma licença personalizada."
+        "pt-BR": "O código-fonte do Aurora está disponível sob uma licença personalizada.",
+        "id": "Source code Aurora tersedia di bawah lisensi khusus."
     },
     {
         "key": "settings.about-terms-title",
@@ -3567,7 +3776,8 @@
         "jp": "利用規約",
         "ko": "서비스 약관",
         "pt": "Termos de Serviço",
-        "pt-BR": "Termos de Serviço"
+        "pt-BR": "Termos de Serviço",
+        "id": "Ketentuan Layanan"
     },
     {
         "key": "settings.about-terms-subtitle",
@@ -3584,7 +3794,8 @@
         "jp": "Aurora を利用する際に適用される規約。",
         "ko": "Aurora를 사용할 때 적용되는 약관입니다.",
         "pt": "Os termos aplicáveis quando utiliza o Aurora.",
-        "pt-BR": "Os termos que se aplicam quando você usa o Aurora."
+        "pt-BR": "Os termos que se aplicam quando você usa o Aurora.",
+        "id": "Ketentuan yang berlaku ketika kamu menggunakan Aurora."
     },
     {
         "key": "addons.action.unavailable",
@@ -3601,7 +3812,8 @@
         "jp": "利用不可",
         "ko": "사용 불가",
         "pt": "INDISPONÍVEL",
-        "pt-BR": "INDISPONÍVEL"
+        "pt-BR": "INDISPONÍVEL",
+        "id": "TIDAK TERSEDIA"
     },
     {
         "key": "settings.proton-version.warning",
@@ -3618,6 +3830,7 @@
         "jp": "推奨されないバージョン",
         "ko": "권장하지 않는 버전",
         "pt": "Versão não recomendada",
-        "pt-BR": "Versão não recomendada"
+        "pt-BR": "Versão não recomendada",
+        "id": "Versi tidak direkomendasikan"
     }
 ]
