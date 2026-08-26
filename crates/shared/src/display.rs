@@ -1,13 +1,9 @@
-<<<<<<< HEAD
 use std::{
     sync::Mutex,
     time::{Duration, Instant},
 };
 
 use anyhow::{anyhow, Result};
-=======
-use anyhow::{Result, anyhow};
->>>>>>> 617d68345b4f247169239d7b3d2ae511ffa3a343
 use display_info::DisplayInfo;
 use log::*;
 use slint::{PhysicalPosition, PhysicalSize, WindowPosition};
