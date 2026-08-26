@@ -52,7 +52,7 @@ pub fn main() {
     };
 
     let connected = connect_with_retry(
-        &ipc::main_pipe_name(),
+        &pipe_candidates(),
         ipc::UPDATER_CONNECT_ATTEMPTS,
         ipc::UPDATER_CONNECT_RETRY_DELAY,
     );
@@ -75,16 +75,40 @@ pub fn main() {
     }
 }
 
-fn connect_with_retry(pipe: &str, attempts: u32, delay: Duration) -> Option<protocol::IpcStream> {
+fn pipe_candidates() -> Vec<String> {
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == ipc::PIPE_ARG
+            && let Some(pipe) = args.next().filter(|p| !p.is_empty())
+        {return vec![pipe]}
+    }
+    ipc::main_pipe_candidates()
+}
+
+fn connect_with_retry(
+    pipes: &[String],
+    attempts: u32,
+    delay: Duration,
+) -> Option<protocol::IpcStream> {
+    let mut last = None;
     for attempt in 0..attempts {
-        match protocol::connect(pipe) {
-            Ok(stream) => return Some(stream),
-            Err(_) if attempt + 1 < attempts => std::thread::sleep(delay),
-            Err(e) => log(&format!(
-                "IPC connect failed after {attempts} attempt(s): {e}"
-            )),
+        for pipe in pipes {
+            match protocol::connect(pipe) {
+                Ok(stream) => {
+                    log(&format!("connected to Aurora on `{pipe}`"));
+                    return Some(stream);
+                }
+                Err(e) => last = Some(e),
+            }
+        }
+        if attempt + 1 < attempts {
+            std::thread::sleep(delay);
         }
     }
+    log(&format!(
+        "IPC connect failed after {attempts} attempt(s) on {pipes:?}: {}",
+        last.map_or_else(|| "no error recorded".to_owned(), |e| e.to_string())
+    ));
     None
 }
 
