@@ -10,6 +10,9 @@ shared = { path = "../shared" }
 serde_json = { workspace = true }
 ureq = { workspace = true }
 
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }
+
 [lints.clippy]
 enum_glob_use = "warn"
 pedantic = { level = "warn", priority = -1 }

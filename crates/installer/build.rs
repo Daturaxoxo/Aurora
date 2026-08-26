@@ -30,14 +30,7 @@ fn main() {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("../../production/icons/logo.ico");
         res.set_manifest(MANIFEST);
-
-        // A single version resource is linked into every binary this crate
-        // produces, so these values have to describe both AuroraInstaller.exe
-        // and AuroraUninstaller.exe. OriginalFilename and InternalName are
-        // deliberately left unset rather than being wrong on one of the two:
-        // a filename that disagrees with the binary it is attached to reads as
-        // a tampered file to reputation scanners.
-        res.set("CompanyName", "Daturaxoxo");
+        res.set("CompanyName", "Aurora Team");
         res.set("ProductName", "Aurora");
         res.set("FileDescription", "Aurora Setup");
         res.set("LegalCopyright", "Copyright (c) 2026 Daturaxoxo");
