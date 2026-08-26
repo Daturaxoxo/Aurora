@@ -19,6 +19,11 @@ fn main() {
     {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("./production/icons/logo.ico");
+        res.set("CompanyName", "Aurora Team");
+        res.set("FileDescription", "Aurora Steam Wrapper");
+        res.set("ProductName", "Aurora");
+        res.set("OriginalFilename", "AuroraSteamWrapper.exe");
+        res.set("LegalCopyright", "Copyright (c) 2026 Daturaxoxo");
         res.compile().unwrap();
     }
 }
