@@ -426,12 +426,14 @@ impl UpdateHandler {
     fn run_updater(window: &slint::Weak<MainWindow>, silent: bool) -> Result<()> {
         let root = ipc::install_root();
 
-        let listener =
-            protocol::listen(&ipc::main_pipe_name()).context("failed to open updater pipe")?;
+        let pipe = ipc::main_pipe_name();
+        let listener = protocol::listen(&pipe).context("failed to open updater pipe")?;
 
         let updater_path = root.join(ipc::UPDATER_EXE);
         let mut child = Some(
             Command::new(&updater_path)
+                .arg(ipc::PIPE_ARG)
+                .arg(&pipe)
                 .current_dir(&root)
                 .spawn()
                 .with_context(|| format!("failed to launch {}", updater_path.display()))?,

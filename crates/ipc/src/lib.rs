@@ -55,6 +55,12 @@ pub fn main_pipe_name() -> String {
     format!("{MAIN_PIPE_BASE}-{}", install_id())
 }
 
+pub const LEGACY_MAIN_PIPE_NAME: &str = MAIN_PIPE_BASE;
+pub fn main_pipe_candidates() -> Vec<String> {
+    vec![main_pipe_name(), LEGACY_MAIN_PIPE_NAME.to_owned()]
+}
+pub const PIPE_ARG: &str = "--pipe";
+
 pub fn init_pipe_name() -> String {
     format!("{INIT_PIPE_BASE}-{}", install_id())
 }
