@@ -8,7 +8,7 @@ use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::classes::info::version::{detect_version, Version};
+use crate::classes::info::version::{Version, detect_version};
 use crate::utils::get_local_version;
 use crate::{config, utils};
 
@@ -21,6 +21,7 @@ const REGION_UNKNOWN: &str = "unknown";
 
 static SESSION: OnceLock<String> = OnceLock::new();
 static REGION: OnceLock<&'static str> = OnceLock::new();
+static STOP_CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
 
 #[derive(Serialize)]
 struct Beat<'a> {
@@ -166,14 +167,17 @@ pub fn stop() {
         return;
     };
 
-    let Ok(client) = reqwest::blocking::Client::builder()
-        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
-        .connect_timeout(SHUTDOWN_TIMEOUT)
-        .timeout(SHUTDOWN_TIMEOUT)
-        .build()
-    else {
-        return;
-    };
+    let client = STOP_CLIENT.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
+            .connect_timeout(SHUTDOWN_TIMEOUT)
+            .timeout(SHUTDOWN_TIMEOUT)
+            .build()
+            .unwrap_or_else(|e| {
+                warn!("could not build the ccu shutdown client, falling back to default: {e}");
+                reqwest::blocking::Client::default()
+            })
+    });
 
     let version = get_local_version().trim().to_string();
     let payload = Beat {

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -74,7 +74,7 @@ impl Version {
         match self {
             Self::Global => VersionSpec {
                 launcher_process: "NTEGlobalLauncher.exe",
-                helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe"],
+                helper_processes: &["NTEGlobal.exe", "NTEGlobalGame.exe", "NTEGlobalBrowser.exe"],
             },
             Self::CN => VersionSpec {
                 launcher_process: "NTELauncher.exe",

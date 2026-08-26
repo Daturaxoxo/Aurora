@@ -8,7 +8,7 @@ members = [
     "crates/steam-wrapper",
     "crates/installer",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.dependencies]
 slint = { version = "1.17.1", default-features = false, features = [
@@ -31,6 +31,7 @@ twox-hash = { version = "2", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+bincode = { version = "2", features = ["serde"] }
 reqwest = { version = "0.13", default-features = false, features = [
     "blocking",
     "json",
@@ -60,6 +61,7 @@ windows-sys = { version = "0.61.2", features = [
 slint-build = "1.17.1"
 winresource = "0.1.31"
 image = { version = "0.25.10", default-features = false, features = [
+    "rayon",
     "png",
     "jpeg",
 ] }
@@ -67,8 +69,11 @@ mslnk = "0.1"
 md5 = "0.8.1"
 ureq = { version = "3", default-features = false, features = [
     "rustls",
+    "platform-verifier",
     "gzip",
 ] }
+percent-encoding = "2"
+url = "2"
 
 [profile.dev.package.flate2]
 opt-level = 2

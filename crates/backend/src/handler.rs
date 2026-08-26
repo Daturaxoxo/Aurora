@@ -1,12 +1,13 @@
 use crate::engine::AuroraEngine;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use shared::pathfind::get_game_directory;
 use std::{
     path::PathBuf,
     sync::{
+        Arc, Mutex, OnceLock, PoisonError,
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex, OnceLock, PoisonError,
+        mpsc,
     },
     thread,
     time::Duration,

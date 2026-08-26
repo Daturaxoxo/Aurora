@@ -6,11 +6,11 @@ use anyhow::Result;
 use log::*;
 use shared::{classes::info::Target, config};
 
-use crate::classes::addons::{repair_file, CENSORSHIP_DIR};
+use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
 use crate::classes::validate::validate_files;
 
-use super::files::FileGroup;
 use super::AuroraEngine;
+use super::files::FileGroup;
 
 /// Files we have already tried to fetch this session
 static ATTEMPTED: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());

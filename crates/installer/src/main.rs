@@ -8,10 +8,14 @@ mod backend;
 #[cfg(target_os = "windows")]
 mod install;
 #[cfg(target_os = "windows")]
+mod logfile;
+#[cfg(target_os = "windows")]
 mod net;
 #[cfg(target_os = "windows")]
 mod registry;
 
+#[cfg(target_os = "windows")]
+use log::{error, info, warn};
 #[cfg(target_os = "windows")]
 use shared::display::{center_window, on_drag};
 #[cfg(target_os = "windows")]
@@ -25,7 +29,23 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 #[cfg(target_os = "windows")]
-fn main() -> Result<(), slint::PlatformError> {
+fn main() {
+    logfile::init(false);
+
+    if let Err(e) = run() {
+        logfile::fatal(&format!(
+            "The Aurora installer could not start.\n\n{e}\n\n\
+             This usually means the window could not be created on this machine."
+        ));
+        std::process::exit(1);
+    }
+
+    info!("Installer exiting");
+    logfile::finish();
+}
+
+#[cfg(target_os = "windows")]
+fn run() -> Result<(), slint::PlatformError> {
     fn default_install_path() -> PathBuf {
         #[cfg(target_os = "windows")]
         let base = dirs::data_local_dir();
@@ -70,16 +90,16 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_size(slint::LogicalSize::new(850.0, 580.0));
     match center_window(window) {
         Ok(_) => {}
-        Err(e) => eprintln!("Failed to center window: {e}"),
+        Err(e) => warn!("Failed to center window: {e}"),
     }
 
     #[cfg(target_os = "linux")]
     {
         if let Err(e) = slint::BackendSelector::new().select() {
-            eprintln!("Could not select the Slint backend: {e}");
+            warn!("Could not select the Slint backend: {e}");
         }
         if let Err(e) = slint::set_xdg_app_id(shared::desktop_entry::APP_ID) {
-            eprintln!("Could not set the XDG app id: {e}");
+            warn!("Could not set the XDG app id: {e}");
         }
     }
 
@@ -88,7 +108,9 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_option_desktop_shortcut(false);
     }
 
-    ui.set_install_path(default_install_path().to_string_lossy().into_owned().into());
+    let default_path = default_install_path();
+    info!("Default install path: {}", default_path.display());
+    ui.set_install_path(default_path.to_string_lossy().into_owned().into());
     ui.set_space_required("Calculating...".into());
     ui.set_total_size("Calculating...".into());
     update_available_space(&ui);
@@ -143,6 +165,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
             if let Some(path) = picked {
                 let path_str: String = path.join("Aurora").to_string_lossy().into_owned();
+                info!("Install path picked: {path_str}");
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(w) = ui_weak.upgrade() {
                         w.set_install_path(path_str.into());
@@ -193,6 +216,12 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             2 => {
                 w.set_current_step(3);
+                info!(
+                    "Starting install into {} (desktop shortcut: {}, start menu: {})",
+                    w.get_install_path(),
+                    w.get_option_desktop_shortcut(),
+                    w.get_option_start_menu()
+                );
                 install::run(
                     w.as_weak(),
                     PathBuf::from(w.get_install_path().as_str()),
@@ -208,8 +237,9 @@ fn main() -> Result<(), slint::PlatformError> {
             4 => {
                 if w.get_install_success() && w.get_launch_after() {
                     let exe = PathBuf::from(w.get_install_path().as_str()).join(ipc::AURORA_EXE);
+                    info!("Launching {}", exe.display());
                     if let Err(e) = backend::launch_aurora_elevated(&exe) {
-                        eprintln!("Failed to launch Aurora: {e}");
+                        error!("Failed to launch Aurora: {e}");
                     }
                 }
                 let _ = w.hide();

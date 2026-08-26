@@ -1,0 +1,189 @@
+import { Palette } from "../global.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component ImageLightbox inherits Rectangle {
+    in property <image> source;
+    in property <string> caption: "";
+    in property <string> sub-caption: "";
+    in property <bool> has-previous: false;
+    in property <bool> has-next: false;
+
+    callback closed();
+    callback previous();
+    callback next();
+
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    background: #000000d8;
+
+    backdrop-ta := TouchArea {
+        clicked => { root.closed(); }
+    }
+
+    // Absorbs mouse-wheel scrolls
+    ScrollView {
+        width: 100%;
+        height: 100%;
+        viewport-width: self.width;
+        viewport-height: self.height + 1px;
+    }
+
+    FocusScope {
+        width: 0px;
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.closed();
+                return accept;
+            }
+            if (event.text == Key.LeftArrow && root.has-previous) {
+                root.previous();
+                return accept;
+            }
+            if (event.text == Key.RightArrow && root.has-next) {
+                root.next();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    lightbox-img := Image {
+        x: (parent.width - self.width) / 2;
+        y: 24px;
+        width: parent.width - 152px;
+        height: parent.height - 92px;
+        source: root.source;
+        image-fit: contain;
+        image-rendering: smooth;
+    }
+
+    property <float> img-scale: min(
+        lightbox-img.width / 1px / max(1, lightbox-img.source.width),
+        lightbox-img.height / 1px / max(1, lightbox-img.source.height));
+    property <length> img-disp-w: lightbox-img.source.width * self.img-scale * 1px;
+    property <length> img-disp-h: lightbox-img.source.height * self.img-scale * 1px;
+
+    // Swallows clicks landing on the image itself so they don't close the viewer
+    TouchArea {
+        x: lightbox-img.x + (lightbox-img.width - parent.img-disp-w) / 2;
+        y: lightbox-img.y + (lightbox-img.height - parent.img-disp-h) / 2;
+        width: parent.img-disp-w;
+        height: parent.img-disp-h;
+    }
+
+    Rectangle {
+        x: parent.width - 44px;
+        y: 16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: lightbox-close-ta.has-hover ? #ffffff22 : #ffffff10;
+        animate background { duration: 100ms; }
+
+        Path {
+            x: 9px;
+            y: 9px;
+            width: 14px;
+            height: 14px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: 14;
+            viewbox-height: 14;
+            commands: "M1 1 L13 13 M13 1 L1 13";
+            stroke: lightbox-close-ta.has-hover ? #ffffffdd : #ffffff88;
+            stroke-width: 1.8px;
+            fill: transparent;
+            animate stroke { duration: 100ms; }
+        }
+
+        lightbox-close-ta := TouchArea {
+            clicked => { root.closed(); }
+        }
+    }
+
+    if root.has-previous: Rectangle {
+        x: 20px;
+        y: (parent.height - self.height) / 2 - 20px;
+        width: 40px;
+        height: 40px;
+        border-radius: 20px;
+        background: lightbox-prev-ta.has-hover ? #ffffff22 : #ffffff10;
+        animate background { duration: 100ms; }
+
+        Path {
+            x: 14px;
+            y: 12px;
+            width: 12px;
+            height: 16px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: 12;
+            viewbox-height: 16;
+            commands: "M9 1 L2 8 L9 15";
+            stroke: lightbox-prev-ta.has-hover ? #ffffffdd : #ffffff88;
+            stroke-width: 2px;
+            fill: transparent;
+            animate stroke { duration: 100ms; }
+        }
+
+        lightbox-prev-ta := TouchArea {
+            clicked => { root.previous(); }
+        }
+    }
+
+    if root.has-next: Rectangle {
+        x: parent.width - 60px;
+        y: (parent.height - self.height) / 2 - 20px;
+        width: 40px;
+        height: 40px;
+        border-radius: 20px;
+        background: lightbox-next-ta.has-hover ? #ffffff22 : #ffffff10;
+        animate background { duration: 100ms; }
+
+        Path {
+            x: 14px;
+            y: 12px;
+            width: 12px;
+            height: 16px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: 12;
+            viewbox-height: 16;
+            commands: "M3 1 L10 8 L3 15";
+            stroke: lightbox-next-ta.has-hover ? #ffffffdd : #ffffff88;
+            stroke-width: 2px;
+            fill: transparent;
+            animate stroke { duration: 100ms; }
+        }
+
+        lightbox-next-ta := TouchArea {
+            clicked => { root.next(); }
+        }
+    }
+
+    VerticalLayout {
+        y: parent.height - 56px;
+        height: 44px;
+        spacing: 3px;
+        alignment: center;
+
+        Text {
+            text: root.caption;
+            color: Palette.text-primary;
+            font-size: 13px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.sub-caption;
+            color: #ffffff77;
+            font-size: 11px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+    }
+}

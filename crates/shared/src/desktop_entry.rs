@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
 use std::path::Path;
 
@@ -198,6 +198,8 @@ fn uninstall_inner_linux() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn install_inner_linux(exe: &Path) -> Result<()> {
+    use std::process::Command;
+
     let data_dir =
         dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
 
@@ -206,10 +208,20 @@ fn install_inner_linux(exe: &Path) -> Result<()> {
         .join(format!("{APP_ID}.png"));
     write_if_changed(&icon_path, ICON)?;
 
-    let entry_path = data_dir
-        .join("applications")
-        .join(format!("{APP_ID}.desktop"));
+    let applications = data_dir.join("applications");
+    let entry_path = applications.join(format!("{APP_ID}.desktop"));
     write_if_changed(&entry_path, entry_contents(exe).as_bytes())?;
+
+    match Command::new("update-desktop-database")
+        .arg(&applications)
+        .status()
+    {
+        Ok(status) if !status.success() => {
+            info!("update-desktop-database exited with {status}");
+        }
+        Err(e) => info!("update-desktop-database is unavailable: {e}"),
+        Ok(_) => {}
+    }
 
     Ok(())
 }
@@ -223,12 +235,14 @@ fn entry_contents(exe: &Path) -> String {
          Type=Application\n\
          Name=Aurora\n\
          Comment=Mod manager and launcher\n\
-         Exec={exec}\n\
+         Exec={exec} %u\n\
          Icon={APP_ID}\n\
          Terminal=false\n\
          Categories=Game;\n\
+         MimeType=x-scheme-handler/{scheme};\n\
          StartupNotify=true\n\
-         StartupWMClass={APP_ID}\n"
+         StartupWMClass={APP_ID}\n",
+        scheme = crate::oneclick::SCHEME,
     )
 }
 

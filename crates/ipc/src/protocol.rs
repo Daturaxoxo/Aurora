@@ -1,12 +1,12 @@
 use std::io::{self, Read, Write};
-use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use interprocess::local_socket::{
-    traits::{Listener as _, Stream as _},
     GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Stream, ToNsName,
+    traits::{Listener as _, Stream as _},
 };
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +42,12 @@ pub enum Message {
     Error { message: String },
     /// Updater -> Aurora: manifest matches local state, updater exits.
     NoUpdate,
+    /// Second Aurora instance -> running Aurora: browser 1-click request.
+    OneClick {
+        url: String,
+        model: String,
+        item_id: u32,
+    },
 }
 
 pub fn write_message<W: Write>(writer: &mut W, msg: &Message) -> io::Result<()> {
@@ -145,6 +151,11 @@ mod tests {
                 message: "boom".into(),
             },
             Message::NoUpdate,
+            Message::OneClick {
+                url: "https://gamebanana.com/mmdl/1".into(),
+                model: "Mod".into(),
+                item_id: 2,
+            },
         ];
 
         let mut buf = Vec::new();

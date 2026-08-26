@@ -1,17 +1,21 @@
 use super::cache::CacheManager;
-use super::types::{ApiRecord, NteMod, NteModFile, ProfilePage, SearchResponse, SubfeedResponse};
+use super::types::{
+    ApiFile, ApiRecord, ModProfile, NteMod, NteModFile, ProfilePage, SearchResponse,
+    SubfeedResponse,
+};
 use crate::utils::{error_chain, get_local_version};
-use anyhow::{anyhow, Context, Result};
-use futures::{stream, StreamExt};
+use anyhow::{Context, Result, anyhow};
+use futures::{StreamExt, stream};
 use reqwest::{Client, RequestBuilder, Response};
 use tokio::sync::mpsc::UnboundedSender;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
-const NTE_GAME_ID: u32 = 23012;
+pub const NTE_GAME_ID: u32 = 23012;
 const FETCH_CONCURRENCY: usize = 6;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -129,10 +133,7 @@ impl GameBananaApi {
         }
 
         match resp.bytes().await {
-            Err(e) => Attempt::Retry(
-                anyhow!("could not read {what}: {}", error_chain(&e)),
-                None,
-            ),
+            Err(e) => Attempt::Retry(anyhow!("could not read {what}: {}", error_chain(&e)), None),
             Ok(bytes) if bytes.is_empty() => {
                 Attempt::Retry(anyhow!("{what} returned an empty body"), None)
             }
@@ -214,6 +215,23 @@ impl GameBananaApi {
         root.contains("nsfw") || sub.contains("nsfw")
     }
 
+    fn map_files(files: Option<Vec<ApiFile>>) -> Vec<NteModFile> {
+        files
+            .unwrap_or_default()
+            .into_iter()
+            .map(|file| NteModFile {
+                id: file.id,
+                name: file.file_name,
+                size: file.file_size,
+                download_count: file.download_count,
+                url: file.download_url,
+                md5: file.md5_checksum,
+                is_archived: file.is_archived,
+                has_contents: file.has_contents,
+            })
+            .collect()
+    }
+
     async fn fetch_thumbnail(client: &Client, url: &str) -> Vec<u8> {
         let request = client.get(url);
 
@@ -264,7 +282,10 @@ impl GameBananaApi {
             .map(|images| {
                 images
                     .iter()
-                    .map(|img| format!("{}/{}", img.base_url, img.file))
+                    .map(|img| {
+                        let filename = img.file_800.as_ref().unwrap_or(&img.file);
+                        format!("{}/{filename}", img.base_url)
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -288,16 +309,17 @@ impl GameBananaApi {
     async fn collect_mods(
         &self,
         records: Vec<ApiRecord>,
-        on_mod_ready: Option<&UnboundedSender<NteMod>>,
-    ) -> Vec<NteMod> {
+        on_mod_ready: Option<&UnboundedSender<Arc<NteMod>>>,
+    ) -> Vec<Arc<NteMod>> {
         let mut stream = stream::iter(records)
             .map(|record| Self::fetch_one(&self.client, record))
             .buffered(FETCH_CONCURRENCY);
 
         let mut mods = Vec::new();
         while let Some(m) = stream.next().await {
+            let m = Arc::new(m);
             if let Some(tx) = on_mod_ready {
-                let _ = tx.send(m.clone());
+                let _ = tx.send(Arc::clone(&m));
             }
             mods.push(m);
         }
@@ -329,18 +351,18 @@ impl GameBananaApi {
         &self,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_feed_cache(page).await {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_feed_cache(page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
         let request = self.client.get(&url).query(&[("_nPage", page)]);
@@ -356,7 +378,7 @@ impl GameBananaApi {
         let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
         if nte_mods.len() == expected {
-            self.cache.save_feed_cache(page, nte_mods.clone()).await;
+            self.cache.save_feed_cache(page, &nte_mods).await;
         }
 
         Ok(nte_mods)
@@ -367,22 +389,22 @@ impl GameBananaApi {
         query: &str,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
         if query.len() < 3 {
             return Ok(Vec::new());
         }
 
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_search_cache(query, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_search_cache(query, page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Util/Search/Results");
         let request = self.client.get(&url).query(&[
@@ -408,17 +430,16 @@ impl GameBananaApi {
         let mut nte_mods = Vec::new();
         while let Some(m) = stream.next().await {
             if let Some(m) = m {
+                let m = Arc::new(m);
                 if let Some(tx) = &on_mod_ready {
-                    let _ = tx.send(m.clone());
+                    let _ = tx.send(Arc::clone(&m));
                 }
                 nte_mods.push(m);
             }
         }
 
         if nte_mods.len() == expected {
-            self.cache
-                .save_search_cache(query, page, nte_mods.clone())
-                .await;
+            self.cache.save_search_cache(query, page, &nte_mods).await;
         }
 
         Ok(nte_mods)
@@ -429,18 +450,18 @@ impl GameBananaApi {
         category_id: u32,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<NteMod>>,
-    ) -> Result<Vec<NteMod>> {
-        if !force_refresh {
-            if let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
+    ) -> Result<Vec<Arc<NteMod>>> {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_category_cache(category_id, page).await {
+                let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
                 if let Some(tx) = on_mod_ready {
                     for m in &cached {
-                        let _ = tx.send(m.clone());
+                        let _ = tx.send(Arc::clone(m));
                     }
                 }
                 return Ok(cached);
             }
-        }
 
         let url = format!("{BASE_URL}/apiv11/Mod/Index");
         let request = self.client.get(&url).query(&[
@@ -451,11 +472,8 @@ impl GameBananaApi {
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
-        let index: SearchResponse = Self::fetch_json(
-            request,
-            &format!("category {category_id} (page {page})"),
-        )
-        .await?;
+        let index: SearchResponse =
+            Self::fetch_json(request, &format!("category {category_id} (page {page})")).await?;
 
         let only_mods = Self::only_mod_records(index.records);
         if only_mods.is_empty() {
@@ -467,7 +485,7 @@ impl GameBananaApi {
 
         if nte_mods.len() == expected {
             self.cache
-                .save_category_cache(category_id, page, nte_mods.clone())
+                .save_category_cache(category_id, page, &nte_mods)
                 .await;
         }
 
@@ -487,21 +505,32 @@ impl GameBananaApi {
             }
         };
 
-        let mut output = Vec::new();
-        if let Some(files) = profile.files {
-            for f in files {
-                output.push(NteModFile {
-                    id: f.id,
-                    name: f.file_name,
-                    size: f.file_size,
-                    download_count: f.download_count,
-                    url: f.download_url,
-                    md5: f.md5_checksum,
-                    is_archived: f.is_archived,
-                    has_contents: f.has_contents,
-                });
-            }
-        }
-        Some(output)
+        Some(Self::map_files(profile.files))
+    }
+
+    pub async fn get_mod_profile(&self, mod_id: u32) -> Result<ModProfile> {
+        let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
+        let request = self.client.get(&url);
+        let what = format!("the profile of mod {mod_id}");
+        let profile: ProfilePage = Self::fetch_json(request, &what).await?;
+        let game_id = profile
+            .game
+            .as_ref()
+            .map(|game| game.id)
+            .ok_or_else(|| anyhow!("{what} did not identify its game"))?;
+        let author = profile.record.submitter.as_ref().map_or_else(
+            || "Unknown".to_owned(),
+            |submitter| submitter.name.clone(),
+        );
+        let is_nsfw = Self::detect_nsfw(&profile.record);
+
+        Ok(ModProfile {
+            id: profile.record.id,
+            game_id,
+            name: profile.record.name,
+            author,
+            is_nsfw,
+            files: Self::map_files(profile.files),
+        })
     }
 }

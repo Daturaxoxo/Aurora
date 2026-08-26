@@ -1,16 +1,19 @@
+use crate::bridge::PopupSpec;
 use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
+use crate::translations::tr;
 use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
-use shared::archive::{extract_archive, ARCHIVE_EXTENSIONS};
+use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::info::addons;
-use shared::classes::info::version::{detect_version, Version};
+use shared::classes::info::version::{Version, detect_version};
 use shared::utils::get_cache_dir;
 use shared::{config, pathfind, utils};
 
 use anyhow::{Context, Result};
 use log::*;
+use once_cell::sync::Lazy;
 use slint::{Model, VecModel};
 
 use std::fs;
@@ -19,6 +22,32 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
+
+static IMAGES_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
+    reqwest::blocking::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|e| {
+            warn!("Addons manager could not build the image client, falling back to default: {e}");
+            reqwest::blocking::Client::default()
+        })
+});
+
+static DOWNLOAD_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
+    reqwest::blocking::Client::builder()
+        .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap_or_else(|e| {
+            warn!(
+                "Addons manager could not build the download client, falling back to default: {e}"
+            );
+            reqwest::blocking::Client::default()
+        })
+});
+
+static GAMEBANANA_API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
 
 const ADDON_CONFIG_KEYS: [(&str, &str); 5] = [
     ("Censorship Remover", "csn_rem"),
@@ -33,6 +62,18 @@ fn config_key(name: &str) -> Option<&'static str> {
         .iter()
         .find(|(addon_name, _)| *addon_name == name)
         .map(|(_, config_key)| *config_key)
+}
+
+fn decoded_thumb(bytes: &[u8]) -> anyhow::Result<(Vec<u8>, u32, u32)> {
+    let img = image::load_from_memory(bytes)?;
+    let img = if img.width() > 1024 || img.height() > 1024 {
+        img.thumbnail(1024, 1024)
+    } else {
+        img
+    };
+    let rgba = img.into_rgba8();
+    let (w, h) = rgba.dimensions();
+    Ok((rgba.into_raw(), w, h))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -122,18 +163,10 @@ impl AddonsHandler {
         let cache_path = cache_dir.join(Self::cache_filename(url));
 
         if cache_path.exists() {
-            let bytes = std::fs::read(&cache_path)?;
-            let img = image::load_from_memory(&bytes)?.into_rgba8();
-            let (w, h) = img.dimensions();
-            return Ok((img.into_raw(), w, h));
+            return decoded_thumb(&std::fs::read(&cache_path)?);
         }
 
-        let bytes = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()?
-            .get(url)
-            .send()?
-            .bytes()?;
+        let bytes = IMAGES_CLIENT.get(url).send()?.bytes()?;
 
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
             warn!(
@@ -149,9 +182,7 @@ impl AddonsHandler {
             debug!("[Addons] cached image to '{}'", cache_path.display());
         }
 
-        let img = image::load_from_memory(&bytes)?.into_rgba8();
-        let (w, h) = img.dimensions();
-        Ok((img.into_raw(), w, h))
+        decoded_thumb(&bytes)
     }
 
     fn fetch_images_async(window: &slint::Weak<MainWindow>, addons: Vec<Addon>) {
@@ -314,16 +345,15 @@ impl AddonsHandler {
 
             *PENDING_DELETE.lock().unwrap() = Some(i);
 
-            win.set_popup_id("addon-delete".into());
-            win.set_popup_title("Delete Addon?".into());
-            win.set_popup_message(
-                format!(
-                    "\"{}\" will be uninstalled and its files permanently deleted. You can install it again later.",
-                    row.name
-                )
-                .into(),
-            );
-            win.set_popup_active(true);
+            PopupSpec {
+                id: "addon-delete".to_owned(),
+                kind: "danger".to_owned(),
+                title: tr("popup.addon-delete.title"),
+                message: tr("popup.addon-delete.message"),
+                subject: row.name.to_string(),
+                ..PopupSpec::default()
+            }
+            .apply(&win);
         });
 
         info!("Addons bind() complete");
@@ -578,25 +608,18 @@ impl AddonsHandler {
             return Vec::new();
         }
 
-        let gb = GameBananaApi::new();
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                error!("Addons scan: could not create tokio runtime: {e}");
-                return Vec::new();
-            }
-        };
-        let mod_files = rt.block_on(async {
-            gb.get_mod_files(
-                addon
-                    .link
-                    .split('/')
-                    .next_back()
-                    .unwrap_or("0")
-                    .parse()
-                    .unwrap_or(0),
-            )
-            .await
+        let mod_files = crate::classes::pages::gbbrowser::runtime().block_on(async {
+            GAMEBANANA_API
+                .get_mod_files(
+                    addon
+                        .link
+                        .split('/')
+                        .next_back()
+                        .unwrap_or("0")
+                        .parse()
+                        .unwrap_or(0),
+                )
+                .await
         });
 
         mod_files.map_or_else(
@@ -628,20 +651,15 @@ impl AddonsHandler {
     }
 
     fn remote_etag(url: &str) -> String {
-        let etag = reqwest::blocking::Client::builder()
-            .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .and_then(|c| c.head(url).send())
-            .map(|r| {
-                r.headers()
-                    .get(reqwest::header::ETAG)
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or_default()
-                    .trim_start_matches("W/")
-                    .trim_matches('"')
-                    .to_string()
-            });
+        let etag = DOWNLOAD_CLIENT.head(url).send().map(|r| {
+            r.headers()
+                .get(reqwest::header::ETAG)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .trim_start_matches("W/")
+                .trim_matches('"')
+                .to_string()
+        });
 
         match etag {
             Ok(tag) => tag,
@@ -690,13 +708,13 @@ impl AddonsHandler {
 
         if failures.is_empty() {
             let md5 = Self::combined_md5(&addon.install_data);
-            if !md5.is_empty() {
-                if let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5) {
-                    warn!(
-                        "Installed addon: could not record the hash for '{}': {e}",
-                        addon.name
-                    );
-                }
+            if !md5.is_empty()
+                && let Err(e) = fs::write(addon.folder.join("addon.md5"), &md5)
+            {
+                warn!(
+                    "Installed addon: could not record the hash for '{}': {e}",
+                    addon.name
+                );
             }
             Ok(())
         } else {
@@ -756,11 +774,6 @@ impl AddonsHandler {
         let file_name = sanitize_download_filename(file_name)
             .with_context(|| format!("refusing to download to unsafe file name '{file_name}'"))?;
 
-        let client = reqwest::blocking::Client::builder()
-            .user_agent(format!("AuroraLauncher/{}", utils::get_local_version()))
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
-
         let temp_dir = std::env::temp_dir().join("Aurora/Addons");
         std::fs::create_dir_all(&temp_dir)
             .with_context(|| format!("creating '{}'", temp_dir.display()))?;
@@ -768,7 +781,7 @@ impl AddonsHandler {
 
         let mut last_err = None;
         for attempt in 1..=Self::DOWNLOAD_MAX_ATTEMPTS {
-            match client
+            match DOWNLOAD_CLIENT
                 .get(url)
                 .send()
                 .and_then(reqwest::blocking::Response::error_for_status)
@@ -783,13 +796,13 @@ impl AddonsHandler {
                     return match written {
                         Ok(()) => Ok(dest),
                         Err(e) => {
-                            if temp_path.exists() {
-                                if let Err(e) = std::fs::remove_file(&temp_path) {
-                                    warn!(
-                                        "Addon download: could not remove '{}': {e}",
-                                        temp_path.display()
-                                    );
-                                }
+                            if temp_path.exists()
+                                && let Err(e) = std::fs::remove_file(&temp_path)
+                            {
+                                warn!(
+                                    "Addon download: could not remove '{}': {e}",
+                                    temp_path.display()
+                                );
                             }
                             Err(e)
                         }

@@ -7,6 +7,7 @@ pub mod desktop;
 pub mod filedrop;
 pub mod logwindow;
 pub mod modicons;
+pub mod oneclick;
 pub mod pages;
 pub mod popup;
 pub mod repair;

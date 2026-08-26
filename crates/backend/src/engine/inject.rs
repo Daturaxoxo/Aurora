@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::*;
 use shared::config::{self, key};
 
 use crate::classes::validate::ensure_dir;
-use crate::engine::files::{group_by_addon, FileGroup, ManagedFile};
+use crate::engine::files::{FileGroup, ManagedFile, group_by_addon};
 use crate::engine::lua::LuaManager;
 
 use super::AuroraEngine;

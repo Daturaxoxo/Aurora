@@ -19,11 +19,11 @@ export component ScrollingTextInput inherits Rectangle {
     callback focus-changed(bool /* focused */);
 
     public function focus-input() { input.focus(); }
+    public function clear-focus-input() { input.clear-focus(); }
     public function select-all() { input.select-all(); }
 
     forward-focus: input;
 
-    // CLIP WINDOW: THE INPUT SLIDES INSIDE THIS, THE OVERFLOW IS CUT OFF
     Rectangle {
         x: root.text-padding;
         width: max(1px, parent.width - root.text-padding * 2);
@@ -31,7 +31,6 @@ export component ScrollingTextInput inherits Rectangle {
         clip: true;
 
         input := TextInput {
-            // KEEP THE CARET INSIDE THE WINDOW BY OFFSETTING THE TEXT
             property <length> computed-x;
 
             x: min(0px, max(parent.width - self.width - self.text-cursor-width, self.computed-x));

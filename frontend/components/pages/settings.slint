@@ -5,7 +5,6 @@ import { Tr, TrKey } from "../../translations.slint";
 import { ScrollingTextInput } from "../textfield.slint";
 import { Slider } from "../slider.slint";
 
-// TOGGLE COMPONENT
 component ToggleSwitch inherits Rectangle {
     in-out property <bool> checked;
     callback toggled();
@@ -38,13 +37,15 @@ component ToggleSwitch inherits Rectangle {
     }
 }
 
-// DROPDOWN COMPONENT
 export component Dropdown inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     out property <bool> opened: popup.is-open;
+    // Rows from this index on get a remove button; -1 hides them all.
+    in property <int> removable-from: -1;
 
     callback selection-changed(int);
+    callback remove-requested(int);
 
     width: 140px;
     height: 32px;
@@ -115,13 +116,32 @@ export component Dropdown inherits Rectangle {
                             root.selection-changed(index);
                         }
                     }
+
+                    if root.removable-from >= 0 && index >= root.removable-from: Rectangle {
+                        x: parent.width - self.width - 4px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+                        background: remove-ta.has-hover ? #ffffff18 : transparent;
+
+                        Text {
+                            text: "×";
+                            color: remove-ta.has-hover ? Palette.text-primary : Palette.text-secondary;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        remove-ta := TouchArea {
+                            clicked => { root.remove-requested(index); }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-// TAB BUTTON COMPONENT
 component TabButton inherits Rectangle {
     in property <string> text;
     in property <bool> active;
@@ -157,7 +177,6 @@ component TabButton inherits Rectangle {
     }
 }
 
-// SETTING CARD
 component SettingCard inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
@@ -194,6 +213,121 @@ component SettingCard inherits Rectangle {
         VerticalLayout {
             alignment: center;
             @children
+        }
+    }
+}
+
+component LinkButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+
+    height: 24px;
+    border-radius: 4px;
+    background: link-ta.has-hover ? #ffffff0c : transparent;
+
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+
+        Text {
+            text: root.text;
+            color: link-ta.has-hover ? Palette.text-primary : Palette.text-secondary;
+            font-size: 13px;
+            vertical-alignment: center;
+
+            animate color { duration: 100ms; }
+        }
+    }
+
+    link-ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component CommitTextInput inherits Rectangle {
+    in property <string> placeholder;
+    in property <string> saved-text;
+    in property <length> input-width: 290px;
+    in property <int> release-token;
+    in-out property <string> value;
+    callback committed(string);
+
+    private property <bool> show-saved: false;
+    changed release-token => { input.clear-focus-input(); }
+
+    function commit() {
+        debounce-timer.stop();
+        if (input.text != root.value) {
+            root.value = input.text;
+            root.committed(input.text);
+            root.show-saved = true;
+            saved-timer.stop();
+            saved-timer.start();
+        }
+    }
+
+    debounce-timer := Timer {
+        interval: 850ms;
+        running: false;
+        triggered => { commit(); }
+    }
+
+    saved-timer := Timer {
+        interval: 1500ms;
+        running: false;
+        triggered => {
+            self.stop();
+            root.show-saved = false;
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 6px;
+        alignment: end;
+
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: root.saved-text;
+                color: #10b981;
+                font-size: 12px;
+                opacity: root.show-saved ? 1.0 : 0.0;
+                animate opacity { duration: 200ms; }
+            }
+        }
+
+        @children
+
+        Rectangle {
+            width: root.input-width;
+            height: 32px;
+            border-radius: 6px;
+            background: #ffffff08;
+            border-width: 1px;
+            border-color: input.input-focused ? #6db3f2 : #ffffff18;
+
+            animate border-color { duration: 100ms; }
+
+            input := ScrollingTextInput {
+                width: 100%;
+                height: 100%;
+                text-padding: 10px;
+                font-size: 13px;
+                text: root.value;
+                placeholder: root.placeholder;
+
+                edited(text) => {
+                    debounce-timer.stop();
+                    debounce-timer.start();
+                }
+                accepted(text) => { commit(); }
+                focus-changed(focused) => {
+                    if (!focused) { commit(); }
+                }
+            }
         }
     }
 }
@@ -376,6 +510,7 @@ export component SettingsPage inherits Rectangle {
     in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
     in property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
+    in-out property <string> launch-args: "";
 
     // LINUX
     in property <bool> is-linux: false;
@@ -384,6 +519,9 @@ export component SettingsPage inherits Rectangle {
     in property <[string]> proton-versions: [];
     in-out property <int> proton-version-index: 0;     // 0=Automatic
     in property <bool> proton-version-not-recommended: false;
+    in property <int> proton-builtin-count: 1;         // Automatic + installed builds
+    callback browse-proton-directory();
+    callback remove-proton-version(int);
 
     // DEVELOPER
     in-out property <bool> developer-mode: false;
@@ -405,6 +543,7 @@ export component SettingsPage inherits Rectangle {
     callback engine-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
+    callback launch-args-changed(string);
     callback developer-mode-changed(bool);
     callback extensive-logging-changed(bool);
     callback language-index-changed(int);
@@ -413,6 +552,12 @@ export component SettingsPage inherits Rectangle {
     callback desktop-entry-changed(bool);
     callback telemetry-opt-out-changed(bool);
 
+    private property <int> focus-release: 0;
+
+    function release-focus() {
+        root.focus-release += 1;
+    }
+
     background: @linear-gradient(180deg, #111115f8 0%, #16161af5 100%);
     border-radius: 16px;
     border-width: 1px;
@@ -420,6 +565,10 @@ export component SettingsPage inherits Rectangle {
     drop-shadow-color: Palette.shadow-color;
     drop-shadow-blur: 25px;
     drop-shadow-offset-y: 10px;
+
+    TouchArea {
+        clicked => { root.release-focus(); }
+    }
 
     HorizontalLayout {
         padding: 24px;
@@ -433,8 +582,6 @@ export component SettingsPage inherits Rectangle {
                 spacing: 8px;
 
                 VerticalLayout {
-                    // Without this the header would soak up the free space that is
-                    // meant to push the Privacy tab to the bottom.
                     vertical-stretch: 0;
                     padding-left: 8px;
                     padding-bottom: 12px;
@@ -449,25 +596,25 @@ export component SettingsPage inherits Rectangle {
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-general];
                     active: root.active-tab == 0;
-                    clicked => { root.active-tab = 0; }
+                    clicked => { root.release-focus(); root.active-tab = 0; }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-launcher];
                     active: root.active-tab == 1;
-                    clicked => { root.active-tab = 1; }
+                    clicked => { root.release-focus(); root.active-tab = 1; }
                 }
 
                 if root.is-linux: TabButton {
                     text: Tr.values[TrKey.settings-tab-linux];
                     active: root.active-tab == 3;
-                    clicked => { root.active-tab = 3; }
+                    clicked => { root.release-focus(); root.active-tab = 3; }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-developer];
                     active: root.active-tab == 2;
-                    clicked => { root.active-tab = 2; }
+                    clicked => { root.release-focus(); root.active-tab = 2; }
                 }
 
                 // Pushes About and Privacy down to the bottom of the sidebar
@@ -478,13 +625,13 @@ export component SettingsPage inherits Rectangle {
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-privacy];
                     active: root.active-tab == 4;
-                    clicked => { root.active-tab = 4; }
+                    clicked => { root.release-focus(); root.active-tab = 4; }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-about];
                     active: root.active-tab == 5;
-                    clicked => { root.active-tab = 5; }
+                    clicked => { root.release-focus(); root.active-tab = 5; }
                 }
             }
 
@@ -535,7 +682,7 @@ export component SettingsPage inherits Rectangle {
                     }
 
                     ta := TouchArea {
-                        clicked => { root.close-settings(); }
+                        clicked => { root.release-focus(); root.close-settings(); }
                     }
                 }
             }
@@ -663,6 +810,58 @@ export component SettingsPage inherits Rectangle {
                                     font-weight: 700;
                                 }
 
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-engine-method-title];
+                                    subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
+                                    Dropdown {
+                                        options: [
+                                            Tr.values[TrKey.settings-engine-method-default],
+                                            Tr.values[TrKey.settings-engine-method-alternate]
+                                        ];
+                                        selected-index <=> root.engine-method-index;
+                                        selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-ignore-checksum-title];
+                                    subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.ignore-checksum;
+                                        toggled => { root.ignore-checksum-changed(self.checked); }
+                                    }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
+                                    text: Tr.values[TrKey.settings-section-launch-arguments];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-launch-args-title];
+                                    subtitle: Tr.values[TrKey.settings-launch-args-subtitle];
+
+                                    CommitTextInput {
+                                        value <=> root.launch-args;
+                                        saved-text: Tr.values[TrKey.settings-launch-args-saved];
+                                        release-token: root.focus-release;
+                                        committed(text) => { root.launch-args-changed(text); }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            LinkButton {
+                                                text: Tr.values[TrKey.settings-launch-args-view-list];
+                                                clicked => { root.open-link("launch-arguments"); }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 if root.show-engine-scale: SettingCard {
                                     title: Tr.values[TrKey.settings-engine-scale-title];
                                     subtitle: Tr.values[TrKey.settings-engine-scale-subtitle];
@@ -695,28 +894,6 @@ export component SettingsPage inherits Rectangle {
                                         }
                                     }
                                 }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-engine-method-title];
-                                    subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
-                                    Dropdown {
-                                        options: [
-                                            Tr.values[TrKey.settings-engine-method-default],
-                                            Tr.values[TrKey.settings-engine-method-alternate]
-                                        ];
-                                        selected-index <=> root.engine-method-index;
-                                        selection-changed(idx) => { root.engine-method-index-changed(idx); }
-                                    }
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-ignore-checksum-title];
-                                    subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.ignore-checksum;
-                                        toggled => { root.ignore-checksum-changed(self.checked); }
-                                    }
-                                }
                             }
                         }
                     }
@@ -744,77 +921,13 @@ export component SettingsPage inherits Rectangle {
                                 SettingCard {
                                     title: Tr.values[TrKey.settings-linux-args-title];
                                     subtitle: Tr.values[TrKey.settings-linux-args-subtitle];
-                                    property <bool> show-saved: false;
 
-                                    function commit-args() {
-                                        debounce-timer.stop();
-                                        if (args-input.text != root.proton-launch-args) {
-                                            root.proton-launch-args = args-input.text;
-                                            root.proton-launch-args-changed(args-input.text);
-                                            self.show-saved = true;
-                                            saved-timer.stop();
-                                            saved-timer.start();
-                                        }
-                                    }
-
-                                    debounce-timer := Timer {
-                                        interval: 850ms;
-                                        running: false;
-                                        triggered => { commit-args(); }
-                                    }
-
-                                    saved-timer := Timer {
-                                        interval: 1500ms;
-                                        running: false;
-                                        triggered => {
-                                            self.stop();
-                                            show-saved = false;
-                                        }
-                                    }
-
-                                    HorizontalLayout {
-                                        spacing: 10px;
-                                        alignment: end;
-
-                                        VerticalLayout {
-                                            alignment: center;
-                                            Text {
-                                                text: Tr.values[TrKey.settings-linux-args-saved];
-                                                color: #10b981;
-                                                font-size: 12px;
-                                                opacity: show-saved ? 1.0 : 0.0;
-                                                animate opacity { duration: 200ms; }
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            width: 290px;
-                                            height: 32px;
-                                            border-radius: 6px;
-                                            background: #ffffff08;
-                                            border-width: 1px;
-                                            border-color: args-input.input-focused ? #6db3f2 : #ffffff18;
-
-                                            animate border-color { duration: 100ms; }
-
-                                            args-input := ScrollingTextInput {
-                                                width: 100%;
-                                                height: 100%;
-                                                text-padding: 10px;
-                                                font-size: 13px;
-                                                text: root.proton-launch-args;
-                                                placeholder: Tr.values[TrKey.settings-linux-args-placeholder];
-
-                                                edited(text) => {
-                                                    debounce-timer.stop();
-                                                    debounce-timer.start();
-                                                }
-                                                accepted(text) => { commit-args(); }
-                                                focus-changed(focused) => {
-                                                    if (!focused) { commit-args(); }
-                                                }
-                                            }
-                                        }
+                                    CommitTextInput {
+                                        value <=> root.proton-launch-args;
+                                        placeholder: Tr.values[TrKey.settings-linux-args-placeholder];
+                                        saved-text: Tr.values[TrKey.settings-linux-args-saved];
+                                        release-token: root.focus-release;
+                                        committed(text) => { root.proton-launch-args-changed(text); }
                                     }
                                 }
 
@@ -826,10 +939,23 @@ export component SettingsPage inherits Rectangle {
                                         spacing: 6px;
                                         alignment: center;
 
-                                        Dropdown {
-                                            options: root.proton-versions;
-                                            selected-index <=> root.proton-version-index;
-                                            selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            alignment: end;
+
+                                            Dropdown {
+                                                width: 140px;
+                                                options: root.proton-versions;
+                                                selected-index <=> root.proton-version-index;
+                                                removable-from: root.proton-builtin-count;
+                                                selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                                remove-requested(idx) => { root.remove-proton-version(idx); }
+                                            }
+
+                                            CardButton {
+                                                text: Tr.values[TrKey.settings-proton-version-browse];
+                                                clicked => { root.browse-proton-directory(); }
+                                            }
                                         }
 
                                         if root.proton-version-not-recommended: Text {

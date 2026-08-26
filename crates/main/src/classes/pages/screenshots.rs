@@ -1,3 +1,5 @@
+use crate::bridge::PopupSpec;
+use crate::translations::tr;
 use crate::{MainWindow, ScreenshotItem};
 
 use chrono::{DateTime, Local, NaiveDateTime};
@@ -9,11 +11,11 @@ use shared::utils::open_folder;
 use slint::{Model, VecModel};
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 const THUMB_MAX_W: u32 = 512;
@@ -58,9 +60,44 @@ static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
 
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
+const THUMB_CACHE_MAX: usize = 200;
+
+#[derive(Default)]
+struct ThumbCache {
+    images: HashMap<PathBuf, slint::Image>,
+    order: VecDeque<PathBuf>,
+}
+
+impl ThumbCache {
+    fn get(&self, path: &Path) -> Option<&slint::Image> {
+        self.images.get(path)
+    }
+
+    fn contains_key(&self, path: &Path) -> bool {
+        self.images.contains_key(path)
+    }
+
+    fn retain(&mut self, listed: &HashSet<PathBuf>) {
+        self.images.retain(|p, _| listed.contains(p));
+        self.order.retain(|p| listed.contains(p));
+    }
+
+    fn insert(&mut self, path: PathBuf, image: slint::Image) {
+        if self.images.insert(path.clone(), image).is_none() {
+            self.order.push_back(path);
+        }
+
+        while self.order.len() > THUMB_CACHE_MAX {
+            let Some(evicted) = self.order.pop_front() else {
+                break;
+            };
+            self.images.remove(&evicted);
+        }
+    }
+}
+
 thread_local! {
-    static THUMB_CACHE: RefCell<HashMap<PathBuf, slint::Image>> =
-        RefCell::new(HashMap::new());
+    static THUMB_CACHE: RefCell<ThumbCache> = RefCell::new(ThumbCache::default());
 }
 static PREVIEW_GENERATION: AtomicU64 = AtomicU64::new(0);
 static COPY_GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -214,10 +251,10 @@ fn hash_file(path: &Path) -> std::io::Result<u64> {
 }
 
 fn content_hash(path: &Path, id: FileId) -> Option<u64> {
-    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path) {
-        if *cached_id == id {
-            return Some(*hash);
-        }
+    if let Some((cached_id, hash)) = HASH_CACHE.lock().unwrap().get(path)
+        && *cached_id == id
+    {
+        return Some(*hash);
     }
 
     let hash = hash_file(path)
@@ -518,10 +555,10 @@ fn copy_image_to_clipboard(path: &Path) -> bool {
         return false;
     }
 
-    if let Some(bmp) = bmp {
-        if let Err(e) = clipboard_win::raw::set_bitmap(&bmp) {
-            warn!("Could not add a bitmap to the clipboard: {e}");
-        }
+    if let Some(bmp) = bmp
+        && let Err(e) = clipboard_win::raw::set_bitmap(&bmp)
+    {
+        warn!("Could not add a bitmap to the clipboard: {e}");
     }
 
     true
@@ -601,7 +638,7 @@ impl ScreenshotHandler {
 
                     THUMB_CACHE.with(|cache| {
                         let mut cache = cache.borrow_mut();
-                        cache.retain(|p, _| all_paths.contains(p));
+                        cache.retain(&all_paths);
 
                         let items: Vec<ScreenshotItem> = shots
                             .iter()
@@ -771,25 +808,38 @@ impl ScreenshotHandler {
             return;
         }
 
-        let message = if paths.len() == 1 {
-            let name = paths[0]
+        let single = paths.len() == 1;
+        let subject = if single {
+            paths[0]
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            format!("\"{name}\" will be permanently deleted. This cannot be undone.")
+                .unwrap_or_default()
         } else {
-            format!(
-                "{} screenshots will be permanently deleted. This cannot be undone.",
-                paths.len()
+            format!("{} {}", paths.len(), tr("screenshots.count-suffix"))
+        };
+        let (title, message) = if single {
+            (
+                tr("popup.screenshot-delete.title"),
+                tr("popup.screenshot-delete.message"),
+            )
+        } else {
+            (
+                tr("popup.screenshot-delete.title-multiple"),
+                tr("popup.screenshot-delete.message-multiple"),
             )
         };
 
         STATE.lock().unwrap().pending_delete = paths;
 
-        w.set_popup_id("screenshot-delete".into());
-        w.set_popup_title("Delete Screenshots?".into());
-        w.set_popup_message(message.into());
-        w.set_popup_active(true);
+        PopupSpec {
+            id: "screenshot-delete".to_owned(),
+            kind: "danger".to_owned(),
+            title,
+            message,
+            subject,
+            ..PopupSpec::default()
+        }
+        .apply(w);
     }
 
     // [CALLBACKS]
@@ -954,11 +1004,11 @@ impl ScreenshotHandler {
             };
 
             let model = win.get_screenshots();
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(mut row) = model.row_data(i) {
-                    row.selected = selected;
-                    model.set_row_data(i, row);
-                }
+            if let Ok(i) = usize::try_from(index)
+                && let Some(mut row) = model.row_data(i)
+            {
+                row.selected = selected;
+                model.set_row_data(i, row);
             }
             win.set_screenshot_selected_count(i32::try_from(count).unwrap_or(0));
         });
@@ -970,11 +1020,11 @@ impl ScreenshotHandler {
 
             let model = win.get_screenshots();
             for i in 0..model.row_count() {
-                if let Some(mut row) = model.row_data(i) {
-                    if row.selected {
-                        row.selected = false;
-                        model.set_row_data(i, row);
-                    }
+                if let Some(mut row) = model.row_data(i)
+                    && row.selected
+                {
+                    row.selected = false;
+                    model.set_row_data(i, row);
                 }
             }
             win.set_screenshot_selected_count(0);
@@ -1004,10 +1054,10 @@ impl ScreenshotHandler {
             };
             let Some(win) = ww.upgrade() else { return };
 
-            if let Ok(i) = usize::try_from(index) {
-                if let Some(row) = win.get_screenshots().row_data(i) {
-                    win.set_screenshot_preview_image(row.image);
-                }
+            if let Ok(i) = usize::try_from(index)
+                && let Some(row) = win.get_screenshots().row_data(i)
+            {
+                win.set_screenshot_preview_image(row.image);
             }
 
             let generation = PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;

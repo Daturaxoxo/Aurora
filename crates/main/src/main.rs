@@ -6,9 +6,8 @@ mod bridge;
 mod classes;
 mod translations;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::*;
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 use backend::classes::addons;
 use shared::config::{self, key};
@@ -16,6 +15,7 @@ use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::oneclick::OneClickHandler;
 use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(e) = std::fs::create_dir_all(ipc::state_root()) {
+    if let Err(e) = std::fs::create_dir_all(ipc::instance_root()) {
         error!("Could not create the state directory: {e}");
         return Ok(());
     }
@@ -61,15 +61,23 @@ fn main() -> Result<()> {
         error!("Could not sync the bundled Bin payload: {e}");
     }
 
+    let oneclick_request = OneClickHandler::request_from_args();
+
     let _instance_lock = match acquire_instance_lock() {
-        Ok(Some(lock)) => Some(lock),
+        Ok(Some(lock)) => lock,
         Ok(None) => {
-            error!("Another instance of Aurora is already running; exiting.");
+            if let Some(request) = &oneclick_request {
+                if let Err(e) = OneClickHandler::forward(request) {
+                    error!("1-Click: could not forward request: {e:#}");
+                }
+            } else {
+                error!("Another instance of Aurora is already running; exiting.");
+            }
             return Ok(());
         }
         Err(e) => {
-            warn!("Could not acquire the instance lock: {e}");
-            None
+            error!("Could not acquire the instance lock: {e}; exiting.");
+            return Err(e.into());
         }
     };
 
@@ -91,6 +99,11 @@ fn main() -> Result<()> {
         ),
     }
 
+    #[cfg(target_os = "windows")]
+    if let Err(e) = shared::oneclick::register_protocol(&exe) {
+        warn!("1-Click: could not refresh protocol registration: {e}");
+    }
+
     if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {
         info!("Quick start requested; running headless launch");
         if let Err(e) = Bridge::quick_start() {
@@ -101,16 +114,15 @@ fn main() -> Result<()> {
     }
 
     #[cfg(target_os = "windows")]
-    if let Some(app_path) = &app_location {
-        if !config::get(key::QUICK_START_CREATED)
+    if let Some(app_path) = &app_location
+        && !config::get(key::QUICK_START_CREATED)
             .as_bool()
             .unwrap_or(false)
-        {
-            info!("Quick start not created; running first-time setup");
-            match shared::desktop_entry::create_quick_start_shortcut(app_path) {
-                Ok(()) => config::set(key::QUICK_START_CREATED, true),
-                Err(e) => warn!("Could not create the quick start shortcut: {e}"),
-            }
+    {
+        info!("Quick start not created; running first-time setup");
+        match shared::desktop_entry::create_quick_start_shortcut(app_path) {
+            Ok(()) => config::set(key::QUICK_START_CREATED, true),
+            Err(e) => warn!("Could not create the quick start shortcut: {e}"),
         }
     }
 
@@ -125,7 +137,6 @@ fn main() -> Result<()> {
     let slint_window = window.window();
 
     window.set_ui_font_family("Segoe UI".into());
-    register_cjk_fallback();
     translations::apply_saved_language(&window);
 
     let monitor_size = match get_monitor_size() {
@@ -223,16 +234,12 @@ fn main() -> Result<()> {
         slint::CloseRequestResponse::HideWindow
     });
 
-    let s = System::new_with_specifics(
-        RefreshKind::nothing().with_cpu(
-            CpuRefreshKind::everything()
-                .without_cpu_usage()
-                .without_frequency(),
-        ),
-    );
-
     let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(s.cpus().iter().count() / 2)
+        .num_threads(
+            std::thread::available_parallelism()
+                .map_or(1, |n| n.get() / 2)
+                .max(1),
+        )
         .build_global();
 
     ToastHandler::setup(window.as_weak());
@@ -251,17 +258,27 @@ fn main() -> Result<()> {
     LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
+    OneClickHandler::setup(&window.as_weak());
 
     #[cfg(target_os = "linux")]
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
 
+    if let Some(request) = oneclick_request {
+        OneClickHandler::handle(&window.as_weak(), &request);
+    }
+
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
 
+    // Tells the updater, if this run was started by one, that the new build got
+    // as far as putting its window on screen.
+    UpdateHandler::on_window_shown();
+
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
+    OneClickHandler::shutdown();
     shared::api::ccu::stop();
     Ok(())
 }
@@ -285,8 +302,8 @@ fn set_app_user_model_id() {
 
 #[cfg(target_os = "windows")]
 fn set_window_icon(window: &MainWindow) {
-    use i_slint_backend_winit::winit::window::Icon;
     use i_slint_backend_winit::WinitWindowAccessor;
+    use i_slint_backend_winit::winit::window::Icon;
 
     const LOGO: &[u8] = include_bytes!("../../../production/icons/logo.png");
 
@@ -319,7 +336,7 @@ fn set_window_icon(window: &MainWindow) {
 fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> {
     const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(250);
 
-    let path = ipc::state_root().join(ipc::AURORA_LOCK_FILE);
+    let path = ipc::instance_root().join(ipc::AURORA_LOCK_FILE);
 
     let relaunched = std::env::args().any(|arg| {
         matches!(
@@ -356,8 +373,14 @@ fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> 
     Ok(None)
 }
 
-fn register_cjk_fallback() {
+pub(crate) fn ensure_cjk_fallback() {
     use slint::fontique_010::fontique;
+
+    static REGISTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if REGISTERED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+
     let font_data = {
         #[cfg(target_os = "windows")]
         {

@@ -67,6 +67,18 @@ pub fn icon_for(text: &str) -> Option<slint::Image> {
     icon(character_for(text)?)
 }
 
+pub fn slugs() -> impl Iterator<Item = &'static str> {
+    CHARACTER_ICONS.iter().map(|(slug, _)| *slug)
+}
+
+#[must_use]
+pub fn icon_bytes(slug: &str) -> Option<&'static [u8]> {
+    CHARACTER_ICONS
+        .iter()
+        .find(|(name, _)| *name == slug)
+        .map(|(_, bytes)| *bytes)
+}
+
 fn decode(slug: &str, bytes: &[u8]) -> Option<slint::Image> {
     let decoded = image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
         .map_err(|e| warn!("[Characters] could not decode the icon for '{slug}': {e}"))

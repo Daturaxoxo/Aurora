@@ -3,8 +3,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use anyhow::{anyhow, Context, Result};
-use ipc::manifest::{hash_bytes, safe_join, FileEntry, LocalManifest, Manifest};
+use anyhow::{Context, Result, anyhow};
+use ipc::manifest::{FileEntry, LocalManifest, Manifest, hash_bytes, safe_join};
 use log::*;
 
 #[derive(Debug, Default)]
@@ -109,7 +109,7 @@ fn restore(entry: &FileEntry, dest: &Path) -> Result<()> {
 }
 
 pub fn restore_missing_files() -> RepairReport {
-    restore_missing_files_in(&ipc::install_root())
+    restore_missing_files_in(&ipc::instance_root())
 }
 
 pub fn restore_missing_files_in(root: &Path) -> RepairReport {
@@ -153,14 +153,13 @@ pub fn restore_missing_files_in(root: &Path) -> RepairReport {
         }
     }
 
-    if let Some(local) = &local {
-        if local.version != manifest.version {
+    if let Some(local) = &local
+        && local.version != manifest.version {
             info!(
                 "Repair: install is {} but the manifest is {}; restoring the manifest's copies",
                 local.version, manifest.version
             );
         }
-    }
 
     for entry in &manifest.files {
         let Some(dest) = entry.resolve(root) else {
@@ -188,13 +187,11 @@ pub fn restore_missing_files_in(root: &Path) -> RepairReport {
         }
     }
 
-    if local_dirty {
-        if let Some(local) = &local {
-            if let Err(e) = local.save(root) {
+    if local_dirty
+        && let Some(local) = &local
+            && let Err(e) = local.save(root) {
                 warn!("Repair: could not update the local manifest: {e}");
             }
-        }
-    }
 
     report
 }

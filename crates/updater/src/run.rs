@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use ipc::lock::SingletonLock;
-use ipc::manifest::{hash_file, FileEntry, LocalManifest, Manifest};
+use ipc::manifest::{FileEntry, LocalManifest, Manifest, hash_file};
 use ipc::protocol::{self, Message};
 
 use crate::logfile;
@@ -16,8 +16,6 @@ use crate::net;
 type Conn = Arc<Mutex<protocol::IpcStream>>;
 
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
-const CONNECT_ATTEMPTS: u32 = 30;
-const CONNECT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const ROLLBACK_ATTEMPTS: u32 = 8;
 const ROLLBACK_DELAY: Duration = Duration::from_millis(250);
 const READ_GRACE: Duration = Duration::from_millis(500);
@@ -27,6 +25,8 @@ enum RollbackStep {
     Restore { dst: PathBuf, bak: PathBuf },
     Remove { dst: PathBuf },
 }
+
+static PEER_LOST: AtomicBool = AtomicBool::new(false);
 
 pub fn main() {
     let root = ipc::install_root();
@@ -51,7 +51,11 @@ pub fn main() {
         }
     };
 
-    let connected = connect_with_retry(ipc::MAIN_PIPE_NAME, CONNECT_ATTEMPTS, CONNECT_RETRY_DELAY);
+    let connected = connect_with_retry(
+        &pipe_candidates(),
+        ipc::UPDATER_CONNECT_ATTEMPTS,
+        ipc::UPDATER_CONNECT_RETRY_DELAY,
+    );
     let Some(stream) = connected else {
         log("could not connect to Aurora over IPC; exiting before Aurora can be locked");
         std::process::exit(1);
@@ -71,23 +75,54 @@ pub fn main() {
     }
 }
 
-fn connect_with_retry(pipe: &str, attempts: u32, delay: Duration) -> Option<protocol::IpcStream> {
+fn pipe_candidates() -> Vec<String> {
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == ipc::PIPE_ARG
+            && let Some(pipe) = args.next().filter(|p| !p.is_empty())
+        {return vec![pipe]}
+    }
+    ipc::main_pipe_candidates()
+}
+
+fn connect_with_retry(
+    pipes: &[String],
+    attempts: u32,
+    delay: Duration,
+) -> Option<protocol::IpcStream> {
+    let mut last = None;
     for attempt in 0..attempts {
-        match protocol::connect(pipe) {
-            Ok(stream) => return Some(stream),
-            Err(_) if attempt + 1 < attempts => std::thread::sleep(delay),
-            Err(e) => log(&format!(
-                "IPC connect failed after {attempts} attempt(s): {e}"
-            )),
+        for pipe in pipes {
+            match protocol::connect(pipe) {
+                Ok(stream) => {
+                    log(&format!("connected to Aurora on `{pipe}`"));
+                    return Some(stream);
+                }
+                Err(e) => last = Some(e),
+            }
+        }
+        if attempt + 1 < attempts {
+            std::thread::sleep(delay);
         }
     }
+    log(&format!(
+        "IPC connect failed after {attempts} attempt(s) on {pipes:?}: {}",
+        last.map_or_else(|| "no error recorded".to_owned(), |e| e.to_string())
+    ));
     None
 }
 
 fn send(conn: &Conn, msg: &Message) {
-    if let Ok(mut stream) = conn.lock() {
-        let _ = protocol::write_message(&mut *stream, msg);
+    let delivered = conn
+        .lock()
+        .is_ok_and(|mut stream| protocol::write_message(&mut *stream, msg).is_ok());
+    if !delivered {
+        PEER_LOST.store(true, Ordering::Relaxed);
     }
+}
+
+fn peer_lost() -> bool {
+    PEER_LOST.load(Ordering::Relaxed)
 }
 
 fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
@@ -104,6 +139,8 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
         return Err(e);
     }
     log(&format!("manifest fetched: version {}", manifest.version));
+
+    reconcile_orphans(root, &manifest);
 
     let mut local = match LocalManifest::load(root) {
         Ok(Some(local)) => local,
@@ -131,6 +168,13 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
         return Ok(());
     }
     log(&format!("{} file(s) changed", changed.len()));
+
+    if peer_lost() {
+        heartbeat.stop();
+        return Err(
+            "Aurora stopped listening before the update began; nothing was changed".to_owned(),
+        );
+    }
 
     send(conn, &Message::Lock);
     let result = apply_update(root, conn, &manifest, &mut local, &changed);
@@ -181,15 +225,6 @@ fn apply_update(
             let _ = fs::remove_file(&tmp);
             return Err(e);
         }
-        send(
-            conn,
-            &Message::Progress {
-                file_index: file_index.saturating_add(1),
-                file_count,
-                bytes_done: 0,
-                bytes_total: 0,
-            },
-        );
         tmps.push(tmp.clone());
 
         let actual = hash_file(&tmp).map_err(|e| {
@@ -204,13 +239,23 @@ fn apply_update(
                 format!("failed to hash {}: {e}", tmp.display())
             }
         })?;
-        if actual != entry.sha256 {
+        if !ipc::manifest::hash_eq(&actual, &entry.sha256) {
             cleanup(&tmps);
             return Err(format!(
                 "hash mismatch for {}: expected {}, got {actual}",
                 entry.path, entry.sha256
             ));
         }
+
+        send(
+            conn,
+            &Message::Progress {
+                file_index: file_index.saturating_add(1),
+                file_count,
+                bytes_done: 0,
+                bytes_total: 0,
+            },
+        );
     }
 
     let (exe_entries, others): (Vec<&FileEntry>, Vec<&FileEntry>) =
@@ -268,7 +313,7 @@ fn apply_update(
     let exe_tmp = tmp_path(&exe);
     let exe_bak = bak_path(&exe);
 
-    let listener = match protocol::listen(ipc::INIT_PIPE_NAME) {
+    let listener = match protocol::listen(&ipc::init_pipe_name()) {
         Ok(listener) => listener,
         Err(e) => {
             return Err(fail(
@@ -284,7 +329,21 @@ fn apply_update(
 
     log("Aurora.exe changed; sending close_now");
     send(conn, &Message::CloseNow);
-    wait_for_aurora_exit(root);
+    if !wait_for_aurora_exit(root) {
+        drop(listener);
+        return Err(fail(
+            root,
+            manifest,
+            &original_local,
+            &plan,
+            &tmps,
+            &format!(
+                "Aurora did not shut down within {}s; the update was abandoned before replacing {}",
+                ipc::AURORA_EXIT_TIMEOUT.as_secs(),
+                ipc::AURORA_EXE
+            ),
+        ));
+    }
 
     if let Err(e) = rename_with_retry(&exe, &exe_bak, 40, Duration::from_millis(500)) {
         let message = fail(
@@ -455,7 +514,13 @@ fn relaunch_previous(root: &Path, exe: &Path) {
 fn swap_in(dst: &Path, tmp: &Path, plan: &mut Vec<RollbackStep>) -> std::io::Result<()> {
     if dst.exists() {
         let bak = bak_path(dst);
-        let _ = fs::remove_file(&bak);
+        if bak.exists() {
+            let previous = old_bak_path(dst);
+            let _ = fs::remove_file(&previous);
+            if fs::rename(&bak, &previous).is_err() {
+                let _ = fs::remove_file(&bak);
+            }
+        }
         fs::rename(dst, &bak)?;
         plan.push(RollbackStep::Restore {
             dst: dst.to_path_buf(),
@@ -471,8 +536,9 @@ fn swap_in(dst: &Path, tmp: &Path, plan: &mut Vec<RollbackStep>) -> std::io::Res
 
 fn delete_backups(plan: &[RollbackStep]) {
     for step in plan {
-        if let RollbackStep::Restore { bak, .. } = step {
+        if let RollbackStep::Restore { dst, bak } = step {
             let _ = fs::remove_file(bak);
+            let _ = fs::remove_file(old_bak_path(dst));
         }
     }
 }
@@ -480,6 +546,7 @@ fn delete_backups(plan: &[RollbackStep]) {
 fn cleanup(tmps: &[PathBuf]) {
     for tmp in tmps {
         let _ = fs::remove_file(tmp);
+        net::cleanup_attempts(tmp);
     }
 }
 
@@ -489,14 +556,18 @@ fn rename_with_retry(
     attempts: u32,
     delay: Duration,
 ) -> std::io::Result<()> {
-    let _ = fs::remove_file(to);
     let mut last = None;
-    for _ in 0..attempts {
+    for attempt in 0..attempts {
         match fs::rename(from, to) {
             Ok(()) => return Ok(()),
             Err(e) => {
+                if to.exists() && fs::remove_file(to).is_ok() && fs::rename(from, to).is_ok() {
+                    return Ok(());
+                }
                 last = Some(e);
-                std::thread::sleep(delay);
+                if attempt + 1 < attempts {
+                    std::thread::sleep(delay);
+                }
             }
         }
     }
@@ -518,17 +589,18 @@ fn remove_with_retry(path: &Path, attempts: u32, delay: Duration) -> std::io::Re
     Err(last.unwrap_or_else(|| std::io::Error::other("remove failed")))
 }
 
-fn wait_for_aurora_exit(root: &Path) {
+fn wait_for_aurora_exit(root: &Path) -> bool {
     let lock = root.join(ipc::AURORA_LOCK_FILE);
     if ipc::lock::wait_until_released(&lock, ipc::AURORA_EXIT_TIMEOUT) {
         log("the running Aurora has exited");
-    } else {
-        log(&format!(
-            "the running Aurora still holds {} after {}s; continuing anyway",
-            ipc::AURORA_LOCK_FILE,
-            ipc::AURORA_EXIT_TIMEOUT.as_secs()
-        ));
+        return true;
     }
+    log(&format!(
+        "the running Aurora still holds {} after {}s",
+        ipc::AURORA_LOCK_FILE,
+        ipc::AURORA_EXIT_TIMEOUT.as_secs()
+    ));
+    false
 }
 
 fn accept_init(
@@ -602,6 +674,9 @@ impl Heartbeat {
         let handle = std::thread::spawn(move || {
             while !stop_flag.load(Ordering::Relaxed) {
                 send(&conn, &Message::Heartbeat);
+                if peer_lost() {
+                    break;
+                }
                 std::thread::sleep(ipc::HEARTBEAT_INTERVAL);
             }
         });
@@ -622,6 +697,41 @@ fn bak_path(path: &Path) -> PathBuf {
     with_suffix(path, "bak")
 }
 
+fn old_bak_path(path: &Path) -> PathBuf {
+    with_suffix(path, "bak.old")
+}
+
+fn reconcile_orphans(root: &Path, manifest: &Manifest) {
+    for entry in &manifest.files {
+        let Some(dst) = entry.resolve(root) else {
+            continue;
+        };
+        
+        let bak = bak_path(&dst);
+        
+        if !dst.exists() && bak.exists() {
+            match fs::rename(&bak, &dst) {
+                Ok(()) => log(&format!(
+                    "restored {} from a backup left by an interrupted update",
+                    entry.path
+                )),
+                Err(e) => log(&format!(
+                    "could not restore {} from {}: {e}",
+                    entry.path,
+                    bak.display()
+                )),
+            }
+        }
+
+        let tmp = tmp_path(&dst);
+        if tmp.exists() {
+            let _ = fs::remove_file(&tmp);
+        }
+        
+        net::cleanup_attempts(&tmp);
+    }
+}
+
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path
         .file_name()
@@ -629,5 +739,6 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
         .unwrap_or_default();
     name.push('.');
     name.push_str(suffix);
+    
     path.with_file_name(name)
 }

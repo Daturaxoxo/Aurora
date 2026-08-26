@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use ipc::manifest::{LocalManifest, Manifest, hash_file};
+use log::{error, info, warn};
 use shared::desktop_entry::create_desktop_shortcut;
 use shared::utils::format_bytes;
 use slint::{Model, ModelRc, SharedString, VecModel, Weak};
@@ -77,6 +78,12 @@ pub fn prepare(ui: Weak<InstallerWindow>) {
             };
             match result {
                 Ok(plan) => {
+                    info!(
+                        "Manifest {} lists {} file(s), {} total",
+                        plan.manifest.version,
+                        plan.manifest.files.len(),
+                        format_bytes(plan.total_bytes())
+                    );
                     let mut groups: Vec<(&'static str, u64)> = Vec::new();
                     for file in &plan.manifest.files {
                         let name = group_name(&file.path);
@@ -101,7 +108,7 @@ pub fn prepare(ui: Weak<InstallerWindow>) {
                     w.set_space_required(total.into());
                 }
                 Err(e) => {
-                    eprintln!("could not fetch install manifest: {e}");
+                    error!("Could not fetch the install manifest: {e}");
                     w.set_total_size("Unknown".into());
                     w.set_space_required("Unknown".into());
                 }
@@ -111,6 +118,21 @@ pub fn prepare(ui: Weak<InstallerWindow>) {
 }
 
 fn log_line(ui: &Weak<InstallerWindow>, message: String) {
+    info!("{message}");
+    push_line(ui, message);
+}
+
+fn warn_line(ui: &Weak<InstallerWindow>, message: String) {
+    warn!("{message}");
+    push_line(ui, format!("WARNING: {message}"));
+}
+
+fn error_line(ui: &Weak<InstallerWindow>, message: &str) {
+    error!("{message}");
+    push_line(ui, format!("ERROR: {message}"));
+}
+
+fn push_line(ui: &Weak<InstallerWindow>, message: String) {
     let ui = ui.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(w) = ui.upgrade() {
@@ -144,7 +166,7 @@ pub fn run(
         let error = match result {
             Ok(()) => String::new(),
             Err(e) => {
-                log_line(&ui, format!("ERROR: {e}"));
+                error_line(&ui, &e);
                 e
             }
         };
@@ -262,29 +284,23 @@ fn run_inner(
     if let Err(e) =
         register_uninstall_entry(install_dir, &plan.manifest.version, total_bytes / 1024)
     {
-        log_line(
-            ui,
-            format!("WARNING: could not register the uninstall entry: {e}"),
-        );
+        warn_line(ui, format!("could not register the uninstall entry: {e}"));
     }
 
     let aurora_exe = install_dir.join(ipc::AURORA_EXE);
+    if let Err(e) = shared::oneclick::register_protocol(&aurora_exe) {
+        warn_line(ui, format!("could not register the 1-click protocol: {e}"));
+    }
     if desktop_shortcut {
         log_line(ui, "Creating desktop shortcut...".into());
         if let Err(e) = create_desktop_shortcut(&aurora_exe) {
-            log_line(
-                ui,
-                format!("WARNING: could not create desktop shortcut: {e}"),
-            );
+            warn_line(ui, format!("could not create desktop shortcut: {e}"));
         }
     }
     if start_menu {
         log_line(ui, "Adding Aurora to the Start Menu...".into());
         if let Err(e) = backend::add_start_menu(&aurora_exe) {
-            log_line(
-                ui,
-                format!("WARNING: could not add Aurora to the Start Menu: {e}"),
-            );
+            warn_line(ui, format!("could not add Aurora to the Start Menu: {e}"));
         }
     }
 

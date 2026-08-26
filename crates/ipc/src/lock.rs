@@ -28,17 +28,15 @@ impl SingletonLock {
                     let owner = fs::read_to_string(path)
                         .ok()
                         .and_then(|s| s.trim().parse::<u32>().ok());
-                    if let Some(pid) = owner {
-                        if pid_alive(pid) {
+                    if let Some(pid) = owner
+                        && pid_alive(pid) {
                             return Ok(None);
                         }
-                    }
                     // Stale or unreadable lock: clear it and retry.
-                    if let Err(e) = fs::remove_file(path) {
-                        if e.kind() != io::ErrorKind::NotFound {
+                    if let Err(e) = fs::remove_file(path)
+                        && e.kind() != io::ErrorKind::NotFound {
                             return Err(e);
                         }
-                    }
                 }
                 Err(e) => return Err(e),
             }
@@ -176,7 +174,7 @@ pub fn wait_until_released(path: &Path, timeout: Duration) -> bool {
 
 #[cfg(windows)]
 fn pid_alive(pid: u32) -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED};
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
