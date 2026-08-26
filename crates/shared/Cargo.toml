@@ -20,7 +20,6 @@ extract = [
 
 [dependencies]
 display-info = "0.5"
-env_logger = { version = "0.11", default-features = false }
 env_filter = { version = "2.0.0", default-features = false, features = ["std"] }
 termcolor = "1.4"
 futures = { version = "0.3", default-features = false }
