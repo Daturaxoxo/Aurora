@@ -48,7 +48,6 @@ fn matches_process(process: &Process, target_lower: &str) -> bool {
 #[cfg(target_os = "windows")]
 mod win {
     use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, GetLastError};
-    use windows_sys::Win32::Globalization::{GetOEMCP, MultiByteToWideChar};
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
@@ -67,34 +66,6 @@ mod win {
             CloseHandle(handle);
 
             queried == 0 || code == STILL_ACTIVE
-        }
-    }
-
-    pub fn decode_console(bytes: &[u8]) -> String {
-        if bytes.is_empty() {
-            return String::new();
-        }
-
-        unsafe {
-            let codepage = GetOEMCP();
-            let len = MultiByteToWideChar(codepage, 0, bytes.as_ptr(), -1, std::ptr::null_mut(), 0);
-            if len <= 1 {
-                return String::from_utf8_lossy(bytes).into_owned();
-            }
-
-            let Ok(capacity) = usize::try_from(len) else {
-                return String::from_utf8_lossy(bytes).into_owned();
-            };
-
-            let mut wide = vec![0u16; capacity];
-            let written =
-                MultiByteToWideChar(codepage, 0, bytes.as_ptr(), -1, wide.as_mut_ptr(), len);
-
-            let Ok(written) = usize::try_from(written) else {
-                return String::from_utf8_lossy(bytes).into_owned();
-            };
-
-            String::from_utf16_lossy(&wide[..written.saturating_sub(1)])
         }
     }
 }
@@ -199,74 +170,95 @@ impl ProcessSnapshot {
     }
 }
 
-pub(super) fn kill_process(pid: Pid, process: &Process) -> bool {
-    let exe = process
-        .exe()
-        .map(|e| e.display().to_string())
-        .unwrap_or_default();
-    trace!("Killing process {exe} (pid {pid})");
+pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<Pid>> {
+    let mut seen = HashSet::new();
+    let mut killed = HashSet::new();
+    let mut remaining = Vec::new();
 
-    if process.kill() {
-        if wait_for_exit(pid) {
-            info!("Process {exe} killed");
-            return true;
+    for (pid, process) in processes {
+        if !seen.insert(pid) {
+            continue;
         }
-        warn!("{exe} (pid {pid}) did not exit within {KILL_CONFIRM_TIMEOUT:?}, escalating");
-    }
 
-    if process_gone(pid) {
-        trace!("{exe} (pid {pid}) already exited on its own");
-        return true;
+        let exe = process
+            .exe()
+            .map(|e| e.display().to_string())
+            .unwrap_or_default();
+        trace!("Killing process {exe} (pid {pid})");
+
+        if process.kill() && wait_for_exit(pid) {
+            info!("Process {exe} killed");
+            killed.insert(pid);
+        } else if process_gone(pid) {
+            trace!("{exe} (pid {pid}) already exited on its own");
+            killed.insert(pid);
+        } else {
+            remaining.push((pid, exe));
+        }
     }
 
     #[cfg(target_os = "windows")]
-    {
-        let pid_u32 = pid.as_u32();
-        trace!("sysinfo kill failed for {exe}, retrying via taskkill /F /PID {pid_u32}");
-        match std::process::Command::new("taskkill")
-            .args(["/F", "/PID", &pid_u32.to_string()])
-            .output()
-        {
-            Ok(output) if output.status.success() => {
-                if wait_for_exit(pid) {
-                    info!("{exe} killed via taskkill");
-                    return true;
-                }
-                error!(
-                    "{exe} (pid {pid}) survived taskkill for {KILL_CONFIRM_TIMEOUT:?}. \
-                     Ensure Aurora Engine is running as Administrator."
-                );
-            }
-            Ok(output) => {
-                if wait_for_exit(pid) {
-                    trace!("{exe} (pid {pid}) exited despite taskkill reporting failure");
-                    return true;
-                }
-                let stderr = win::decode_console(&output.stderr);
-                let stderr = stderr.trim();
-                error!(
-                    "{exe} could not be killed (taskkill exit {}: {stderr}). \
-                     Ensure Aurora Engine is running as Administrator.",
-                    output.status
-                );
-            }
-            Err(e) => {
-                if wait_for_exit(pid) {
-                    trace!("{exe} (pid {pid}) already exited on its own");
-                    return true;
-                }
-                error!(
-                    "{exe} could not be killed (taskkill unavailable: {e}). \
-                     Ensure Aurora Engine is running as Administrator."
-                );
-            }
+    if !remaining.is_empty() {
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
+
+        let mut parameters = String::from("/F");
+        for (pid, _) in &remaining {
+            parameters.push_str(" /PID ");
+            parameters.push_str(&pid.as_u32().to_string());
         }
+
+        trace!(
+            "Retrying {} process(es) via elevated taskkill.exe",
+            remaining.len()
+        );
+        let operation: Vec<u16> = "runas".encode_utf16().chain(std::iter::once(0)).collect();
+        let file: Vec<u16> = "taskkill.exe"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let parameters: Vec<u16> = parameters
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                file.as_ptr(),
+                parameters.as_ptr(),
+                std::ptr::null(),
+                SW_HIDE,
+            )
+        } as isize;
+
+        if result <= 32 {
+            return Err(anyhow!(
+                "Failed to launch elevated taskkill.exe (code {result})"
+            ));
+        }
+
+        remaining.retain(|(pid, exe)| {
+            if wait_for_exit(*pid) {
+                info!("{exe} killed via elevated taskkill.exe");
+                killed.insert(*pid);
+                false
+            } else {
+                true
+            }
+        });
     }
 
-    #[cfg(not(target_os = "windows"))]
-    error!("{exe} could not be killed");
+    if !remaining.is_empty() {
+        let failures: Vec<_> = remaining.into_iter().map(|(_, exe)| exe).collect();
+        return Err(anyhow!(
+            "Failed to kill {} process(es): {}",
+            failures.len(),
+            failures.join(", ")
+        ));
+    }
 
-    false
+    Ok(killed)
 }
 
 #[derive(Clone)]
@@ -306,44 +298,23 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     names.extend(snapshot.helper_processes.iter().copied());
     trace!("Processes to kill: {}", names.join(", "));
 
-    let mut kill_failures: Vec<String> = Vec::new();
-    let mut killed: HashSet<Pid> = HashSet::new();
-
-    let mut kill = |pid: &Pid, process: &Process| {
-        if !killed.insert(*pid) {
-            return;
-        }
-        if !kill_process(*pid, process) {
-            let exe = process
-                .exe()
-                .map(|e| e.display().to_string())
-                .unwrap_or_default();
-            kill_failures.push(exe);
-        }
-    };
-
+    let mut to_kill = Vec::new();
     for name in names {
         for (pid, process) in snapshot_data.matching(name) {
-            kill(pid, process);
+            to_kill.push((*pid, process));
         }
     }
 
     for (pid, process) in snapshot_data.in_dir(&snapshot.win64) {
+        to_kill.push((*pid, process));
         trace!(
             "Killing {} (runs from Win64)",
             process.name().to_string_lossy()
         );
-        kill(pid, process);
     }
 
-    if !kill_failures.is_empty() {
-        return Err(anyhow!(
-            "Failed to kill {} process(es): {}. \
-             On Windows, ensure Aurora Engine is running as Administrator.",
-            kill_failures.len(),
-            kill_failures.join(", ")
-        ));
-    }
+    let killed = kill_processes(to_kill)?;
+    trace!("Killed {} process(es)", killed.len());
 
     for (label, destination) in &snapshot.loader_dlls {
         if !destination.exists() {
