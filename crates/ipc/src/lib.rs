@@ -1,5 +1,6 @@
 pub mod lock;
 pub mod manifest;
+pub mod oneclick;
 pub mod protocol;
 
 use std::path::PathBuf;
@@ -74,6 +75,14 @@ pub const AURORA_EXE: &str = "Aurora.exe";
 #[cfg(not(windows))]
 pub const AURORA_EXE: &str = "Aurora";
 
+/// The unelevated shim registered as the `aurora-launcher:` handler. It
+/// forwards to a running Aurora over the 1-click pipe, so clicking Install
+/// on `GameBanana` never raises a UAC prompt of its own.
+#[cfg(windows)]
+pub const ONECLICK_EXE: &str = "oneclick.exe";
+#[cfg(not(windows))]
+pub const ONECLICK_EXE: &str = "oneclick";
+
 #[cfg(windows)]
 pub const UPDATER_EXE: &str = "updater.exe";
 #[cfg(not(windows))]
@@ -98,6 +107,10 @@ pub const RELAUNCH_ARG: &str = "--relaunch";
 /// Launches the game headlessly: no window, inject, wait for NTE to exit,
 /// sanitize, then quit
 pub const QUICK_START_ARG: &str = "--quick-start";
+
+/// How long a 1-click sender holds the connection open waiting for Aurora to
+/// consume the request before giving up on a confirmation.
+pub const ONECLICK_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);

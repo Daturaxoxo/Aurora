@@ -304,6 +304,7 @@ def release_windows(version):
 
     copy_file("./target/release/Aurora.exe", "./release/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release/updater.exe")
+    copy_file("./target/release/oneclick.exe", "./release/oneclick.exe")
     copy_file(uninstaller, "./release/AuroraUninstaller.exe")
 
     copy_folder("./Bin", "./release/Bin")
@@ -318,6 +319,7 @@ def release_windows(version):
     os.mkdir("./release-host")
     copy_file("./target/release/Aurora.exe", "./release-host/Aurora.exe")
     copy_file("./target/release/updater.exe", "./release-host/updater.exe")
+    copy_file("./target/release/oneclick.exe", "./release-host/oneclick.exe")
     copy_file(uninstaller, "./release-host/AuroraUninstaller.exe")
 
     copy_file("./release/manifest.json", "./release-host/windows/manifest.json")

@@ -26,8 +26,10 @@ fn main() {
 
     #[cfg(target_os = "windows")]
     {
+        println!("cargo:rerun-if-changed=main.manifest");
         let mut res = winresource::WindowsResource::new();
         res.set_icon("../../production/icons/logo.ico");
+        res.set_manifest_file("main.manifest");
         res.set("CompanyName", "Aurora Team");
         res.set("FileDescription", "Aurora");
         res.set("ProductName", "Aurora");
@@ -238,9 +240,7 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
     for entry in fs::read_dir(current_source).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path == target_base {
-            continue;
-        }
+        if path == target_base {continue}
 
         let relative = path.strip_prefix(root_source).unwrap();
         let dest_path = target_base.join(relative);
@@ -261,15 +261,8 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                     continue;
                 }
 
-                if is_up_to_date(&path, &dest_path) {
-                    continue;
-                }
-
-                let size = if relative.starts_with("characters") {
-                    128
-                } else {
-                    64
-                };
+                if is_up_to_date(&path, &dest_path) {continue}
+                let size = if relative.starts_with("characters") {128} else {64};
 
                 if let Ok(img) = image::open(&path) {
                     let scaled = img.resize(size, size, FilterType::Lanczos3);
