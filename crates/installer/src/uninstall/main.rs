@@ -2,24 +2,37 @@
 
 include!(concat!(env!("OUT_DIR"), "/uninstall.rs"));
 
+#[cfg(windows)]
 mod elevate;
+#[cfg(windows)]
 #[path = "../logfile.rs"]
 mod logfile;
+#[cfg(windows)]
 mod owned;
+#[cfg(windows)]
 mod plan;
 #[path = "../registry.rs"]
+#[cfg(windows)]
 mod registry;
+#[cfg(windows)]
 mod run;
 
+#[cfg(windows)]
 use log::{error, info, warn};
+#[cfg(windows)]
 use shared::display::{center_window, on_drag};
 
+#[cfg(windows)]
 use slint::{ComponentHandle, LogicalPosition, ModelRc, SharedString, VecModel, WindowPosition};
+#[cfg(windows)]
 use std::rc::Rc;
 
+#[cfg(windows)]
 use plan::Plan;
+#[cfg(windows)]
 use run::Options;
 
+#[cfg(windows)]
 fn current_plan() -> Plan {
     if elevate::is_relaunch() {
         elevate::plan_from_args()
@@ -28,12 +41,14 @@ fn current_plan() -> Plan {
     }
 }
 
+#[cfg(windows)]
 fn app_dir_error(plan: &Plan) -> String {
     plan.app_dir_error.clone().unwrap_or_else(|| {
         "Could not locate the Aurora application folder. Nothing was removed.".to_owned()
     })
 }
 
+#[cfg(windows)]
 fn show_app_dir(ui: &UninstallerWindow, plan: &Plan) {
     ui.set_app_path(
         plan.app_dir
@@ -46,6 +61,7 @@ fn show_app_dir(ui: &UninstallerWindow, plan: &Plan) {
     ui.set_app_error(app_dir_error(plan).into());
 }
 
+#[cfg(windows)]
 fn start(ui: &UninstallerWindow, options: Options) {
     let plan = current_plan();
     info!(
@@ -54,7 +70,9 @@ fn start(ui: &UninstallerWindow, options: Options) {
     );
     info!(
         "App dir: {:?}, mods dir: {:?}, data dir: {}",
-        plan.app_dir, plan.mods_dir, plan.data_dir.display()
+        plan.app_dir,
+        plan.mods_dir,
+        plan.data_dir.display()
     );
 
     let Some(app_dir) = plan.app_dir.clone() else {
@@ -84,6 +102,7 @@ fn start(ui: &UninstallerWindow, options: Options) {
     run::run(ui.as_weak(), plan, app_dir, options);
 }
 
+#[cfg(windows)]
 fn main() {
     logfile::init(elevate::is_relaunch());
 
@@ -96,6 +115,7 @@ fn main() {
     }
 }
 
+#[cfg(windows)]
 fn run() -> Result<(), slint::PlatformError> {
     if let Some(dir) = run::cleanup_target() {
         info!("Running post-exit cleanup of {}", dir.display());
@@ -244,5 +264,10 @@ fn run() -> Result<(), slint::PlatformError> {
         run::cleanup_after_exit(&dir);
     }
 
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
