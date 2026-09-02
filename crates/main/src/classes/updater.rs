@@ -229,7 +229,7 @@ impl UpdateHandler {
             }
         };
 
-        if manifest.changed_files(&root, &local).is_empty() {
+        if manifest.update_delta(&root, &local).is_empty() {
             info!("no update available");
             if interactive {
                 Bridge::show_toast(window, "Aurora is up to date.", "success");
@@ -1144,7 +1144,7 @@ impl UpdateHandler {
                 LocalManifest::build_manifest_from_disk(&root, &manifest)
             }
         };
-        Ok(!manifest.changed_files(&root, &local).is_empty())
+        Ok(!manifest.update_delta(&root, &local).is_empty())
     }
 
     #[cfg(feature = "beta")]
