@@ -142,6 +142,7 @@ export component MainWindow inherits Window {
     in-out property <bool> discord-rpc: true;
     in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;
+    in-out property <int> start-method-index: 0;
     in-out property <int> engine-scale: 100;
     in-out property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
@@ -162,6 +163,7 @@ export component MainWindow inherits Window {
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback start-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback launch-args-changed(string);
@@ -1233,6 +1235,7 @@ export component MainWindow inherits Window {
             discord-rpc <=> root.discord-rpc;
             game-directory <=> root.game-directory;
             engine-method-index <=> root.engine-method-index;
+            start-method-index <=> root.start-method-index;
             engine-scale <=> root.engine-scale;
             show-engine-scale: root.show-engine-scale;
             ignore-checksum <=> root.ignore-checksum;
@@ -1258,6 +1261,7 @@ export component MainWindow inherits Window {
             interface-minimization-changed(v) => { root.interface-minimization-changed(v); }
             discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
+            start-method-index-changed(i) => { root.start-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }
             ignore-checksum-changed(v) => { root.ignore-checksum-changed(v); }
             launch-args-changed(v) => { root.launch-args-changed(v); }

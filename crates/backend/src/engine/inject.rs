@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow};
 use log::*;
+use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
 
 use crate::classes::validate::ensure_dir;
@@ -220,19 +221,26 @@ impl AuroraEngine {
 
     fn launch_game(&self) -> Result<()> {
         let launcher_exe = self.game_path.join(self.gpaths.launcher_process);
+        let start_method = StartMethod::from_config();
+
+        let mut args = self.gpaths.launch_args.clone();
+        args.extend_from_slice(start_method.launch_args());
+
         info!("Launching NTE: {}", launcher_exe.display());
         info!("Distribution: {}", self.distribution);
+        info!("Start method: {start_method}");
+        debug!("Launch arguments: {args:?}");
 
         #[cfg(target_os = "linux")]
         {
-            crate::classes::linux::launch_via_proton(&launcher_exe, &self.gpaths.launch_args)?;
+            crate::classes::linux::launch_via_proton(&launcher_exe, &args)?;
             Ok(())
         }
 
         #[cfg(not(target_os = "linux"))]
         {
             std::process::Command::new(&launcher_exe)
-                .args(&self.gpaths.launch_args)
+                .args(&args)
                 .spawn()
                 .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
             Ok(())

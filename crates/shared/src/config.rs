@@ -40,6 +40,7 @@ pub fn get_lang_name(code: &str) -> Option<&'static str> {
 pub mod key {
     pub const GAME_PATH: &str = "game_path";
     pub const ENGINE_METHOD: &str = "engine_method";
+    pub const START_METHOD: &str = "start_method";
     pub const LANGUAGE: &str = "language";
     pub const DEV_MODE: &str = "dev_mode";
     pub const CENSORSHIP_REMOVE: &str = "csn_rem";
@@ -121,9 +122,9 @@ pub fn default_value(k: &str) -> Value {
 
         key::UI_SCALING => json!(1.0),
 
-        // [0 = Default (version.dll)]
-        // [1 = Alternate (dsound)]
-        key::ENGINE_METHOD => json!(0),
+        // ENGINE_METHOD: [0 = Default (version.dll)] [1 = Alternate (dsound)]
+        // START_METHOD:  [0 = Direct (/autoplay)] [1 = Manual (launcher UI)]
+        key::ENGINE_METHOD | key::START_METHOD => json!(0),
         _ => Value::Null,
     }
 }

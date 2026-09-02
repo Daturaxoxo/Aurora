@@ -507,6 +507,7 @@ export component SettingsPage inherits Rectangle {
     callback browse-game-directory();
     in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
+    in-out property <int> start-method-index: 0;       // 0=Direct (/autoplay) 1=Manual
     in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
     in property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
@@ -541,6 +542,7 @@ export component SettingsPage inherits Rectangle {
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
     callback engine-method-index-changed(int);
+    callback start-method-index-changed(int);
     callback engine-scale-changed(int);
     callback ignore-checksum-changed(bool);
     callback launch-args-changed(string);
@@ -820,6 +822,19 @@ export component SettingsPage inherits Rectangle {
                                         ];
                                         selected-index <=> root.engine-method-index;
                                         selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-start-method-title];
+                                    subtitle: Tr.values[TrKey.settings-start-method-subtitle];
+                                    Dropdown {
+                                        options: [
+                                            Tr.values[TrKey.settings-start-method-direct],
+                                            Tr.values[TrKey.settings-start-method-manual]
+                                        ];
+                                        selected-index <=> root.start-method-index;
+                                        selection-changed(idx) => { root.start-method-index-changed(idx); }
                                     }
                                 }
 

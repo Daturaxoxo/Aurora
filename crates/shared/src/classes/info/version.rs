@@ -51,6 +51,53 @@ impl Distribution {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StartMethod {
+    #[default]
+    Direct,
+    Manual,
+}
+
+impl fmt::Display for StartMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Direct => "direct",
+            Self::Manual => "manual",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl StartMethod {
+    pub const fn launch_args(&self) -> &'static [&'static str] {
+        match self {
+            Self::Direct => &["/autoplay"],
+            Self::Manual => &[],
+        }
+    }
+
+    pub const fn from_num(i: i64) -> Self {
+        match i {
+            1 => Self::Manual,
+            _ => Self::Direct,
+        }
+    }
+
+    pub fn from_config() -> Self {
+        let raw = crate::config::get(crate::config::key::START_METHOD);
+
+        raw.as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
+            .map_or_else(
+                || {
+                    debug!("Unreadable start_method {raw:?}, starting the game directly");
+                    Self::default()
+                },
+                Self::from_num,
+            )
+    }
+}
+
 pub fn detect_distribution(game_path: &Path) -> Distribution {
     if game_path
         .join("NTEGlobal")
