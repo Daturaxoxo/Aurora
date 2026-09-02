@@ -20,7 +20,7 @@ const STEAM_APP_ID: &str = "4508340";
 const SIDECAR_SUFFIXES: [&str; 2] = ["tmp", "bak"];
 const BIN_DIR: &str = "Bin";
 const LOGS_DIR: &str = "Logs";
-const BIN_SIGNATURE: [&str; 3] = ["AuroraEngine.dll", "cutils.dll", "Everlight.asi"];
+const BIN_SIGNATURE: [&str; 2] = ["cutils.dll", "Everlight.asi"];
 
 pub struct Owned {
     pub trees: Vec<PathBuf>,

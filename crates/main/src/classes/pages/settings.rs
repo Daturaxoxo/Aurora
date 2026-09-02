@@ -102,6 +102,11 @@ impl SettingsHandler {
         debug!("engine_method: raw={raw_engine:?} → {engine_method}");
         w.set_engine_method_index(engine_method);
 
+        let raw_start = config::get(key::START_METHOD);
+        let start_method = raw_start.as_i64().unwrap_or(0).try_into().unwrap_or(0);
+        debug!("start_method: raw={raw_start:?} → {start_method}");
+        w.set_start_method_index(start_method);
+
         w.set_show_engine_scale(scale::SUPPORTED);
         if scale::SUPPORTED {
             let current_scale = scale::get_current_scale();
@@ -518,6 +523,12 @@ impl SettingsHandler {
                 }
                 Err(e) => warn!("engine not started yet, skipping live update: {e}"),
             }
+        });
+
+        w.on_start_method_index_changed(move |index| {
+            info!("start_method changed -> {index}");
+            config::set(key::START_METHOD, index);
+            debug!("start_method saved to config");
         });
 
         let ww = window.clone();

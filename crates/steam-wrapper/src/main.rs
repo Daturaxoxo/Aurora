@@ -4,7 +4,7 @@ slint::include_modules!();
 
 use std::path::{Path, PathBuf};
 
-use shared::classes::info::version::{LAUNCHER_MAP, detect_distribution};
+use shared::classes::info::version::{LAUNCHER_MAP, StartMethod, detect_distribution};
 use slint::{LogicalPosition, WindowPosition};
 
 use shared::config::{self, key};
@@ -287,10 +287,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
             let distribution = detect_distribution(game_path);
 
-            match std::process::Command::new(&launcher)
-                .args(distribution.launch_args())
-                .spawn()
-            {
+            let mut args = distribution.launch_args().to_vec();
+            args.extend_from_slice(StartMethod::from_config().launch_args());
+
+            match std::process::Command::new(&launcher).args(&args).spawn() {
                 Ok(child) => {
                     report(&ui, Status::Busy("Starting the game...".to_string()));
                     launch_and_exit(child, ui.clone(), "The game launcher");

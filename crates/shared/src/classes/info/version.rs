@@ -51,6 +51,57 @@ impl Distribution {
     }
 }
 
+/// How Aurora starts the game once the engine is in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StartMethod {
+    /// Hands the launcher `/autoplay` so it starts the game right away.
+    #[default]
+    Direct,
+    /// Leaves the launcher on screen so the user presses Play themselves.
+    Manual,
+}
+
+impl fmt::Display for StartMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Direct => "direct",
+            Self::Manual => "manual",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl StartMethod {
+    pub const fn launch_args(&self) -> &'static [&'static str] {
+        match self {
+            Self::Direct => &["/autoplay"],
+            Self::Manual => &[],
+        }
+    }
+
+    pub const fn from_num(i: i64) -> Self {
+        match i {
+            1 => Self::Manual,
+            _ => Self::Direct,
+        }
+    }
+
+    /// The method the user picked in the Launcher tab.
+    pub fn from_config() -> Self {
+        let raw = crate::config::get(crate::config::key::START_METHOD);
+
+        raw.as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
+            .map_or_else(
+                || {
+                    debug!("Unreadable start_method {raw:?}, starting the game directly");
+                    Self::default()
+                },
+                Self::from_num,
+            )
+    }
+}
+
 pub fn detect_distribution(game_path: &Path) -> Distribution {
     if game_path
         .join("NTEGlobal")
@@ -191,6 +242,21 @@ mod tests {
                 BypassMethod::DSound
             );
         }
+    }
+
+    #[test]
+    fn start_method_from_num() {
+        assert_eq!(StartMethod::from_num(0), StartMethod::Direct);
+        assert_eq!(StartMethod::from_num(1), StartMethod::Manual);
+        // Anything unexpected keeps the default, one-click behaviour
+        assert_eq!(StartMethod::from_num(7), StartMethod::Direct);
+        assert_eq!(StartMethod::from_num(-1), StartMethod::Direct);
+    }
+
+    #[test]
+    fn only_direct_skips_the_launcher() {
+        assert_eq!(StartMethod::Direct.launch_args(), &["/autoplay"]);
+        assert!(StartMethod::Manual.launch_args().is_empty());
     }
 
     #[test]
