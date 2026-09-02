@@ -27,6 +27,7 @@ impl AuroraEngine {
         self.cleanup()?;
 
         Self::copy_non_addon_files(&files)?;
+        super::everlight::install_signature(&self.win64)?;
         self.copy_pak_addons(&files)?;
 
         if LuaManager::exists(&self.bin_path) {

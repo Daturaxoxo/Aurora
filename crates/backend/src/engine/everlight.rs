@@ -5,6 +5,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use anyhow::{Context, Result};
 use log::*;
 use shared::classes::info::{patcher, version::Version};
 
@@ -13,6 +14,18 @@ use crate::handler::EngineEvent;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 const CHKSUM_MARKER: &str = "CHKSUM";
+
+pub(super) const SIGNATURE_FILE_NAME: &str = "everlight.sig";
+
+const NTE_SIGNATURE: &[u8] = include_bytes!("../../../../production/engine/NTE/everlight.sig");
+
+pub(super) fn install_signature(win64: &Path) -> Result<()> {
+    let destination = win64.join(SIGNATURE_FILE_NAME);
+    fs::write(&destination, NTE_SIGNATURE)
+        .with_context(|| format!("Failed to write {}", destination.display()))?;
+    trace!("Wrote {}", destination.display());
+    Ok(())
+}
 
 pub(super) fn watch(
     win64: &Path,
