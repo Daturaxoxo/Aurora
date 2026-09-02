@@ -1,25 +1,20 @@
 [package]
-name = "ipc"
+name = "oneclick"
 version = "2.0.0"
 edition = "2024"
 
-[dependencies]
-interprocess = "2"
-sha2 = "0.10.9"
+[[bin]]
+name = "oneclick"
+path = "src/main.rs"
 
-serde = { workspace = true }
-serde_json = { workspace = true }
-percent-encoding = { workspace = true }
+[dependencies]
+ipc = { path = "../ipc" }
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }
-widestring = "1.0.2"
-
-[target.'cfg(not(windows))'.dependencies]
-libc = { workspace = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-dirs = { workspace = true }
 
 [lints.clippy]
 enum_glob_use = "warn"

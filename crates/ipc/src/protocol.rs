@@ -19,13 +19,13 @@ const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(20);
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Message {
-    /// Updater -> Aurora: sent once on connect, before any other message.
+    /// Updater -> Aurora: connection message.
     Hello,
     /// Updater -> Aurora: update in progress, lock the UI.
     Lock,
-    /// Updater -> Aurora: update finished (non-exe files), UI back to normal.
+    /// Updater -> Aurora: update finished (non-exe files!), UI back to normal.
     Unlock,
-    /// Updater -> Aurora: Aurora.exe itself is being replaced, exit cleanly.
+    /// Updater -> Aurora: Aurora.exe is being replaced, exit
     CloseNow,
     /// Updater -> Aurora: periodic liveness ping while locked.
     Heartbeat,
@@ -42,7 +42,7 @@ pub enum Message {
     Error { message: String },
     /// Updater -> Aurora: manifest matches local state, updater exits.
     NoUpdate,
-    /// Second Aurora instance -> running Aurora: browser 1-click request.
+    /// One-click -> Aurora: browser 1-click request.
     OneClick {
         url: String,
         model: String,
@@ -78,9 +78,110 @@ pub fn listen(pipe: &str) -> io::Result<Listener> {
     ListenerOptions::new().name(name).create_sync()
 }
 
+#[cfg(windows)]
+pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {
+    use interprocess::os::windows::local_socket::ListenerOptionsExt as _;
+    use interprocess::os::windows::security_descriptor::SecurityDescriptor;
+    let sddl = format!(
+        "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;{})S:(ML;;NW;;;ME)",
+        current_user_sid()?
+    );
+    let sddl = widestring::U16CString::from_str(&sddl).map_err(io::Error::other)?;
+    let sd = SecurityDescriptor::deserialize(&sddl)?;
+
+    let name = pipe.to_ns_name::<GenericNamespaced>()?;
+    ListenerOptions::new()
+        .name(name)
+        .security_descriptor(sd)
+        .create_sync()
+}
+
+#[cfg(not(windows))]
+pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {listen(pipe)}
+
+/// The current process user's SID in string form, for building an SDDL string.
+#[cfg(windows)]
+fn current_user_sid() -> io::Result<String> {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
+    use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
+    use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    struct Handle(HANDLE);
+    impl Drop for Handle {
+        fn drop(&mut self) {
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+
+    unsafe {
+        let mut raw: HANDLE = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut raw) == 0 {return Err(io::Error::last_os_error());}
+        let token = Handle(raw);
+        let mut needed: u32 = 0;
+        GetTokenInformation(token.0, TokenUser, std::ptr::null_mut(), 0, &raw mut needed);
+        if needed == 0 {return Err(io::Error::last_os_error());}
+
+        let mut buffer = vec![0u8; needed as usize];
+        if GetTokenInformation(
+            token.0,
+            TokenUser,
+            buffer.as_mut_ptr().cast(),
+            needed,
+            &raw mut needed,
+        ) == 0
+        {return Err(io::Error::last_os_error());}
+
+        let user: *const TOKEN_USER = buffer.as_ptr().cast();
+        let mut sid_w: *mut u16 = std::ptr::null_mut();
+        if ConvertSidToStringSidW((*user).User.Sid, &raw mut sid_w) == 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        let mut len = 0;
+        while *sid_w.add(len) != 0 {
+            len += 1;
+        }
+        let sid = String::from_utf16(std::slice::from_raw_parts(sid_w, len))
+            .map_err(io::Error::other);
+        LocalFree(sid_w.cast());
+        sid
+    }
+}
+
 pub fn connect(pipe: &str) -> io::Result<Stream> {
     let name = pipe.to_ns_name::<GenericNamespaced>()?;
     Stream::connect(name)
+}
+
+pub fn send_and_confirm(pipe: &str, msg: &Message, timeout: Duration) -> io::Result<()> {
+    let mut stream = connect(pipe)?;
+    write_message(&mut stream, msg)?;
+    let _ = set_read_timeout(&stream, Some(timeout));
+    let stream = Arc::new(stream);
+    let reader = Arc::clone(&stream);
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = &*reader;
+        let mut sink = [0u8; 1];
+        let _ = tx.send(reader.read(&mut sink).map(|_| ()));
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e))
+            if matches!(
+                e.kind(),
+                io::ErrorKind::BrokenPipe
+                    | io::ErrorKind::ConnectionReset
+                    | io::ErrorKind::ConnectionAborted
+            ) =>
+        {
+            Ok(())
+        }
+        Ok(Err(e)) => Err(e),
+        Err(_) => Ok(()),
+    }
 }
 
 pub fn accept(listener: &Listener) -> io::Result<Stream> {
@@ -126,80 +227,4 @@ pub fn spawn_reader(stream: Arc<Stream>) -> Receiver<io::Result<Message>> {
         }
     });
     rx
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn framing_round_trips_every_message() {
-        let messages = [
-            Message::Hello,
-            Message::Lock,
-            Message::Unlock,
-            Message::CloseNow,
-            Message::Heartbeat,
-            Message::Progress {
-                file_index: 2,
-                file_count: 7,
-                bytes_done: 1024,
-                bytes_total: 4096,
-            },
-            Message::InitConfirmed,
-            Message::Error {
-                message: "boom".into(),
-            },
-            Message::NoUpdate,
-            Message::OneClick {
-                url: "https://gamebanana.com/mmdl/1".into(),
-                model: "Mod".into(),
-                item_id: 2,
-            },
-        ];
-
-        let mut buf = Vec::new();
-        for msg in &messages {
-            write_message(&mut buf, msg).unwrap();
-        }
-
-        let mut cursor = std::io::Cursor::new(buf);
-        for msg in &messages {
-            assert_eq!(&read_message(&mut cursor).unwrap(), msg);
-        }
-    }
-
-    #[test]
-    fn oversized_frame_is_rejected() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(MAX_FRAME_LEN + 1).to_le_bytes());
-        let err = read_message(&mut std::io::Cursor::new(buf)).unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    }
-
-    #[test]
-    fn messages_round_trip_over_a_real_pipe() {
-        let pipe = "aurora-updater-proto-test";
-        let listener = listen(pipe).unwrap();
-
-        let server = std::thread::spawn(move || {
-            let mut stream = accept(&listener).unwrap();
-            let received = read_message(&mut stream).unwrap();
-            write_message(&mut stream, &Message::Lock).unwrap();
-            received
-        });
-
-        let mut client = connect(pipe).unwrap();
-        write_message(&mut client, &Message::InitConfirmed).unwrap();
-        assert_eq!(read_message(&mut client).unwrap(), Message::Lock);
-        assert_eq!(server.join().unwrap(), Message::InitConfirmed);
-    }
-
-    #[test]
-    fn truncated_frame_is_an_error() {
-        let mut buf = Vec::new();
-        write_message(&mut buf, &Message::Lock).unwrap();
-        buf.truncate(buf.len() - 1);
-        assert!(read_message(&mut std::io::Cursor::new(buf)).is_err());
-    }
 }

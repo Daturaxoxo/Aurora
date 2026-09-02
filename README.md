@@ -16,7 +16,7 @@ Lightweight modding platform for anime games.
     </a>
   </object>
   <object data="https://virustotal.com" type="text/html">
-    <a href="https://www.virustotal.com/gui/file/986ed7edeb926e42eecb4bc88cf9df8c46ece3b9a6bc0ace966eb3cf8ef52028?nocache=1">
+    <a href="https://www.virustotal.com/gui/file/2d28a823564809f4d87d42c744db8282988774d8a6001e2f272c1fcafaf4396d">
       <img src="https://img.shields.io/badge/Antivirus-Scan-2EC7FF?logo=virustotal&logoColor=white" alt="VirusTotal Scan" />
     </a>
   </object>
@@ -31,7 +31,7 @@ Easily start modding your favourite games with a clean desktop interface and sup
 
 Easily load both `.pak` character model mods and `.asi` DLL mods into your game, with support for Lua scripts as well.
 
-Aurora is written in [Rust](https://rust-lang.org) and rendered with [Slint](https://slint.dev), both being extremely lightweight languages.
+Aurora is written in [Rust](https://rust-lang.org) and rendered with [Slint](https://slint.dev).
 <br></br>
 
 > [!NOTE]
@@ -50,24 +50,45 @@ Aurora is written in [Rust](https://rust-lang.org) and rendered with [Slint](htt
   <img src="https://img.icons8.com/?size=32&id=xfE5l4OXJWrc&format=png&color=000000" height="24" alt=""> Features
 </h2>
 
-- **Easy Setup** — Aurora is designed to be friendly towards beginners, we include an installer to setup everything and our pathfinding module finds your game installation automatically.
-- **Support for all versions** — We support all versions and providers:
-- - **Versions** — Global, Taiwan, China
-- - **Providers** — Native (Perfect World Client), Steam, Epic Games
-- **Builtin Mod Manager** — Simple enough for beginners, advanced enough for people who know what they're doing:
-- - **Toggling** — Disable & Enable your mods with one-click
-- - **Renaming** — Rename the mod's name on disk inside the mod manager
-- - **Deleting** — Delete the mod with one-click, show a popup to make sure no accidental deletions happen.
-- - **Searching** — Search mods installed by name
-- - **Filtering** — Filter mods by enabled/disabled status, author or character.
-- - **Icons** — Select a character's icon from our built-in library, or use a custom image.
-- - **Viewing Styles** — Choose between a list view or a grid view of how mods are displayed depending on your style
-- - **Mod Groups** — Create groups and drag & drop mods into them, collapsable by default.
-- - **Bulk Selection** — Do actions like renaming, deleting or toggling on multiple mods at once.
-- **Screenshot Manager** — View the screenshots you took in-game
-- **Lua Scripting** — Create and edit lua scripts from the launcher and load them in-game.
-- **Addons Manager** — Install useful Quality of Life addons directly from the launcher, not installed by default to reduce bloat.
-- **Custom Engine** — Powered by our custom engine **Everlight**, get total control over your game. Has tons of security checks builtin to prevent any crashes.
+<table>
+<tr>
+<td width="33%"><b>Easy Setup</b><br>Guided installer with automatic game path detection.</td>
+<td width="33%"><b>Mod Manager</b><br>Toggle, group, filter and bulk-edit everything you've installed.</td>
+<td width="33%"><b>Custom Engine</b><br>Our engine Everlight is built for stability and power while staying minimal. Also supports launch arguments.</td>
+</tr>
+<tr>
+<td><b>Lua Scripting</b><br>Write and edit scripts in the launcher, load them in-game.</td>
+<td><b>Addons Manager</b><br>Install optional QoL addons on demand, no bloat by default.</td>
+<td><b>Screenshot Manager</b><br>Browse the screenshots you took in-game.</td>
+</tr>
+</table>
+
+**Runs on every version** - Global, Taiwan and China, on Native (Perfect World), Steam and Epic Games. Aurora is always there.
+
+### Inside the Mod Manager
+
+<table>
+<tr>
+<td width="33%"><b>Toggling</b><br>Enable or disable with one click</td>
+<td width="33%"><b>Renaming</b><br>Rename the mod on disk</td>
+<td width="33%"><b>Deleting</b><br>One click, with a confirmation prompt</td>
+</tr>
+<tr>
+<td><b>Searching</b><br>Find installed mods by name</td>
+<td><b>Filtering</b><br>By enabled state, author or character</td>
+<td><b>Icons</b><br>Built-in library or a custom image</td>
+</tr>
+<tr>
+<td><b>Views</b><br>List or grid layout</td>
+<td><b>Groups</b><br>Collapsible drag and drop groups</td>
+<td><b>Bulk Actions</b><br>Toggle, rename or delete many at once</td>
+</tr>
+<tr>
+<td><b>Automatic Mod Updating</b><br>Mods installed from GameBanana have version tracking</td>
+<td><b>Notify on Incompatibility</b><br>Aurora notifies about incompatible mods</td>
+<td><b>Restart Flags</b><br>Marks mods that only apply restarting the game</td>
+</tr>
+</table>
 <br>
 </br>
 
@@ -107,7 +128,12 @@ Easiest and the recommended way of installing Aurora.
 </h2>
 
 > [!IMPORTANT]
-> In order to build the application yourself, you need the following tools: [Rust Programming Language](https://rustlang.org), [LLVM Compiler](https://www.llvm.org)
+> In order to build the application yourself, you need the following tool: [Rust Programming Language](https://rust-lang.org)
+
+> [!WARNING]
+> View our [license](https://github.com/Daturaxoxo/Aurora/blob/main/LICENSE) before building from source!
+
+
 1. Download the ZIP source code of this project. (**Code Button > "Download ZIP"**)
 2. Extract source code to your desired path.
 3. Open an administrator command prompt in the root folder of the project.

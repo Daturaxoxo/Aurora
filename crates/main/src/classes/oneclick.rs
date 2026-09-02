@@ -59,19 +59,20 @@ impl OneClickHandler {
     }
 
     pub fn forward(request: &OneClick) -> Result<()> {
+        let message = Message::OneClick {
+            url: request.url.clone(),
+            model: request.model.clone(),
+            item_id: request.item_id,
+        };
+
         let mut last_error = None;
         for attempt in 1..=CONNECT_ATTEMPTS {
-            match protocol::connect(&ipc::oneclick_pipe_name()) {
-                Ok(mut stream) => {
-                    protocol::write_message(
-                        &mut stream,
-                        &Message::OneClick {
-                            url: request.url.clone(),
-                            model: request.model.clone(),
-                            item_id: request.item_id,
-                        },
-                    )
-                    .context("could not send the request")?;
+            match protocol::send_and_confirm(
+                &ipc::oneclick_pipe_name(),
+                &message,
+                ipc::ONECLICK_ACK_TIMEOUT,
+            ) {
+                Ok(()) => {
                     info!("1-Click: forwarded request to the running instance");
                     return Ok(());
                 }
@@ -101,7 +102,7 @@ impl OneClickHandler {
     }
 
     fn listen(window: &slint::Weak<MainWindow>) {
-        let listener = match protocol::listen(&ipc::oneclick_pipe_name()) {
+        let listener = match protocol::listen_cross_elevation(&ipc::oneclick_pipe_name()) {
             Ok(listener) => listener,
             Err(e) => {
                 error!("1-Click: could not open the listener: {e}");

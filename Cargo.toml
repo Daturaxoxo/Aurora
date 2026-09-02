@@ -7,6 +7,7 @@ members = [
     "crates/updater",
     "crates/steam-wrapper",
     "crates/installer",
+    "crates/oneclick",
 ]
 resolver = "3"
 
@@ -48,6 +49,7 @@ libc = "0.2"
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_Security",
+    "Win32_Security_Authorization",
     "Win32_System_Ole",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

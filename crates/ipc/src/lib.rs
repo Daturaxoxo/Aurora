@@ -1,5 +1,6 @@
 pub mod lock;
 pub mod manifest;
+pub mod oneclick;
 pub mod protocol;
 
 use std::path::PathBuf;
@@ -73,32 +74,24 @@ pub fn oneclick_pipe_name() -> String {
 pub const AURORA_EXE: &str = "Aurora.exe";
 #[cfg(not(windows))]
 pub const AURORA_EXE: &str = "Aurora";
-
+#[cfg(windows)]
+pub const ONECLICK_EXE: &str = "oneclick.exe";
+#[cfg(not(windows))]
+pub const ONECLICK_EXE: &str = "oneclick";
 #[cfg(windows)]
 pub const UPDATER_EXE: &str = "updater.exe";
 #[cfg(not(windows))]
 pub const UPDATER_EXE: &str = "updater";
-
 pub const LOCAL_MANIFEST_FILE: &str = ".aurora_manifest.json";
-
 #[cfg(target_os = "linux")]
 pub const APPIMAGE_NAME: &str = "Aurora-x86_64.AppImage";
-
 pub const AURORA_LOCK_FILE: &str = "aurora.lock";
 pub const UPDATER_LOCK_FILE: &str = "updater.lock";
-
-/// Passed by the updater when relaunching Aurora after an exe swap
 pub const POST_UPDATE_ARG: &str = "--post-update";
-/// Passed by the updater when relaunching the old Aurora after a failed exe
-/// swap, so that one run skips the startup update check and does not loop
 pub const SKIP_UPDATE_CHECK_ARG: &str = "--skip-update-check";
-/// Passed by Aurora when respawning itself after a silent update, so the new
-/// instance retries the singleton lock while the old instance shuts down
 pub const RELAUNCH_ARG: &str = "--relaunch";
-/// Launches the game headlessly: no window, inject, wait for NTE to exit,
-/// sanitize, then quit
 pub const QUICK_START_ARG: &str = "--quick-start";
-
+pub const ONECLICK_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const INIT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(60);
@@ -107,7 +100,6 @@ pub const UPDATER_CONNECT_ATTEMPTS: u32 = 10;
 pub const UPDATER_CONNECT_RETRY_DELAY: Duration = Duration::from_millis(500);
 pub const AURORA_EXIT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const RELAUNCH_LOCK_TIMEOUT: Duration = Duration::from_secs(60);
-
 pub const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const HTTP_STALL_TIMEOUT: Duration = Duration::from_secs(20);
 pub const HTTP_MANIFEST_TIMEOUT: Duration = Duration::from_secs(30);

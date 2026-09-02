@@ -2,38 +2,16 @@
 use log::*;
 #[cfg(target_os = "windows")]
 use std::path::Path;
-
-pub const SCHEME: &str = "aurora-launcher";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OneClick {
-    pub url: String,
-    pub model: String,
-    pub item_id: u32,
-}
-
-pub fn parse(arg: &str) -> Option<OneClick> {
-    let rest = arg
-        .strip_prefix(&format!("{SCHEME}:"))?
-        .trim_start_matches('/');
-
-    let mut parts = rest.rsplitn(3, ',');
-    let item_id = parts.next()?.trim().parse().ok()?;
-    let model = parts.next()?.trim().to_owned();
-    let url = percent_encoding::percent_decode_str(parts.next()?)
-        .decode_utf8()
-        .ok()?
-        .into_owned();
-
-    if model.is_empty() || url.is_empty() {
-        return None;
+pub use ipc::oneclick::{OneClick, SCHEME, parse};
+#[cfg(target_os = "windows")]
+pub fn handler_path(dir: &Path) -> std::path::PathBuf {
+    let shim = dir.join(ipc::ONECLICK_EXE);
+    if shim.is_file() {
+        shim
+    } else {
+        warn!("1-Click: {} is missing; registering Aurora itself", shim.display());
+        dir.join(ipc::AURORA_EXE)
     }
-
-    Some(OneClick {
-        url,
-        model,
-        item_id,
-    })
 }
 
 #[cfg(target_os = "windows")]
@@ -146,58 +124,5 @@ pub fn unregister_protocol() -> Result<(), String> {
         Err(format!(
             "could not delete HKCU\\{protocol_subkey} (error {status})"
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_raw_uri() {
-        assert_eq!(
-            parse("aurora-launcher:https://gamebanana.com/mmdl/1794621,Mod,708656"),
-            Some(OneClick {
-                url: "https://gamebanana.com/mmdl/1794621".into(),
-                model: "Mod".into(),
-                item_id: 708_656,
-            })
-        );
-    }
-
-    #[test]
-    fn parses_slash_and_percent_encoded_uri() {
-        assert_eq!(
-            parse("aurora-launcher://https%3A%2F%2Fgamebanana.com%2Fdl%2F1794621,Mod,708656"),
-            Some(OneClick {
-                url: "https://gamebanana.com/dl/1794621".into(),
-                model: "Mod".into(),
-                item_id: 708_656,
-            })
-        );
-    }
-
-    #[test]
-    fn splits_from_the_right() {
-        assert_eq!(
-            parse("aurora-launcher:https://gamebanana.com/mmdl/1?x=a,b,Mod,42"),
-            Some(OneClick {
-                url: "https://gamebanana.com/mmdl/1?x=a,b".into(),
-                model: "Mod".into(),
-                item_id: 42,
-            })
-        );
-    }
-
-    #[test]
-    fn rejects_invalid_input() {
-        for value in [
-            "https://gamebanana.com/mmdl/1,Mod,2",
-            "aurora-launcher:",
-            "aurora-launcher:https://gamebanana.com/mmdl/1,Mod,nope",
-            "aurora-launcher:https://gamebanana.com/mmdl/1,,2",
-        ] {
-            assert_eq!(parse(value), None, "{value}");
-        }
     }
 }

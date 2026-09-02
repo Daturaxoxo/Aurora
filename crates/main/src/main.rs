@@ -100,8 +100,11 @@ fn main() -> Result<()> {
     }
 
     #[cfg(target_os = "windows")]
-    if let Err(e) = shared::oneclick::register_protocol(&exe) {
-        warn!("1-Click: could not refresh protocol registration: {e}");
+    if let Some(dir) = exe.parent() {
+        let handler = shared::oneclick::handler_path(dir);
+        if let Err(e) = shared::oneclick::register_protocol(&handler) {
+            warn!("1-Click: could not refresh protocol registration: {e}");
+        }
     }
 
     if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {

@@ -51,10 +51,13 @@ impl Distribution {
     }
 }
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StartMethod {
+    /// Hands the launcher `/autoplay` so it starts the game right away.
     #[default]
     Direct,
+    /// Leaves the launcher on screen so the user presses Play themselves.
     Manual,
 }
 
@@ -238,6 +241,21 @@ mod tests {
                 BypassMethod::DSound
             );
         }
+    }
+
+    #[test]
+    fn start_method_from_num() {
+        assert_eq!(StartMethod::from_num(0), StartMethod::Direct);
+        assert_eq!(StartMethod::from_num(1), StartMethod::Manual);
+        // Anything unexpected keeps the default, one-click behaviour
+        assert_eq!(StartMethod::from_num(7), StartMethod::Direct);
+        assert_eq!(StartMethod::from_num(-1), StartMethod::Direct);
+    }
+
+    #[test]
+    fn only_direct_skips_the_launcher() {
+        assert_eq!(StartMethod::Direct.launch_args(), &["/autoplay"]);
+        assert!(StartMethod::Manual.launch_args().is_empty());
     }
 
     #[test]

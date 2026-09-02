@@ -288,7 +288,9 @@ fn run_inner(
     }
 
     let aurora_exe = install_dir.join(ipc::AURORA_EXE);
-    if let Err(e) = shared::oneclick::register_protocol(&aurora_exe) {
+    if let Err(e) =
+        shared::oneclick::register_protocol(&shared::oneclick::handler_path(install_dir))
+    {
         warn_line(ui, format!("could not register the 1-click protocol: {e}"));
     }
     if desktop_shortcut {

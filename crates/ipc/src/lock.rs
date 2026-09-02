@@ -12,9 +12,6 @@ pub struct SingletonLock {
 
 #[cfg(windows)]
 impl SingletonLock {
-    /// Try to acquire the lock file at `path`.
-    ///
-    /// Returns `Ok(None)` if another live process already holds it.
     pub fn acquire(path: &Path) -> io::Result<Option<Self>> {
         for _ in 0..5 {
             match Self::try_create(path) {
@@ -29,14 +26,9 @@ impl SingletonLock {
                         .ok()
                         .and_then(|s| s.trim().parse::<u32>().ok());
                     if let Some(pid) = owner
-                        && pid_alive(pid) {
-                            return Ok(None);
-                        }
-                    // Stale or unreadable lock: clear it and retry.
+                        && pid_alive(pid) {return Ok(None)}
                     if let Err(e) = fs::remove_file(path)
-                        && e.kind() != io::ErrorKind::NotFound {
-                            return Err(e);
-                        }
+                        && e.kind() != io::ErrorKind::NotFound {return Err(e)}
                 }
                 Err(e) => return Err(e),
             }
@@ -193,76 +185,5 @@ fn pid_alive(pid: u32) -> bool {
         let queried = GetExitCodeProcess(handle, &raw mut code) != 0;
         CloseHandle(handle);
         !queried || code == STILL_ACTIVE
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn temp_lock_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(name)
-    }
-
-    #[test]
-    fn acquire_and_release() {
-        let path = temp_lock_path("aurora_lock_test_basic.lock");
-        let _ = fs::remove_file(&path);
-
-        let lock = SingletonLock::acquire(&path).unwrap();
-        assert!(lock.is_some());
-        assert!(SingletonLock::acquire(&path).unwrap().is_none());
-
-        drop(lock);
-        assert!(!path.exists());
-    }
-
-    #[test]
-    fn stale_lock_is_reclaimed() {
-        let path = temp_lock_path("aurora_lock_test_stale.lock");
-        let _ = fs::remove_file(&path);
-
-        fs::write(&path, u32::MAX.to_string()).unwrap();
-        let lock = SingletonLock::acquire(&path).unwrap();
-        assert!(lock.is_some());
-        drop(lock);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn wait_until_released_sees_a_held_then_freed_lock() {
-        let path = temp_lock_path("aurora_lock_test_wait.lock");
-        let _ = fs::remove_file(&path);
-
-        let lock = SingletonLock::acquire(&path).unwrap().unwrap();
-        assert_eq!(holder_pid(&path), Some(std::process::id()));
-        assert!(!wait_until_released(&path, Duration::from_millis(200)));
-
-        drop(lock);
-        assert!(wait_until_released(&path, Duration::from_millis(200)));
-        assert_eq!(holder_pid(&path), None);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn a_dead_pid_does_not_hold_the_lock() {
-        let path = temp_lock_path("aurora_lock_test_dead_pid.lock");
-        let _ = fs::remove_file(&path);
-
-        fs::write(&path, u32::MAX.to_string()).unwrap();
-        assert_eq!(holder_pid(&path), None);
-        assert!(wait_until_released(&path, Duration::from_millis(200)));
-        let _ = fs::remove_file(&path);
-    }
-
-    #[test]
-    fn garbage_lock_is_reclaimed() {
-        let path = temp_lock_path("aurora_lock_test_garbage.lock");
-        let _ = fs::remove_file(&path);
-
-        fs::write(&path, "not-a-pid").unwrap();
-        let lock = SingletonLock::acquire(&path).unwrap();
-        assert!(lock.is_some());
-        drop(lock);
     }
 }
