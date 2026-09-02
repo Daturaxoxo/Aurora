@@ -103,6 +103,10 @@ impl AuroraEngine {
             .into_iter()
             .map(|f| (f.label, f.destination))
             .chain([
+                (
+                    "Everlight signature".to_string(),
+                    self.win64.join(super::everlight::SIGNATURE_FILE_NAME),
+                ),
                 ("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
                 ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])

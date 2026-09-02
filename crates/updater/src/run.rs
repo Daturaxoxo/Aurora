@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use ipc::lock::SingletonLock;
-use ipc::manifest::{FileEntry, LocalManifest, Manifest, hash_file};
+use ipc::manifest::{FileEntry, LocalManifest, Manifest, RemovalCandidate, UpdateDelta, hash_file};
 use ipc::protocol::{self, Message};
 
 use crate::logfile;
@@ -22,7 +22,8 @@ const READ_GRACE: Duration = Duration::from_millis(500);
 const ACCEPT_SLICE: Duration = Duration::from_millis(250);
 
 enum RollbackStep {
-    Restore { dst: PathBuf, bak: PathBuf },
+    RestoreReplacement { dst: PathBuf, bak: PathBuf },
+    RestoreRemoval { dst: PathBuf, bak: PathBuf },
     Remove { dst: PathBuf },
 }
 
@@ -140,8 +141,6 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
     }
     log(&format!("manifest fetched: version {}", manifest.version));
 
-    reconcile_orphans(root, &manifest);
-
     let mut local = match LocalManifest::load(root) {
         Ok(Some(local)) => local,
         Ok(None) => {
@@ -156,8 +155,10 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
         }
     };
 
-    let changed = manifest.changed_files(root, &local);
-    if changed.is_empty() {
+    reconcile_orphans(root, &manifest, &local);
+
+    let delta = manifest.update_delta(root, &local);
+    if delta.is_empty() {
         log("no changes; local state matches manifest");
         local.version = manifest.version;
         heartbeat.stop();
@@ -167,7 +168,11 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
         send(conn, &Message::NoUpdate);
         return Ok(());
     }
-    log(&format!("{} file(s) changed", changed.len()));
+    log(&format!(
+        "update delta: {} download(s), {} removal candidate(s)",
+        delta.downloads.len(),
+        delta.removals.len()
+    ));
 
     if peer_lost() {
         heartbeat.stop();
@@ -177,7 +182,7 @@ fn run(root: &Path, conn: &Conn, heartbeat: Heartbeat) -> Result<(), String> {
     }
 
     send(conn, &Message::Lock);
-    let result = apply_update(root, conn, &manifest, &mut local, &changed);
+    let result = apply_update(root, conn, &manifest, &mut local, &delta);
     heartbeat.stop();
     result
 }
@@ -187,9 +192,10 @@ fn apply_update(
     conn: &Conn,
     manifest: &Manifest,
     local: &mut LocalManifest,
-    changed: &[&FileEntry],
+    delta: &UpdateDelta<'_>,
 ) -> Result<(), String> {
     let original_local = local.clone();
+    let changed = &delta.downloads;
 
     let file_count = u32::try_from(changed.len()).unwrap_or(u32::MAX);
     let mut tmps: Vec<PathBuf> = Vec::new();
@@ -287,13 +293,23 @@ fn apply_update(
         local.files.insert(entry.path.clone(), entry.sha256.clone());
     }
 
+    let removed_parents = stage_removals(root, &delta.removals, local, &mut plan);
+
     if exe_entries.is_empty() {
         local.version.clone_from(&manifest.version);
-        local
-            .save(root)
-            .map_err(|e| format!("failed to save local manifest: {e}"))?;
+        if let Err(e) = local.save(root) {
+            return Err(fail(
+                root,
+                manifest,
+                &original_local,
+                &plan,
+                &tmps,
+                &format!("failed to save local manifest: {e}"),
+            ));
+        }
         delete_backups(&plan);
         cleanup(&tmps);
+        prune_empty_parents(root, &removed_parents);
         send(conn, &Message::Unlock);
         log("update applied (no exe change)");
         return Ok(());
@@ -357,7 +373,7 @@ fn apply_update(
         relaunch_previous(root, &exe);
         return Err(message);
     }
-    plan.push(RollbackStep::Restore {
+    plan.push(RollbackStep::RestoreReplacement {
         dst: exe.clone(),
         bak: exe_bak,
     });
@@ -407,6 +423,7 @@ fn apply_update(
         }
         delete_backups(&plan);
         cleanup(&tmps);
+        prune_empty_parents(root, &removed_parents);
         return Ok(());
     }
 
@@ -463,7 +480,8 @@ fn roll_back(
     let mut failures: Vec<String> = Vec::new();
     for step in plan.iter().rev() {
         match step {
-            RollbackStep::Restore { dst, bak } => {
+            RollbackStep::RestoreReplacement { dst, bak }
+            | RollbackStep::RestoreRemoval { dst, bak } => {
                 if let Err(e) = rename_with_retry(bak, dst, ROLLBACK_ATTEMPTS, ROLLBACK_DELAY) {
                     failures.push(format!("could not restore {}: {e}", dst.display()));
                 }
@@ -487,14 +505,20 @@ fn roll_back(
     for failure in &failures {
         log(&format!("rollback failure: {failure}"));
     }
-    resync_local_manifest(root, manifest, &original_local.version);
+    resync_local_manifest(root, manifest, original_local);
     Some(failures.join("; "))
 }
 
-fn resync_local_manifest(root: &Path, manifest: &Manifest, version: &str) {
+fn resync_local_manifest(root: &Path, manifest: &Manifest, original_local: &LocalManifest) {
     log("rebuilding the local manifest from what is on disk");
     let mut rebuilt = LocalManifest::build_manifest_from_disk(root, manifest);
-    version.clone_into(&mut rebuilt.version);
+    for (path, hash) in &original_local.files {
+        rebuilt
+            .files
+            .entry(path.clone())
+            .or_insert_with(|| hash.clone());
+    }
+    rebuilt.version.clone_from(&original_local.version);
     if let Err(e) = rebuilt.save(root) {
         log(&format!("warning: failed to write local manifest: {e}"));
     }
@@ -511,6 +535,195 @@ fn relaunch_previous(root: &Path, exe: &Path) {
     }
 }
 
+fn stage_removals(
+    root: &Path,
+    candidates: &[RemovalCandidate],
+    local: &mut LocalManifest,
+    plan: &mut Vec<RollbackStep>,
+) -> Vec<PathBuf> {
+    let mut parents = Vec::new();
+
+    for candidate in candidates {
+        let Some(dst) = ipc::manifest::safe_join(root, &candidate.path) else {
+            log(&format!(
+                "preserving removal candidate `{}`: path is unsafe",
+                candidate.path
+            ));
+            continue;
+        };
+        let bak = bak_path(&dst);
+
+        let metadata = match fs::symlink_metadata(&dst) {
+            Ok(metadata) => metadata,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if backup_path_is_occupied(&bak) {
+                    log(&format!(
+                        "preserving removal candidate `{}`: its backup could not be reconciled",
+                        candidate.path
+                    ));
+                    continue;
+                }
+                log(&format!(
+                    "removal candidate `{}` is already absent",
+                    candidate.path
+                ));
+                local.files.remove(&candidate.path);
+                continue;
+            }
+            Err(e) => {
+                log(&format!(
+                    "preserving removal candidate `{}`: could not inspect it: {e}",
+                    candidate.path
+                ));
+                continue;
+            }
+        };
+
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            log(&format!(
+                "preserving removal candidate `{}`: it is not a regular file",
+                candidate.path
+            ));
+            continue;
+        }
+        if !parent_resolves_below_root(root, &dst) {
+            log(&format!(
+                "preserving removal candidate `{}`: its parent resolves outside the install root",
+                candidate.path
+            ));
+            continue;
+        }
+
+        let actual = match hash_file(&dst) {
+            Ok(actual) => actual,
+            Err(e) => {
+                log(&format!(
+                    "preserving removal candidate `{}`: could not hash it: {e}",
+                    candidate.path
+                ));
+                continue;
+            }
+        };
+        if !ipc::manifest::hash_eq(&actual, &candidate.sha256) {
+            log(&format!(
+                "preserving modified removal candidate `{}`",
+                candidate.path
+            ));
+            continue;
+        }
+
+        if backup_path_is_occupied(&bak) {
+            log(&format!(
+                "preserving removal candidate `{}`: backup path {} already exists",
+                candidate.path,
+                bak.display()
+            ));
+            continue;
+        }
+        if let Err(e) =
+            rename_without_overwrite_with_retry(&dst, &bak, ROLLBACK_ATTEMPTS, ROLLBACK_DELAY)
+        {
+            log(&format!(
+                "preserving removal candidate `{}`: could not stage it for removal: {e}",
+                candidate.path
+            ));
+            continue;
+        }
+        let staged_matches =
+            hash_file(&bak).is_ok_and(|actual| ipc::manifest::hash_eq(&actual, &candidate.sha256));
+        if !staged_matches {
+            log(&format!(
+                "preserving removal candidate `{}`: it changed while being staged",
+                candidate.path
+            ));
+            if backup_path_is_occupied(&dst)
+                || rename_without_overwrite_with_retry(
+                    &bak,
+                    &dst,
+                    ROLLBACK_ATTEMPTS,
+                    ROLLBACK_DELAY,
+                )
+                .is_err()
+            {
+                log(&format!(
+                    "could not move {} back into place; ownership and its backup were retained",
+                    candidate.path
+                ));
+            }
+            continue;
+        }
+
+        log(&format!("staged `{}` for removal", candidate.path));
+        plan.push(RollbackStep::RestoreRemoval {
+            dst: dst.clone(),
+            bak,
+        });
+        local.files.remove(&candidate.path);
+        if let Some(parent) = dst.parent() {
+            parents.push(parent.to_path_buf());
+        }
+    }
+
+    parents
+}
+
+fn parent_resolves_below_root(root: &Path, path: &Path) -> bool {
+    let (Ok(root), Some(parent)) = (fs::canonicalize(root), path.parent()) else {
+        return false;
+    };
+    fs::canonicalize(parent).is_ok_and(|parent| parent.starts_with(root))
+}
+
+fn prune_empty_parents(root: &Path, parents: &[PathBuf]) {
+    let mut parents = parents.to_vec();
+    parents.sort_by(|a, b| {
+        b.components()
+            .count()
+            .cmp(&a.components().count())
+            .then_with(|| a.cmp(b))
+    });
+    parents.dedup();
+
+    for start in parents {
+        let mut current = start;
+        while current != root && current.starts_with(root) {
+            let parent = current.parent().map(Path::to_path_buf);
+            let safe_directory = fs::symlink_metadata(&current).is_ok_and(|metadata| {
+                metadata.is_dir()
+                    && !metadata.file_type().is_symlink()
+                    && fs::canonicalize(&current).is_ok_and(|current| {
+                        fs::canonicalize(root).is_ok_and(|root| current.starts_with(root))
+                    })
+            });
+            if !safe_directory {
+                break;
+            }
+            match fs::remove_dir(&current) {
+                Ok(()) => log(&format!("removed empty directory {}", current.display())),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::DirectoryNotEmpty
+                            | std::io::ErrorKind::PermissionDenied
+                    ) =>
+                {
+                    break;
+                }
+                Err(e) => {
+                    log(&format!(
+                        "could not remove parent directory {}: {e}",
+                        current.display()
+                    ));
+                    break;
+                }
+            }
+            let Some(parent) = parent else { break };
+            current = parent;
+        }
+    }
+}
+
 fn swap_in(dst: &Path, tmp: &Path, plan: &mut Vec<RollbackStep>) -> std::io::Result<()> {
     if dst.exists() {
         let bak = bak_path(dst);
@@ -522,7 +735,7 @@ fn swap_in(dst: &Path, tmp: &Path, plan: &mut Vec<RollbackStep>) -> std::io::Res
             }
         }
         fs::rename(dst, &bak)?;
-        plan.push(RollbackStep::Restore {
+        plan.push(RollbackStep::RestoreReplacement {
             dst: dst.to_path_buf(),
             bak,
         });
@@ -536,9 +749,15 @@ fn swap_in(dst: &Path, tmp: &Path, plan: &mut Vec<RollbackStep>) -> std::io::Res
 
 fn delete_backups(plan: &[RollbackStep]) {
     for step in plan {
-        if let RollbackStep::Restore { dst, bak } = step {
-            let _ = fs::remove_file(bak);
-            let _ = fs::remove_file(old_bak_path(dst));
+        match step {
+            RollbackStep::RestoreReplacement { dst, bak } => {
+                let _ = fs::remove_file(bak);
+                let _ = fs::remove_file(old_bak_path(dst));
+            }
+            RollbackStep::RestoreRemoval { bak, .. } => {
+                let _ = fs::remove_file(bak);
+            }
+            RollbackStep::Remove { .. } => {}
         }
     }
 }
@@ -574,6 +793,40 @@ fn rename_with_retry(
     Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
 }
 
+fn rename_without_overwrite_with_retry(
+    from: &Path,
+    to: &Path,
+    attempts: u32,
+    delay: Duration,
+) -> std::io::Result<()> {
+    let mut last = None;
+    for attempt in 0..attempts {
+        if backup_path_is_occupied(to) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("{} already exists", to.display()),
+            ));
+        }
+        match fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                last = Some(e);
+                if attempt + 1 < attempts {
+                    std::thread::sleep(delay);
+                }
+            }
+        }
+    }
+    Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
+}
+
+fn backup_path_is_occupied(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(e) => e.kind() != std::io::ErrorKind::NotFound,
+    }
+}
+
 fn remove_with_retry(path: &Path, attempts: u32, delay: Duration) -> std::io::Result<()> {
     let mut last = None;
     for _ in 0..attempts {
@@ -589,6 +842,7 @@ fn remove_with_retry(path: &Path, attempts: u32, delay: Duration) -> std::io::Re
     Err(last.unwrap_or_else(|| std::io::Error::other("remove failed")))
 }
 
+#[cfg(windows)]
 fn wait_for_aurora_exit(root: &Path) -> bool {
     let lock = root.join(ipc::AURORA_LOCK_FILE);
     if ipc::lock::wait_until_released(&lock, ipc::AURORA_EXIT_TIMEOUT) {
@@ -600,6 +854,11 @@ fn wait_for_aurora_exit(root: &Path) -> bool {
         ipc::AURORA_LOCK_FILE,
         ipc::AURORA_EXIT_TIMEOUT.as_secs()
     ));
+    false
+}
+
+#[cfg(all(test, not(windows)))]
+const fn wait_for_aurora_exit(_root: &Path) -> bool {
     false
 }
 
@@ -701,27 +960,13 @@ fn old_bak_path(path: &Path) -> PathBuf {
     with_suffix(path, "bak.old")
 }
 
-fn reconcile_orphans(root: &Path, manifest: &Manifest) {
+fn reconcile_orphans(root: &Path, manifest: &Manifest, local: &LocalManifest) {
     for entry in &manifest.files {
         let Some(dst) = entry.resolve(root) else {
             continue;
         };
-        
-        let bak = bak_path(&dst);
-        
-        if !dst.exists() && bak.exists() {
-            match fs::rename(&bak, &dst) {
-                Ok(()) => log(&format!(
-                    "restored {} from a backup left by an interrupted update",
-                    entry.path
-                )),
-                Err(e) => log(&format!(
-                    "could not restore {} from {}: {e}",
-                    entry.path,
-                    bak.display()
-                )),
-            }
-        }
+
+        restore_interrupted_backup(&dst, &entry.path);
 
         let tmp = tmp_path(&dst);
         if tmp.exists() {
@@ -729,6 +974,51 @@ fn reconcile_orphans(root: &Path, manifest: &Manifest) {
         }
         
         net::cleanup_attempts(&tmp);
+    }
+
+    for candidate in manifest.update_delta(root, local).removals {
+        let Some(dst) = ipc::manifest::safe_join(root, &candidate.path) else {
+            continue;
+        };
+        if parent_resolves_below_root(root, &dst) {
+            restore_interrupted_removal_backup(&dst, &candidate);
+        }
+    }
+}
+
+fn restore_interrupted_removal_backup(dst: &Path, candidate: &RemovalCandidate) {
+    let bak = bak_path(dst);
+    if backup_path_is_occupied(dst) || !backup_path_is_occupied(&bak) {
+        return;
+    }
+    let safe_backup = fs::symlink_metadata(&bak).is_ok_and(|metadata| {
+        metadata.is_file()
+            && !metadata.file_type().is_symlink()
+            && hash_file(&bak)
+                .is_ok_and(|actual| ipc::manifest::hash_eq(&actual, &candidate.sha256))
+    });
+    if !safe_backup {
+        log(&format!(
+            "could not restore interrupted removal `{}`: its backup is not the owned file",
+            candidate.path
+        ));
+        return;
+    }
+    restore_interrupted_backup(dst, &candidate.path);
+}
+
+fn restore_interrupted_backup(dst: &Path, relative: &str) {
+    let bak = bak_path(dst);
+    if !dst.exists() && bak.exists() {
+        match fs::rename(&bak, dst) {
+            Ok(()) => log(&format!(
+                "restored {relative} from a backup left by an interrupted update"
+            )),
+            Err(e) => log(&format!(
+                "could not restore {relative} from {}: {e}",
+                bak.display()
+            )),
+        }
     }
 }
 
@@ -741,4 +1031,325 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     name.push_str(suffix);
     
     path.with_file_name(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use ipc::manifest::hash_bytes;
+
+    use super::*;
+
+    static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> Self {
+            let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir()
+                .join(format!("aurora-updater-test-{}-{id}", std::process::id()));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn candidate(path: &str, contents: &[u8]) -> RemovalCandidate {
+        RemovalCandidate {
+            path: path.to_owned(),
+            sha256: hash_bytes(contents),
+        }
+    }
+
+    fn local(path: &str, contents: &[u8]) -> LocalManifest {
+        LocalManifest {
+            version: "2.0.0".to_owned(),
+            files: BTreeMap::from([(path.to_owned(), hash_bytes(contents))]),
+        }
+    }
+
+    fn empty_manifest() -> Manifest {
+        Manifest {
+            version: "2.1.0".to_owned(),
+            updater_hash: String::new(),
+            files: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn removal_only_transaction_removes_owned_file_and_empty_parents() {
+        let root = TestDir::new();
+        let nested = root.0.join("Bin").join("Legacy");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("old.dll"), b"owned").unwrap();
+        let mut local = local("Bin/Legacy/old.dll", b"owned");
+        let mut plan = Vec::new();
+
+        let parents = stage_removals(
+            &root.0,
+            &[candidate("Bin/Legacy/old.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+
+        assert!(!nested.join("old.dll").exists());
+        assert!(bak_path(&nested.join("old.dll")).exists());
+        assert!(!local.files.contains_key("Bin/Legacy/old.dll"));
+        delete_backups(&plan);
+        prune_empty_parents(&root.0, &parents);
+        assert!(!root.0.join("Bin").exists());
+    }
+
+    #[test]
+    fn mixed_replacement_and_removal_commit_together() {
+        let root = TestDir::new();
+        let changed = root.0.join("changed.dll");
+        let changed_tmp = tmp_path(&changed);
+        let obsolete = root.0.join("obsolete.dll");
+        fs::write(&changed, b"old").unwrap();
+        fs::write(&changed_tmp, b"new").unwrap();
+        fs::write(&obsolete, b"obsolete").unwrap();
+        let mut local = LocalManifest {
+            version: "2.0.0".to_owned(),
+            files: BTreeMap::from([
+                ("changed.dll".to_owned(), hash_bytes(b"old")),
+                ("obsolete.dll".to_owned(), hash_bytes(b"obsolete")),
+            ]),
+        };
+        let mut plan = Vec::new();
+
+        swap_in(&changed, &changed_tmp, &mut plan).unwrap();
+        local
+            .files
+            .insert("changed.dll".to_owned(), hash_bytes(b"new"));
+        let parents = stage_removals(
+            &root.0,
+            &[candidate("obsolete.dll", b"obsolete")],
+            &mut local,
+            &mut plan,
+        );
+        delete_backups(&plan);
+        prune_empty_parents(&root.0, &parents);
+
+        assert_eq!(fs::read(changed).unwrap(), b"new");
+        assert!(!obsolete.exists());
+        assert_eq!(local.files.get("changed.dll"), Some(&hash_bytes(b"new")));
+        assert!(!local.files.contains_key("obsolete.dll"));
+    }
+
+    #[test]
+    fn modified_file_is_preserved_and_owned_until_a_retry_matches() {
+        let root = TestDir::new();
+        let path = root.0.join("obsolete.dll");
+        fs::write(&path, b"modified").unwrap();
+        let removal = candidate("obsolete.dll", b"owned");
+        let mut local = local("obsolete.dll", b"owned");
+        let mut first_plan = Vec::new();
+
+        stage_removals(
+            &root.0,
+            std::slice::from_ref(&removal),
+            &mut local,
+            &mut first_plan,
+        );
+
+        assert_eq!(fs::read(&path).unwrap(), b"modified");
+        assert!(local.files.contains_key("obsolete.dll"));
+        assert_eq!(first_plan.len(), 0);
+
+        fs::write(&path, b"owned").unwrap();
+        let mut retry_plan = Vec::new();
+        stage_removals(&root.0, &[removal], &mut local, &mut retry_plan);
+        delete_backups(&retry_plan);
+
+        assert!(!path.exists());
+        assert!(!local.files.contains_key("obsolete.dll"));
+    }
+
+    #[test]
+    fn failed_removal_does_not_overwrite_existing_backup() {
+        let root = TestDir::new();
+        let path = root.0.join("obsolete.dll");
+        let backup = bak_path(&path);
+        fs::write(&path, b"owned").unwrap();
+        fs::write(&backup, b"unrelated backup").unwrap();
+        let mut local = local("obsolete.dll", b"owned");
+        let mut plan = Vec::new();
+
+        stage_removals(
+            &root.0,
+            &[candidate("obsolete.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+
+        assert_eq!(fs::read(path).unwrap(), b"owned");
+        assert_eq!(fs::read(backup).unwrap(), b"unrelated backup");
+        assert!(local.files.contains_key("obsolete.dll"));
+        assert_eq!(plan.len(), 0);
+    }
+
+    #[test]
+    fn rollback_restores_removed_file_and_original_ownership() {
+        let root = TestDir::new();
+        let path = root.0.join("obsolete.dll");
+        fs::write(&path, b"owned").unwrap();
+        let original = local("obsolete.dll", b"owned");
+        let mut local = original.clone();
+        let mut plan = Vec::new();
+
+        stage_removals(
+            &root.0,
+            &[candidate("obsolete.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+        assert!(!path.exists());
+
+        assert!(roll_back(&root.0, &empty_manifest(), &original, &plan).is_none());
+        assert_eq!(fs::read(path).unwrap(), b"owned");
+        assert_eq!(
+            LocalManifest::load(&root.0).unwrap().unwrap().files,
+            original.files
+        );
+    }
+
+    #[test]
+    fn rollback_resync_keeps_stale_ownership_for_future_retry() {
+        let root = TestDir::new();
+        fs::write(root.0.join("current.dll"), b"current").unwrap();
+        let original = LocalManifest {
+            version: "2.0.0".to_owned(),
+            files: BTreeMap::from([
+                ("current.dll".to_owned(), hash_bytes(b"old current")),
+                ("obsolete.dll".to_owned(), hash_bytes(b"obsolete")),
+            ]),
+        };
+        let remote = Manifest {
+            version: "2.1.0".to_owned(),
+            updater_hash: String::new(),
+            files: vec![FileEntry {
+                path: "current.dll".to_owned(),
+                sha256: hash_bytes(b"current"),
+                url: String::new(),
+            }],
+        };
+
+        resync_local_manifest(&root.0, &remote, &original);
+
+        let saved = LocalManifest::load(&root.0).unwrap().unwrap();
+        assert_eq!(saved.version, "2.0.0");
+        assert_eq!(
+            saved.files.get("current.dll"),
+            Some(&hash_bytes(b"current"))
+        );
+        assert_eq!(
+            saved.files.get("obsolete.dll"),
+            Some(&hash_bytes(b"obsolete"))
+        );
+    }
+
+    #[test]
+    fn interrupted_removal_is_restored_before_retrying() {
+        let root = TestDir::new();
+        let path = root.0.join("obsolete.dll");
+        let backup = bak_path(&path);
+        fs::write(&path, b"owned").unwrap();
+        fs::rename(&path, &backup).unwrap();
+        let local = local("obsolete.dll", b"owned");
+
+        reconcile_orphans(&root.0, &empty_manifest(), &local);
+
+        assert_eq!(fs::read(path).unwrap(), b"owned");
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn interrupted_removal_does_not_restore_an_unrelated_backup() {
+        let root = TestDir::new();
+        let path = root.0.join("obsolete.dll");
+        let backup = bak_path(&path);
+        fs::write(&backup, b"unrelated").unwrap();
+        let local = local("obsolete.dll", b"owned");
+
+        reconcile_orphans(&root.0, &empty_manifest(), &local);
+
+        assert!(!path.exists());
+        assert_eq!(fs::read(backup).unwrap(), b"unrelated");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_removal_candidate_is_preserved() {
+        use std::os::unix::fs::symlink;
+
+        let root = TestDir::new();
+        let outside = root.0.with_extension("outside");
+        fs::write(&outside, b"owned").unwrap();
+        let link = root.0.join("obsolete.dll");
+        symlink(&outside, &link).unwrap();
+        let mut local = local("obsolete.dll", b"owned");
+        let mut plan = Vec::new();
+
+        stage_removals(
+            &root.0,
+            &[candidate("obsolete.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+
+        assert!(fs::symlink_metadata(link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read(&outside).unwrap(), b"owned");
+        assert!(local.files.contains_key("obsolete.dll"));
+        assert_eq!(plan.len(), 0);
+        fs::remove_file(outside).unwrap();
+    }
+
+    #[test]
+    fn already_missing_owned_file_is_forgotten_without_scanning() {
+        let root = TestDir::new();
+        let mut local = local("nested/obsolete.dll", b"owned");
+        let mut plan = Vec::new();
+
+        stage_removals(
+            &root.0,
+            &[candidate("nested/obsolete.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+
+        assert!(!local.files.contains_key("nested/obsolete.dll"));
+        assert_eq!(plan.len(), 0);
+    }
+
+    #[test]
+    fn nonempty_parent_directory_is_preserved() {
+        let root = TestDir::new();
+        let nested = root.0.join("Bin").join("Legacy");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("old.dll"), b"owned").unwrap();
+        fs::write(nested.join("user.txt"), b"unowned").unwrap();
+        let mut local = local("Bin/Legacy/old.dll", b"owned");
+        let mut plan = Vec::new();
+
+        let parents = stage_removals(
+            &root.0,
+            &[candidate("Bin/Legacy/old.dll", b"owned")],
+            &mut local,
+            &mut plan,
+        );
+        delete_backups(&plan);
+        prune_empty_parents(&root.0, &parents);
+
+        assert_eq!(fs::read(nested.join("user.txt")).unwrap(), b"unowned");
+        assert!(nested.exists());
+    }
 }
