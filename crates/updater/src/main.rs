@@ -1,10 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(all(test, not(windows)), allow(dead_code))]
 
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 mod logfile;
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 mod net;
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 mod run;
 
 #[cfg(windows)]

@@ -44,6 +44,25 @@ pub struct FileEntry {
     pub url: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovalCandidate {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Debug)]
+pub struct UpdateDelta<'a> {
+    pub downloads: Vec<&'a FileEntry>,
+    pub removals: Vec<RemovalCandidate>,
+}
+
+impl UpdateDelta<'_> {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.downloads.is_empty() && self.removals.is_empty()
+    }
+}
+
 #[cfg(target_os = "linux")]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LinuxManifest {
@@ -125,6 +144,28 @@ fn check_relative_path(relative: &str) -> Result<PathBuf, String> {
     Ok(out)
 }
 
+fn path_key(relative: &str) -> String {
+    relative.replace('\\', "/").to_lowercase()
+}
+
+fn is_protected_owned_path(relative: &str) -> bool {
+    let key = path_key(relative);
+    [
+        crate::AURORA_EXE,
+        crate::UPDATER_EXE,
+        crate::LOCAL_MANIFEST_FILE,
+    ]
+    .into_iter()
+    .any(|protected| key == path_key(protected))
+}
+
+fn is_externally_managed_download(relative: &str) -> bool {
+    let key = path_key(relative);
+    [crate::UPDATER_EXE, crate::LOCAL_MANIFEST_FILE]
+        .into_iter()
+        .any(|managed| key == path_key(managed))
+}
+
 pub fn safe_join(install_root: &Path, relative: &str) -> Option<PathBuf> {
     check_relative_path(relative)
         .ok()
@@ -178,7 +219,7 @@ impl Manifest {
             check_relative_path(&entry.path)
                 .map_err(|e| format!("rejected manifest entry `{}`: {e}", entry.path))?;
 
-            let key = entry.path.replace('\\', "/").to_lowercase();
+            let key = path_key(&entry.path);
             if !seen.insert(key) {
                 return Err(format!("manifest lists `{}` more than once", entry.path));
             }
@@ -193,28 +234,65 @@ impl Manifest {
         Ok(())
     }
 
-    pub fn changed_files(&self, install_root: &Path, local: &LocalManifest) -> Vec<&FileEntry> {
-        self.files
+    pub fn update_delta<'a>(
+        &'a self,
+        install_root: &Path,
+        local: &LocalManifest,
+    ) -> UpdateDelta<'a> {
+        let downloads = self
+            .files
             .iter()
             .filter(|entry| {
-                if entry.path == crate::UPDATER_EXE {
+                if is_externally_managed_download(&entry.path) {
                     return false;
                 }
-                
+
                 let Some(target) = entry.resolve(install_root) else {
                     return false;
                 };
-                
+
                 if !target.exists() {
                     return true;
                 }
-                
+
+                let entry_key = path_key(&entry.path);
                 local
                     .files
-                    .get(&entry.path)
-                    .is_none_or(|known| !hash_eq(known, &entry.sha256))
+                    .iter()
+                    .filter(|(path, _)| path_key(path) == entry_key)
+                    .all(|(_, known)| !hash_eq(known, &entry.sha256))
             })
-            .collect()
+            .collect();
+
+        let shipped: BTreeSet<String> = self
+            .files
+            .iter()
+            .map(|entry| path_key(&entry.path))
+            .collect();
+        let removals = local
+            .files
+            .iter()
+            .filter(|(path, _)| {
+                !is_protected_owned_path(path) && !shipped.contains(&path_key(path))
+            })
+            .map(|(path, sha256)| RemovalCandidate {
+                path: path.clone(),
+                sha256: sha256.clone(),
+            })
+            .collect();
+
+        UpdateDelta {
+            downloads,
+            removals,
+        }
+    }
+
+    pub fn changed_files<'a>(
+        &'a self,
+        install_root: &Path,
+        local: &LocalManifest,
+    ) -> Vec<&'a FileEntry> {
+        self.update_delta(install_root, local).downloads
     }
 }
 
@@ -300,4 +378,168 @@ fn hex_encode(bytes: &[u8]) -> String {
         let _ = write!(s, "{b:02x}");
         s
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> Self {
+            let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir()
+                .join(format!("aurora-manifest-test-{}-{id}", std::process::id()));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn entry(path: &str, contents: &[u8]) -> FileEntry {
+        FileEntry {
+            path: path.to_owned(),
+            sha256: hash_bytes(contents),
+            url: String::new(),
+        }
+    }
+
+    fn manifest(files: Vec<FileEntry>) -> Manifest {
+        Manifest {
+            version: "2.1.0".to_owned(),
+            updater_hash: String::new(),
+            files,
+        }
+    }
+
+    #[test]
+    fn update_delta_detects_removal_only_release() {
+        let root = TestDir::new();
+        fs::write(root.0.join("current.dll"), b"current").unwrap();
+        fs::write(root.0.join("obsolete.dll"), b"obsolete").unwrap();
+
+        let remote = manifest(vec![entry("current.dll", b"current")]);
+        let local = LocalManifest {
+            version: "2.0.0".to_owned(),
+            files: BTreeMap::from([
+                ("current.dll".to_owned(), hash_bytes(b"current")),
+                ("obsolete.dll".to_owned(), hash_bytes(b"obsolete")),
+            ]),
+        };
+
+        let delta = remote.update_delta(&root.0, &local);
+        assert_eq!(delta.downloads.len(), 0);
+        assert_eq!(
+            delta.removals,
+            [RemovalCandidate {
+                path: "obsolete.dll".to_owned(),
+                sha256: hash_bytes(b"obsolete"),
+            }]
+        );
+    }
+
+    #[test]
+    fn update_delta_detects_mixed_downloads_and_removals() {
+        let root = TestDir::new();
+        fs::write(root.0.join("changed.dll"), b"old").unwrap();
+        fs::write(root.0.join("obsolete.dll"), b"obsolete").unwrap();
+
+        let remote = manifest(vec![entry("changed.dll", b"new")]);
+        let local = LocalManifest {
+            version: "2.0.0".to_owned(),
+            files: BTreeMap::from([
+                ("changed.dll".to_owned(), hash_bytes(b"old")),
+                ("obsolete.dll".to_owned(), hash_bytes(b"obsolete")),
+            ]),
+        };
+
+        let delta = remote.update_delta(&root.0, &local);
+        assert_eq!(
+            delta
+                .downloads
+                .iter()
+                .map(|entry| entry.path.as_str())
+                .collect::<Vec<_>>(),
+            ["changed.dll"]
+        );
+        assert_eq!(delta.removals[0].path, "obsolete.dll");
+    }
+
+    #[test]
+    fn missing_local_manifest_does_not_infer_removals_from_disk() {
+        let root = TestDir::new();
+        fs::write(root.0.join("current.dll"), b"current").unwrap();
+        fs::write(root.0.join("unowned.dll"), b"unowned").unwrap();
+        let remote = manifest(vec![entry("current.dll", b"current")]);
+
+        assert!(LocalManifest::load(&root.0).unwrap().is_none());
+        let local = LocalManifest::build_manifest_from_disk(&root.0, &remote);
+        let delta = remote.update_delta(&root.0, &local);
+
+        assert!(delta.is_empty());
+        assert!(!local.files.contains_key("unowned.dll"));
+    }
+
+    #[test]
+    fn remote_path_identity_uses_windows_case_and_separator_rules() {
+        let root = TestDir::new();
+        fs::create_dir(root.0.join("Bin")).unwrap();
+        fs::write(root.0.join("Bin").join("owned.dll"), b"owned").unwrap();
+        let remote = manifest(vec![entry("Bin/owned.dll", b"owned")]);
+        let local = LocalManifest {
+            version: String::new(),
+            files: BTreeMap::from([("BIN\\OWNED.DLL".to_owned(), hash_bytes(b"owned"))]),
+        };
+
+        let delta = remote.update_delta(&root.0, &local);
+
+        assert_eq!(delta.removals.len(), 0);
+        assert_eq!(delta.downloads.len(), 0);
+    }
+
+    #[test]
+    fn core_runtime_files_are_never_removal_candidates() {
+        let root = TestDir::new();
+        let local = LocalManifest {
+            version: String::new(),
+            files: BTreeMap::from([
+                (crate::AURORA_EXE.to_uppercase(), "aurora".to_owned()),
+                (crate::UPDATER_EXE.to_uppercase(), "updater".to_owned()),
+                (
+                    crate::LOCAL_MANIFEST_FILE.to_uppercase(),
+                    "manifest".to_owned(),
+                ),
+                ("obsolete.dll".to_owned(), "obsolete".to_owned()),
+            ]),
+        };
+
+        let remote = manifest(Vec::new());
+        let delta = remote.update_delta(&root.0, &local);
+
+        assert_eq!(delta.removals.len(), 1);
+        assert_eq!(delta.removals[0].path, "obsolete.dll");
+    }
+
+    #[test]
+    fn externally_managed_files_are_not_downloaded_through_the_transaction() {
+        let root = TestDir::new();
+        let remote = manifest(vec![
+            entry(crate::UPDATER_EXE, b"updater"),
+            entry(crate::LOCAL_MANIFEST_FILE, b"manifest"),
+        ]);
+
+        let delta = remote.update_delta(&root.0, &LocalManifest::default());
+
+        assert_eq!(delta.downloads.len(), 0);
+    }
 }

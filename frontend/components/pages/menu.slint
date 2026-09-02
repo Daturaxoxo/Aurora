@@ -2,6 +2,7 @@ import { Palette } from "../../global.slint";
 import { Tr, TrKey } from "../../translations.slint";
 
 struct MenuItem {
+    id: int,
     name: string,
     icon: image,
     disabled: bool,
@@ -13,23 +14,22 @@ export component MenuPage inherits Rectangle {
 
     in property <[MenuItem]> items: [
         {
+            id: 0,
             name: Tr.values[TrKey.menu-item-screenshots],
             icon: @image-url("../../../production/icons/menu/camera.png")
         },
         {
-            name: Tr.values[TrKey.menu-item-movies],
-            icon: @image-url("../../../production/icons/menu/movie.png"),
-            disabled: true
-        },
-        {
+            id: 2,
             name: Tr.values[TrKey.menu-item-lua],
             icon: @image-url("../../../production/icons/menu/lua.png")
         },
         {
+            id: 3,
             name: Tr.values[TrKey.menu-item-modules],
             icon: @image-url("../../../production/icons/menu/modules.png")
         },
         {
+            id: 4,
             name: Tr.values[TrKey.menu-item-addons],
             icon: @image-url("../../../production/icons/menu/addons.png")
         },
@@ -44,7 +44,7 @@ export component MenuPage inherits Rectangle {
 
     panel := Rectangle {
         width: 480px;
-        height: panel-layout.preferred-height + 32px;
+        height: panel-layout.preferred-height;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         background: Palette.glass-background;
@@ -115,8 +115,11 @@ export component MenuPage inherits Rectangle {
                 spacing: 12px;
 
                 VerticalLayout {
+                    min-width: 0px;
+                    preferred-width: 0px;
+                    horizontal-stretch: 1;
                     spacing: 12px;
-                    for i in [0, 2, 4]: Rectangle {
+                    for i in [0, 2]: Rectangle {
                         height: 100px;
                         visible: i < root.items.length;
                         background: root.items[i].disabled ? #ffffff05 : (ta-left.has-hover ? #ffffff12 : #ffffff08);
@@ -128,7 +131,7 @@ export component MenuPage inherits Rectangle {
 
                         ta-left := TouchArea {
                             enabled: i < root.items.length && !root.items[i].disabled;
-                            clicked => { root.menu-item-clicked(i); }
+                            clicked => { root.menu-item-clicked(root.items[i].id); }
                         }
 
                         VerticalLayout {
@@ -170,8 +173,11 @@ export component MenuPage inherits Rectangle {
                 }
 
                 VerticalLayout {
+                    min-width: 0px;
+                    preferred-width: 0px;
+                    horizontal-stretch: 1;
                     spacing: 12px;
-                    for i in [1, 3, 5]: Rectangle {
+                    for i in [1, 3]: Rectangle {
                         height: 100px;
                         visible: i < root.items.length;
                         background: root.items[i].disabled ? #ffffff05 : (ta-right.has-hover ? #ffffff12 : #ffffff08);
@@ -183,7 +189,7 @@ export component MenuPage inherits Rectangle {
 
                         ta-right := TouchArea {
                             enabled: i < root.items.length && !root.items[i].disabled;
-                            clicked => { root.menu-item-clicked(i); }
+                            clicked => { root.menu-item-clicked(root.items[i].id); }
                         }
 
                         VerticalLayout {

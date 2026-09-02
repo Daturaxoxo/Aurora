@@ -137,22 +137,6 @@ pub fn restore_missing_files_in(root: &Path) -> RepairReport {
     let mut local = LocalManifest::load(root).ok().flatten();
     let mut local_dirty = false;
 
-    if let Some(local) = local.as_mut() {
-        let shipped: BTreeSet<&str> = manifest.files.iter().map(|f| f.path.as_str()).collect();
-        let stale: Vec<String> = local
-            .files
-            .keys()
-            .filter(|path| !shipped.contains(path.as_str()))
-            .cloned()
-            .collect();
-
-        for path in stale {
-            debug!("Repair: '{path}' is no longer shipped, dropping it from the local manifest");
-            local.files.remove(&path);
-            local_dirty = true;
-        }
-    }
-
     if let Some(local) = &local
         && local.version != manifest.version {
             info!(

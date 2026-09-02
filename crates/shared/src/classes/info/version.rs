@@ -51,7 +51,7 @@ impl Distribution {
     }
 }
 
-/// How Aurora starts the game once the engine is in place.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StartMethod {
     /// Hands the launcher `/autoplay` so it starts the game right away.
@@ -86,7 +86,6 @@ impl StartMethod {
         }
     }
 
-    /// The method the user picked in the Launcher tab.
     pub fn from_config() -> Self {
         let raw = crate::config::get(crate::config::key::START_METHOD);
 
