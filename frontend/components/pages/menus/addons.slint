@@ -12,6 +12,7 @@ export struct AddonItem {
     installed: bool,
     enabled: bool,
     update_available: bool,
+    auto_update: bool,
     installing: bool,
     unavailable: bool,
 }
@@ -21,6 +22,7 @@ component AddonCard inherits Rectangle {
     in property <int> index;
 
     callback action(int);
+    callback auto-update(int);
     callback open-link(int);
     callback delete(int);
 
@@ -51,6 +53,7 @@ component AddonCard inherits Rectangle {
         Tr.values[TrKey.addons-action-enable];
 
     property <bool> show-delete: root.item.installed && !root.item.unavailable && !root.busy;
+    property <bool> show-auto-update: root.item.installed && !root.item.unavailable;
 
     // Addons that ship a direct download have no GameBanana page to open
     property <bool> show-link: root.item.link != "";
@@ -82,6 +85,37 @@ component AddonCard inherits Rectangle {
             height: 40px;
             y: 120px;
             background: @linear-gradient(180deg, #00000000 0%, #00000066 100%);
+        }
+
+        if root.show-auto-update: auto-update-btn := Rectangle {
+            x: 8px;
+            y: 8px;
+            width: 96px;
+            height: 28px;
+            border-radius: 8px;
+            property <color> toggle-color: root.item.auto_update ? #25d952 : #ee4937;
+            background: auto-update-ta.has-hover && !root.item.installing
+                ? self.toggle-color.brighter(0.15)
+                : self.toggle-color;
+            animate background { duration: 120ms; }
+
+            auto-update-ta := TouchArea {
+                enabled: !root.item.installing;
+                clicked => { root.auto-update(root.index); }
+            }
+
+            Text {
+                x: 6px;
+                width: parent.width - 12px;
+                text: Tr.values[TrKey.addons-action-auto-update];
+                color: Palette.text-primary;
+                font-size: 10.5px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
         }
 
         Rectangle {
@@ -273,6 +307,7 @@ component AddonCard inherits Rectangle {
 export component AddonsPage inherits Rectangle {
     callback close-addons();
     callback addon-action(int);
+    callback addon-auto-update(int);
     callback addon-open-link(int);
     callback addon-delete(int);
     in property <[AddonItem]> addons: [];
@@ -439,6 +474,7 @@ export component AddonsPage inherits Rectangle {
                                 item: root.addons[i];
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
+                                auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
                             }
@@ -456,6 +492,7 @@ export component AddonsPage inherits Rectangle {
                                 item: root.addons[i];
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
+                                auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
                             }

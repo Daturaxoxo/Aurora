@@ -1584,6 +1584,25 @@
         "id": "AKTIFKAN"
     },
     {
+        "key": "addons.action.auto-update",
+        "en": "AUTO UPDATE",
+        "tr": "OTOMATİK GÜNCELLE",
+        "zh-CN": "自动更新",
+        "zh-TW": "自動更新",
+        "jp": "自動更新",
+        "ko": "자동 업데이트",
+        "es": "AUTOACTUALIZAR",
+        "pt": "ATUALIZAÇÃO AUTO",
+        "pt-BR": "ATUALIZAÇÃO AUTO",
+        "de": "AUTO-UPDATE",
+        "vi": "TỰ ĐỘNG CẬP NHẬT",
+        "nl": "AUTO-UPDATE",
+        "ru": "АВТООБНОВЛЕНИЕ",
+        "id": "UPDATE OTOMATIS",
+        "it": "AGGIORNA AUTO",
+        "fr": "MÀJ AUTO"
+    },
+    {
         "key": "addons.empty.title",
         "en": "No Addons Found",
         "tr": "Eklenti Bulunamadı",

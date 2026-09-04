@@ -75,6 +75,7 @@ pub mod key {
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
     pub const LAUNCH_ARGS: &str = "launch_args";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
+    pub const ADDON_AUTO_UPDATES: &str = "addon_auto_updates";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -107,6 +108,8 @@ pub fn default_value(k: &str) -> Value {
         | key::PROTON_VERSION
         | key::LAUNCH_ARGS
         | key::PROTON_CUSTOM_PATH => json!(""),
+
+        key::ADDON_AUTO_UPDATES => json!({}),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

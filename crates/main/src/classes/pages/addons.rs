@@ -121,8 +121,51 @@ impl AddonsHandler {
     fn load(window: &slint::Weak<MainWindow>) {
         let ww = window.clone();
         std::thread::spawn(move || {
-            let addons = Self::scan();
+            let mut addons = Self::scan();
             let version = Self::detected_version();
+            let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
+            let mut failures = Vec::new();
+
+            for addon in &mut addons {
+                if !addon.installed
+                    || !addon.update_available
+                    || !Self::auto_update_enabled(&auto_updates, &addon.name)
+                    || Self::is_unavailable(addon, version)
+                {
+                    continue;
+                }
+
+                let was_enabled = addon.enabled;
+                if !was_enabled {
+                    Self::set_enabled(addon, true);
+                }
+
+                let result = Self::install(addon);
+
+                if !was_enabled {
+                    Self::set_enabled(addon, false);
+                }
+
+                match result {
+                    Ok(()) => {
+                        addon.enabled = was_enabled;
+                        addon.update_available = false;
+                        info!("Auto-updated addon '{}'", addon.name);
+                    }
+                    Err(e) => {
+                        error!("Could not auto-update addon '{}': {e}", addon.name);
+                        failures.push(format!("{}: {e}", addon.name));
+                    }
+                }
+            }
+
+            if !failures.is_empty() {
+                ToastHandler::show(
+                    &ww,
+                    format!("Failed to auto-update: {}", failures.join("; ")),
+                    "error",
+                );
+            }
 
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(w) = ww.upgrade() else {
@@ -132,13 +175,47 @@ impl AddonsHandler {
 
                 let slint_items: Vec<AddonItem> = addons
                     .iter()
-                    .map(|addon| Self::to_slint_item(addon, version))
+                    .map(|addon| Self::to_slint_item(addon, version, &auto_updates))
                     .collect();
 
                 w.set_addons(Rc::new(VecModel::from(slint_items)).into());
                 Self::fetch_images_async(&ww, addons);
             });
         });
+    }
+
+    fn set_auto_update(name: &str, enabled: bool) -> bool {
+        let Some(addon_key) = config_key(name) else {
+            error!("Could not persist auto-update for unknown addon '{name}'");
+            return false;
+        };
+
+        config::modify(|data| {
+            let preferences = data
+                .entry(config::key::ADDON_AUTO_UPDATES.to_string())
+                .or_insert_with(|| serde_json::json!({}));
+
+            if !preferences.is_object() {
+                *preferences = serde_json::json!({});
+            }
+
+            let preferences = preferences
+                .as_object_mut()
+                .expect("auto-update preferences were initialized as an object");
+
+            if enabled {
+                preferences.insert(addon_key.to_string(), true.into());
+            } else {
+                preferences.remove(addon_key);
+            }
+        })
+    }
+
+    fn auto_update_enabled(preferences: &serde_json::Value, name: &str) -> bool {
+        config_key(name)
+            .and_then(|addon_key| preferences.get(addon_key))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
     }
 
     fn image_cache_dir() -> PathBuf {
@@ -309,6 +386,31 @@ impl AddonsHandler {
         });
 
         let ww = window.clone();
+        w.on_addon_auto_update(move |index| {
+            let Ok(i) = usize::try_from(index) else {
+                return;
+            };
+
+            let Some(win) = ww.upgrade() else { return };
+            let model = win.get_addons();
+            let Some(mut row) = model.row_data(i) else {
+                return;
+            };
+
+            if !row.installed || row.unavailable || row.installing {
+                return;
+            }
+
+            let enabled = !row.auto_update;
+            if Self::set_auto_update(row.name.as_str(), enabled) {
+                row.auto_update = enabled;
+                model.set_row_data(i, row);
+            } else {
+                ToastHandler::show(&ww, "Failed to save the auto-update setting.", "error");
+            }
+        });
+
+        let ww = window.clone();
         w.on_addon_open_link(move |index| {
             let Ok(i) = usize::try_from(index) else {
                 return;
@@ -380,10 +482,27 @@ impl AddonsHandler {
                 |addon| Self::delete(addon).map(|()| addon.name.clone()),
             );
 
-            match &result {
-                Ok(name) => ToastHandler::show(&ww, format!("{name} deleted."), "success"),
-                Err(e) => ToastHandler::show(&ww, format!("Failed to delete addon: {e}"), "error"),
-            }
+            let auto_update_reset = match &result {
+                Ok(name) => {
+                    let reset = Self::set_auto_update(name, false);
+                    if reset {
+                        ToastHandler::show(&ww, format!("{name} deleted."), "success");
+                    } else {
+                        ToastHandler::show(
+                            &ww,
+                            format!(
+                                "{name} was deleted, but its auto-update setting could not be reset."
+                            ),
+                            "error",
+                        );
+                    }
+                    reset
+                }
+                Err(e) => {
+                    ToastHandler::show(&ww, format!("Failed to delete addon: {e}"), "error");
+                    false
+                }
+            };
 
             // Re-scan so the config keys line up with what is left on disk
             let updated = Self::scan_local().into_iter().nth(i);
@@ -400,6 +519,9 @@ impl AddonsHandler {
                         row.installed = addon.installed;
                         row.enabled = addon.enabled;
                         row.update_available = addon.update_available;
+                        if auto_update_reset {
+                            row.auto_update = false;
+                        }
                     }
                     row.installing = false;
                     model.set_row_data(i, row);
@@ -890,9 +1012,17 @@ impl AddonsHandler {
         version
     }
 
-    fn to_slint_item(addon: &Addon, version: Version) -> AddonItem {
-        let unavailable = config_key(&addon.name)
-            .is_some_and(|config_key| addons::is_unavailable(config_key, version));
+    fn is_unavailable(addon: &Addon, version: Version) -> bool {
+        config_key(&addon.name)
+            .is_some_and(|config_key| addons::is_unavailable(config_key, version))
+    }
+
+    fn to_slint_item(
+        addon: &Addon,
+        version: Version,
+        auto_updates: &serde_json::Value,
+    ) -> AddonItem {
+        let unavailable = Self::is_unavailable(addon, version);
 
         AddonItem {
             name: addon.name.clone().into(),
@@ -904,6 +1034,7 @@ impl AddonsHandler {
             installed: addon.installed,
             enabled: addon.enabled,
             update_available: addon.update_available,
+            auto_update: Self::auto_update_enabled(auto_updates, &addon.name),
             installing: false,
             unavailable,
         }
