@@ -670,6 +670,26 @@ export component ModCard inherits Rectangle {
                 background: #ffffff0a;
             }
 
+            if root.item.version != "": Rectangle {
+                x: 6px;
+                y: parent.height - self.height - 6px;
+                width: grid-version-text.preferred-width + 12px;
+                height: 16px;
+                border-radius: 4px;
+                background: #1e1e24ee;
+                border-width: 1px;
+                border-color: #ffffff38;
+
+                grid-version-text := Text {
+                    x: 6px;
+                    y: (parent.height - self.preferred-height) / 2;
+                    text: root.item.version;
+                    color: #ffffffdd;
+                    font-size: 9.5px;
+                    font-weight: 600;
+                }
+            }
+
             // Opens the icon picker
             Rectangle {
                 x: parent.width - self.width - 6px;
