@@ -90,7 +90,7 @@ component AddonCard inherits Rectangle {
         if root.show-auto-update: auto-update-btn := Rectangle {
             x: 8px;
             y: 8px;
-            width: 96px;
+            width: max(96px, auto-update-text.preferred-width + 16px);
             height: 28px;
             border-radius: 8px;
             property <color> toggle-color: root.item.auto_update ? #25d952 : #ee4937;
@@ -104,9 +104,9 @@ component AddonCard inherits Rectangle {
                 clicked => { root.auto-update(root.index); }
             }
 
-            Text {
-                x: 6px;
-                width: parent.width - 12px;
+            auto-update-text := Text {
+                x: 8px;
+                width: parent.width - 16px;
                 text: Tr.values[TrKey.addons-action-auto-update];
                 color: Palette.text-primary;
                 font-size: 10.5px;
