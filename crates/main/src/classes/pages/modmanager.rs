@@ -520,6 +520,49 @@ struct AddExisting {
     search: String,
 }
 
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ModSort {
+    #[default]
+    Folder,
+    DisplayName,
+    DisplayNameReverse,
+    Author,
+    Character,
+}
+
+impl ModSort {
+    fn apply(self, mods: &mut Vec<&Mod>, shown_name: &dyn Fn(&Mod) -> String) {
+        match self {
+            Self::Folder => mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name)),
+            Self::DisplayName => {
+                mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()))
+            }
+            Self::DisplayNameReverse => mods.sort_by_cached_key(|m| {
+                (
+                    std::cmp::Reverse(shown_name(m).to_lowercase()),
+                    m.folder_name.clone(),
+                )
+            }),
+            Self::Author | Self::Character => mods.sort_by_cached_key(|m| {
+                let name = shown_name(m);
+                let primary = match self {
+                    Self::Author => mod_author(m).map(str::to_lowercase),
+                    Self::Character => mod_character(m, &name)
+                        .map(|slug| characters::display_name(slug).to_lowercase()),
+                    _ => unreachable!(),
+                };
+                (
+                    primary.is_none(),
+                    primary.unwrap_or_default(),
+                    name.to_lowercase(),
+                    m.folder_name.clone(),
+                )
+            }),
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
     scanned: Vec<ScannedGroup>,
@@ -533,6 +576,7 @@ struct State {
     pending_edit_group: Option<String>,
     search: String,
     filter: ModStatusFilter,
+    sort: ModSort,
     filter_characters: HashSet<String>,
     filter_authors: HashSet<String>,
     /// A group id, [`UNGROUPED`], or empty for every group
@@ -1544,7 +1588,7 @@ impl ModManagerHandler {
                 let group_matches =
                     !is_root && searching && group.name.to_lowercase().contains(&state.search);
 
-                let visible: Vec<&Mod> = group
+                let mut visible: Vec<&Mod> = group
                     .mods
                     .iter()
                     .filter(|m| {
@@ -1582,6 +1626,8 @@ impl ModManagerHandler {
                         true
                     })
                     .collect();
+
+                state.sort.apply(&mut visible, &shown_name);
 
                 let collapsed = !is_root && state.collapsed.contains(&group.id);
                 let mut section: Vec<ModItem> = Vec::new();
@@ -2250,6 +2296,21 @@ impl ModManagerHandler {
 
     fn bind(window: &slint::Weak<MainWindow>) {
         let w = window.unwrap();
+
+        let sort: ModSort =
+            serde_json::from_value(config::get(key::MODMNG_SORT)).unwrap_or_default();
+        STATE.lock().unwrap().sort = sort;
+        w.set_mods_sort(serde_json::to_value(sort).unwrap().as_str().unwrap().into());
+        let ww = window.clone();
+        w.on_mods_sort_changed(move |id| {
+            let Some(win) = ww.upgrade() else { return };
+            let Ok(sort) = serde_json::from_value::<ModSort>(Value::from(id.as_str())) else {
+                return;
+            };
+            STATE.lock().unwrap().sort = sort;
+            config::set(key::MODMNG_SORT, Value::from(id.as_str()));
+            Self::rebuild(&win);
+        });
 
         w.set_mods_view_grid(
             config::get(key::MODMNG_VIEW_GRID)

@@ -247,6 +247,8 @@ export component MainWindow inherits Window {
     in-out property <string> mods-filter-group-label: "";
     in-out property <int> mods-active-filter-count: 0;
     callback mods-filters-changed(ModFilters);
+    in-out property <string> mods-sort: "folder";
+    callback mods-sort-changed(string);
     callback mods-clear-filters();
     callback mods-refresh();
     callback open-mods-folder();
@@ -1135,6 +1137,8 @@ export component MainWindow inherits Window {
             delete-selected => { root.mods-delete-selected(); }
             search-changed(text) => { root.mods-search-changed(text); }
             filters <=> root.mods-filters;
+            sort-order <=> root.mods-sort;
+            sort-changed(id) => { root.mods-sort-changed(id); }
             filter-characters <=> root.mods-filter-characters;
             filter-authors <=> root.mods-filter-authors;
             filter-groups: root.mods-filter-groups;

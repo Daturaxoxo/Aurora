@@ -462,6 +462,7 @@ component StatusChip inherits Rectangle {
 
 component GroupDropdown inherits Rectangle {
     in property <[FilterOption]> options: [];
+    in property <bool> show-count: true;
     in property <string> selected-id: "";
     in property <string> label;
 
@@ -547,6 +548,7 @@ component GroupDropdown inherits Rectangle {
 
                     for option in root.options: FilterRow {
                         option: option;
+                        show-count: root.show-count;
                         radio: true;
                         checked: root.selected-id == option.id;
                         toggled => {
@@ -586,6 +588,8 @@ export component ModManagerPage inherits Rectangle {
 
     // [FILTERS]
     in-out property <ModFilters> filters: { status: ModStatusFilter.all, group-id: "" };
+    in-out property <string> sort-order: "folder";
+    callback sort-changed(string);
     in-out property <[FilterOption]> filter-characters: [];
     in-out property <[FilterOption]> filter-authors: [];
     in property <[FilterOption]> filter-groups: [];
@@ -2118,6 +2122,34 @@ export component ModManagerPage inherits Rectangle {
 
                         filter-close-ta := TouchArea {
                             clicked => { root.filter-open = false; }
+                        }
+                    }
+                }
+
+                FilterSection {
+                    title: Tr.values[TrKey.modmanager-sort-title];
+
+                    VerticalLayout {
+                        padding-top: 7px;
+                        GroupDropdown {
+                            show-count: false;
+                            selected-id: root.sort-order;
+                            options: [
+                                { id: "folder", name: Tr.values[TrKey.modmanager-sort-folder] },
+                                { id: "display_name", name: Tr.values[TrKey.modmanager-sort-display-name] },
+                                { id: "display_name_reverse", name: Tr.values[TrKey.modmanager-sort-display-name-reverse] },
+                                { id: "author", name: Tr.values[TrKey.modmanager-sort-author] },
+                                { id: "character", name: Tr.values[TrKey.modmanager-sort-character] },
+                            ];
+                            label: root.sort-order == "display_name" ? Tr.values[TrKey.modmanager-sort-display-name]
+                                : root.sort-order == "display_name_reverse" ? Tr.values[TrKey.modmanager-sort-display-name-reverse]
+                                : root.sort-order == "author" ? Tr.values[TrKey.modmanager-sort-author]
+                                : root.sort-order == "character" ? Tr.values[TrKey.modmanager-sort-character]
+                                : Tr.values[TrKey.modmanager-sort-folder];
+                            picked(id) => {
+                                root.sort-order = id;
+                                root.sort-changed(id);
+                            }
                         }
                     }
                 }

@@ -60,6 +60,7 @@ pub mod key {
     pub const MODMNG_NOTES: &str = "mod_notes";
     pub const MODMNG_DISPLAY_NAMES: &str = "mod_display_names";
     pub const MODMNG_VIEW_GRID: &str = "mod_view_grid";
+    pub const MODMNG_SORT: &str = "mod_sort";
     pub const MOD_NOTES: &str = "module_notes";
     pub const MOD_DISPLAY_NAMES: &str = "module_display_names";
     pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
@@ -100,6 +101,8 @@ pub fn default_value(k: &str) -> Value {
         | key::IGNORE_CHECKSUM => {
             json!(false)
         }
+
+        key::MODMNG_SORT => json!("folder"),
 
         key::GAME_PATH
         | key::APP_LOCATION
