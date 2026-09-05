@@ -12,11 +12,13 @@ name = "AuroraUninstaller"
 path = "src/uninstall/main.rs"
 
 [dependencies]
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
 rfd = { version = "0.17", default-features = false, features = [
     "xdg-portal",
     "wayland",
 ] }
-
 shared = { path = "../shared", default-features = false }
 ipc = { path = "../ipc" }
 
@@ -29,11 +31,8 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 ureq = { workspace = true }
 
-[target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true }
-
 [build-dependencies]
-slint-build = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winresource = { workspace = true }
+slint-build = { workspace = true }

@@ -22,7 +22,9 @@ const MANIFEST: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:asm.v1" man
 </assembly>"#;
 
 fn main() {
+    #[cfg(target_os = "windows")]
     slint_build::compile("./frontend/main.slint").unwrap();
+    #[cfg(target_os = "windows")]
     slint_build::compile("./frontend/uninstall.slint").unwrap();
 
     #[cfg(target_os = "windows")]
