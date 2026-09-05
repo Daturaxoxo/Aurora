@@ -523,12 +523,25 @@ impl GameBananaApi {
             |submitter| submitter.name.clone(),
         );
         let is_nsfw = Self::detect_nsfw(&profile.record);
+        
+        let thumbnail_url = profile
+            .record
+            .preview_media
+            .as_ref()
+            .and_then(|media| media.images.as_ref())
+            .and_then(|images| images.first())
+            .map(super::types::Image::thumbnail_url);
+        let thumbnail = match thumbnail_url {
+            Some(url) => Self::fetch_thumbnail(&self.client, &url).await,
+            None => Vec::new(),
+        };
 
         Ok(ModProfile {
             id: profile.record.id,
             game_id,
             name: profile.record.name,
             author,
+            thumbnail,
             is_nsfw,
             files: Self::map_files(profile.files),
         })

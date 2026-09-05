@@ -107,6 +107,14 @@ fn main() -> Result<()> {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    {
+        let handler = ipc::appimage_path().unwrap_or_else(|| exe.clone());
+        if let Err(e) = shared::oneclick::register_protocol(&handler) {
+            warn!("1-Click: could not refresh protocol registration: {e}");
+        }
+    }
+
     if std::env::args().any(|arg| arg == ipc::QUICK_START_ARG) {
         info!("Quick start requested; running headless launch");
         if let Err(e) = Bridge::quick_start() {

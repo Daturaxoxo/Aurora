@@ -35,6 +35,7 @@ pub struct ModProfile {
     pub game_id: u32,
     pub name: String,
     pub author: String,
+    pub thumbnail: Vec<u8>,
     pub is_nsfw: bool,
     pub files: Vec<NteModFile>,
 }

@@ -36,6 +36,7 @@ struct PendingInstall {
     mod_id: u32,
     author: String,
     name: String,
+    thumbnail: Vec<u8>,
     file: NteModFile,
 }
 
@@ -230,6 +231,7 @@ impl OneClickHandler {
                     mod_id: profile.id,
                     author: profile.author,
                     name: profile.name,
+                    thumbnail: profile.thumbnail,
                     file,
                 })
             })();
@@ -251,6 +253,7 @@ impl OneClickHandler {
             pending.mod_id,
             pending.author,
             pending.name,
+            pending.thumbnail,
             pending.file,
         ) {
             Bridge::show_toast(window, "Another install is in progress", "warning");

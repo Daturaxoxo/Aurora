@@ -1,15 +1,100 @@
-#[cfg(target_os = "windows")]
-use log::*;
-#[cfg(target_os = "windows")]
-use std::path::Path;
+use anyhow::{Result, anyhow};
 pub use ipc::oneclick::{OneClick, SCHEME, parse};
+use log::*;
+use std::path::Path;
+
+#[cfg(target_os = "linux")]
+fn protocol_entry(exe: &Path) -> Result<String> {
+    let path = exe
+        .to_str()
+        .ok_or_else(|| anyhow!("the protocol handler path is not UTF-8"))?;
+    if !exe.is_absolute() || path.chars().any(char::is_control) || path.contains('=') {
+        return Err(anyhow!(
+            "the protocol handler needs an absolute desktop-compatible path"
+        ));
+    }
+
+    let mut escaped = String::new();
+    for ch in path.chars() {
+        match ch {
+            '\\' => escaped.push_str(r"\\\\"),
+            '"' | '`' | '$' => {
+                escaped.push_str(r"\\");
+                escaped.push(ch);
+            }
+            '%' => escaped.push_str("%%"),
+            _ => escaped.push(ch),
+        }
+    }
+
+    Ok(format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=Aurora 1-Click\n\
+         Exec=\"{escaped}\" %u\n\
+         Terminal=false\n\
+         NoDisplay=true\n\
+         MimeType=x-scheme-handler/{SCHEME};\n"
+    ))
+}
+
+#[cfg(target_os = "linux")]
+pub fn register_protocol(exe: &Path) -> Result<()> {
+    use std::process::Command;
+
+    const DESKTOP_FILE: &str = "aurora-oneclick.desktop";
+    let contents = protocol_entry(exe)?;
+    let applications = dirs::data_dir()
+        .ok_or_else(|| anyhow!("could not resolve the data directory"))?
+        .join("applications");
+    crate::utils::write_if_changed(&applications.join(DESKTOP_FILE), contents.as_bytes())
+        .map_err(|e| anyhow!("could not write the one-click desktop entry: {e}"))?;
+
+    match Command::new("update-desktop-database")
+        .arg(&applications)
+        .status()
+    {
+        Ok(status) if !status.success() => {
+            warn!("1-Click: update-desktop-database exited with {status}");
+        }
+        Err(e) => warn!("1-Click: update-desktop-database is unavailable: {e}"),
+        Ok(_) => {}
+    }
+
+    let output = Command::new("xdg-mime")
+        .args([
+            "default",
+            DESKTOP_FILE,
+            &format!("x-scheme-handler/{SCHEME}"),
+        ])
+        .output()
+        .map_err(|e| anyhow!("could not run xdg-mime: {e}"))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "xdg-mime exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    info!(
+        "1-Click: registered protocol `{SCHEME}` for {}",
+        exe.display()
+    );
+
+    Ok(())
+}
+
 #[cfg(target_os = "windows")]
 pub fn handler_path(dir: &Path) -> std::path::PathBuf {
     let shim = dir.join(ipc::ONECLICK_EXE);
     if shim.is_file() {
         shim
     } else {
-        warn!("1-Click: {} is missing; registering Aurora itself", shim.display());
+        warn!(
+            "1-Click: {} is missing; registering Aurora itself",
+            shim.display()
+        );
         dir.join(ipc::AURORA_EXE)
     }
 }
@@ -20,7 +105,7 @@ fn protocol_subkey() -> String {
 }
 
 #[cfg(target_os = "windows")]
-pub fn register_protocol(exe: &Path) -> Result<(), String> {
+pub fn register_protocol(exe: &Path) -> Result<()> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
 
@@ -42,7 +127,7 @@ pub fn register_protocol(exe: &Path) -> Result<(), String> {
         }
     }
 
-    fn create(subkey: &str) -> Result<Key, String> {
+    fn create(subkey: &str) -> Result<Key> {
         let subkey_w = wide(OsStr::new(subkey));
         let mut handle = std::ptr::null_mut();
         let status = unsafe {
@@ -61,15 +146,15 @@ pub fn register_protocol(exe: &Path) -> Result<(), String> {
         if status == ERROR_SUCCESS {
             Ok(Key(handle))
         } else {
-            Err(format!("could not create HKCU\\{subkey} (error {status})"))
+            Err(anyhow!("could not create HKCU\\{subkey} (error {status})"))
         }
     }
 
-    fn set(key: &Key, name: &str, value: &str) -> Result<(), String> {
+    fn set(key: &Key, name: &str, value: &str) -> Result<()> {
         let name_w = wide(OsStr::new(name));
         let value_w = wide(OsStr::new(value));
         let byte_len = u32::try_from(value_w.len().saturating_mul(size_of::<u16>()))
-            .map_err(|_| format!("registry value `{name}` is too large"))?;
+            .map_err(|_| anyhow!("registry value `{name}` is too large"))?;
         let status = unsafe {
             RegSetValueExW(
                 key.0,
@@ -83,7 +168,7 @@ pub fn register_protocol(exe: &Path) -> Result<(), String> {
         if status == ERROR_SUCCESS {
             Ok(())
         } else {
-            Err(format!("could not write `{name}` (error {status})"))
+            Err(anyhow!("could not write `{name}` (error {status})"))
         }
     }
 
@@ -104,7 +189,7 @@ pub fn register_protocol(exe: &Path) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn unregister_protocol() -> Result<(), String> {
+pub fn unregister_protocol() -> Result<()> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
 
@@ -121,7 +206,7 @@ pub fn unregister_protocol() -> Result<(), String> {
         info!("1-Click: unregistered protocol `{SCHEME}`");
         Ok(())
     } else {
-        Err(format!(
+        Err(anyhow!(
             "could not delete HKCU\\{protocol_subkey} (error {status})"
         ))
     }
