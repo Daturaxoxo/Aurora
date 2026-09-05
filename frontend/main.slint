@@ -403,14 +403,28 @@ export component MainWindow inherits Window {
                 TouchArea {
                     width: 100%;
                     height: 100%;
+                    property <bool> drag-started: false;
                     moved => {
                         if (self.pressed) {
-                            root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                            if (!self.drag-started &&
+                                (abs(self.mouse-x - self.pressed-x) >= 4px ||
+                                 abs(self.mouse-y - self.pressed-y) >= 4px)) {
+                                self.drag-started = true;
+                                root.window-drag-started();
+                            }
+                            if (self.drag-started) {
+                                root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                            }
                         }
                     }
                     pointer-event(event) => {
                         if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
-                            root.window-drag-started();
+                            self.drag-started = false;
+                        }
+                    }
+                    double-clicked => {
+                        if (!self.drag-started) {
+                            root.maximize-clicked();
                         }
                     }
                 }
@@ -462,15 +476,12 @@ export component MainWindow inherits Window {
                                 }
 
                                 IconButton {
-                                    source: @image-url("../production/icons/maximize.png");
+                                    source: root.maximized
+                                        ? @image-url("../production/icons/maximized.png")
+                                        : @image-url("../production/icons/maximize.png");
                                     icon-size: 22px;
                                     clicked => {
                                         root.maximize-clicked();
-                                        if root.maximized {
-                                            self.source = @image-url("../production/icons/maximized.png")
-                                        } else {
-                                            self.source = @image-url("../production/icons/maximize.png");
-                                        }
                                     }
                                 }
 
