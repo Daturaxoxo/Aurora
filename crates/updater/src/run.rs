@@ -81,7 +81,9 @@ fn pipe_candidates() -> Vec<String> {
     while let Some(arg) = args.next() {
         if arg == ipc::PIPE_ARG
             && let Some(pipe) = args.next().filter(|p| !p.is_empty())
-        {return vec![pipe]}
+        {
+            return vec![pipe];
+        }
     }
     ipc::main_pipe_candidates()
 }
@@ -972,7 +974,7 @@ fn reconcile_orphans(root: &Path, manifest: &Manifest, local: &LocalManifest) {
         if tmp.exists() {
             let _ = fs::remove_file(&tmp);
         }
-        
+
         net::cleanup_attempts(&tmp);
     }
 
@@ -1029,7 +1031,7 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
         .unwrap_or_default();
     name.push('.');
     name.push_str(suffix);
-    
+
     path.with_file_name(name)
 }
 

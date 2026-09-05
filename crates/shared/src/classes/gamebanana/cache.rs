@@ -200,13 +200,15 @@ impl CacheManager {
             // Nothing has been cached yet
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
             Err(e) => {
-                warn!("Could not read the GameBanana cache '{}': {e}", path.display());
+                warn!(
+                    "Could not read the GameBanana cache '{}': {e}",
+                    path.display()
+                );
                 return None;
             }
         };
-        
-        let (wrapper, _) =
-            decode_from_slice::<DecodedCache, _>(&data, standard()).ok()?;
+
+        let (wrapper, _) = decode_from_slice::<DecodedCache, _>(&data, standard()).ok()?;
         (Self::current_timestamp().abs_diff(wrapper.cached_at) < CACHE_TTL_SECONDS)
             .then_some(wrapper.mods)
     }

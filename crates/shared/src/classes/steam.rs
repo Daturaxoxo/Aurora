@@ -119,10 +119,10 @@ pub fn find_steam_root() -> Option<PathBuf> {
         // Resolve symlinks (common on Arch, where ~/.steam/steam is a
         // symlink into ~/.local/share/Steam) and confirm it actually
         // points somewhere that looks like a Steam install.
-        if let Ok(resolved) = candidate.canonicalize() {
-            if resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir() {
-                return Some(resolved);
-            }
+        if let Ok(resolved) = candidate.canonicalize()
+            && (resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir())
+        {
+            return Some(resolved);
         }
     }
 

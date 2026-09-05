@@ -51,7 +51,6 @@ impl Distribution {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StartMethod {
     /// Hands the launcher `/autoplay` so it starts the game right away.

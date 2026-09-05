@@ -1,8 +1,8 @@
+use anyhow::{Context as _, Result, anyhow};
+use log::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use anyhow::{Context as _, Result, anyhow};
-use log::*;
 static LOCK: Mutex<()> = Mutex::new(());
 
 fn lock() -> MutexGuard<'static, ()> {
@@ -325,7 +325,7 @@ fn edited(text: &str, edits: &[Edit]) -> String {
 
 fn apply_edit(lines: &mut Vec<String>, edit: &Edit) {
     let Some((header, end)) = section_bounds(lines, &edit.section) else {
-        let Some(value) = &edit.value else {return};
+        let Some(value) = &edit.value else { return };
 
         if lines.last().is_some_and(|line| !line.trim().is_empty()) {
             lines.push(String::new());

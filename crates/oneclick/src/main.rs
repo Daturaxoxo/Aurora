@@ -1,8 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::process::ExitCode;
-use std::time::{Duration, Instant};
 use ipc::oneclick::OneClick;
 use ipc::protocol::{self, Message};
+use std::process::ExitCode;
+use std::time::{Duration, Instant};
 const CONNECT_ATTEMPTS: u32 = 4;
 const CONNECT_RETRY_DELAY: Duration = Duration::from_millis(500);
 const STARTUP_GRACE: Duration = Duration::from_secs(30);
@@ -18,6 +18,7 @@ fn main() -> ExitCode {
 
     match launch_aurora() {
         Ok(()) => ExitCode::SUCCESS,
+        #[cfg(windows)]
         Err(LaunchError::Declined) => ExitCode::FAILURE,
         Err(LaunchError::Failed(e)) => {
             report(&format!(
@@ -46,10 +47,14 @@ fn forward(request: &OneClick) -> bool {
             ipc::ONECLICK_ACK_TIMEOUT,
         )
         .is_ok()
-        {return true}
+        {
+            return true;
+        }
 
         let starting = aurora_is_starting() && Instant::now() < deadline;
-        if attempt >= CONNECT_ATTEMPTS && !starting {return false}
+        if attempt >= CONNECT_ATTEMPTS && !starting {
+            return false;
+        }
         std::thread::sleep(CONNECT_RETRY_DELAY);
     }
 }
@@ -60,9 +65,12 @@ fn aurora_is_starting() -> bool {
 }
 
 #[cfg(not(windows))]
-fn aurora_is_starting() -> bool {false}
+const fn aurora_is_starting() -> bool {
+    false
+}
 
 enum LaunchError {
+    #[cfg(windows)]
     Declined,
     Failed(String),
 }

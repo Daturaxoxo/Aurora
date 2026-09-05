@@ -1,6 +1,6 @@
+use ipc::manifest::{LocalManifest, Manifest, is_trusted_url};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use ipc::manifest::{LocalManifest, Manifest, is_trusted_url};
 pub const UNINSTALLER_EXE: &str = "AuroraUninstaller.exe";
 const RUNTIME_FILES: [&str; 6] = [
     ipc::LOCAL_MANIFEST_FILE,
@@ -65,8 +65,12 @@ pub fn resolve(app_dir: &Path) -> Owned {
     let mut prune: BTreeSet<PathBuf> = BTreeSet::new();
     for rel in &relative {
         let path = app_dir.join(rel);
-        if bin_owned && path.starts_with(&bin) {continue}
-        if !path.is_file() {continue}
+        if bin_owned && path.starts_with(&bin) {
+            continue;
+        }
+        if !path.is_file() {
+            continue;
+        }
         prune.extend(parents_below(app_dir, &path));
         files.push(path);
     }
@@ -144,8 +148,12 @@ fn packaged_files(app_dir: &Path) -> Vec<PathBuf> {
 }
 
 fn is_aurora_manifest(contents: &str) -> bool {
-    serde_json::from_str::<Manifest>(contents)
-        .is_ok_and(|manifest| manifest.files.iter().any(|entry| is_trusted_url(&entry.url)))
+    serde_json::from_str::<Manifest>(contents).is_ok_and(|manifest| {
+        manifest
+            .files
+            .iter()
+            .any(|entry| is_trusted_url(&entry.url))
+    })
 }
 
 fn is_aurora_appid(contents: &str) -> bool {
@@ -173,11 +181,10 @@ fn deepest_first(dirs: BTreeSet<PathBuf>) -> Vec<PathBuf> {
 fn relative_path(value: &str) -> Option<PathBuf> {
     let mut out = PathBuf::new();
     for component in value.split(['/', '\\']) {
-        if component.is_empty()
-            || component == "."
-            || component == ".."
-            || component.contains(':')
-        {return None}
+        if component.is_empty() || component == "." || component == ".." || component.contains(':')
+        {
+            return None;
+        }
         out.push(component);
     }
     (!out.as_os_str().is_empty()).then_some(out)

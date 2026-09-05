@@ -296,14 +296,16 @@ impl Log for Logger {
             }
         }
 
-        if level == Level::Error && !crate::telemetry::is_reporting_thread()
-            && let Some(tx) = &self.error_tx {
-                let _ = tx.try_send(ErrorEvent {
-                    timestamp,
-                    module: module.to_string(),
-                    message: record.args().to_string(),
-                });
-            }
+        if level == Level::Error
+            && !crate::telemetry::is_reporting_thread()
+            && let Some(tx) = &self.error_tx
+        {
+            let _ = tx.try_send(ErrorEvent {
+                timestamp,
+                module: module.to_string(),
+                message: record.args().to_string(),
+            });
+        }
     }
 
     fn flush(&self) {}

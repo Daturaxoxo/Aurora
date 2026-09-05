@@ -746,13 +746,13 @@ impl GbBrowserHandler {
         mod_id: u32,
         author: String,
         name: String,
-        thumbnail: Vec<u8>,
+        thumbnail: &[u8],
         file: NteModFile,
     ) -> bool {
-        let thumb = decode_thumb(&thumbnail).map(|(rgba, width, height)| Thumb {
+        let thumb = decode_thumb(thumbnail).map(|(rgba, width, height)| Thumb {
             buf: slint::SharedPixelBuffer::clone_from_slice(&rgba, width, height),
         });
-        
+
         Self::start_download(
             window,
             GbMod {

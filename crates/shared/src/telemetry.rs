@@ -156,10 +156,7 @@ pub fn export_telemetry() -> Result<()> {
                 total_size += entry.metadata().map_or(0, |metadata| metadata.file_size());
             }
             unix => {
-                total_size += match entry.metadata() {
-                    Ok(metadata) => metadata.size(),
-                    Err(_) => 0,
-                };
+                total_size += entry.metadata().map_or(0, |metadata| metadata.size());
             }
         };
     }

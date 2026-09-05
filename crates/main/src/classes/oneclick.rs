@@ -253,7 +253,7 @@ impl OneClickHandler {
             pending.mod_id,
             pending.author,
             pending.name,
-            pending.thumbnail,
+            &pending.thumbnail,
             pending.file,
         ) {
             Bridge::show_toast(window, "Another install is in progress", "warning");

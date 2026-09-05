@@ -1,5 +1,5 @@
-use log::*;
 use crate::classes::helpers::ini::{self, Ini, IniFile};
+use log::*;
 pub const SECTION_HEADER: &str = "[/Script/Engine.UserInterfaceSettings]";
 pub const KEY: &str = "ApplicationScale";
 pub const SUPPORTED: bool = ini::SUPPORTED;
