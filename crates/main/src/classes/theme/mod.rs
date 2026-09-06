@@ -1,17 +1,18 @@
 pub mod model;
 pub mod wallpaper;
+use crate::classes::iconpack::IconPackHandler;
+use crate::classes::toast::ToastHandler;
+use crate::translations::tr;
+use crate::{MainWindow, Palette, ThemeChoice};
+use anyhow::{Context, Result, anyhow};
+use log::*;
+use model::Theme;
+use shared::config::{self, key};
+use slint::{ComponentHandle as _, Model as _, ModelRc, SharedPixelBuffer, VecModel};
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
-use anyhow::{Context, Result, anyhow};
-use log::*;
-use slint::{ComponentHandle as _, Model as _, ModelRc, SharedPixelBuffer, VecModel};
-use crate::classes::toast::ToastHandler;
-use crate::translations::tr;
-use crate::{MainWindow, Palette, ThemeChoice};
-use model::Theme;
-use shared::config::{self, key};
 
 const PREVIEW_EDGE: u32 = 320;
 const FALLBACK_DELAY: Duration = Duration::from_millis(100);
@@ -211,6 +212,7 @@ impl ThemeHandler {
             config::set(key::THEME, theme.id.clone());
             Self::apply(&ww, &theme);
             Self::publish_choices(&ww, &theme.id);
+            IconPackHandler::apply_from_theme(&ww, theme.icon_pack.as_deref());
         });
 
         let ww = window.clone();
@@ -286,8 +288,19 @@ impl ThemeHandler {
 
         let ww = window.clone();
         let count = imported.len();
+        let selected = imported.last().cloned();
         let _ = slint::invoke_from_event_loop(move || {
             Self::reload(&ww);
+
+            if let Some(id) = selected {
+                let pack = THEMES.with(|cell| {
+                    cell.borrow()
+                        .iter()
+                        .find(|theme| theme.id == id)
+                        .and_then(|theme| theme.icon_pack.clone())
+                });
+                IconPackHandler::apply_from_theme(&ww, pack.as_deref());
+            }
 
             if count > 0 {
                 ToastHandler::show(&ww, tr("toast-theme-imported"), "success");
@@ -410,7 +423,9 @@ fn start_playback(w: &MainWindow, frames: Vec<slint::Image>, mut delays: Vec<Dur
     playback
         .timer
         .start(slint::TimerMode::Repeated, first_delay, move || {
-            let (Some(playback), Some(w)) = (weak_playback.upgrade(), weak_window.upgrade()) else {return};
+            let (Some(playback), Some(w)) = (weak_playback.upgrade(), weak_window.upgrade()) else {
+                return;
+            };
             let next = (playback.index.get() + 1) % playback.frames.len();
             playback.index.set(next);
             w.global::<Palette>()

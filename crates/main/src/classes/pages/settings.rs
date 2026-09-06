@@ -48,6 +48,8 @@ const ABOUT_LINKS: &[(&str, &str)] = &[
         "https://github.com/Daturaxoxo/Aurora/blob/main/LICENSE",
     ),
     ("terms", "https://getaurora.moe/terms"),
+    ("patreon", "https://www.patreon.com/cw/AuroraLauncher"),
+    ("kofi", "https://ko-fi.com/auroralauncher"),
 ];
 
 pub struct SettingsHandler;

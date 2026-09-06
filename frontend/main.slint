@@ -1,4 +1,6 @@
-import { SettingsPage, ThemeChoice } from "components/pages/settings.slint";
+import { Icons } from "icons.slint";
+export { Icons }
+import { SettingsPage, ThemeChoice, IconPackChoice } from "components/pages/settings.slint";
 import { Tr, TrKey } from "translations.slint";
 export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
@@ -122,6 +124,9 @@ export component MainWindow inherits Window {
     in-out property <bool> launch-disabled: false;
     callback launch-clicked();
 
+    // Support Menu Properties
+    in-out property <bool> support-menu-open: false;
+
     // Launch Menu Properties
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
@@ -167,6 +172,11 @@ export component MainWindow inherits Window {
     callback theme-import();
     callback theme-delete(string /* id */);
     callback theme-open-folder();
+
+    // Icon Pack Properties
+    in property <[IconPackChoice]> icon-pack-choices: [];
+    in property <string> icon-pack-name: "";
+    callback icon-pack-selected(string /* id */);
 
     callback browse-game-directory();
     callback export-telemetry();
@@ -456,7 +466,7 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             IconButton {
-                                source: @image-url("../production/icons/settings.png");
+                                source: Icons.settings;
                                 icon-size: 22px;
                                 active: root.show-settings;
                                 clicked => { root.show-settings = !root.show-settings; }
@@ -470,7 +480,7 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Image {
-                                source: @image-url("../production/icons/logo.png");
+                                source: Icons.logo;
                                 width: 32px;
                                 height: 32px;
                                 image-rendering: smooth;
@@ -487,15 +497,15 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 IconButton {
-                                    source: @image-url("../production/icons/minimize.png");
+                                    source: Icons.minimize;
                                     icon-size: 22px;
                                     clicked => { root.minimize-clicked(); }
                                 }
 
                                 IconButton {
                                     source: root.maximized
-                                        ? @image-url("../production/icons/maximized.png")
-                                        : @image-url("../production/icons/maximize.png");
+                                        ? Icons.maximized
+                                        : Icons.maximize;
                                     icon-size: 22px;
                                     clicked => {
                                         root.maximize-clicked();
@@ -503,7 +513,7 @@ export component MainWindow inherits Window {
                                 }
 
                                 IconButton {
-                                    source: @image-url("../production/icons/close.png");
+                                    source: Icons.close;
                                     icon-size: 22px;
                                     clicked => { root.close-clicked(); }
                                 }
@@ -515,14 +525,14 @@ export component MainWindow inherits Window {
         }
 
         // Icon Row
-        HorizontalLayout {
+        bottom-row := HorizontalLayout {
             x: 16px;
             y: parent.height - self.height - 14px;
             height: 60px;
             width: self.preferred-width;
             spacing: 8px;
 
-            Rectangle {
+            util-icon-card := Rectangle {
                 height: 60px;
                 width: util-icon-row.preferred-width + 16px * 2;
                 background: Palette.glass-background;
@@ -544,7 +554,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/menu.png");
+                            source: Icons.menu;
                             icon-size: 28px;
                             clicked => { root.bottom-icon-clicked(0); }
                         }
@@ -553,7 +563,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/discord.png");
+                            source: Icons.discord;
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "discord-popup";
@@ -571,7 +581,17 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/gamebanana.png");
+                            source: Icons.donate;
+                            icon-size: 28px;
+                            active: root.support-menu-open;
+                            clicked => { root.support-menu-open = !root.support-menu-open; }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        IconButton {
+                            source: Icons.gamebanana;
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "gamebanana-popup";
@@ -612,7 +632,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Image {
-                            source: @image-url("../production/icons/manager.png");
+                            source: Icons.manager;
                             width: 26px;
                             height: 26px;
                             image-rendering: smooth;
@@ -681,7 +701,7 @@ export component MainWindow inherits Window {
                                 width: 20px;
                                 height: 20px;
                                 border-radius: 10px;
-                                background: root.launch-disabled ? Palette.fg-55 : Palette.text-primary;
+                                background: root.launch-disabled ? Palette.fg-55 : Icons.tint;
                                 animate background { duration: 200ms; }
 
                                 Path {
@@ -694,7 +714,7 @@ export component MainWindow inherits Window {
                                     viewbox-width: 14;
                                     viewbox-height: 12;
                                     commands: "M1 6 L5 10 L13 1";
-                                    stroke: Palette.shade-ff;
+                                    stroke: Icons.tint-contrast;
                                     stroke-width: 2px;
                                     fill: transparent;
                                 }
@@ -836,7 +856,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/wrench.png");
+                                    source: Icons.wrench;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
@@ -875,7 +895,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/refresh.png");
+                                    source: Icons.refresh;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
@@ -914,7 +934,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/monitor.png");
+                                    source: Icons.monitor;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
@@ -953,7 +973,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/folder.png");
+                                    source: Icons.folder;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
@@ -992,7 +1012,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/kill.png");
+                                    source: Icons.kill;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
@@ -1009,6 +1029,146 @@ export component MainWindow inherits Window {
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Support Menu Popup
+        if root.support-menu-open: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+
+            TouchArea {
+                clicked => { root.support-menu-open = false; }
+            }
+
+            support-card := Rectangle {
+                width: util-icon-card.width;
+                x: bottom-row.x;
+                y: bottom-row.y - self.height - 10px;
+                background: Palette.glass-background;
+                border-radius: 12px;
+                border-width: 1px;
+                border-color: Palette.glass-border;
+                drop-shadow-color: Palette.shade-99;
+                drop-shadow-blur: 28px;
+                drop-shadow-offset-y: 8px;
+                height: support-items-layout.preferred-height + 16px;
+
+                TouchArea { }
+
+                support-items-layout := VerticalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    padding-top: 8px;
+                    padding-bottom: -8px;
+                    spacing: 1px;
+
+                    Rectangle {
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
+                        background: si0.has-hover ? Palette.fg-12 : transparent;
+                        animate background { duration: 80ms; }
+                        si0 := TouchArea {
+                            clicked => {
+                                root.open-about-link("patreon");
+                                root.support-menu-open = false;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: Icons.patreon;
+                                    width: 16px;
+                                    height: 16px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: Palette.fg-aa;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Patreon";
+                                    color: Palette.fg-dd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
+                        background: si1.has-hover ? Palette.fg-12 : transparent;
+                        animate background { duration: 80ms; }
+                        si1 := TouchArea {
+                            clicked => {
+                                root.open-about-link("kofi");
+                                root.support-menu-open = false;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: Icons.kofi;
+                                    width: 16px;
+                                    height: 16px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: Palette.fg-aa;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Ko-fi";
+                                    color: Palette.fg-dd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            x: parent.width - self.width - 16px;
+                            y: (parent.height - self.height) / 2;
+                            height: 16px;
+                            width: recommended-tag.preferred-width + 12px;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: Palette.success.transparentize(0.7);
+                            background: Palette.success.transparentize(0.88);
+
+                            recommended-tag := Text {
+                                text: Tr.values[TrKey.main-support-menu-recommended];
+                                color: Palette.success;
+                                font-size: 10px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                         }
                     }
@@ -1294,6 +1454,10 @@ export component MainWindow inherits Window {
             theme-import => { root.theme-import(); }
             theme-delete(id) => { root.theme-delete(id); }
             theme-open-folder => { root.theme-open-folder(); }
+
+            icon-pack-choices: root.icon-pack-choices;
+            icon-pack-name: root.icon-pack-name;
+            icon-pack-selected(id) => { root.icon-pack-selected(id); }
 
             browse-game-directory => { root.browse-game-directory(); }
             open-link(id) => { root.open-about-link(id); }

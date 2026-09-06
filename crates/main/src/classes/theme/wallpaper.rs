@@ -1,11 +1,11 @@
+use super::model::ImageRef;
+use anyhow::{Context, Result, anyhow};
+use image::imageops::FilterType;
+use log::*;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::time::Duration;
-use anyhow::{Context, Result, anyhow};
-use image::imageops::FilterType;
-use log::*;
-use super::model::ImageRef;
 
 include!(concat!(env!("OUT_DIR"), "/theme_backgrounds.rs"));
 
@@ -191,13 +191,12 @@ fn scaled(value: u32, scale: f64) -> u32 {
 }
 
 fn drop_frames_to_fit(frames: &mut Vec<image::RgbaImage>, delays: &mut Vec<Duration>) {
-    if frames.len() <= MAX_FRAMES {return}
+    if frames.len() <= MAX_FRAMES {
+        return;
+    }
 
     let step = frames.len().div_ceil(MAX_FRAMES);
-    info!(
-        "[Theme] the animation has {} frames {step}",
-        frames.len()
-    );
+    info!("[Theme] the animation has {} frames {step}", frames.len());
 
     let mut kept_frames = Vec::with_capacity(frames.len().div_ceil(step));
     let mut kept_delays = Vec::with_capacity(kept_frames.capacity());
@@ -231,7 +230,9 @@ fn scale_to_fit(width: u32, height: u32, frame_count: usize) -> f64 {
     let total = frame_bytes.saturating_mul(frame_count);
     let budget_scale = if total > FRAME_BUDGET_BYTES {
         (FRAME_BUDGET_BYTES as f64 / total as f64).sqrt()
-    } else {1.0};
+    } else {
+        1.0
+    };
 
     let floor = (f64::from(MIN_DIMENSION) / longest).min(1.0);
     dimension_scale.min(budget_scale).clamp(floor, 1.0)

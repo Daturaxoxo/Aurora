@@ -1,27 +1,20 @@
-use std::{cell::RefCell, fmt::Write as _, rc::Rc, time::Duration};
-
+use crate::{LogLine, LogWindow, MainWindow};
 use log::{Level, debug, error, info};
 use shared::{
     config::{self, key},
     logger::{self, LOG_BUFFER_CAPACITY, LogEntry},
 };
 use slint::{Color, ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
-
-use crate::{LogLine, LogWindow, MainWindow};
+use std::{cell::RefCell, fmt::Write as _, rc::Rc, time::Duration};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
-
 const CHAR_WIDTH: f32 = 6.6;
-
-/// Timestamp column + level column + the layout's padding and gaps.
 const FIXED_COLUMNS_WIDTH: f32 = 128.0 + 46.0 + 20.0 + 30.0;
-
 const MODULE_COLUMN_MIN: f32 = 200.0;
 
 struct View {
     model: Rc<VecModel<LogLine>>,
     cursor: u64,
-    /// 0 = All, otherwise the single level being shown.
     filter: i32,
     module_chars: usize,
     message_chars: usize,
@@ -54,6 +47,14 @@ pub fn apply_language(lang_code: &str) {
     });
 }
 
+pub fn apply_icons() {
+    STATE.with_borrow(|state| {
+        if let Some(state) = state {
+            crate::classes::iconpack::IconPackHandler::apply_to_log_window(&state.window);
+        }
+    });
+}
+
 pub fn hide() {
     let window = STATE.with_borrow(|state| {
         let state = state.as_ref()?;
@@ -61,9 +62,7 @@ pub fn hide() {
         Some(state.window.clone_strong())
     });
 
-    let Some(window) = window else {
-        return;
-    };
+    let Some(window) = window else { return };
 
     if let Err(e) = window.hide() {
         error!("[LogWindow] could not hide the log window: {e}");
@@ -148,6 +147,7 @@ fn build(main: &slint::Weak<MainWindow>) -> Result<State, slint::PlatformError> 
     let window = LogWindow::new()?;
     window.set_ui_font_family("Segoe UI".into());
     crate::translations::apply_saved_language_to_log_window(&window);
+    crate::classes::iconpack::IconPackHandler::apply_to_log_window(&window);
     let view = Rc::new(RefCell::new(View {
         model: Rc::new(VecModel::default()),
         cursor: 0,
@@ -159,7 +159,6 @@ fn build(main: &slint::Weak<MainWindow>) -> Result<State, slint::PlatformError> 
 
     window.set_lines(ModelRc::from(view.borrow().model.clone()));
 
-    // Wayland will not let a client move itself, so the compositor runs the drag there.
     #[cfg(target_os = "linux")]
     {
         let ww = window.as_weak();
@@ -311,7 +310,6 @@ fn apply_widths(view: &mut View, window: &LogWindow) {
         return;
     }
     view.applied = (view.module_chars, view.message_chars);
-
     let module_width = (view.module_chars as f32 * CHAR_WIDTH).max(MODULE_COLUMN_MIN);
     window.set_module_column_width(module_width);
     window.set_content_width(

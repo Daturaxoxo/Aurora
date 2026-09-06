@@ -1,10 +1,10 @@
-// classes/mod.rs
 pub mod buttons;
 pub mod characters;
 #[cfg(target_os = "linux")]
 pub mod desktop;
 #[cfg(target_os = "windows")]
 pub mod filedrop;
+pub mod iconpack;
 pub mod logwindow;
 pub mod modicons;
 pub mod oneclick;

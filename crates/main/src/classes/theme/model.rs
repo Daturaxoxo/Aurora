@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use log::*;
 use slint::Color;
+use std::path::{Path, PathBuf};
 
 pub const EXTENSION: &str = "autheme";
 pub const DEFAULT_ID: &str = "aurora";
@@ -21,6 +21,7 @@ pub struct Theme {
     pub builtin: bool,
     pub path: Option<PathBuf>,
     pub image: Option<ImageRef>,
+    pub icon_pack: Option<String>,
     pub background: (Color, Color),
     pub border: (Color, Color),
     pub shadow: Color,
@@ -68,6 +69,7 @@ impl Default for Theme {
             builtin: true,
             path: None,
             image: Some(ImageRef::Builtin("background".to_string())),
+            icon_pack: None,
 
             background,
             border: (argb(fallback::BORDER.0), argb(fallback::BORDER.1)),
@@ -187,8 +189,12 @@ fn parse_pair(raw: &str) -> Result<(Color, Color)> {
 
 fn resolve_image(raw: &str, folder: Option<&Path>) -> Option<ImageRef> {
     let raw = raw.trim();
-    if raw.is_empty() || raw.eq_ignore_ascii_case("none") {return None}
-    if raw.starts_with("http://") || raw.starts_with("https://") {return Some(ImageRef::Remote(raw.to_string()))}
+    if raw.is_empty() || raw.eq_ignore_ascii_case("none") {
+        return None;
+    }
+    if raw.starts_with("http://") || raw.starts_with("https://") {
+        return Some(ImageRef::Remote(raw.to_string()));
+    }
 
     let path = Path::new(raw);
     let local = if path.is_absolute() {
@@ -212,6 +218,14 @@ fn resolve_image(raw: &str, folder: Option<&Path>) -> Option<ImageRef> {
     local.map(ImageRef::Local)
 }
 
+fn resolve_icon_pack(raw: &str) -> Option<String> {
+    let pack = raw.trim().to_lowercase();
+    if pack.is_empty() || pack == "none" {
+        return None;
+    }
+    Some(pack)
+}
+
 pub fn parse(path: &Path) -> Result<Theme> {
     let contents = std::fs::read_to_string(path)
         .map_err(|e| anyhow!("could not read '{}': {e}", path.display()))?;
@@ -230,6 +244,7 @@ pub fn parse(path: &Path) -> Result<Theme> {
         builtin: false,
         path: Some(path.to_path_buf()),
         image: None,
+        icon_pack: None,
         ..Theme::default()
     };
     let mut optional = Optionals::default();
@@ -265,6 +280,7 @@ pub fn parse(path: &Path) -> Result<Theme> {
             "NAME" => theme.name = value.to_string(),
             "AUTHOR" => theme.author = value.to_string(),
             "IMAGE" => theme.image = resolve_image(value, folder),
+            "ICON_PACK" => theme.icon_pack = resolve_icon_pack(value),
 
             "BACKGROUND" | "BORDER" | "OVERLAY" => match parse_pair(value) {
                 Ok(pair) => match key.as_str() {
@@ -339,6 +355,8 @@ struct BuiltinEntry {
     #[serde(default)]
     image: Option<String>,
     #[serde(default)]
+    icon_pack: Option<String>,
+    #[serde(default)]
     surface: Option<String>,
     #[serde(default)]
     backdrop: Option<String>,
@@ -375,6 +393,7 @@ impl BuiltinEntry {
                 .image
                 .as_deref()
                 .and_then(|raw| resolve_image(raw, None)),
+            icon_pack: self.icon_pack.as_deref().and_then(resolve_icon_pack),
             background: pair(self.background)?,
             border: pair(self.border)?,
             shadow: parse_color(&self.shadow)?,
@@ -429,7 +448,9 @@ pub fn builtins() -> Vec<Theme> {
     themes
 }
 
-pub fn user_dir() -> PathBuf {shared::config::get_userdata_path().join("themes")}
+pub fn user_dir() -> PathBuf {
+    shared::config::get_userdata_path().join("themes")
+}
 
 pub fn list() -> Vec<Theme> {
     let mut themes = builtins();

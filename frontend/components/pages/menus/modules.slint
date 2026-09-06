@@ -1,3 +1,4 @@
+import { Icons } from "../../../icons.slint";
 import { Palette } from "../../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ToggleSwitch, ModItem, ModCard } from "../../modcard.slint";
@@ -243,7 +244,7 @@ export component ModulesPage inherits Rectangle {
                             border-color: Palette.fg-16;
 
                             Image {
-                                source: @image-url("../../../../production/icons/search.png");
+                                source: Icons.search;
                                 x: 10px;
                                 y: (parent.height - self.height) / 2;
                                 width: 14px;

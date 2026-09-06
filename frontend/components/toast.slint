@@ -1,3 +1,4 @@
+import { Icons } from "../icons.slint";
 import { Palette } from "../global.slint";
 
 export component WindowToast inherits Rectangle {
@@ -74,9 +75,9 @@ export component WindowToast inherits Rectangle {
         (root.kind == "error" ? Palette.danger :
         (root.kind == "warning" ? Palette.warning : Palette.accent-strong));
     property <image> status-icon:
-        root.kind == "success" ? @image-url("../../production/icons/processed/success.png") :
-        (root.kind == "error" || root.kind == "warning" ? @image-url("../../production/icons/processed/error.png") :
-        @image-url("../../production/icons/processed/info.png"));
+        root.kind == "success" ? Icons.success :
+        (root.kind == "error" || root.kind == "warning" ? Icons.error :
+        Icons.info);
     property <brush> status-icon-tint: root.kind == "warning" ? Palette.warning : transparent;
 
     VerticalLayout {
@@ -124,7 +125,7 @@ export component WindowToast inherits Rectangle {
                     background: ta.has-hover ? Palette.fg-14 : transparent;
                     animate background { duration: 100ms; }
                     Image {
-                        source: @image-url("../../production/icons/processed/close.png");
+                        source: Icons.close;
                         width: 16px;
                         height: 16px;
                         opacity: ta.has-hover ? 1.0 : 0.7;

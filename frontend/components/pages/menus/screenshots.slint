@@ -1,3 +1,4 @@
+import { Icons } from "../../../icons.slint";
 import { Palette } from "../../../global.slint";
 import { LineEdit, ScrollView } from "std-widgets.slint";
 import { Dropdown } from "../settings.slint";
@@ -299,12 +300,12 @@ component ScreenshotCard inherits Rectangle {
             }
 
             rename-btn := OverlayButton {
-                icon: @image-url("../../../../production/icons/edit.png");
+                icon: Icons.edit;
                 clicked => { root.request-rename(root.index); }
             }
 
             del-btn := OverlayButton {
-                icon: @image-url("../../../../production/icons/delete.png");
+                icon: Icons.delete;
                 hover-color: Palette.danger;
                 clicked => { root.request-delete(root.index); }
             }
@@ -457,7 +458,7 @@ export component ScreenshotsPage inherits Rectangle {
                     alignment: start;
 
                     Image {
-                        source: @image-url("../../../../production/icons/menu/camera.png");
+                        source: Icons.menu-camera;
                         width: 20px;
                         height: 20px;
                         image-rendering: smooth;
@@ -507,7 +508,7 @@ export component ScreenshotsPage inherits Rectangle {
                     animate background { duration: 120ms; }
 
                     Image {
-                        source: @image-url("../../../../production/icons/refresh.png");
+                        source: Icons.refresh;
                         width: 15px;
                         height: 15px;
                         image-rendering: smooth;
@@ -542,7 +543,7 @@ export component ScreenshotsPage inherits Rectangle {
                         VerticalLayout {
                             alignment: center;
                             Image {
-                                source: @image-url("../../../../production/icons/folder.png");
+                                source: Icons.folder;
                                 width: 14px;
                                 height: 14px;
                                 image-rendering: smooth;
@@ -576,7 +577,7 @@ export component ScreenshotsPage inherits Rectangle {
                     animate background { duration: 120ms; }
 
                     Image {
-                        source: @image-url("../../../../production/icons/close.png");
+                        source: Icons.close;
                         width: 22px;
                         height: 22px;
                         image-rendering: smooth;
@@ -798,7 +799,7 @@ export component ScreenshotsPage inherits Rectangle {
                 }
 
                 OverlayButton {
-                    icon: @image-url("../../../../production/icons/close.png");
+                    icon: Icons.close;
                     icon-size: 18px;
                     clicked => { root.close-preview(); }
                 }
@@ -883,17 +884,17 @@ export component ScreenshotsPage inherits Rectangle {
                 }
 
                 OverlayButton {
-                    icon: @image-url("../../../../production/icons/edit.png");
+                    icon: Icons.edit;
                     clicked => { root.renaming-index = root.preview-index; }
                 }
 
                 OverlayButton {
-                    icon: @image-url("../../../../production/icons/link.png");
+                    icon: Icons.link;
                     clicked => { root.screenshot-open(root.preview-index); }
                 }
 
                 OverlayButton {
-                    icon: @image-url("../../../../production/icons/delete.png");
+                    icon: Icons.delete;
                     hover-color: Palette.danger;
                     clicked => {
                         root.screenshot-delete(root.preview-index);

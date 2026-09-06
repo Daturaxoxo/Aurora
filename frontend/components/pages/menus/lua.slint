@@ -1,3 +1,4 @@
+import { Icons } from "../../../icons.slint";
 import { Palette } from "../../../global.slint";
 import { ScrollView, TextEdit } from "std-widgets.slint";
 import { Tr, TrKey } from "../../../translations.slint";
@@ -109,7 +110,7 @@ export component LuaScriptsPage inherits Rectangle {
                         alignment: start;
 
                         Image {
-                            source: @image-url("../../../../production/icons/menu/lua.png");
+                            source: Icons.menu-lua;
                             width: 20px;
                             height: 20px;
                             image-rendering: smooth;
@@ -138,7 +139,7 @@ export component LuaScriptsPage inherits Rectangle {
                         animate background { duration: 120ms; }
 
                         Image {
-                            source: @image-url("../../../../production/icons/refresh.png");
+                            source: Icons.refresh;
                             width: 16px;
                             height: 16px;
                             image-rendering: smooth;
@@ -161,7 +162,7 @@ export component LuaScriptsPage inherits Rectangle {
                         animate background { duration: 120ms; }
 
                         Image {
-                            source: @image-url("../../../../production/icons/close.png");
+                            source: Icons.close;
                             width: 22px;
                             height: 22px;
                             image-rendering: smooth;
@@ -200,7 +201,7 @@ export component LuaScriptsPage inherits Rectangle {
                             background: Palette.glass-border;
 
                             Image {
-                                source: @image-url("../../../../production/icons/menu/lua.png");
+                                source: Icons.menu-lua;
                                 width: 30px;
                                 height: 30px;
                                 image-rendering: smooth;
@@ -537,7 +538,7 @@ export component LuaScriptsPage inherits Rectangle {
                                         VerticalLayout {
                                             alignment: center;
                                             Image {
-                                                source: @image-url("../../../../production/icons/menu/lua.png");
+                                                source: Icons.menu-lua;
                                                 width: 16px;
                                                 height: 16px;
                                                 image-rendering: smooth;
@@ -629,7 +630,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 animate background { duration: 100ms; }
 
                                                 Image {
-                                                    source: @image-url("../../../../production/icons/edit.png");
+                                                    source: Icons.edit;
                                                     width: 13px;
                                                     height: 13px;
                                                     image-rendering: smooth;
@@ -655,7 +656,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 animate background { duration: 100ms; }
 
                                                 Image {
-                                                    source: @image-url("../../../../production/icons/delete.png");
+                                                    source: Icons.delete;
                                                     width: 13px;
                                                     height: 13px;
                                                     image-rendering: smooth;
@@ -743,7 +744,7 @@ export component LuaScriptsPage inherits Rectangle {
                                 animate background { duration: 120ms; }
 
                                 Image {
-                                    source: @image-url("../../../../production/icons/close.png");
+                                    source: Icons.close;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;

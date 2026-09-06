@@ -1,3 +1,4 @@
+import { Icons } from "../icons.slint";
 import { Palette } from "../global.slint";
 import { ListView } from "std-widgets.slint";
 import { Dropdown } from "pages/settings.slint";
@@ -199,7 +200,7 @@ export component LogWindow inherits Window {
                             spacing: 4px;
 
                             TitleBarButton {
-                                source: @image-url("../../production/icons/processed/minimize.png");
+                                source: Icons.minimize;
                                 clicked => {
                                     root.minimize-clicked();
                                 }
@@ -207,15 +208,15 @@ export component LogWindow inherits Window {
 
                             TitleBarButton {
                                 source: root.maximized
-                                    ? @image-url("../../production/icons/processed/maximized.png")
-                                    : @image-url("../../production/icons/processed/maximize.png");
+                                    ? Icons.maximized
+                                    : Icons.maximize;
                                 clicked => {
                                     root.maximize-clicked();
                                 }
                             }
 
                             TitleBarButton {
-                                source: @image-url("../../production/icons/processed/close.png");
+                                source: Icons.close;
                                 clicked => {
                                     root.close-window();
                                 }

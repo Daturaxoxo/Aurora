@@ -1,3 +1,4 @@
+import { Icons } from "../../icons.slint";
 import { Palette } from "../../global.slint";
 import { LineEdit, ScrollView } from "std-widgets.slint";
 import { ModCard, ModItem, ModTag, ToggleSwitch } from "../modcard.slint";
@@ -229,7 +230,7 @@ component GroupHeader inherits Rectangle {
                 animate background { duration: 100ms; }
 
                 Image {
-                    source: @image-url("../../../production/icons/edit.png");
+                    source: Icons.edit;
                     width: 11px;
                     height: 11px;
                     image-rendering: smooth;
@@ -295,7 +296,7 @@ component GroupHeader inherits Rectangle {
                 animate background { duration: 100ms; }
 
                 Image {
-                    source: @image-url("../../../production/icons/delete.png");
+                    source: Icons.delete;
                     width: 14px;
                     height: 14px;
                     image-rendering: smooth;
@@ -783,7 +784,7 @@ export component ModManagerPage inherits Rectangle {
                                             VerticalLayout {
                                                 alignment: center;
                                                 Image {
-                                                    source: @image-url("../../../production/icons/download.png");
+                                                    source: Icons.download;
                                                     width: 14px;
                                                     height: 14px;
                                                     image-rendering: smooth;
@@ -820,7 +821,7 @@ export component ModManagerPage inherits Rectangle {
                                             VerticalLayout {
                                                 alignment: center;
                                                 Image {
-                                                    source: @image-url("../../../production/icons/folder.png");
+                                                    source: Icons.folder;
                                                     width: 14px;
                                                     height: 14px;
                                                     image-rendering: smooth;
@@ -857,7 +858,7 @@ export component ModManagerPage inherits Rectangle {
                                             VerticalLayout {
                                                 alignment: center;
                                                 Image {
-                                                    source: @image-url("../../../production/icons/gamebanana.png");
+                                                    source: Icons.gamebanana;
                                                     width: 14px;
                                                     height: 14px;
                                                     image-rendering: smooth;
@@ -984,7 +985,7 @@ export component ModManagerPage inherits Rectangle {
                         animate background { duration: 100ms; }
 
                         Image {
-                            source: @image-url("../../../production/icons/folder.png");
+                            source: Icons.folder;
                             width: 14px;
                             height: 14px;
                             image-rendering: smooth;
@@ -1097,7 +1098,7 @@ export component ModManagerPage inherits Rectangle {
                         animate background { duration: 100ms; }
 
                         Image {
-                            source: @image-url("../../../production/icons/refresh.png");
+                            source: Icons.refresh;
                             width: 14px;
                             height: 14px;
                             image-rendering: smooth;
@@ -1213,7 +1214,7 @@ export component ModManagerPage inherits Rectangle {
                         border-color: Palette.fg-16;
 
                         Image {
-                            source: @image-url("../../../production/icons/search.png");
+                            source: Icons.search;
                             x: 10px;
                             y: (parent.height - self.height) / 2;
                             width: 14px;

@@ -1,3 +1,4 @@
+import { Icons } from "../../icons.slint";
 import { Palette } from "../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Languages } from "../../languages.slint";
@@ -22,6 +23,18 @@ export struct ThemeChoice {
     accent: color,
     builtin: bool,
     selected: bool,
+}
+
+export struct IconPackChoice {
+    id: string,
+    name: string,
+    selected: bool,
+    tint: color,
+    contrast: color,
+    sample-1: image,
+    sample-2: image,
+    sample-3: image,
+    sample-4: image,
 }
 
 component ToggleSwitch inherits Rectangle {
@@ -88,7 +101,7 @@ export component Dropdown inherits Rectangle {
         VerticalLayout {
             alignment: center;
             Image {
-                source: @image-url("../../../production/icons/down.png");
+                source: Icons.down;
                 width: 16px;
                 height: 16px;
                 image-rendering: smooth;
@@ -456,7 +469,7 @@ component InfoRow inherits Rectangle {
             if root.clickable: VerticalLayout {
                 alignment: center;
                 Image {
-                    source: @image-url("../../../production/icons/processed/link.png");
+                    source: Icons.link;
                     width: 14px;
                     height: 14px;
                     image-rendering: smooth;
@@ -597,6 +610,78 @@ component ThemeCard inherits Rectangle {
     }
 }
 
+component IconPackCard inherits Rectangle {
+    in property <IconPackChoice> choice;
+    callback clicked();
+    height: 112px;
+    border-radius: 10px;
+    clip: true;
+    background: Palette.surface;
+    border-width: root.choice.selected ? 2px : 1px;
+    border-color: root.choice.selected
+        ? Palette.accent
+        : (pack-ta.has-hover ? Palette.fg-38 : Palette.fg-16);
+    animate border-color { duration: 120ms; }
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        // The samples sit on the colour that reads against them, so a pack of
+        // pale icons previews on dark and a pack of dark icons on pale.
+        Rectangle {
+            height: 48px;
+            border-radius: 6px;
+            background: root.choice.contrast.mix(root.choice.tint, 0.92);
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 8px;
+                alignment: space-around;
+
+                for sample in [
+                    root.choice.sample-1,
+                    root.choice.sample-2,
+                    root.choice.sample-3,
+                    root.choice.sample-4,
+                ]: VerticalLayout {
+                    alignment: center;
+                    Image {
+                        source: sample;
+                        width: 24px;
+                        height: 24px;
+                        image-fit: contain;
+                        image-rendering: smooth;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: pack-label.preferred-height;
+            border-radius: 6px;
+            background: Palette.fg-0c;
+
+            pack-label := VerticalLayout {
+                padding: 6px;
+
+                Text {
+                    text: root.choice.name;
+                    color: Palette.text-primary;
+                    font-size: 12px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    pack-ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
 component TabPage inherits Rectangle {
     in property <bool> active;
 
@@ -661,6 +746,13 @@ export component SettingsPage inherits Rectangle {
 
     private property <bool> theme-picker-open: false;
     private property <string> theme-pending-delete: "";
+
+    // ICON PACKS
+    in property <[IconPackChoice]> icon-pack-choices: [];
+    in property <string> icon-pack-name: "";
+    callback icon-pack-selected(string /* id */);
+
+    private property <bool> icon-pack-picker-open: false;
 
     // LAUNCHER
     callback browse-game-directory();
@@ -833,7 +925,7 @@ export component SettingsPage inherits Rectangle {
                     animate background { duration: 100ms; }
 
                     Image {
-                        source: @image-url("../../../production/icons/processed/close.png");
+                        source: Icons.close;
                         width: 14px;
                         height: 14px;
                         horizontal-alignment: center;
@@ -908,6 +1000,15 @@ export component SettingsPage inherits Rectangle {
                                     CardButton {
                                         text: Tr.values[TrKey.settings-theme-browse];
                                         clicked => { root.theme-picker-open = true; }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-icon-pack-title];
+                                    subtitle: "\"\{root.icon-pack-name}\"";
+                                    CardButton {
+                                        text: Tr.values[TrKey.settings-theme-browse];
+                                        clicked => { root.icon-pack-picker-open = true; }
                                     }
                                 }
                             }
@@ -1577,6 +1678,129 @@ export component SettingsPage inherits Rectangle {
                     ChipButton {
                         text: Tr.values[TrKey.global-popup-cancel-button];
                         clicked => { root.theme-picker-open = false; }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.icon-pack-picker-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: Palette.shade-aa;
+
+        TouchArea {
+            clicked => { root.icon-pack-picker-open = false; }
+        }
+
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
+        }
+
+        Rectangle {
+            property <length> chrome: 40px + 24px + 30px + 28px;
+
+            width: min(720px, parent.width - 60px);
+            height: min(parent.height - 60px, pack-grid.height + self.chrome);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Palette.surface;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: Palette.shade-99;
+            drop-shadow-blur: 30px;
+
+            TouchArea { }
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+
+                HorizontalLayout {
+                    height: 24px;
+                    spacing: 8px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: Tr.values[TrKey.settings-icon-pack-picker-title];
+                        color: Palette.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: pack-close-ta.has-hover ? Palette.fg-14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 6px;
+                            y: 6px;
+                            width: 12px;
+                            height: 12px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: pack-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        pack-close-ta := TouchArea {
+                            clicked => { root.icon-pack-picker-open = false; }
+                        }
+                    }
+                }
+
+                pack-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    viewport-width: self.width;
+                    viewport-height: pack-grid.height;
+
+                    property <length> gap: 12px;
+                    property <int> cols: max(1, Math.floor((self.width + self.gap) / (200px + self.gap)));
+                    property <length> cell: (self.width - (self.cols - 1) * self.gap) / self.cols;
+
+                    pack-grid := Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: pack-scroll.width;
+                        height: Math.ceil(root.icon-pack-choices.length / pack-scroll.cols)
+                            * (112px + pack-scroll.gap) - pack-scroll.gap;
+
+                        for choice[i] in root.icon-pack-choices: IconPackCard {
+                            x: Math.mod(i, pack-scroll.cols) * (pack-scroll.cell + pack-scroll.gap);
+                            y: Math.floor(i / pack-scroll.cols) * (112px + pack-scroll.gap);
+                            width: pack-scroll.cell;
+                            choice: choice;
+
+                            clicked => { root.icon-pack-selected(choice.id); }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.icon-pack-picker-open = false; }
                     }
                 }
             }

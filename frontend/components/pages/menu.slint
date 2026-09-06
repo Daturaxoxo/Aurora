@@ -1,3 +1,4 @@
+import { Icons } from "../../icons.slint";
 import { Palette } from "../../global.slint";
 import { Tr, TrKey } from "../../translations.slint";
 
@@ -16,22 +17,22 @@ export component MenuPage inherits Rectangle {
         {
             id: 0,
             name: Tr.values[TrKey.menu-item-screenshots],
-            icon: @image-url("../../../production/icons/menu/camera.png")
+            icon: Icons.menu-camera
         },
         {
             id: 2,
             name: Tr.values[TrKey.menu-item-lua],
-            icon: @image-url("../../../production/icons/menu/lua.png")
+            icon: Icons.menu-lua
         },
         {
             id: 3,
             name: Tr.values[TrKey.menu-item-modules],
-            icon: @image-url("../../../production/icons/menu/modules.png")
+            icon: Icons.menu-modules
         },
         {
             id: 4,
             name: Tr.values[TrKey.menu-item-addons],
-            icon: @image-url("../../../production/icons/menu/addons.png")
+            icon: Icons.menu-addons
         },
     ];
     background: Palette.shade-66;
@@ -89,7 +90,7 @@ export component MenuPage inherits Rectangle {
                     animate background { duration: 120ms; }
 
                     Image {
-                        source: @image-url("../../../production/icons/close.png");
+                        source: Icons.close;
                         width: 18px;
                         height: 18px;
                         image-rendering: smooth;

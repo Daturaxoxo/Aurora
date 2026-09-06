@@ -15,6 +15,7 @@ use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::iconpack::IconPackHandler;
 use classes::oneclick::OneClickHandler;
 use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
@@ -256,6 +257,7 @@ fn main() -> Result<()> {
 
     ToastHandler::setup(window.as_weak());
     ThemeHandler::setup(&window.as_weak());
+    IconPackHandler::setup(&window.as_weak());
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
@@ -284,11 +286,7 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
-
-    // Tells the updater, if this run was started by one, that the new build got
-    // as far as putting its window on screen.
     UpdateHandler::on_window_shown();
-
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
     OneClickHandler::shutdown();

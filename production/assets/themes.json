@@ -8,7 +8,8 @@
     "shadow": "#000000aa",
     "primary_text": "#ffffff",
     "secondary_text": "#aaaaaa",
-    "image": "background"
+    "image": "background",
+    "icon_pack": "light"
   },
   {
     "id": "midnight",
@@ -24,7 +25,8 @@
     "accent_strong": "#4f7dff",
     "backdrop": "#07070e",
     "overlay": ["#00000866", "#000008b0"],
-    "image": "background"
+    "image": "background",
+    "icon_pack": "light"
   },
   {
     "id": "ember",
@@ -42,7 +44,8 @@
     "warning": "#f0a83a",
     "backdrop": "#150c0e",
     "overlay": ["#1a060044", "#1a06008e"],
-    "image": "background"
+    "image": "background",
+    "icon_pack": "light"
   },
   {
     "id": "verdant",
@@ -59,7 +62,8 @@
     "success": "#3ddc91",
     "backdrop": "#08110d",
     "overlay": ["#00120c44", "#00120c8e"],
-    "image": "background"
+    "image": "background",
+    "icon_pack": "light"
   },
   {
     "id": "paper",
@@ -79,6 +83,7 @@
     "favorite": "#d8a018",
     "backdrop": "#e8e8ee",
     "overlay": ["#ffffff33", "#ffffff11"],
-    "image": "background"
+    "image": "background",
+    "icon_pack": "dark"
   }
 ]

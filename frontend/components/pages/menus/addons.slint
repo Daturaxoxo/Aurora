@@ -1,3 +1,4 @@
+import { Icons } from "../../../icons.slint";
 import { Palette } from "../../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Tr, TrKey } from "../../../translations.slint";
@@ -211,7 +212,7 @@ component AddonCard inherits Rectangle {
                 spacing: 8px;
 
                 if !root.item.installed && !root.busy && !root.item.unavailable: Image {
-                    source: @image-url("../../../../production/icons/download.png");
+                    source: Icons.download;
                     width: 16px;
                     height: 16px;
                     image-rendering: smooth;
@@ -256,7 +257,7 @@ component AddonCard inherits Rectangle {
             }
 
             Image {
-                source: @image-url("../../../../production/icons/delete.png");
+                source: Icons.delete;
                 width: 20px;
                 height: 20px;
                 image-rendering: smooth;
@@ -291,7 +292,7 @@ component AddonCard inherits Rectangle {
             }
 
             Image {
-                source: @image-url("../../../../production/icons/gamebanana.png");
+                source: Icons.gamebanana;
                 width: 22px;
                 height: 22px;
                 image-rendering: smooth;
@@ -354,7 +355,7 @@ export component AddonsPage inherits Rectangle {
                         alignment: start;
 
                         Image {
-                            source: @image-url("../../../../production/icons/menu/addons.png");
+                            source: Icons.menu-addons;
                             width: 20px;
                             height: 20px;
                             image-rendering: smooth;
@@ -398,7 +399,7 @@ export component AddonsPage inherits Rectangle {
                     animate background { duration: 120ms; }
 
                     Image {
-                        source: @image-url("../../../../production/icons/close.png");
+                        source: Icons.close;
                         width: 22px;
                         height: 22px;
                         image-rendering: smooth;
