@@ -66,6 +66,7 @@ image = { version = "0.25.10", default-features = false, features = [
     "rayon",
     "png",
     "jpeg",
+    "gif",
 ] }
 mslnk = "0.1"
 md5 = "0.8.1"

@@ -4,6 +4,25 @@ import { Languages } from "../../languages.slint";
 import { Tr, TrKey } from "../../translations.slint";
 import { ScrollingTextInput } from "../textfield.slint";
 import { Slider } from "../slider.slint";
+import { ChipButton } from "../chipbutton.slint";
+
+export struct ThemeChoice {
+    id: string,
+    name: string,
+    author: string,
+    preview: image,
+    backdrop: color,
+    background-top: color,
+    background-bottom: color,
+    border-top: color,
+    scrim-top: color,
+    scrim-bottom: color,
+    text-primary: color,
+    text-secondary: color,
+    accent: color,
+    builtin: bool,
+    selected: bool,
+}
 
 component ToggleSwitch inherits Rectangle {
     in-out property <bool> checked;
@@ -12,7 +31,7 @@ component ToggleSwitch inherits Rectangle {
     width: 44px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? #10b981 : #3f3f46;
+    background: root.checked ? Palette.success : Palette.fg-28;
 
     animate background { duration: 150ms; }
 
@@ -20,7 +39,7 @@ component ToggleSwitch inherits Rectangle {
         width: 16px;
         height: 16px;
         border-radius: 8px;
-        background: #ffffff;
+        background: Palette.text-primary;
         x: root.checked ? parent.width - self.width - 4px : 4px;
 
         animate x {
@@ -49,7 +68,7 @@ export component Dropdown inherits Rectangle {
 
     width: 140px;
     height: 32px;
-    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
+    background: Palette.card-background;
     border-radius: 6px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -89,10 +108,10 @@ export component Dropdown inherits Rectangle {
         width: parent.width;
 
         Rectangle {
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 6px;
             border-width: 1px;
-            border-color: #3f3f46;
+            border-color: Palette.fg-28;
 
             VerticalLayout {
                 padding: 4px;
@@ -100,7 +119,7 @@ export component Dropdown inherits Rectangle {
                 for option[index] in root.options: Rectangle {
                     height: 28px;
                     border-radius: 4px;
-                    background: item-ta.has-hover ? #ffffff10 : transparent;
+                    background: item-ta.has-hover ? Palette.fg-10 : transparent;
 
                     Text {
                         text: option;
@@ -122,7 +141,7 @@ export component Dropdown inherits Rectangle {
                         width: 20px;
                         height: 20px;
                         border-radius: 4px;
-                        background: remove-ta.has-hover ? #ffffff18 : transparent;
+                        background: remove-ta.has-hover ? Palette.fg-18 : transparent;
 
                         Text {
                             text: "×";
@@ -149,14 +168,14 @@ component TabButton inherits Rectangle {
 
     height: 38px;
     border-radius: 8px;
-    background: root.active ? #ffffff0c : (ta.has-hover ? #ffffff04 : transparent);
+    background: root.active ? Palette.fg-0c : (ta.has-hover ? Palette.fg-04 : transparent);
 
     border-width: 1px;
     border-color: root.active
         ? Palette.glass-border
         : (ta.has-hover
-            ? @linear-gradient(135deg, #ffffff1b 0%, #ffffff09 100%)
-            : @linear-gradient(135deg, #ffffff12 0%, #ffffff06 100%));
+            ? @linear-gradient(135deg, Palette.fg-1b 0%, Palette.fg-09 100%)
+            : @linear-gradient(135deg, Palette.fg-12 0%, Palette.fg-06 100%));
 
     animate background { duration: 120ms; }
     animate border-color { duration: 120ms; }
@@ -181,7 +200,7 @@ component SettingCard inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
 
-    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
+    background: Palette.card-background;
     border-radius: 12px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -204,7 +223,7 @@ component SettingCard inherits Rectangle {
 
             Text {
                 text: root.subtitle;
-                color: #cbd5e1;
+                color: Palette.fg-cc;
                 font-size: 12px;
                 wrap: word-wrap;
             }
@@ -223,7 +242,7 @@ component LinkButton inherits Rectangle {
 
     height: 24px;
     border-radius: 4px;
-    background: link-ta.has-hover ? #ffffff0c : transparent;
+    background: link-ta.has-hover ? Palette.fg-0c : transparent;
 
     animate background { duration: 100ms; }
 
@@ -292,7 +311,7 @@ component CommitTextInput inherits Rectangle {
             alignment: center;
             Text {
                 text: root.saved-text;
-                color: #10b981;
+                color: Palette.success;
                 font-size: 12px;
                 opacity: root.show-saved ? 1.0 : 0.0;
                 animate opacity { duration: 200ms; }
@@ -305,9 +324,9 @@ component CommitTextInput inherits Rectangle {
             width: root.input-width;
             height: 32px;
             border-radius: 6px;
-            background: #ffffff08;
+            background: Palette.fg-08;
             border-width: 1px;
-            border-color: input.input-focused ? #6db3f2 : #ffffff18;
+            border-color: input.input-focused ? Palette.accent : Palette.fg-18;
 
             animate border-color { duration: 100ms; }
 
@@ -337,10 +356,10 @@ component CardButton inherits Rectangle {
     callback clicked();
     min-width: 76px;
     height: 32px;
-    background: card-btn-ta.has-hover ? #ffffff14 : #ffffff08;
+    background: card-btn-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
     border-radius: 6px;
     border-width: 1px;
-    border-color: #ffffff18;
+    border-color: Palette.fg-18;
 
     animate background { duration: 100ms; }
 
@@ -364,7 +383,7 @@ component CardButton inherits Rectangle {
 }
 
 component SectionBox inherits Rectangle {
-    background: @linear-gradient(180deg, #15151aed 0%, #17171beb 100%);
+    background: Palette.card-background;
     border-radius: 12px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -378,7 +397,7 @@ component SectionBox inherits Rectangle {
 
 component RowDivider inherits Rectangle {
     height: 1px;
-    background: #ffffff0e;
+    background: Palette.fg-0e;
 }
 
 component InfoRow inherits Rectangle {
@@ -388,7 +407,7 @@ component InfoRow inherits Rectangle {
     callback clicked();
 
     border-radius: 8px;
-    background: (root.clickable && row-ta.has-hover) ? #ffffff0a : transparent;
+    background: (root.clickable && row-ta.has-hover) ? Palette.fg-0a : transparent;
 
     animate background { duration: 100ms; }
 
@@ -419,7 +438,7 @@ component InfoRow inherits Rectangle {
 
             if root.subtitle != "": Text {
                 text: root.subtitle;
-                color: #cbd5e1;
+                color: Palette.fg-cc;
                 font-size: 12px;
                 wrap: word-wrap;
             }
@@ -446,6 +465,134 @@ component InfoRow inherits Rectangle {
                     animate opacity { duration: 100ms; }
                 }
             }
+        }
+    }
+}
+
+component ThemeCard inherits Rectangle {
+    in property <ThemeChoice> choice;
+    callback clicked();
+    callback delete-requested();
+    private property <bool> hovered: card-ta.has-hover || delete-ta.has-hover;
+
+    height: 148px;
+    border-radius: 10px;
+    clip: true;
+    background: root.choice.backdrop;
+    border-width: root.choice.selected ? 2px : 1px;
+    border-color: root.choice.selected
+        ? root.choice.accent
+        : (root.hovered ? Palette.fg-38 : Palette.fg-16);
+    animate border-color { duration: 120ms; }
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.choice.preview;
+        image-fit: cover;
+        image-rendering: smooth;
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: @linear-gradient(180deg, root.choice.scrim-top 0%, root.choice.scrim-bottom 100%);
+    }
+
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 22px;
+        background: @linear-gradient(180deg, root.choice.background-top 0%, root.choice.background-bottom 100%);
+
+        Rectangle {
+            x: 8px;
+            y: 8px;
+            width: 34px;
+            height: 6px;
+            border-radius: 3px;
+            background: root.choice.text-primary.with-alpha(0.55);
+        }
+    }
+
+    VerticalLayout {
+        padding: 10px;
+        padding-top: 30px;
+        spacing: 6px;
+        alignment: end;
+
+        HorizontalLayout {
+            spacing: 5px;
+            alignment: start;
+            for swatch in [
+                root.choice.accent,
+                root.choice.text-primary,
+                root.choice.text-secondary,
+            ]: Rectangle {
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                background: swatch;
+                border-width: 1px;
+                border-color: Palette.shade-44;
+            }
+        }
+        Rectangle {
+            height: label-box.preferred-height;
+            border-radius: 6px;
+            background: @linear-gradient(180deg, root.choice.background-top 0%, root.choice.background-bottom 100%);
+            border-width: 1px;
+            border-color: root.choice.border-top;
+
+            label-box := VerticalLayout {
+                padding: 7px;
+                spacing: 1px;
+
+                Text {
+                    text: root.choice.name;
+                    color: root.choice.text-primary;
+                    font-size: 12px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+
+                if root.choice.author != "": Text {
+                    text: Tr.values[TrKey.global-label-by] + " " + root.choice.author;
+                    color: root.choice.text-secondary;
+                    font-size: 10px;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    card-ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Rectangle {
+        x: parent.width - self.width - 6px;
+        y: 6px;
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        background: delete-ta.has-hover ? Palette.danger : Palette.shade-99;
+        opacity: (root.hovered && !root.choice.builtin) ? 1.0 : 0.0;
+
+        animate background { duration: 100ms; }
+        animate opacity { duration: 100ms; }
+
+        Text {
+            text: "×";
+            color: Palette.text-primary;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        delete-ta := TouchArea {
+            enabled: !root.choice.builtin;
+            mouse-cursor: pointer;
+            clicked => { root.delete-requested(); }
         }
     }
 }
@@ -499,9 +646,21 @@ export component SettingsPage inherits Rectangle {
     in-out property <int> active-tab: 0;
 
     // GENERAL
-    in-out property <int> language-index: 0;           // 0=English 1=Türkçe 2=简体中文 3=Español, ...
+    in-out property <int> language-index: 0;
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
+
+    // THEMES
+    in property <[ThemeChoice]> theme-choices: [];
+    in property <string> theme-name: "";
+    in property <string> theme-author: "";
+    callback theme-selected(string /* id */);
+    callback theme-import();
+    callback theme-delete(string /* id */);
+    callback theme-open-folder();
+
+    private property <bool> theme-picker-open: false;
+    private property <string> theme-pending-delete: "";
 
     // LAUNCHER
     callback browse-game-directory();
@@ -560,7 +719,7 @@ export component SettingsPage inherits Rectangle {
         root.focus-release += 1;
     }
 
-    background: @linear-gradient(180deg, #111115f8 0%, #16161af5 100%);
+    background: Palette.panel-background;
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -669,7 +828,7 @@ export component SettingsPage inherits Rectangle {
                     width: 28px;
                     height: 28px;
                     border-radius: 6px;
-                    background: ta.has-hover ? #ffffff10 : transparent;
+                    background: ta.has-hover ? Palette.fg-10 : transparent;
 
                     animate background { duration: 100ms; }
 
@@ -735,6 +894,27 @@ export component SettingsPage inherits Rectangle {
                             VerticalLayout {
                                 spacing: 10px;
                                 Text {
+                                    text: Tr.values[TrKey.settings-section-themes];
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-theme-title];
+                                    subtitle: root.theme-author == ""
+                                        ? "\"\{root.theme-name}\""
+                                        : "\"\{root.theme-name}\" \{Tr.values[TrKey.global-label-by]} \{root.theme-author}";
+                                    CardButton {
+                                        text: Tr.values[TrKey.settings-theme-browse];
+                                        clicked => { root.theme-picker-open = true; }
+                                    }
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Text {
                                     text: Tr.values[TrKey.settings-section-integration];
                                     color: Palette.text-secondary;
                                     font-size: 11px;
@@ -780,10 +960,10 @@ export component SettingsPage inherits Rectangle {
                                     Rectangle {
                                         width: 76px;
                                         height: 32px;
-                                        background: browse-ta.has-hover ? #ffffff14 : #ffffff08;
+                                        background: browse-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
                                         border-radius: 6px;
                                         border-width: 1px;
-                                        border-color: #ffffff18;
+                                        border-color: Palette.fg-18;
 
                                         animate background { duration: 100ms; }
 
@@ -975,7 +1155,7 @@ export component SettingsPage inherits Rectangle {
 
                                         if root.proton-version-not-recommended: Text {
                                             text: Tr.values[TrKey.settings-proton-version-warning];
-                                            color: #f59e0b;
+                                            color: Palette.warning;
                                             font-size: 12px;
                                             horizontal-alignment: right;
                                         }
@@ -1040,10 +1220,10 @@ export component SettingsPage inherits Rectangle {
                                     Rectangle {
                                         width: 76px;
                                         height: 32px;
-                                        background: export-ta.has-hover ? #ffffff14 : #ffffff08;
+                                        background: export-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
                                         border-radius: 6px;
                                         border-width: 1px;
-                                        border-color: #ffffff18;
+                                        border-color: Palette.fg-18;
 
                                         animate background { duration: 100ms; }
 
@@ -1256,6 +1436,210 @@ export component SettingsPage inherits Rectangle {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.theme-picker-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: Palette.shade-aa;
+
+        TouchArea {
+            clicked => { root.theme-picker-open = false; }
+        }
+
+        ScrollView {
+            width: 100%;
+            height: 100%;
+            viewport-width: self.width;
+            viewport-height: self.height + 1px;
+        }
+
+        Rectangle {
+            property <length> chrome: 40px + 24px + 30px + 28px;
+
+            width: min(720px, parent.width - 60px);
+            height: min(parent.height - 60px, theme-grid.height + self.chrome);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Palette.surface;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: Palette.shade-99;
+            drop-shadow-blur: 30px;
+
+            TouchArea { }
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+
+                HorizontalLayout {
+                    height: 24px;
+                    spacing: 8px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: Tr.values[TrKey.settings-theme-picker-title];
+                        color: Palette.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: theme-close-ta.has-hover ? Palette.fg-14 : transparent;
+                        animate background { duration: 100ms; }
+
+                        Path {
+                            x: 6px;
+                            y: 6px;
+                            width: 12px;
+                            height: 12px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 14;
+                            viewbox-height: 14;
+                            commands: "M1 1 L13 13 M13 1 L1 13";
+                            stroke: theme-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
+                            stroke-width: 1.8px;
+                            fill: transparent;
+                            animate stroke { duration: 100ms; }
+                        }
+
+                        theme-close-ta := TouchArea {
+                            clicked => { root.theme-picker-open = false; }
+                        }
+                    }
+                }
+
+                theme-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    viewport-width: self.width;
+                    viewport-height: theme-grid.height;
+
+                    property <length> gap: 12px;
+                    property <int> cols: max(1, Math.floor((self.width + self.gap) / (200px + self.gap)));
+                    property <length> cell: (self.width - (self.cols - 1) * self.gap) / self.cols;
+
+                    theme-grid := Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: theme-scroll.width;
+                        height: Math.ceil(root.theme-choices.length / theme-scroll.cols)
+                            * (148px + theme-scroll.gap) - theme-scroll.gap;
+
+                        for choice[i] in root.theme-choices: ThemeCard {
+                            x: Math.mod(i, theme-scroll.cols) * (theme-scroll.cell + theme-scroll.gap);
+                            y: Math.floor(i / theme-scroll.cols) * (148px + theme-scroll.gap);
+                            width: theme-scroll.cell;
+                            choice: choice;
+
+                            clicked => {
+                                root.theme-pending-delete = "";
+                                root.theme-selected(choice.id);
+                            }
+                            delete-requested => { root.theme-pending-delete = choice.id; }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    ChipButton {
+                        text: Tr.values[TrKey.settings-theme-import];
+                        clicked => {
+                            root.theme-picker-open = false;
+                            root.theme-import();
+                        }
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.settings-theme-open-folder];
+                        clicked => { root.theme-open-folder(); }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.theme-picker-open = false; }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.theme-pending-delete != "": Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: Palette.shade-aa;
+
+        TouchArea {
+            clicked => { root.theme-pending-delete = ""; }
+        }
+
+        Rectangle {
+            width: min(360px, parent.width - 60px);
+            height: confirm-box.preferred-height;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Palette.surface;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            drop-shadow-color: Palette.shade-99;
+            drop-shadow-blur: 30px;
+
+            TouchArea { }
+
+            confirm-box := VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+
+                Text {
+                    text: Tr.values[TrKey.settings-theme-delete-title];
+                    color: Palette.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: Tr.values[TrKey.settings-theme-delete-message];
+                    color: Palette.fg-cc;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-popup-cancel-button];
+                        clicked => { root.theme-pending-delete = ""; }
+                    }
+
+                    ChipButton {
+                        text: Tr.values[TrKey.global-button-delete];
+                        danger: true;
+                        clicked => {
+                            root.theme-delete(root.theme-pending-delete);
+                            root.theme-pending-delete = "";
                         }
                     }
                 }

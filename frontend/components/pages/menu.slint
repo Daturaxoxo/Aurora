@@ -34,7 +34,7 @@ export component MenuPage inherits Rectangle {
             icon: @image-url("../../../production/icons/menu/addons.png")
         },
     ];
-    background: #00000066;
+    background: Palette.shade-66;
 
     TouchArea {
         width: 100%;
@@ -51,7 +51,7 @@ export component MenuPage inherits Rectangle {
         border-radius: 16px;
         border-width: 1px;
         border-color: Palette.glass-border;
-        drop-shadow-color: #00000099;
+        drop-shadow-color: Palette.shade-99;
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 12px;
 
@@ -75,7 +75,7 @@ export component MenuPage inherits Rectangle {
                     alignment: center;
                     Text {
                         text: Tr.values[TrKey.menu-title];
-                        color: #ffffff;
+                        color: Palette.text-primary;
                         font-size: 17px;
                         font-weight: 700;
                     }
@@ -85,7 +85,7 @@ export component MenuPage inherits Rectangle {
                     width: 30px;
                     height: 30px;
                     border-radius: 6px;
-                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    background: close-ta.has-hover ? Palette.fg-16 : transparent;
                     animate background { duration: 120ms; }
 
                     Image {
@@ -122,10 +122,10 @@ export component MenuPage inherits Rectangle {
                     for i in [0, 2]: Rectangle {
                         height: 100px;
                         visible: i < root.items.length;
-                        background: root.items[i].disabled ? #ffffff05 : (ta-left.has-hover ? #ffffff12 : #ffffff08);
+                        background: root.items[i].disabled ? Palette.fg-05 : (ta-left.has-hover ? Palette.fg-12 : Palette.fg-08);
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: !root.items[i].disabled && ta-left.has-hover ? #ffffff28 : Palette.glass-border;
+                        border-color: !root.items[i].disabled && ta-left.has-hover ? Palette.fg-28 : Palette.glass-border;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
@@ -154,7 +154,7 @@ export component MenuPage inherits Rectangle {
 
                             Text {
                                 text: root.items[i].name;
-                                color: root.items[i].disabled ? #ffffff66 : #ffffffdd;
+                                color: root.items[i].disabled ? Palette.fg-66 : Palette.fg-dd;
                                 font-size: 13px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -162,7 +162,7 @@ export component MenuPage inherits Rectangle {
 
                             if root.items[i].disabled: Text {
                                 text: "Coming Soon";
-                                color: #ffffff55;
+                                color: Palette.fg-55;
                                 font-size: 10px;
                                 font-weight: 600;
                                 letter-spacing: 0.5px;
@@ -180,10 +180,10 @@ export component MenuPage inherits Rectangle {
                     for i in [1, 3]: Rectangle {
                         height: 100px;
                         visible: i < root.items.length;
-                        background: root.items[i].disabled ? #ffffff05 : (ta-right.has-hover ? #ffffff12 : #ffffff08);
+                        background: root.items[i].disabled ? Palette.fg-05 : (ta-right.has-hover ? Palette.fg-12 : Palette.fg-08);
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: !root.items[i].disabled && ta-right.has-hover ? #ffffff28 : Palette.glass-border;
+                        border-color: !root.items[i].disabled && ta-right.has-hover ? Palette.fg-28 : Palette.glass-border;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
@@ -212,7 +212,7 @@ export component MenuPage inherits Rectangle {
 
                             Text {
                                 text: root.items[i].name;
-                                color: root.items[i].disabled ? #ffffff66 : #ffffffdd;
+                                color: root.items[i].disabled ? Palette.fg-66 : Palette.fg-dd;
                                 font-size: 13px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -220,7 +220,7 @@ export component MenuPage inherits Rectangle {
 
                             if root.items[i].disabled: Text {
                                 text: "Coming Soon";
-                                color: #ffffff55;
+                                color: Palette.fg-55;
                                 font-size: 10px;
                                 font-weight: 600;
                                 letter-spacing: 0.5px;

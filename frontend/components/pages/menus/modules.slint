@@ -36,7 +36,7 @@ export component ModulesPage inherits Rectangle {
 
     init => { root.search-changed(root.search-text); }
 
-    background: #00000066;
+    background: Palette.shade-66;
 
     TouchArea {
         width: 100%;
@@ -100,8 +100,8 @@ export component ModulesPage inherits Rectangle {
                             width: add-modules-row.preferred-width + 24px;
                             border-radius: 7px;
                             border-width: 1px;
-                            border-color: add-modules-ta.has-hover ? #ffffff28 : #ffffff16;
-                            background: add-modules-ta.has-hover ? #ffffff12 : #ffffff08;
+                            border-color: add-modules-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                            background: add-modules-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                             animate background { duration: 100ms; }
                             animate border-color { duration: 100ms; }
 
@@ -127,7 +127,7 @@ export component ModulesPage inherits Rectangle {
                                         viewbox-width: 14;
                                         viewbox-height: 14;
                                         commands: "M7 1 L7 13 M1 7 L13 7";
-                                        stroke: #ffffffbb;
+                                        stroke: Palette.fg-bb;
                                         stroke-width: 1.8px;
                                         fill: transparent;
                                     }
@@ -135,7 +135,7 @@ export component ModulesPage inherits Rectangle {
 
                                 Text {
                                     text: Tr.values[TrKey.modules-add-modules];
-                                    color: #ffffffcc;
+                                    color: Palette.fg-cc;
                                     font-size: 12px;
                                     font-weight: 600;
                                     vertical-alignment: center;
@@ -155,7 +155,7 @@ export component ModulesPage inherits Rectangle {
                             width: 28px;
                             height: 28px;
                             border-radius: 6px;
-                            background: close-ta.has-hover ? #ffffff14 : transparent;
+                            background: close-ta.has-hover ? Palette.fg-14 : transparent;
                             animate background { duration: 100ms; }
 
                             Path {
@@ -168,7 +168,7 @@ export component ModulesPage inherits Rectangle {
                                 viewbox-width: 14;
                                 viewbox-height: 14;
                                 commands: "M1 1 L13 13 M13 1 L1 13";
-                                stroke: close-ta.has-hover ? #ffffffdd : #ffffff66;
+                                stroke: close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                                 stroke-width: 1.8px;
                                 fill: transparent;
                                 animate stroke { duration: 100ms; }
@@ -190,14 +190,13 @@ export component ModulesPage inherits Rectangle {
             Rectangle {
                 height: 48px;
                 width: 100%;
-                background: #ffffff02;
+                background: Palette.fg-02;
 
                 HorizontalLayout {
                     padding-left: 20px;
                     padding-right: 20px;
                     spacing: 12px;
 
-                    // Select all / deselect all
                     VerticalLayout {
                         alignment: center;
                         Rectangle {
@@ -206,9 +205,9 @@ export component ModulesPage inherits Rectangle {
                             border-radius: 4px;
                             border-width: 1px;
                             border-color: root.all-selected
-                                ? #E8A020
-                                : (select-all-ta.has-hover ? #ffffff77 : #ffffff44);
-                            background: root.all-selected ? #E8A020 : transparent;
+                                ? Palette.warning
+                                : (select-all-ta.has-hover ? Palette.fg-77 : Palette.fg-44);
+                            background: root.all-selected ? Palette.warning : transparent;
                             animate background { duration: 120ms; }
                             animate border-color { duration: 120ms; }
 
@@ -222,7 +221,7 @@ export component ModulesPage inherits Rectangle {
                                 viewbox-width: 12;
                                 viewbox-height: 10;
                                 commands: "M1 5 L4 8 L11 1";
-                                stroke: #111111;
+                                stroke: Palette.shade-ff;
                                 stroke-width: 1.8px;
                                 fill: transparent;
                             }
@@ -238,10 +237,10 @@ export component ModulesPage inherits Rectangle {
                         alignment: center;
                         search-container := Rectangle {
                             height: 32px;
-                            background: #ffffff08;
+                            background: Palette.fg-08;
                             border-radius: 7px;
                             border-width: 1px;
-                            border-color: #ffffff16;
+                            border-color: Palette.fg-16;
 
                             Image {
                                 source: @image-url("../../../../production/icons/search.png");
@@ -251,7 +250,7 @@ export component ModulesPage inherits Rectangle {
                                 height: 14px;
                                 image-rendering: smooth;
                                 image-fit: contain;
-                                colorize: #ffffff66;
+                                colorize: Palette.fg-66;
                             }
 
                             TextInput {
@@ -266,14 +265,13 @@ export component ModulesPage inherits Rectangle {
                             if (root.search-text == ""): Text {
                                 x: 32px;
                                 text: Tr.values[TrKey.modules-search-placeholder];
-                                color: #ffffff44;
+                                color: Palette.fg-44;
                                 font-size: 13px;
                                 vertical-alignment: center;
                             }
                         }
                     }
 
-                    // Bulk actions for the current selection
                     if root.selected-count > 0: VerticalLayout {
                         alignment: center;
                         toggle-sel-btn := Rectangle {
@@ -281,13 +279,13 @@ export component ModulesPage inherits Rectangle {
                             height: 28px;
                             border-radius: 7px;
                             border-width: 1px;
-                            border-color: toggle-sel-ta.has-hover ? #ffffff28 : #ffffff16;
-                            background: toggle-sel-ta.has-hover ? #ffffff12 : #ffffff08;
+                            border-color: toggle-sel-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                            background: toggle-sel-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                             animate background { duration: 100ms; }
 
                             toggle-sel-text := Text {
                                 text: Tr.values[TrKey.global-button-toggle] + " (" + root.selected-count + ")";
-                                color: #ffffffcc;
+                                color: Palette.fg-cc;
                                 font-size: 12px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -307,8 +305,8 @@ export component ModulesPage inherits Rectangle {
                             height: 28px;
                             border-radius: 7px;
                             border-width: 1px;
-                            border-color: #ee493766;
-                            background: delete-sel-ta.has-hover ? #ee4937 : #ee4937cc;
+                            border-color: Palette.danger.with-alpha(0.400);
+                            background: delete-sel-ta.has-hover ? Palette.danger : Palette.danger.with-alpha(0.800);
                             animate background { duration: 100ms; }
 
                             delete-sel-text := Text {
@@ -339,7 +337,7 @@ export component ModulesPage inherits Rectangle {
                         alignment: center;
                         Text {
                             text: Tr.values[TrKey.modules-enable-feature];
-                            color: #ffffffcc;
+                            color: Palette.fg-cc;
                             font-size: 12px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -399,7 +397,7 @@ export component ModulesPage inherits Rectangle {
                             text: root.search-text == ""
                                 ? Tr.values[TrKey.modules-empty]
                                 : Tr.values[TrKey.modules-empty-search];
-                            color: #ffffff44;
+                            color: Palette.fg-44;
                             font-size: 13px;
                             horizontal-alignment: center;
                         }

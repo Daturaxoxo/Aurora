@@ -36,12 +36,12 @@ component RestartPill inherits Rectangle {
     width: pill-text.preferred-width + (root.compact ? 16px : 22px);
     border-radius: 7px;
     border-width: 1px;
-    border-color: #f0b46d;
-    background: root.compact ? #1e1e24ee : #f0b46d1c;
+    border-color: Palette.warning-bright;
+    background: root.compact ? Palette.surface.with-alpha(0.933) : Palette.warning-bright.with-alpha(0.110);
 
     pill-text := Text {
         text: Tr.values[TrKey.modmanager-restart-required];
-        color: #ffdcae;
+        color: Palette.warning-pale;
         font-size: root.compact ? 10px : 11.5px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -55,15 +55,15 @@ component TagPill inherits Rectangle {
     in property <bool> compact: false;
 
     property <color> accent: root.tag == ModTag.update-available
-        ? #e8a020
-        : root.tag == ModTag.up-to-date ? #25d952 : #9a9aa4;
+        ? Palette.warning
+        : root.tag == ModTag.up-to-date ? Palette.success : Palette.text-secondary;
 
     height: root.compact ? 20px : 16px;
     width: tag-text.preferred-width + (root.compact ? 16px : 12px);
     border-radius: root.compact ? 7px : 4px;
     border-width: 1px;
     border-color: root.accent.transparentize(0.7);
-    background: root.compact ? #1e1e24ee : root.accent.transparentize(0.88);
+    background: root.compact ? Palette.surface.with-alpha(0.933) : root.accent.transparentize(0.88);
 
     tag-text := Text {
         text: root.tag == ModTag.local
@@ -87,7 +87,7 @@ export component ToggleSwitch inherits Rectangle {
     width: 44px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? #10b981 : #3f3f46;
+    background: root.checked ? Palette.success : Palette.fg-28;
 
     animate background { duration: 150ms; }
 
@@ -95,7 +95,7 @@ export component ToggleSwitch inherits Rectangle {
         width: 16px;
         height: 16px;
         border-radius: 8px;
-        background: #ffffff;
+        background: Palette.text-primary;
         x: root.checked ? parent.width - self.width - 4px : 4px;
 
         animate x {
@@ -157,15 +157,15 @@ export component ModCard inherits Rectangle {
     border-radius: 10px;
     border-width: 1px;
     border-color: root.drop-target
-        ? #6db3f2
+        ? Palette.accent
         : root.item.selected
-        ? #6db3f266
-        : (hover-ta.has-hover ? #ffffff22 : #ffffff10);
+        ? Palette.accent.with-alpha(0.400)
+        : (hover-ta.has-hover ? Palette.fg-22 : Palette.fg-10);
     background: root.drop-target
-        ? #6db3f214
+        ? Palette.accent.with-alpha(0.078)
         : root.item.selected
-        ? #6db3f214
-        : (hover-ta.has-hover ? #ffffff0a : #ffffff06);
+        ? Palette.accent.with-alpha(0.078)
+        : (hover-ta.has-hover ? Palette.fg-0a : Palette.fg-06);
     opacity: root.dragging ? 0.4 : 1.0;
     clip: true;
     animate background { duration: 120ms; }
@@ -216,9 +216,9 @@ export component ModCard inherits Rectangle {
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
-                    ? #6db3f2
-                    : (select-ta.has-hover ? #ffffff66 : #ffffff33);
-                background: root.item.selected ? #6db3f2 : transparent;
+                    ? Palette.accent
+                    : (select-ta.has-hover ? Palette.fg-66 : Palette.fg-33);
+                background: root.item.selected ? Palette.accent : transparent;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -232,7 +232,7 @@ export component ModCard inherits Rectangle {
                     viewbox-width: 12;
                     viewbox-height: 10;
                     commands: "M1 5 L4 8 L11 1";
-                    stroke: #111111;
+                    stroke: Palette.shade-ff;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -249,7 +249,7 @@ export component ModCard inherits Rectangle {
                 width: 40px;
                 height: 40px;
                 border-radius: 8px;
-                background: #00000044;
+                background: Palette.shade-44;
                 clip: true;
 
                 Image {
@@ -298,7 +298,7 @@ export component ModCard inherits Rectangle {
                 }
 
                 if icon-ta.has-hover: Rectangle {
-                    background: #ffffff0a;
+                    background: Palette.fg-0a;
                 }
 
                 // Opens the icon picker
@@ -309,7 +309,7 @@ export component ModCard inherits Rectangle {
                     height: 16px;
                     border-radius: 8px;
                     opacity: icon-ta.has-hover || icon-badge-ta.has-hover ? 1 : 0;
-                    background: icon-badge-ta.has-hover ? #4a4a55 : #1e1e24ee;
+                    background: icon-badge-ta.has-hover ? Palette.surface-raised : Palette.surface.with-alpha(0.933);
                     animate opacity { duration: 120ms; }
                     animate background { duration: 100ms; }
 
@@ -321,7 +321,7 @@ export component ModCard inherits Rectangle {
                         y: (parent.height - self.height) / 2;
                         image-rendering: smooth;
                         image-fit: contain;
-                        colorize: #ffffffdd;
+                        colorize: Palette.fg-dd;
                     }
 
                     icon-badge-ta := TouchArea {
@@ -362,9 +362,9 @@ export component ModCard inherits Rectangle {
                     max-width: self.desired-width;
                     min-width: 0px;
                     border-radius: 4px;
-                    background: #ffffff10;
+                    background: Palette.fg-10;
                     border-width: 1px;
-                    border-color: #ffffff33;
+                    border-color: Palette.fg-33;
 
                     title-measure := Text {
                         visible: false;
@@ -395,7 +395,7 @@ export component ModCard inherits Rectangle {
                         width: 18px;
                         height: 18px;
                         border-radius: 4px;
-                        background: rename-ta.has-hover ? #ffffff16 : transparent;
+                        background: rename-ta.has-hover ? Palette.fg-16 : transparent;
                         animate background { duration: 100ms; }
 
                         Image {
@@ -404,7 +404,7 @@ export component ModCard inherits Rectangle {
                             height: 11px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                            colorize: rename-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             animate colorize { duration: 100ms; }
                         }
 
@@ -431,7 +431,7 @@ export component ModCard inherits Rectangle {
                         overflow: elide;
                         text: Tr.values[TrKey.global-label-by] + " " + root.item.author;
                         color: author-wrap.is-link
-                            ? (link-ta.has-hover ? #9ecfff : #6db3f2)
+                            ? (link-ta.has-hover ? Palette.accent-bright : Palette.accent)
                             : Palette.text-secondary;
                         font-size: 11px;
                         font-weight: 500;
@@ -443,7 +443,7 @@ export component ModCard inherits Rectangle {
                         y: parent.height - 3px;
                         width: parent.width;
                         height: 1px;
-                        background: #9ecfff;
+                        background: Palette.accent-bright;
                     }
 
                     link-ta := TouchArea {
@@ -457,9 +457,9 @@ export component ModCard inherits Rectangle {
                     width: version-text.preferred-width + 12px;
                     height: 16px;
                     border-radius: 4px;
-                    background: #ffffff10;
+                    background: Palette.fg-10;
                     border-width: 1px;
-                    border-color: #ffffff1c;
+                    border-color: Palette.fg-1c;
 
                     version-text := Text {
                         x: 6px;
@@ -490,8 +490,8 @@ export component ModCard inherits Rectangle {
                         overflow: elide;
                         text: root.item.notes == "" ? Tr.values[TrKey.modcard-notes-placeholder] : root.item.notes;
                         color: notes-ta.has-hover
-                            ? #ffffffaa
-                            : (root.item.notes == "" ? #ffffff44 : #ffffff77);
+                            ? Palette.fg-aa
+                            : (root.item.notes == "" ? Palette.fg-44 : Palette.fg-77);
                         font-size: 11.5px;
                         font-italic: root.item.notes == "";
                         vertical-alignment: center;
@@ -510,9 +510,9 @@ export component ModCard inherits Rectangle {
                     max-width: self.desired-width;
                     min-width: 0px;
                     border-radius: 4px;
-                    background: #ffffff10;
+                    background: Palette.fg-10;
                     border-width: 1px;
-                    border-color: #ffffff33;
+                    border-color: Palette.fg-33;
 
                     notes-measure := Text {
                         visible: false;
@@ -554,7 +554,7 @@ export component ModCard inherits Rectangle {
                 width: 28px;
                 height: 28px;
                 border-radius: 6px;
-                background: delete-ta.has-hover ? #ee493722 : transparent;
+                background: delete-ta.has-hover ? Palette.danger.with-alpha(0.133) : transparent;
                 animate background { duration: 100ms; }
 
                 Image {
@@ -563,7 +563,7 @@ export component ModCard inherits Rectangle {
                     height: 15px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: delete-ta.has-hover ? #ee4937 : #ffffff66;
+                    colorize: delete-ta.has-hover ? Palette.danger : Palette.fg-66;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -579,7 +579,7 @@ export component ModCard inherits Rectangle {
                 width: 28px;
                 height: 28px;
                 border-radius: 6px;
-                background: update-ta.has-hover ? #e8a02022 : transparent;
+                background: update-ta.has-hover ? Palette.warning.with-alpha(0.133) : transparent;
                 animate background { duration: 100ms; }
 
                 Image {
@@ -588,7 +588,7 @@ export component ModCard inherits Rectangle {
                     height: 15px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: update-ta.has-hover ? #f5bd52 : #e8a020;
+                    colorize: update-ta.has-hover ? Palette.warning-bright : Palette.warning;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -618,7 +618,7 @@ export component ModCard inherits Rectangle {
         icon-frame := Rectangle {
             vertical-stretch: 1;
             border-radius: 8px;
-            background: #00000044;
+            background: Palette.shade-44;
             clip: true;
 
             Image {
@@ -667,7 +667,7 @@ export component ModCard inherits Rectangle {
             }
 
             if grid-icon-ta.has-hover: Rectangle {
-                background: #ffffff0a;
+                background: Palette.fg-0a;
             }
 
             if root.item.version != "": Rectangle {
@@ -676,15 +676,15 @@ export component ModCard inherits Rectangle {
                 width: grid-version-text.preferred-width + 12px;
                 height: 16px;
                 border-radius: 4px;
-                background: #1e1e24ee;
+                background: Palette.surface.with-alpha(0.933);
                 border-width: 1px;
-                border-color: #ffffff38;
+                border-color: Palette.fg-38;
 
                 grid-version-text := Text {
                     x: 6px;
                     y: (parent.height - self.preferred-height) / 2;
                     text: root.item.version;
-                    color: #ffffffdd;
+                    color: Palette.fg-dd;
                     font-size: 9.5px;
                     font-weight: 600;
                 }
@@ -698,7 +698,7 @@ export component ModCard inherits Rectangle {
                 height: 20px;
                 border-radius: 10px;
                 opacity: (grid-root.tile-hovered || grid-icon-badge-ta.has-hover) ? 1 : 0;
-                background: grid-icon-badge-ta.has-hover ? #4a4a55 : #1e1e24ee;
+                background: grid-icon-badge-ta.has-hover ? Palette.surface-raised : Palette.surface.with-alpha(0.933);
                 animate opacity { duration: 120ms; }
                 animate background { duration: 100ms; }
 
@@ -710,7 +710,7 @@ export component ModCard inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: #ffffffdd;
+                    colorize: Palette.fg-dd;
                 }
 
                 grid-icon-badge-ta := TouchArea {
@@ -727,9 +727,9 @@ export component ModCard inherits Rectangle {
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
-                    ? #6db3f2
-                    : (grid-select-ta.has-hover ? #ffffff88 : #ffffff55);
-                background: root.item.selected ? #6db3f2 : #00000066;
+                    ? Palette.accent
+                    : (grid-select-ta.has-hover ? Palette.fg-88 : Palette.fg-55);
+                background: root.item.selected ? Palette.accent : Palette.shade-66;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -743,7 +743,7 @@ export component ModCard inherits Rectangle {
                     viewbox-width: 12;
                     viewbox-height: 10;
                     commands: "M1 5 L4 8 L11 1";
-                    stroke: #111111;
+                    stroke: Palette.shade-ff;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -760,7 +760,7 @@ export component ModCard inherits Rectangle {
                 height: 24px;
                 border-radius: 6px;
                 opacity: grid-root.tile-hovered ? 1 : 0;
-                background: grid-delete-ta.has-hover ? #ee493733 : #00000066;
+                background: grid-delete-ta.has-hover ? Palette.danger.with-alpha(0.200) : Palette.shade-66;
                 animate opacity { duration: 120ms; }
                 animate background { duration: 100ms; }
 
@@ -770,7 +770,7 @@ export component ModCard inherits Rectangle {
                     height: 13px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: grid-delete-ta.has-hover ? #ee4937 : #ffffffaa;
+                    colorize: grid-delete-ta.has-hover ? Palette.danger : Palette.fg-aa;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -812,9 +812,9 @@ export component ModCard inherits Rectangle {
                 horizontal-stretch: 1;
                 min-width: 0px;
                 border-radius: 4px;
-                background: #ffffff10;
+                background: Palette.fg-10;
                 border-width: 1px;
-                border-color: #ffffff33;
+                border-color: Palette.fg-33;
 
                 ScrollingTextInput {
                     width: 100%;
@@ -838,7 +838,7 @@ export component ModCard inherits Rectangle {
                 height: 17px;
                 border-radius: 4px;
                 opacity: (grid-root.tile-hovered || root.editing-title) ? 1 : 0;
-                background: grid-rename-ta.has-hover ? #ffffff16 : transparent;
+                background: grid-rename-ta.has-hover ? Palette.fg-16 : transparent;
                 animate opacity { duration: 120ms; }
                 animate background { duration: 100ms; }
 
@@ -848,7 +848,7 @@ export component ModCard inherits Rectangle {
                     height: 10px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: grid-rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                    colorize: grid-rename-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -879,7 +879,7 @@ export component ModCard inherits Rectangle {
                     height: parent.height;
                     text: root.item.author == "" ? "" : Tr.values[TrKey.global-label-by] + " " + root.item.author;
                     color: grid-author-wrap.is-link
-                        ? (grid-link-ta.has-hover ? #9ecfff : #6db3f2)
+                        ? (grid-link-ta.has-hover ? Palette.accent-bright : Palette.accent)
                         : Palette.text-secondary;
                     font-size: 10.5px;
                     font-weight: 500;
@@ -901,7 +901,7 @@ export component ModCard inherits Rectangle {
                     width: 24px;
                     height: 24px;
                     border-radius: 6px;
-                    background: grid-update-ta.has-hover ? #e8a02022 : transparent;
+                    background: grid-update-ta.has-hover ? Palette.warning.with-alpha(0.133) : transparent;
                     animate background { duration: 100ms; }
 
                     Image {
@@ -910,7 +910,7 @@ export component ModCard inherits Rectangle {
                         height: 14px;
                         image-rendering: smooth;
                         image-fit: contain;
-                        colorize: grid-update-ta.has-hover ? #f5bd52 : #e8a020;
+                        colorize: grid-update-ta.has-hover ? Palette.warning-bright : Palette.warning;
                         animate colorize { duration: 100ms; }
                     }
 

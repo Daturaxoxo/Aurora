@@ -10,27 +10,14 @@ export struct LuaScriptItem {
     code: string,
 }
 
-// Holds Lua-script state and callbacks in a global singleton rather than as
-// local properties on LuaScriptsPage. Globals are reachable from Rust via
-// `window.global::<LuaScriptsAdapter>()` no matter where LuaScriptsPage ends
-// up nested in the tree, so we don't need to thread properties/callbacks
-// through whatever parent component instantiates it.
 export global LuaScriptsAdapter {
     in-out property <[LuaScriptItem]> scripts: [];
-
-    // Whether `\Bin\ue4ss` was found on disk. Set by Rust on startup.
     in-out property <bool> ue4ss-installed: false;
-
-    // Whether the UE4SS debug console is enabled. Mirrors
-    // GuiConsoleEnabled/GuiConsoleVisible in UE4SS-settings.ini.
     in-out property <bool> debug-enabled: false;
-
-    // Driven by Rust while the download/extract is in progress.
     in-out property <bool> installing: false;
     in-out property <int> install-progress: 0; // 0-100
     in-out property <string> install-status: "";
     in-out property <string> install-error: "";
-
     callback create-script();
     callback toggle-script(string);
     callback rename-script(string, string);
@@ -39,22 +26,14 @@ export global LuaScriptsAdapter {
     callback install-ue4ss();
     callback refresh();
     callback toggle-debug();
-
-    // Set by Rust (e.g. when a rename to a reserved name is rejected) to
-    // surface a transient toast in the UI. Cleared automatically after a
-    // few seconds by a Timer in LuaScriptsPage.
     in-out property <string> toast-message: "";
 }
 
 export component LuaScriptsPage inherits Rectangle {
     callback close-lua-scripts();
-
-    // Id/index of the script currently open in the editor overlay ("" / -1 = none open).
     property <string> editing-script-id: "";
     property <int> editing-index: -1;
     property <string> editor-draft: "";
-
-    // Id of the script whose name is currently being renamed inline ("" = none).
     property <string> renaming-script-id: "";
     property <string> rename-draft: "";
 
@@ -88,7 +67,7 @@ export component LuaScriptsPage inherits Rectangle {
         root.rename-draft = "";
     }
 
-    background: #00000066;
+    background: Palette.shade-66;
 
     TouchArea {
         width: 100%;
@@ -105,7 +84,7 @@ export component LuaScriptsPage inherits Rectangle {
         border-radius: 16px;
         border-width: 1px;
         border-color: Palette.glass-border;
-        drop-shadow-color: #00000099;
+        drop-shadow-color: Palette.shade-99;
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 12px;
         clip: true;
@@ -155,7 +134,7 @@ export component LuaScriptsPage inherits Rectangle {
                         width: 30px;
                         height: 30px;
                         border-radius: 6px;
-                        background: refresh-ta.has-hover ? #ffffff16 : transparent;
+                        background: refresh-ta.has-hover ? Palette.fg-16 : transparent;
                         animate background { duration: 120ms; }
 
                         Image {
@@ -178,7 +157,7 @@ export component LuaScriptsPage inherits Rectangle {
                         width: 30px;
                         height: 30px;
                         border-radius: 6px;
-                        background: close-ta.has-hover ? #ffffff16 : transparent;
+                        background: close-ta.has-hover ? Palette.fg-16 : transparent;
                         animate background { duration: 120ms; }
 
                         Image {
@@ -206,10 +185,6 @@ export component LuaScriptsPage inherits Rectangle {
             Rectangle {
                 vertical-stretch: 1;
                 background: transparent;
-
-                // ---------------------------------------------------------
-                // {A} Pre-install screen — shown when UE4SS is not detected
-                // ---------------------------------------------------------
                 if !LuaScriptsAdapter.ue4ss-installed: VerticalLayout {
                     alignment: center;
                     spacing: 20px;
@@ -264,7 +239,7 @@ export component LuaScriptsPage inherits Rectangle {
                             width: 320px;
                             height: 68px;
                             border-radius: 10px;
-                            background: #ffffff0d;
+                            background: Palette.fg-0d;
                             border-width: 1px;
                             border-color: Palette.glass-border;
 
@@ -313,7 +288,7 @@ export component LuaScriptsPage inherits Rectangle {
                         alignment: center;
                         Text {
                             text: LuaScriptsAdapter.install-error;
-                            color: #ee4937;
+                            color: Palette.danger;
                             font-size: 12px;
                             horizontal-alignment: center;
                             wrap: word-wrap;
@@ -339,7 +314,7 @@ export component LuaScriptsPage inherits Rectangle {
                                 width: 320px;
                                 height: 6px;
                                 border-radius: 3px;
-                                background: #ffffff16;
+                                background: Palette.fg-16;
                                 clip: true;
 
                                 Rectangle {
@@ -347,7 +322,7 @@ export component LuaScriptsPage inherits Rectangle {
                                     width: parent.width * LuaScriptsAdapter.install-progress / 100;
                                     height: 100%;
                                     border-radius: 3px;
-                                    background: #3b82f6;
+                                    background: Palette.accent-strong;
                                     animate width { duration: 150ms; }
                                 }
                             }
@@ -362,7 +337,7 @@ export component LuaScriptsPage inherits Rectangle {
                         cancel-btn := Rectangle {
                             width: 120px;
                             border-radius: 8px;
-                            background: cancel-ta.has-hover ? #ffffff16 : #ffffff0d;
+                            background: cancel-ta.has-hover ? Palette.fg-16 : Palette.fg-0d;
                             border-width: 1px;
                             border-color: Palette.glass-border;
                             animate background { duration: 120ms; }
@@ -384,12 +359,12 @@ export component LuaScriptsPage inherits Rectangle {
                         install-btn := Rectangle {
                             width: 120px;
                             border-radius: 8px;
-                            background: install-ta.has-hover ? #3b82f6dd : #3b82f6;
+                            background: install-ta.has-hover ? Palette.accent-strong.with-alpha(0.867) : Palette.accent-strong;
                             animate background { duration: 120ms; }
 
                             Text {
                                 text: Tr.values[TrKey.global-button-install];
-                                color: #ffffff;
+                                color: Palette.text-primary;
                                 font-size: 13px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -405,10 +380,6 @@ export component LuaScriptsPage inherits Rectangle {
                         }
                     }
                 }
-
-                // ---------------------------------------------------------
-                // {B} Main Lua Scripts page — script list + code editor
-                // ---------------------------------------------------------
                 if LuaScriptsAdapter.ue4ss-installed: VerticalLayout {
                     spacing: 14px;
 
@@ -422,8 +393,8 @@ export component LuaScriptsPage inherits Rectangle {
                             width: new-script-row.preferred-width + 24px;
                             border-radius: 7px;
                             border-width: 1px;
-                            border-color: new-script-ta.has-hover ? #ffffff28 : #ffffff16;
-                            background: new-script-ta.has-hover ? #ffffff12 : #ffffff08;
+                            border-color: new-script-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                            background: new-script-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                             animate background { duration: 100ms; }
                             animate border-color { duration: 100ms; }
 
@@ -449,7 +420,7 @@ export component LuaScriptsPage inherits Rectangle {
                                         viewbox-width: 12;
                                         viewbox-height: 12;
                                         commands: "M6 1 L6 11 M1 6 L11 6";
-                                        stroke: #ffffffbb;
+                                        stroke: Palette.fg-bb;
                                         stroke-width: 1.6px;
                                         fill: transparent;
                                     }
@@ -457,7 +428,7 @@ export component LuaScriptsPage inherits Rectangle {
 
                                 Text {
                                     text: Tr.values[TrKey.lua-new-script];
-                                    color: #ffffffcc;
+                                    color: Palette.fg-cc;
                                     font-size: 12px;
                                     font-weight: 600;
                                     vertical-alignment: center;
@@ -490,7 +461,7 @@ export component LuaScriptsPage inherits Rectangle {
                                     width: 30px;
                                     height: 17px;
                                     border-radius: 8.5px;
-                                    background: LuaScriptsAdapter.debug-enabled ? #3b82f6 : #ffffff22;
+                                    background: LuaScriptsAdapter.debug-enabled ? Palette.accent-strong : Palette.fg-22;
                                     animate background { duration: 120ms; }
 
                                     Rectangle {
@@ -499,7 +470,7 @@ export component LuaScriptsPage inherits Rectangle {
                                         width: 13px;
                                         height: 13px;
                                         border-radius: 6.5px;
-                                        background: #ffffff;
+                                        background: Palette.text-primary;
                                         animate x { duration: 120ms; }
                                     }
 
@@ -545,10 +516,10 @@ export component LuaScriptsPage inherits Rectangle {
                                     height: 44px;
                                     border-radius: 8px;
                                     border-width: 1px;
-                                    border-color: row-hovered ? #ffffff38 : #ffffff24;
+                                    border-color: row-hovered ? Palette.fg-38 : Palette.fg-24;
                                     background: row-hovered
-                                        ? @linear-gradient(180deg, #ffffff1e 0%, #ffffff10 100%)
-                                        : @linear-gradient(180deg, #ffffff16 0%, #ffffff0a 100%);
+                                        ? @linear-gradient(180deg, Palette.fg-1e 0%, Palette.fg-10 100%)
+                                        : @linear-gradient(180deg, Palette.fg-16 0%, Palette.fg-0a 100%);
                                     animate border-color { duration: 120ms; }
 
                                     property <bool> row-hovered: row-ta.has-hover || rename-ta.has-hover
@@ -589,9 +560,9 @@ export component LuaScriptsPage inherits Rectangle {
                                                 width: 160px;
                                                 height: 24px;
                                                 border-radius: 5px;
-                                                background: #ffffff12;
+                                                background: Palette.fg-12;
                                                 border-width: 1px;
-                                                border-color: #3b82f6;
+                                                border-color: Palette.accent-strong;
 
                                                 rename-input := TextInput {
                                                     x: 6px;
@@ -620,7 +591,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 width: 26px;
                                                 height: 26px;
                                                 border-radius: 6px;
-                                                background: rename-ta.has-hover ? #ffffff16 : transparent;
+                                                background: rename-ta.has-hover ? Palette.fg-16 : transparent;
                                                 animate background { duration: 100ms; }
 
                                                 Path {
@@ -633,7 +604,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                     viewbox-width: 12;
                                                     viewbox-height: 12;
                                                     commands: "M1 11 L1 8 L8 1 L11 4 L4 11 Z M7 2 L10 5";
-                                                    stroke: rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                                                    stroke: rename-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                                                     stroke-width: 1.3px;
                                                     fill: transparent;
                                                     animate stroke { duration: 100ms; }
@@ -654,7 +625,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 width: 26px;
                                                 height: 26px;
                                                 border-radius: 6px;
-                                                background: edit-ta.has-hover ? #ffffff16 : transparent;
+                                                background: edit-ta.has-hover ? Palette.fg-16 : transparent;
                                                 animate background { duration: 100ms; }
 
                                                 Image {
@@ -663,7 +634,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                     height: 13px;
                                                     image-rendering: smooth;
                                                     image-fit: contain;
-                                                    colorize: edit-ta.has-hover ? #ffffffdd : #ffffff66;
+                                                    colorize: edit-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                                                     animate colorize { duration: 100ms; }
                                                 }
 
@@ -680,7 +651,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 width: 26px;
                                                 height: 26px;
                                                 border-radius: 6px;
-                                                background: delete-ta.has-hover ? #ee493722 : transparent;
+                                                background: delete-ta.has-hover ? Palette.danger.with-alpha(0.133) : transparent;
                                                 animate background { duration: 100ms; }
 
                                                 Image {
@@ -689,7 +660,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                     height: 13px;
                                                     image-rendering: smooth;
                                                     image-fit: contain;
-                                                    colorize: delete-ta.has-hover ? #ee4937 : #ffffff66;
+                                                    colorize: delete-ta.has-hover ? Palette.danger : Palette.fg-66;
                                                     animate colorize { duration: 100ms; }
                                                 }
 
@@ -706,7 +677,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                 width: 34px;
                                                 height: 20px;
                                                 border-radius: 10px;
-                                                background: script.enabled ? #3b82f6 : #ffffff22;
+                                                background: script.enabled ? Palette.accent-strong : Palette.fg-22;
                                                 animate background { duration: 120ms; }
 
                                                 Rectangle {
@@ -715,7 +686,7 @@ export component LuaScriptsPage inherits Rectangle {
                                                     width: 16px;
                                                     height: 16px;
                                                     border-radius: 8px;
-                                                    background: #ffffff;
+                                                    background: Palette.text-primary;
                                                     animate x { duration: 120ms; }
                                                 }
 
@@ -731,15 +702,12 @@ export component LuaScriptsPage inherits Rectangle {
                     }
                 }
 
-                // ---------------------------------------------------------
-                // {B} Code editor overlay — shown when a script is open
-                // ---------------------------------------------------------
                 if LuaScriptsAdapter.ue4ss-installed && root.editing-script-id != "": Rectangle {
-                    background: #101014f2;
+                    background: Palette.surface-sunken.with-alpha(0.949);
                     border-radius: 12px;
                     border-width: 1px;
                     border-color: Palette.glass-border;
-                    drop-shadow-color: #00000099;
+                    drop-shadow-color: Palette.shade-99;
                     drop-shadow-blur: 24px;
 
                     TouchArea {
@@ -771,7 +739,7 @@ export component LuaScriptsPage inherits Rectangle {
                                 width: 24px;
                                 height: 24px;
                                 border-radius: 6px;
-                                background: close-editor-ta.has-hover ? #ffffff16 : transparent;
+                                background: close-editor-ta.has-hover ? Palette.fg-16 : transparent;
                                 animate background { duration: 120ms; }
 
                                 Image {
@@ -793,7 +761,7 @@ export component LuaScriptsPage inherits Rectangle {
                         Rectangle {
                             vertical-stretch: 1;
                             border-radius: 8px;
-                            background: #00000040;
+                            background: Palette.shade-40;
                             border-width: 1px;
                             border-color: Palette.glass-border;
                             clip: true;
@@ -820,7 +788,7 @@ export component LuaScriptsPage inherits Rectangle {
                             cancel-edit-btn := Rectangle {
                                 width: 110px;
                                 border-radius: 8px;
-                                background: cancel-edit-ta.has-hover ? #ffffff16 : #ffffff0d;
+                                background: cancel-edit-ta.has-hover ? Palette.fg-16 : Palette.fg-0d;
                                 border-width: 1px;
                                 border-color: Palette.glass-border;
                                 animate background { duration: 120ms; }
@@ -842,12 +810,12 @@ export component LuaScriptsPage inherits Rectangle {
                             save-edit-btn := Rectangle {
                                 width: 110px;
                                 border-radius: 8px;
-                                background: save-edit-ta.has-hover ? #3b82f6dd : #3b82f6;
+                                background: save-edit-ta.has-hover ? Palette.accent-strong.with-alpha(0.867) : Palette.accent-strong;
                                 animate background { duration: 120ms; }
 
                                 Text {
                                     text: Tr.values[TrKey.global-button-save];
-                                    color: #ffffff;
+                                    color: Palette.text-primary;
                                     font-size: 13px;
                                     font-weight: 600;
                                     horizontal-alignment: center;
@@ -879,10 +847,10 @@ export component LuaScriptsPage inherits Rectangle {
             height: 40px;
             width: toast-text.preferred-width + 32px;
             border-radius: 8px;
-            background: #1a1a1eee;
+            background: Palette.surface.with-alpha(0.933);
             border-width: 1px;
-            border-color: #ee4937;
-            drop-shadow-color: #00000099;
+            border-color: Palette.danger;
+            drop-shadow-color: Palette.shade-99;
             drop-shadow-blur: 16px;
 
             toast-text := Text {

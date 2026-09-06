@@ -12,19 +12,16 @@ export struct GroupOption {
     name: string,
 }
 
-// One pickable character icon in the icon chooser
 export struct IconChoice {
     slug: string,
     name: string,
     icon: image,
 }
 
-// One row of the filter panel: a character, an author or a group
 export struct FilterOption {
     id: string,
     name: string,
     icon: image,
-    // How many installed mods this row would match
     count: int,
     selected: bool,
 }
@@ -35,10 +32,8 @@ export enum ModStatusFilter {
     disabled,
 }
 
-// Everything the filter panel holds that isn't a multi selection
 export struct ModFilters {
     status: ModStatusFilter,
-    // "" = any group, "\u{1}ungrouped" = mods outside every group
     group-id: string,
 }
 
@@ -83,13 +78,13 @@ component GroupHeader inherits Rectangle {
     border-radius: 8px;
     border-width: 1px;
     border-color: root.drop-target
-        ? #6db3f2
-        : root.hovered ? #ffffff38 : #ffffff24;
+        ? Palette.accent
+        : root.hovered ? Palette.fg-38 : Palette.fg-24;
     background: root.drop-target
-        ? #6db3f21c
+        ? Palette.accent.with-alpha(0.110)
         : root.hovered
-        ? @linear-gradient(180deg, #ffffff1e 0%, #ffffff10 100%)
-        : @linear-gradient(180deg, #ffffff16 0%, #ffffff0a 100%);
+        ? @linear-gradient(180deg, Palette.fg-1e 0%, Palette.fg-10 100%)
+        : @linear-gradient(180deg, Palette.fg-16 0%, Palette.fg-0a 100%);
     animate border-color { duration: 120ms; }
 
     header-ta := TouchArea {
@@ -109,9 +104,9 @@ component GroupHeader inherits Rectangle {
                 border-radius: 4px;
                 border-width: 1px;
                 border-color: root.item.selected
-                    ? #6db3f2
-                    : (select-ta.has-hover ? #ffffff66 : #ffffff33);
-                background: root.item.selected ? #6db3f2 : transparent;
+                    ? Palette.accent
+                    : (select-ta.has-hover ? Palette.fg-66 : Palette.fg-33);
+                background: root.item.selected ? Palette.accent : transparent;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -125,7 +120,7 @@ component GroupHeader inherits Rectangle {
                     viewbox-width: 12;
                     viewbox-height: 10;
                     commands: "M1 5 L4 8 L11 1";
-                    stroke: #111111;
+                    stroke: Palette.shade-ff;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -150,7 +145,7 @@ component GroupHeader inherits Rectangle {
                     viewbox-width: 14;
                     viewbox-height: 14;
                     commands: "M4 2 L10 7 L4 12";
-                    stroke: #ffffff88;
+                    stroke: Palette.fg-88;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -163,7 +158,7 @@ component GroupHeader inherits Rectangle {
                     viewbox-width: 14;
                     viewbox-height: 14;
                     commands: "M2 4 L7 10 L12 4";
-                    stroke: #ffffff88;
+                    stroke: Palette.fg-88;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -191,9 +186,9 @@ component GroupHeader inherits Rectangle {
                 min-width: 0px;
                 height: 24px;
                 border-radius: 4px;
-                background: #ffffff10;
+                background: Palette.fg-10;
                 border-width: 1px;
-                border-color: #ffffff33;
+                border-color: Palette.fg-33;
 
                 name-measure := Text {
                     visible: false;
@@ -230,7 +225,7 @@ component GroupHeader inherits Rectangle {
                 width: 18px;
                 height: 18px;
                 border-radius: 4px;
-                background: rename-ta.has-hover ? #ffffff16 : transparent;
+                background: rename-ta.has-hover ? Palette.fg-16 : transparent;
                 animate background { duration: 100ms; }
 
                 Image {
@@ -239,7 +234,7 @@ component GroupHeader inherits Rectangle {
                     height: 11px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: rename-ta.has-hover ? #ffffffdd : #ffffff66;
+                    colorize: rename-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -262,7 +257,7 @@ component GroupHeader inherits Rectangle {
                 width: 18px;
                 height: 18px;
                 border-radius: 4px;
-                background: add-ta.has-hover ? #ffffff16 : transparent;
+                background: add-ta.has-hover ? Palette.fg-16 : transparent;
                 animate background { duration: 100ms; }
 
                 Path {
@@ -273,7 +268,7 @@ component GroupHeader inherits Rectangle {
                     viewbox-width: 16;
                     viewbox-height: 16;
                     commands: "M7 2 L7 12 M2 7 L12 7";
-                    stroke: add-ta.has-hover ? #ffffffdd : #ffffff66;
+                    stroke: add-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                     stroke-width: 1.8px;
                     fill: transparent;
                     animate stroke { duration: 100ms; }
@@ -296,7 +291,7 @@ component GroupHeader inherits Rectangle {
                 width: 26px;
                 height: 26px;
                 border-radius: 6px;
-                background: delete-ta.has-hover ? #ee493722 : transparent;
+                background: delete-ta.has-hover ? Palette.danger.with-alpha(0.133) : transparent;
                 animate background { duration: 100ms; }
 
                 Image {
@@ -305,7 +300,7 @@ component GroupHeader inherits Rectangle {
                     height: 14px;
                     image-rendering: smooth;
                     image-fit: contain;
-                    colorize: delete-ta.has-hover ? #ee4937 : #ffffff66;
+                    colorize: delete-ta.has-hover ? Palette.danger : Palette.fg-66;
                     animate colorize { duration: 100ms; }
                 }
 
@@ -315,7 +310,6 @@ component GroupHeader inherits Rectangle {
             }
         }
 
-        // Enable/disable every mod in the group
         VerticalLayout {
             alignment: center;
             ToggleSwitch {
@@ -326,7 +320,6 @@ component GroupHeader inherits Rectangle {
     }
 }
 
-// A checkbox (or radio) row inside the filter panel
 component FilterRow inherits Rectangle {
     in property <FilterOption> option;
     in property <bool> checked: false;
@@ -338,7 +331,7 @@ component FilterRow inherits Rectangle {
 
     height: 30px;
     border-radius: 6px;
-    background: row-ta.has-hover ? #ffffff10 : transparent;
+    background: row-ta.has-hover ? Palette.fg-10 : transparent;
     animate background { duration: 100ms; }
 
     row-ta := TouchArea {
@@ -358,9 +351,9 @@ component FilterRow inherits Rectangle {
                 border-radius: root.radio ? 8px : 4px;
                 border-width: 1px;
                 border-color: root.checked
-                    ? #6db3f2
-                    : (row-ta.has-hover ? #ffffff66 : #ffffff33);
-                background: root.checked ? #6db3f2 : transparent;
+                    ? Palette.accent
+                    : (row-ta.has-hover ? Palette.fg-66 : Palette.fg-33);
+                background: root.checked ? Palette.accent : transparent;
                 animate background { duration: 120ms; }
                 animate border-color { duration: 120ms; }
 
@@ -374,7 +367,7 @@ component FilterRow inherits Rectangle {
                     viewbox-width: 12;
                     viewbox-height: 10;
                     commands: "M1 5 L4 8 L11 1";
-                    stroke: #111111;
+                    stroke: Palette.shade-ff;
                     stroke-width: 1.8px;
                     fill: transparent;
                 }
@@ -385,7 +378,7 @@ component FilterRow inherits Rectangle {
                     width: 6px;
                     height: 6px;
                     border-radius: 3px;
-                    background: #111111;
+                    background: Palette.shade-ff;
                 }
             }
         }
@@ -396,7 +389,7 @@ component FilterRow inherits Rectangle {
                 width: 18px;
                 height: 18px;
                 border-radius: 9px;
-                background: #00000044;
+                background: Palette.shade-44;
                 clip: true;
 
                 Image {
@@ -412,7 +405,7 @@ component FilterRow inherits Rectangle {
         Text {
             horizontal-stretch: 1;
             text: root.option.name;
-            color: root.checked ? #cfe6ff : Palette.text-primary;
+            color: root.checked ? Palette.accent-pale : Palette.text-primary;
             font-size: 12.5px;
             font-weight: 500;
             overflow: elide;
@@ -421,7 +414,7 @@ component FilterRow inherits Rectangle {
 
         if root.show-count: Text {
             text: root.option.count;
-            color: #ffffff55;
+            color: Palette.fg-55;
             font-size: 11.5px;
             font-weight: 600;
             vertical-alignment: center;
@@ -439,16 +432,16 @@ component StatusChip inherits Rectangle {
     horizontal-stretch: 1;
     border-radius: 7px;
     border-width: 1px;
-    border-color: root.active ? #6db3f2 : (chip-ta.has-hover ? #ffffff28 : #ffffff16);
+    border-color: root.active ? Palette.accent : (chip-ta.has-hover ? Palette.fg-28 : Palette.fg-16);
     background: root.active
-        ? #6db3f21c
-        : (chip-ta.has-hover ? #ffffff12 : #ffffff08);
+        ? Palette.accent.with-alpha(0.110)
+        : (chip-ta.has-hover ? Palette.fg-12 : Palette.fg-08);
     animate background { duration: 100ms; }
     animate border-color { duration: 100ms; }
 
     Text {
         text: root.label;
-        color: root.active ? #cfe6ff : #ffffffcc;
+        color: root.active ? Palette.accent-pale : Palette.fg-cc;
         font-size: 12px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -478,11 +471,11 @@ component GroupDropdown inherits Rectangle {
     border-radius: 7px;
     border-width: 1px;
     border-color: root.narrowed
-        ? #6db3f2
-        : (trigger-ta.has-hover ? #ffffff28 : #ffffff16);
+        ? Palette.accent
+        : (trigger-ta.has-hover ? Palette.fg-28 : Palette.fg-16);
     background: root.narrowed
-        ? #6db3f21c
-        : (trigger-ta.has-hover ? #ffffff12 : #ffffff08);
+        ? Palette.accent.with-alpha(0.110)
+        : (trigger-ta.has-hover ? Palette.fg-12 : Palette.fg-08);
     animate background { duration: 100ms; }
     animate border-color { duration: 100ms; }
 
@@ -498,7 +491,7 @@ component GroupDropdown inherits Rectangle {
         Text {
             horizontal-stretch: 1;
             text: root.label;
-            color: root.narrowed ? #cfe6ff : #ffffffcc;
+            color: root.narrowed ? Palette.accent-pale : Palette.fg-cc;
             font-size: 12.5px;
             font-weight: 600;
             vertical-alignment: center;
@@ -515,7 +508,7 @@ component GroupDropdown inherits Rectangle {
                 viewbox-width: 10;
                 viewbox-height: 6;
                 commands: "M1 1 L5 5 L9 1";
-                stroke: root.narrowed ? #6db3f2 : #ffffff88;
+                stroke: root.narrowed ? Palette.accent : Palette.fg-88;
                 stroke-width: 1.5px;
                 fill: transparent;
             }
@@ -529,10 +522,10 @@ component GroupDropdown inherits Rectangle {
         height: root.list-height + 12px;
 
         Rectangle {
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #3f3f46;
+            border-color: Palette.fg-28;
 
             ScrollView {
                 x: 6px;
@@ -569,7 +562,7 @@ component FilterSection inherits VerticalLayout {
 
     Text {
         text: root.title;
-        color: #ffffff66;
+        color: Palette.fg-66;
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.6px;
@@ -580,7 +573,6 @@ component FilterSection inherits VerticalLayout {
 
 export component ModManagerPage inherits Rectangle {
     in-out property <[ModItem]> mods: [];
-    // Same data as `mods`, but split into sections for the grid view
     in property <[[ModItem]]> mods-grid: [];
     in-out property <string> search-text: "";
     in-out property <bool> view-grid: false;
@@ -696,7 +688,7 @@ export component ModManagerPage inherits Rectangle {
         root.search-changed(root.search-text);
     }
 
-    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    background: Palette.panel-background;
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -746,8 +738,8 @@ export component ModManagerPage inherits Rectangle {
                         width: add-mods-row.preferred-width + 24px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: add-mods-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: add-mods-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: add-mods-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: add-mods-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
@@ -764,10 +756,10 @@ export component ModManagerPage inherits Rectangle {
                             width: 240px;
 
                             Rectangle {
-                                background: #1e1e24;
+                                background: Palette.surface;
                                 border-radius: 8px;
                                 border-width: 1px;
-                                border-color: #3f3f46;
+                                border-color: Palette.fg-28;
 
                                 VerticalLayout {
                                     padding: 6px;
@@ -776,7 +768,7 @@ export component ModManagerPage inherits Rectangle {
                                     Rectangle {
                                         height: 36px;
                                         border-radius: 6px;
-                                        background: archive-ta.has-hover ? #ffffff10 : transparent;
+                                        background: archive-ta.has-hover ? Palette.fg-10 : transparent;
 
                                         archive-ta := TouchArea {
                                             clicked => { root.install-from-archive(); }
@@ -796,13 +788,13 @@ export component ModManagerPage inherits Rectangle {
                                                     height: 14px;
                                                     image-rendering: smooth;
                                                     image-fit: contain;
-                                                    colorize: #ffffffaa;
+                                                    colorize: Palette.fg-aa;
                                                 }
                                             }
 
                                             Text {
                                                 text: Tr.values[TrKey.modmanager-install-archive];
-                                                color: #ffffffdd;
+                                                color: Palette.fg-dd;
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -813,7 +805,7 @@ export component ModManagerPage inherits Rectangle {
                                     Rectangle {
                                         height: 36px;
                                         border-radius: 6px;
-                                        background: folder-ta.has-hover ? #ffffff10 : transparent;
+                                        background: folder-ta.has-hover ? Palette.fg-10 : transparent;
 
                                         folder-ta := TouchArea {
                                             clicked => { root.install-from-folder(); }
@@ -833,13 +825,13 @@ export component ModManagerPage inherits Rectangle {
                                                     height: 14px;
                                                     image-rendering: smooth;
                                                     image-fit: contain;
-                                                    colorize: #ffffffaa;
+                                                    colorize: Palette.fg-aa;
                                                 }
                                             }
 
                                             Text {
                                                 text: Tr.values[TrKey.modmanager-install-folder];
-                                                color: #ffffffdd;
+                                                color: Palette.fg-dd;
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -850,7 +842,7 @@ export component ModManagerPage inherits Rectangle {
                                     Rectangle {
                                         height: 36px;
                                         border-radius: 6px;
-                                        background: gb-ta.has-hover ? #ffffff10 : transparent;
+                                        background: gb-ta.has-hover ? Palette.fg-10 : transparent;
 
                                         gb-ta := TouchArea {
                                             clicked => { root.install-from-gamebanana(); }
@@ -870,13 +862,13 @@ export component ModManagerPage inherits Rectangle {
                                                     height: 14px;
                                                     image-rendering: smooth;
                                                     image-fit: contain;
-                                                    colorize: #ffffffaa;
+                                                    colorize: Palette.fg-aa;
                                                 }
                                             }
 
                                             Text {
                                                 text: Tr.values[TrKey.gb-title];
-                                                color: #ffffffdd;
+                                                color: Palette.fg-dd;
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 vertical-alignment: center;
@@ -905,7 +897,7 @@ export component ModManagerPage inherits Rectangle {
                                     viewbox-width: 14;
                                     viewbox-height: 14;
                                     commands: "M7 1 L7 13 M1 7 L13 7";
-                                    stroke: #ffffffbb;
+                                    stroke: Palette.fg-bb;
                                     stroke-width: 1.8px;
                                     fill: transparent;
                                 }
@@ -913,7 +905,7 @@ export component ModManagerPage inherits Rectangle {
 
                             Text {
                                 text: Tr.values[TrKey.modmanager-add-mods];
-                                color: #ffffffcc;
+                                color: Palette.fg-cc;
                                 font-size: 12px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -930,8 +922,8 @@ export component ModManagerPage inherits Rectangle {
                         width: group-row.preferred-width + 24px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: group-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: group-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: group-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: group-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
@@ -960,7 +952,7 @@ export component ModManagerPage inherits Rectangle {
                                     viewbox-width: 14;
                                     viewbox-height: 14;
                                     commands: "M1 4 Q1 3 2 3 L5 3 L6.5 4.5 L12 4.5 Q13 4.5 13 5.5 L13 11 Q13 12 12 12 L2 12 Q1 12 1 11 Z M10 7 L10 10 M8.5 8.5 L11.5 8.5";
-                                    stroke: #ffffffbb;
+                                    stroke: Palette.fg-bb;
                                     stroke-width: 1.4px;
                                     fill: transparent;
                                 }
@@ -968,7 +960,7 @@ export component ModManagerPage inherits Rectangle {
 
                             Text {
                                 text: Tr.values[TrKey.modmanager-create-group];
-                                color: #ffffffcc;
+                                color: Palette.fg-cc;
                                 font-size: 12px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -988,7 +980,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 28px;
                         height: 28px;
                         border-radius: 6px;
-                        background: open-folder-ta.has-hover ? #ffffff14 : transparent;
+                        background: open-folder-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Image {
@@ -997,7 +989,7 @@ export component ModManagerPage inherits Rectangle {
                             height: 14px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: open-folder-ta.has-hover ? #ffffffdd : #ffffff66;
+                            colorize: open-folder-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             animate colorize { duration: 100ms; }
                         }
 
@@ -1015,8 +1007,8 @@ export component ModManagerPage inherits Rectangle {
                         width: 64px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: #ffffff16;
-                        background: #ffffff06;
+                        border-color: Palette.fg-16;
+                        background: Palette.fg-06;
                         clip: true;
 
                         HorizontalLayout {
@@ -1026,8 +1018,8 @@ export component ModManagerPage inherits Rectangle {
                                 width: 31px;
                                 height: 28px;
                                 background: !root.view-grid
-                                    ? #ffffff18
-                                    : (list-ta.has-hover ? #ffffff0a : transparent);
+                                    ? Palette.fg-18
+                                    : (list-ta.has-hover ? Palette.fg-0a : transparent);
                                 animate background { duration: 100ms; }
 
                                 list-ta := TouchArea {
@@ -1045,7 +1037,7 @@ export component ModManagerPage inherits Rectangle {
                                     for _ in [0, 1, 2]: Rectangle {
                                         height: 2px;
                                         border-radius: 1px;
-                                        background: !root.view-grid ? #ffffffee : #ffffff44;
+                                        background: !root.view-grid ? Palette.fg-ee : Palette.fg-44;
                                         animate background { duration: 100ms; }
                                     }
                                 }
@@ -1054,15 +1046,15 @@ export component ModManagerPage inherits Rectangle {
                             Rectangle {
                                 width: 1px;
                                 height: 28px;
-                                background: #ffffff16;
+                                background: Palette.fg-16;
                             }
 
                             grid-side := Rectangle {
                                 width: 31px;
                                 height: 28px;
                                 background: root.view-grid
-                                    ? #ffffff18
-                                    : (grid-ta.has-hover ? #ffffff0a : transparent);
+                                    ? Palette.fg-18
+                                    : (grid-ta.has-hover ? Palette.fg-0a : transparent);
                                 animate background { duration: 100ms; }
 
                                 grid-ta := TouchArea {
@@ -1084,7 +1076,7 @@ export component ModManagerPage inherits Rectangle {
                                             width: 4px;
                                             height: 4px;
                                             border-radius: 1px;
-                                            background: root.view-grid ? #ffffffee : #ffffff44;
+                                            background: root.view-grid ? Palette.fg-ee : Palette.fg-44;
                                             animate background { duration: 100ms; }
                                         }
                                     }
@@ -1101,7 +1093,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 28px;
                         height: 28px;
                         border-radius: 6px;
-                        background: refresh-ta.has-hover ? #ffffff14 : transparent;
+                        background: refresh-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Image {
@@ -1110,7 +1102,7 @@ export component ModManagerPage inherits Rectangle {
                             height: 14px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: refresh-ta.has-hover ? #ffffffdd : #ffffff66;
+                            colorize: refresh-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             animate colorize { duration: 100ms; }
                         }
 
@@ -1130,7 +1122,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 28px;
                         height: 28px;
                         border-radius: 6px;
-                        background: close-ta.has-hover ? #ffffff14 : transparent;
+                        background: close-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Path {
@@ -1143,7 +1135,7 @@ export component ModManagerPage inherits Rectangle {
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
-                            stroke: close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke: close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
                             fill: transparent;
                             animate stroke { duration: 100ms; }
@@ -1165,7 +1157,7 @@ export component ModManagerPage inherits Rectangle {
         Rectangle {
             height: 48px;
             width: 100%;
-            background: #ffffff02;
+            background: Palette.fg-02;
 
             HorizontalLayout {
                 padding-left: 20px;
@@ -1180,9 +1172,9 @@ export component ModManagerPage inherits Rectangle {
                         border-radius: 4px;
                         border-width: 1px;
                         border-color: root.all-selected
-                            ? #6db3f2
-                            : (select-all-ta.has-hover ? #ffffff77 : #ffffff44);
-                        background: root.all-selected ? #6db3f2 : transparent;
+                            ? Palette.accent
+                            : (select-all-ta.has-hover ? Palette.fg-77 : Palette.fg-44);
+                        background: root.all-selected ? Palette.accent : transparent;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
@@ -1196,7 +1188,7 @@ export component ModManagerPage inherits Rectangle {
                             viewbox-width: 12;
                             viewbox-height: 10;
                             commands: "M1 5 L4 8 L11 1";
-                            stroke: #111111;
+                            stroke: Palette.shade-ff;
                             stroke-width: 1.8px;
                             fill: transparent;
                         }
@@ -1215,10 +1207,10 @@ export component ModManagerPage inherits Rectangle {
                     alignment: center;
                     search-container := Rectangle {
                         height: 32px;
-                        background: #ffffff08;
+                        background: Palette.fg-08;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: #ffffff16;
+                        border-color: Palette.fg-16;
 
                         Image {
                             source: @image-url("../../../production/icons/search.png");
@@ -1228,7 +1220,7 @@ export component ModManagerPage inherits Rectangle {
                             height: 14px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: #ffffff66;
+                            colorize: Palette.fg-66;
                         }
 
                         TextInput {
@@ -1243,7 +1235,7 @@ export component ModManagerPage inherits Rectangle {
                         if (root.search-text == ""): Text {
                             x: 32px;
                             text: Tr.values[TrKey.global-search-mods-placeholder];
-                            color: #ffffff44;
+                            color: Palette.fg-44;
                             font-size: 13px;
                             vertical-alignment: center;
                         }
@@ -1270,11 +1262,11 @@ export component ModManagerPage inherits Rectangle {
                         border-radius: 7px;
                         border-width: 1px;
                         border-color: self.active
-                            ? #6db3f2
-                            : (filter-ta.has-hover ? #ffffff28 : #ffffff16);
+                            ? Palette.accent
+                            : (filter-ta.has-hover ? Palette.fg-28 : Palette.fg-16);
                         background: self.active
-                            ? #6db3f21c
-                            : (filter-ta.has-hover ? #ffffff12 : #ffffff08);
+                            ? Palette.accent.with-alpha(0.110)
+                            : (filter-ta.has-hover ? Palette.fg-12 : Palette.fg-08);
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
@@ -1303,7 +1295,7 @@ export component ModManagerPage inherits Rectangle {
                                     viewbox-width: 14;
                                     viewbox-height: 14;
                                     commands: "M1.5 2.5 L12.5 2.5 L8.5 7.5 L8.5 12 L5.5 10.5 L5.5 7.5 Z";
-                                    stroke: filter-pill.active ? #6db3f2 : #ffffffbb;
+                                    stroke: filter-pill.active ? Palette.accent : Palette.fg-bb;
                                     stroke-width: 1.4px;
                                     fill: transparent;
                                 }
@@ -1314,7 +1306,7 @@ export component ModManagerPage inherits Rectangle {
                                     ? Tr.values[TrKey.modmanager-filter-button]
                                     + " (" + root.active-filter-count + ")"
                                     : Tr.values[TrKey.modmanager-filter-button];
-                                color: filter-pill.active ? #cfe6ff : #ffffffcc;
+                                color: filter-pill.active ? Palette.accent-pale : Palette.fg-cc;
                                 font-size: 12px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -1330,14 +1322,14 @@ export component ModManagerPage inherits Rectangle {
                         height: 28px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: toggle-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: toggle-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: toggle-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: toggle-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
                         Text {
                             text: Tr.values[TrKey.modmanager-toggle-all];
-                            color: #ffffffcc;
+                            color: Palette.fg-cc;
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -1367,13 +1359,13 @@ export component ModManagerPage inherits Rectangle {
                         height: 28px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: move-sel-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: move-sel-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: move-sel-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: move-sel-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
 
                         move-sel-text := Text {
                             text: Tr.values[TrKey.modmanager-move-to-group] + " (" + root.selected-count + ")";
-                            color: #ffffffcc;
+                            color: Palette.fg-cc;
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -1394,10 +1386,10 @@ export component ModManagerPage inherits Rectangle {
                             height: move-sel-btn.list-height + 12px;
 
                             Rectangle {
-                                background: #1e1e24;
+                                background: Palette.surface;
                                 border-radius: 8px;
                                 border-width: 1px;
-                                border-color: #3f3f46;
+                                border-color: Palette.fg-28;
 
                                 ScrollView {
                                     x: 6px;
@@ -1414,7 +1406,7 @@ export component ModManagerPage inherits Rectangle {
                                         Rectangle {
                                             height: move-sel-btn.row-height;
                                             border-radius: 6px;
-                                            background: root-entry-ta.has-hover ? #ffffff10 : transparent;
+                                            background: root-entry-ta.has-hover ? Palette.fg-10 : transparent;
 
                                             root-entry-ta := TouchArea {
                                                 clicked => {
@@ -1427,7 +1419,7 @@ export component ModManagerPage inherits Rectangle {
                                                 x: 10px;
                                                 width: parent.width - 20px;
                                                 text: Tr.values[TrKey.modmanager-move-no-group];
-                                                color: #ffffffaa;
+                                                color: Palette.fg-aa;
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 overflow: elide;
@@ -1438,7 +1430,7 @@ export component ModManagerPage inherits Rectangle {
                                         for group in root.groups: Rectangle {
                                             height: move-sel-btn.row-height;
                                             border-radius: 6px;
-                                            background: group-entry-ta.has-hover ? #ffffff10 : transparent;
+                                            background: group-entry-ta.has-hover ? Palette.fg-10 : transparent;
 
                                             group-entry-ta := TouchArea {
                                                 clicked => {
@@ -1451,7 +1443,7 @@ export component ModManagerPage inherits Rectangle {
                                                 x: 10px;
                                                 width: parent.width - 20px;
                                                 text: group.name;
-                                                color: #ffffffdd;
+                                                color: Palette.fg-dd;
                                                 font-size: 12.5px;
                                                 font-weight: 500;
                                                 overflow: elide;
@@ -1462,7 +1454,7 @@ export component ModManagerPage inherits Rectangle {
                                         Rectangle {
                                             height: move-sel-btn.row-height;
                                             border-radius: 6px;
-                                            background: new-group-entry-ta.has-hover ? #ffffff10 : transparent;
+                                            background: new-group-entry-ta.has-hover ? Palette.fg-10 : transparent;
 
                                             new-group-entry-ta := TouchArea {
                                                 clicked => {
@@ -1487,7 +1479,7 @@ export component ModManagerPage inherits Rectangle {
                                                         viewbox-width: 14;
                                                         viewbox-height: 14;
                                                         commands: "M7 1 L7 13 M1 7 L13 7";
-                                                        stroke: #ffffffaa;
+                                                        stroke: Palette.fg-aa;
                                                         stroke-width: 1.8px;
                                                         fill: transparent;
                                                     }
@@ -1495,7 +1487,7 @@ export component ModManagerPage inherits Rectangle {
 
                                                 Text {
                                                     text: Tr.values[TrKey.modmanager-move-new-group];
-                                                    color: #ffffffdd;
+                                                    color: Palette.fg-dd;
                                                     font-size: 12.5px;
                                                     font-weight: 500;
                                                     vertical-alignment: center;
@@ -1516,13 +1508,13 @@ export component ModManagerPage inherits Rectangle {
                         height: 28px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: toggle-sel-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: toggle-sel-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: toggle-sel-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: toggle-sel-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
 
                         toggle-sel-text := Text {
                             text: Tr.values[TrKey.global-button-toggle] + " (" + root.selected-count + ")";
-                            color: #ffffffcc;
+                            color: Palette.fg-cc;
                             font-size: 12px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -1545,8 +1537,8 @@ export component ModManagerPage inherits Rectangle {
                         height: 28px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: #ee493766;
-                        background: delete-sel-ta.has-hover ? #ee4937 : #ee4937cc;
+                        border-color: Palette.danger.with-alpha(0.400);
+                        background: delete-sel-ta.has-hover ? Palette.danger : Palette.danger.with-alpha(0.800);
                         animate background { duration: 100ms; }
 
                         delete-sel-text := Text {
@@ -1574,8 +1566,8 @@ export component ModManagerPage inherits Rectangle {
                         height: 28px;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: #ee493766;
-                        background: delete-groups-ta.has-hover ? #ee4937 : #ee4937cc;
+                        border-color: Palette.danger.with-alpha(0.400);
+                        background: delete-groups-ta.has-hover ? Palette.danger : Palette.danger.with-alpha(0.800);
                         animate background { duration: 100ms; }
 
                         delete-groups-text := Text {
@@ -1717,7 +1709,7 @@ export component ModManagerPage inherits Rectangle {
                             y: -8px;
                             width: 2px;
                             height: parent.height + 8px;
-                            background: #ffffff18;
+                            background: Palette.fg-18;
                         }
 
                         if !mod.is-group-header: ModCard {
@@ -1771,7 +1763,7 @@ export component ModManagerPage inherits Rectangle {
                         text: root.search-text != "" ? Tr.values[TrKey.modmanager-empty-search]
                             : root.active-filter-count > 0 ? Tr.values[TrKey.modmanager-empty-filter]
                             : Tr.values[TrKey.modmanager-empty];
-                        color: #ffffff44;
+                        color: Palette.fg-44;
                         font-size: 13px;
                         horizontal-alignment: center;
                     }
@@ -1953,7 +1945,7 @@ export component ModManagerPage inherits Rectangle {
                         text: root.search-text != "" ? Tr.values[TrKey.modmanager-empty-search]
                             : root.active-filter-count > 0 ? Tr.values[TrKey.modmanager-empty-filter]
                             : Tr.values[TrKey.modmanager-empty];
-                        color: #ffffff44;
+                        color: Palette.fg-44;
                         font-size: 13px;
                         horizontal-alignment: center;
                     }
@@ -1967,8 +1959,8 @@ export component ModManagerPage inherits Rectangle {
                 height: parent.height - 8px;
                 border-radius: 12px;
                 border-width: 2px;
-                border-color: #6db3f288;
-                background: #6db3f208;
+                border-color: Palette.accent.with-alpha(0.533);
+                background: Palette.accent.with-alpha(0.031);
 
                 Rectangle {
                     x: (parent.width - self.width) / 2;
@@ -1976,10 +1968,10 @@ export component ModManagerPage inherits Rectangle {
                     width: root-drop-label.preferred-width + 28px;
                     height: 32px;
                     border-radius: 8px;
-                    background: #1e1e24ee;
+                    background: Palette.surface.with-alpha(0.933);
                     border-width: 1px;
-                    border-color: #6db3f288;
-                    drop-shadow-color: #00000088;
+                    border-color: Palette.accent.with-alpha(0.533);
+                    drop-shadow-color: Palette.shade-88;
                     drop-shadow-blur: 14px;
 
                     root-drop-label := Text {
@@ -2000,8 +1992,8 @@ export component ModManagerPage inherits Rectangle {
         height: 100%;
         border-radius: 16px;
         border-width: 2px;
-        border-color: #6db3f2;
-        background: #6db3f214;
+        border-color: Palette.accent;
+        background: Palette.accent.with-alpha(0.078);
 
         VerticalLayout {
             alignment: center;
@@ -2030,10 +2022,10 @@ export component ModManagerPage inherits Rectangle {
         width: ghost-text.preferred-width + 28px;
         height: 34px;
         border-radius: 8px;
-        background: #1e1e24ee;
+        background: Palette.surface.with-alpha(0.933);
         border-width: 1px;
-        border-color: #6db3f288;
-        drop-shadow-color: #00000088;
+        border-color: Palette.accent.with-alpha(0.533);
+        drop-shadow-color: Palette.shade-88;
         drop-shadow-blur: 14px;
 
         ghost-text := Text {
@@ -2050,7 +2042,7 @@ export component ModManagerPage inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 16px;
-        background: #000000aa;
+        background: Palette.shade-aa;
 
         TouchArea {
             clicked => { root.filter-open = false; }
@@ -2066,18 +2058,16 @@ export component ModManagerPage inherits Rectangle {
 
         Rectangle {
             width: min(560px, parent.width - 40px);
-            // Tall enough for the sections, never taller than the page
             height: min(filter-layout.preferred-height, parent.height - 60px);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 12px;
             border-width: 1px;
             border-color: Palette.glass-border;
-            drop-shadow-color: #00000099;
+            drop-shadow-color: Palette.shade-99;
             drop-shadow-blur: 30px;
 
-            // Swallows clicks so they don't reach the backdrop
             TouchArea { }
 
             filter-layout := VerticalLayout {
@@ -2101,7 +2091,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 24px;
                         height: 24px;
                         border-radius: 6px;
-                        background: filter-close-ta.has-hover ? #ffffff14 : transparent;
+                        background: filter-close-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Path {
@@ -2114,7 +2104,7 @@ export component ModManagerPage inherits Rectangle {
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
-                            stroke: filter-close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke: filter-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
                             fill: transparent;
                             animate stroke { duration: 100ms; }
@@ -2156,8 +2146,6 @@ export component ModManagerPage inherits Rectangle {
 
                 ScrollView {
                     vertical-stretch: 1;
-                    // Lets the panel size itself to the sections, and scroll
-                    // once they no longer fit
                     preferred-height: filter-body.preferred-height;
                     viewport-width: self.width;
                     viewport-height: filter-body.preferred-height;
@@ -2279,13 +2267,12 @@ export component ModManagerPage inherits Rectangle {
     if root.naming-group: Rectangle {
         width: 100%;
         height: 100%;
-        background: #000000aa;
+        background: Palette.shade-aa;
 
         TouchArea {
             clicked => { root.naming-group = false; }
         }
 
-        // Absorbs mouse-wheel scrolls
         ScrollView {
             width: 100%;
             height: 100%;
@@ -2298,11 +2285,11 @@ export component ModManagerPage inherits Rectangle {
             height: new-group-layout.preferred-height;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 12px;
             border-width: 1px;
             border-color: Palette.glass-border;
-            drop-shadow-color: #00000099;
+            drop-shadow-color: Palette.shade-99;
             drop-shadow-blur: 30px;
 
             TouchArea { }
@@ -2349,13 +2336,12 @@ export component ModManagerPage inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 16px;
-        background: #000000aa;
+        background: Palette.shade-aa;
 
         TouchArea {
             clicked => { root.add-existing-open = false; }
         }
 
-        // Absorbs mouse-wheel scrolls
         ScrollView {
             width: 100%;
             height: 100%;
@@ -2368,14 +2354,13 @@ export component ModManagerPage inherits Rectangle {
             height: min(parent.height - 60px, add-existing-layout.preferred-height);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 12px;
             border-width: 1px;
             border-color: Palette.glass-border;
-            drop-shadow-color: #00000099;
+            drop-shadow-color: Palette.shade-99;
             drop-shadow-blur: 30px;
 
-            // Swallows clicks so they don't reach the backdrop
             TouchArea { }
 
             add-existing-layout := VerticalLayout {
@@ -2401,7 +2386,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 24px;
                         height: 24px;
                         border-radius: 6px;
-                        background: add-existing-close-ta.has-hover ? #ffffff14 : transparent;
+                        background: add-existing-close-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Path {
@@ -2414,7 +2399,7 @@ export component ModManagerPage inherits Rectangle {
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
-                            stroke: add-existing-close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke: add-existing-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
                             fill: transparent;
                             animate stroke { duration: 100ms; }
@@ -2436,13 +2421,12 @@ export component ModManagerPage inherits Rectangle {
 
                 if root.add-existing-options.length == 0: Text {
                     text: Tr.values[TrKey.modmanager-empty-search];
-                    color: #ffffff44;
+                    color: Palette.fg-44;
                     font-size: 12.5px;
                     horizontal-alignment: center;
                 }
 
                 if root.add-existing-options.length > 0: Rectangle {
-                    // Up to 8 rows of 30px plus spacing
                     height: min(root.add-existing-options.length, 8) * 32px;
 
                     ScrollView {
@@ -2538,13 +2522,12 @@ export component ModManagerPage inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 16px;
-        background: #000000aa;
+        background: Palette.shade-aa;
 
         TouchArea {
             clicked => { root.icon-picker-open = false; }
         }
 
-        // Absorbs mouse-wheel scrolls
         ScrollView {
             width: 100%;
             height: 100%;
@@ -2553,21 +2536,19 @@ export component ModManagerPage inherits Rectangle {
         }
 
         Rectangle {
-            // 18px padding x2 + title row + footer + two layout spacings
             property <length> chrome: 36px + 24px + 30px + 24px;
 
             width: min(480px, parent.width - 40px);
             height: min(parent.height - 60px, icon-grid.height + self.chrome);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 12px;
             border-width: 1px;
             border-color: Palette.glass-border;
-            drop-shadow-color: #00000099;
+            drop-shadow-color: Palette.shade-99;
             drop-shadow-blur: 30px;
 
-            // Swallows clicks so they don't reach the backdrop
             TouchArea { }
 
             VerticalLayout {
@@ -2592,7 +2573,7 @@ export component ModManagerPage inherits Rectangle {
                         width: 24px;
                         height: 24px;
                         border-radius: 6px;
-                        background: picker-close-ta.has-hover ? #ffffff14 : transparent;
+                        background: picker-close-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Path {
@@ -2605,7 +2586,7 @@ export component ModManagerPage inherits Rectangle {
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
-                            stroke: picker-close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke: picker-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
                             fill: transparent;
                             animate stroke { duration: 100ms; }
@@ -2642,9 +2623,9 @@ export component ModManagerPage inherits Rectangle {
                             width: picker-scroll.cell;
                             height: picker-scroll.cell;
                             border-radius: 8px;
-                            background: choice-ta.has-hover ? #6db3f226 : #00000044;
+                            background: choice-ta.has-hover ? Palette.accent.with-alpha(0.149) : Palette.shade-44;
                             border-width: 1px;
-                            border-color: choice-ta.has-hover ? #6db3f2 : transparent;
+                            border-color: choice-ta.has-hover ? Palette.accent : transparent;
                             animate background { duration: 100ms; }
                             animate border-color { duration: 100ms; }
 

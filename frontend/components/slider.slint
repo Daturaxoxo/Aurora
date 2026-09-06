@@ -32,7 +32,7 @@ export component Slider inherits Rectangle {
         y: (parent.height - self.height) / 2;
         height: 4px;
         border-radius: 2px;
-        background: #3f3f46;
+        background: Palette.fg-28;
         border-width: 1px;
         border-color: Palette.glass-border;
     }
@@ -44,7 +44,7 @@ export component Slider inherits Rectangle {
         width: root.knob-size / 2 + root.ratio * root.travel;
         height: 4px;
         border-radius: 2px;
-        background: #6db3f2;
+        background: Palette.accent;
     }
 
     // KNOB
@@ -54,8 +54,8 @@ export component Slider inherits Rectangle {
         width: root.knob-size;
         height: root.knob-size;
         border-radius: root.knob-size / 2;
-        background: #ffffff;
-        drop-shadow-color: #00000060;
+        background: Palette.text-primary;
+        drop-shadow-color: Palette.shade-60;
         drop-shadow-blur: ta.has-hover || ta.pressed ? 6px : 0px;
 
         animate drop-shadow-blur { duration: 120ms; }

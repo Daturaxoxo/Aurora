@@ -11,6 +11,7 @@ pub mod oneclick;
 pub mod pages;
 pub mod popup;
 pub mod repair;
+pub mod theme;
 pub mod toast;
 pub mod tray;
 pub mod updater;

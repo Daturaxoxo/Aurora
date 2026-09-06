@@ -77,6 +77,7 @@ pub mod key {
     pub const LAUNCH_ARGS: &str = "launch_args";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
     pub const ADDON_AUTO_UPDATES: &str = "addon_auto_updates";
+    pub const THEME: &str = "theme";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -103,6 +104,7 @@ pub fn default_value(k: &str) -> Value {
         }
 
         key::MODMNG_SORT => json!("folder"),
+        key::THEME => json!("aurora"),
 
         key::GAME_PATH
         | key::APP_LOCATION

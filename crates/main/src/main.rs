@@ -19,6 +19,7 @@ use classes::oneclick::OneClickHandler;
 use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
+use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 
@@ -254,6 +255,7 @@ fn main() -> Result<()> {
         .build_global();
 
     ToastHandler::setup(window.as_weak());
+    ThemeHandler::setup(&window.as_weak());
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());

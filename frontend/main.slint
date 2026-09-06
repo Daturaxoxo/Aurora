@@ -1,7 +1,8 @@
-import { SettingsPage } from "components/pages/settings.slint";
+import { SettingsPage, ThemeChoice } from "components/pages/settings.slint";
 import { Tr, TrKey } from "translations.slint";
 export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
+export { Palette }
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem, PopupDetail } from "components/popup.slint";
 import { ProgressOverlay } from "components/progressoverlay.slint";
@@ -54,7 +55,7 @@ component IconButton inherits Rectangle {
     height: root.icon-size + 12px;
     border-radius: 6px;
 
-    background: root.active ? #ffffff16 : (ta.has-hover ? #ffffff0c : transparent);
+    background: root.active ? Palette.fg-16 : (ta.has-hover ? Palette.fg-0c : transparent);
 
     animate background { duration: 120ms; }
 
@@ -157,6 +158,16 @@ export component MainWindow inherits Window {
     in property <bool> proton-version-not-recommended: false;
     in property <int> proton-builtin-count: 1;
     in-out property <bool> telemetry-opt-out: false;
+
+    // Theme Properties
+    in property <[ThemeChoice]> theme-choices: [];
+    in property <string> theme-name: "";
+    in property <string> theme-author: "";
+    callback theme-selected(string /* id */);
+    callback theme-import();
+    callback theme-delete(string /* id */);
+    callback theme-open-folder();
+
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
@@ -370,10 +381,16 @@ export component MainWindow inherits Window {
         width: 100%;
         height: 100%;
 
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: Palette.backdrop;
+        }
+
         Image {
             width: 100%;
             height: 100%;
-            source: @image-url("../production/assets/background.jpg");
+            source: Palette.background-image;
             image-fit: cover;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -382,7 +399,7 @@ export component MainWindow inherits Window {
         Rectangle {
             width: 100%;
             height: 100%;
-            background: @linear-gradient(180deg, #00000044 0%, #00000088 100%);
+            background: @linear-gradient(180deg, Palette.scrim-top 0%, Palette.scrim-bottom 100%);
         }
 
         VerticalLayout {
@@ -570,7 +587,7 @@ export component MainWindow inherits Window {
             Rectangle {
                 height: 60px;
                 width: mod-manager-inner.preferred-width + 20px * 2;
-                background: mod-manager-ta.has-hover ? #1b1b22dd : Palette.glass-background;
+                background: mod-manager-ta.has-hover ? Palette.surface.with-alpha(0.867) : Palette.glass-background;
                 border-radius: 12px;
                 border-width: 1px;
                 border-color: Palette.glass-border;
@@ -609,7 +626,7 @@ export component MainWindow inherits Window {
                         alignment: center;
                         Text {
                             text: Tr.values[TrKey.main-button-row-mod-manager];
-                            color: #ffffff;
+                            color: Palette.text-primary;
                             font-size: 14px;
                             font-weight: 600;
                         }
@@ -622,7 +639,7 @@ export component MainWindow inherits Window {
             x: 4px;
             y: parent.height - self.height - 2px;
             text: root.app-version;
-            color: #ffffff55;
+            color: Palette.fg-55;
             font-size: 10px;
         }
 
@@ -644,7 +661,7 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 Rectangle {
                     horizontal-stretch: 1;
-                    background: launch-ta.has-hover ? #ffffff12 : transparent;
+                    background: launch-ta.has-hover ? Palette.fg-12 : transparent;
                     animate background { duration: 120ms; }
 
                     launch-ta := TouchArea {
@@ -664,7 +681,7 @@ export component MainWindow inherits Window {
                                 width: 20px;
                                 height: 20px;
                                 border-radius: 10px;
-                                background: root.launch-disabled ? #ffffff55 : #ffffff;
+                                background: root.launch-disabled ? Palette.fg-55 : Palette.text-primary;
                                 animate background { duration: 200ms; }
 
                                 Path {
@@ -677,7 +694,7 @@ export component MainWindow inherits Window {
                                     viewbox-width: 14;
                                     viewbox-height: 12;
                                     commands: "M1 6 L5 10 L13 1";
-                                    stroke: #111111;
+                                    stroke: Palette.shade-ff;
                                     stroke-width: 2px;
                                     fill: transparent;
                                 }
@@ -694,7 +711,7 @@ export component MainWindow inherits Window {
                                     : root.launch-state == LaunchState.updating
                                     ? Tr.values[TrKey.main-launch-button-updating]
                                     : Tr.values[TrKey.main-launch-button-launch];
-                                color: root.launch-disabled ? #ffffff66 : #ffffff;
+                                color: root.launch-disabled ? Palette.fg-66 : Palette.text-primary;
                                 font-size: 15px;
                                 font-weight: 700;
                             }
@@ -709,7 +726,7 @@ export component MainWindow inherits Window {
 
                 menu-region := Rectangle {
                     width: 42px;
-                    background: (menu-ta.has-hover || root.launch-menu-open) ? #ffffff1a : transparent;
+                    background: (menu-ta.has-hover || root.launch-menu-open) ? Palette.fg-1a : transparent;
                     animate background { duration: 120ms; }
 
                     menu-ta := TouchArea {
@@ -729,7 +746,7 @@ export component MainWindow inherits Window {
                                     width: 4px;
                                     height: 4px;
                                     border-radius: 2px;
-                                    background: (menu-ta.has-hover || root.launch-menu-open) ? #ffffffff : #ffffffcc;
+                                    background: (menu-ta.has-hover || root.launch-menu-open) ? Palette.text-primary : Palette.fg-cc;
                                     animate background { duration: 120ms; }
                                 }
                             }
@@ -777,7 +794,7 @@ export component MainWindow inherits Window {
                 border-radius: 12px;
                 border-width: 1px;
                 border-color: Palette.glass-border;
-                drop-shadow-color: #00000099;
+                drop-shadow-color: Palette.shade-99;
                 drop-shadow-blur: 28px;
                 drop-shadow-offset-y: 8px;
                 height: menu-items-layout.preferred-height + 16px;
@@ -805,7 +822,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri0.has-hover ? #ffffff12 : transparent;
+                        background: ri0.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri0 := TouchArea {
                             clicked => { root.launch-menu-action(0); root.launch-menu-open = false; }
@@ -824,7 +841,7 @@ export component MainWindow inherits Window {
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -832,7 +849,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-repair];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -844,7 +861,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri1.has-hover ? #ffffff12 : transparent;
+                        background: ri1.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri1 := TouchArea {
                             clicked => { root.launch-menu-action(1); root.launch-menu-open = false; }
@@ -863,7 +880,7 @@ export component MainWindow inherits Window {
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -871,7 +888,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-updates];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -883,7 +900,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri2.has-hover ? #ffffff12 : transparent;
+                        background: ri2.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri2 := TouchArea {
                             clicked => { root.launch-menu-action(2); root.launch-menu-open = false; }
@@ -902,7 +919,7 @@ export component MainWindow inherits Window {
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -910,7 +927,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-shortcut];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -922,7 +939,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri4.has-hover ? #ffffff12 : transparent;
+                        background: ri4.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri4 := TouchArea {
                             clicked => { root.launch-menu-action(4); root.launch-menu-open = false; }
@@ -941,7 +958,7 @@ export component MainWindow inherits Window {
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -949,7 +966,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-folder];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -961,7 +978,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri5.has-hover ? #ffffff12 : transparent;
+                        background: ri5.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri5 := TouchArea {
                             clicked => { root.launch-menu-action(5); root.launch-menu-open = false; }
@@ -980,7 +997,7 @@ export component MainWindow inherits Window {
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -988,7 +1005,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-kill];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -1269,6 +1286,14 @@ export component MainWindow inherits Window {
             telemetry-opt-out <=> root.telemetry-opt-out;
             app-version: root.app-version;
             build-timestamp: root.build-timestamp;
+            theme-choices: root.theme-choices;
+            theme-name: root.theme-name;
+            theme-author: root.theme-author;
+
+            theme-selected(id) => { root.theme-selected(id); }
+            theme-import => { root.theme-import(); }
+            theme-delete(id) => { root.theme-delete(id); }
+            theme-open-folder => { root.theme-open-folder(); }
 
             browse-game-directory => { root.browse-game-directory(); }
             open-link(id) => { root.open-about-link(id); }
@@ -1304,7 +1329,7 @@ export component MainWindow inherits Window {
 
         dialog-widget := PopupDialog {
             active: root.popup-active;
-            background: root.popup-active ? #000000aa : #00000000;
+            background: root.popup-active ? Palette.shade-aa : transparent;
             title: root.popup-title;
             message: root.popup-message;
             confirm-delay: root.popup-confirm-delay;

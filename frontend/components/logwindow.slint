@@ -18,7 +18,7 @@ component TitleBarButton inherits Rectangle {
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    background: ta.has-hover ? #ffffff10 : transparent;
+    background: ta.has-hover ? Palette.fg-10 : transparent;
 
     animate background { duration: 100ms; }
 
@@ -45,10 +45,10 @@ component ToolButton inherits Rectangle {
 
     width: 76px;
     height: 28px;
-    background: ta.has-hover ? #ffffff14 : #ffffff08;
+    background: ta.has-hover ? Palette.fg-14 : Palette.fg-08;
     border-radius: 6px;
     border-width: 1px;
-    border-color: #ffffff18;
+    border-color: Palette.fg-18;
 
     animate background { duration: 100ms; }
 
@@ -118,7 +118,7 @@ export component LogWindow inherits Window {
     Rectangle {
         width: 100%;
         height: 100%;
-        background: @linear-gradient(180deg, #111115f7 0%, #16161af7 100%);
+        background: Palette.panel-background;
         border-width: 1px;
         border-color: Palette.glass-border;
 
@@ -260,7 +260,7 @@ export component LogWindow inherits Window {
                             Text {
                                 text: line.timestamp;
                                 width: 128px;
-                                color: #838d8c;
+                                color: Palette.text-secondary;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }

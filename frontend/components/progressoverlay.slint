@@ -14,7 +14,7 @@ export component ProgressOverlay inherits Rectangle {
     width: 100%;
     height: 100%;
 
-    background: root.active ? #000000aa : transparent;
+    background: root.active ? Palette.shade-aa : transparent;
     animate background { duration: 150ms; }
 
     visible: root.active || card.opacity > 0.01;
@@ -73,7 +73,7 @@ export component ProgressOverlay inherits Rectangle {
                     Rectangle {
                         height: 8px;
                         border-radius: 4px;
-                        background: #ffffff14;
+                        background: Palette.fg-14;
                         clip: true;
 
                         Rectangle {
@@ -81,7 +81,7 @@ export component ProgressOverlay inherits Rectangle {
                             width: parent.width * Math.clamp(root.progress, 0.0, 1.0);
                             height: parent.height;
                             border-radius: 4px;
-                            background: #ffffff;
+                            background: Palette.text-primary;
                             animate width { duration: 120ms; }
                         }
                     }
@@ -102,7 +102,7 @@ export component ProgressOverlay inherits Rectangle {
                             border-radius: 6px;
                             border-width: 1px;
                             border-color: Palette.glass-border;
-                            background: cancel-ta.has-hover ? #ffffff10 : transparent;
+                            background: cancel-ta.has-hover ? Palette.fg-10 : transparent;
                             animate background { duration: 100ms; }
 
                             Text {

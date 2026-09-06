@@ -44,15 +44,15 @@ component StatIcon inherits HorizontalLayout {
             viewbox-width: 14;
             viewbox-height: 14;
             commands: root.commands;
-            stroke: #ffffff66;
+            stroke: Palette.fg-66;
             stroke-width: 1.4px;
-            fill: root.filled ? #ffffff66 : transparent;
+            fill: root.filled ? Palette.fg-66 : transparent;
         }
     }
 
     Text {
         text: root.label;
-        color: #ffffff77;
+        color: Palette.fg-77;
         font-size: 10.5px;
         font-weight: 600;
         vertical-alignment: center;
@@ -68,8 +68,8 @@ component GbModCard inherits Rectangle {
 
     border-radius: 10px;
     border-width: 1px;
-    border-color: card-ta.has-hover ? #ffffff22 : #ffffff10;
-    background: card-ta.has-hover ? #ffffff0a : #ffffff06;
+    border-color: card-ta.has-hover ? Palette.fg-22 : Palette.fg-10;
+    background: card-ta.has-hover ? Palette.fg-0a : Palette.fg-06;
     clip: true;
     animate background { duration: 120ms; }
     animate border-color { duration: 120ms; }
@@ -81,7 +81,7 @@ component GbModCard inherits Rectangle {
 
         thumb := Rectangle {
             vertical-stretch: 1;
-            background: #00000044;
+            background: Palette.shade-44;
             clip: true;
 
             if root.item.has-thumbnail: Image {
@@ -98,7 +98,7 @@ component GbModCard inherits Rectangle {
                 source: @image-url("../../production/icons/gamebanana.png");
                 image-fit: contain;
                 image-rendering: smooth;
-                colorize: #ffffff22;
+                colorize: Palette.fg-22;
             }
 
             thumb-ta := TouchArea {
@@ -107,7 +107,7 @@ component GbModCard inherits Rectangle {
             }
 
             if thumb-ta.has-hover: Rectangle {
-                background: #ffffff0a;
+                background: Palette.fg-0a;
             }
         }
 
@@ -171,12 +171,12 @@ component GbModCard inherits Rectangle {
                         width: 92px;
                         height: 26px;
                         border-radius: 6px;
-                        background: install-ta.has-hover ? #34d399 : #10b981;
+                        background: install-ta.has-hover ? Palette.success-bright : Palette.success;
                         animate background { duration: 100ms; }
 
                         Text {
                             text: Tr.values[TrKey.global-button-install];
-                            color: #ffffff;
+                            color: Palette.text-primary;
                             font-size: 11.5px;
                             font-weight: 700;
                             horizontal-alignment: center;
@@ -197,8 +197,8 @@ component GbModCard inherits Rectangle {
                         height: 26px;
                         border-radius: 6px;
                         border-width: 1px;
-                        border-color: page-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: page-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: page-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: page-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
@@ -208,7 +208,7 @@ component GbModCard inherits Rectangle {
                             height: 13px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: page-ta.has-hover ? #ffffffdd : #ffffff88;
+                            colorize: page-ta.has-hover ? Palette.fg-dd : Palette.fg-88;
                             animate colorize { duration: 100ms; }
                         }
 
@@ -233,11 +233,11 @@ component CharacterDropdown inherits Rectangle {
     border-radius: 6px;
     border-width: 1px;
     border-color: root.selected >= 0
-        ? #E8A020
-        : (trigger-ta.has-hover ? #ffffff28 : #ffffff16);
+        ? Palette.warning
+        : (trigger-ta.has-hover ? Palette.fg-28 : Palette.fg-16);
     background: root.selected >= 0
-        ? #E8A02022
-        : (trigger-ta.has-hover ? #ffffff12 : #ffffff08);
+        ? Palette.warning.with-alpha(0.133)
+        : (trigger-ta.has-hover ? Palette.fg-12 : Palette.fg-08);
     animate background { duration: 100ms; }
     animate border-color { duration: 100ms; }
 
@@ -252,7 +252,7 @@ component CharacterDropdown inherits Rectangle {
                 width: 16px;
                 height: 16px;
                 border-radius: 8px;
-                background: #00000044;
+                background: Palette.shade-44;
                 clip: true;
 
                 Image {
@@ -270,7 +270,7 @@ component CharacterDropdown inherits Rectangle {
             text: root.selected >= 0
                 ? root.characters[root.selected].name
                 : Tr.values[TrKey.gb-all-characters];
-            color: root.selected >= 0 ? #ffd280 : #ffffffcc;
+            color: root.selected >= 0 ? Palette.warning-pale : Palette.fg-cc;
             font-size: 11.5px;
             font-weight: 600;
             vertical-alignment: center;
@@ -287,7 +287,7 @@ component CharacterDropdown inherits Rectangle {
                 viewbox-width: 10;
                 viewbox-height: 6;
                 commands: "M1 1 L5 5 L9 1";
-                stroke: #ffffff88;
+                stroke: Palette.fg-88;
                 stroke-width: 1.5px;
                 fill: transparent;
             }
@@ -308,10 +308,10 @@ component CharacterDropdown inherits Rectangle {
         Rectangle {
             width: 100%;
             height: 100%;
-            background: #1e1e24;
+            background: Palette.surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #3f3f46;
+            border-color: Palette.fg-28;
 
             list-scroll := ScrollView {
                 x: 6px;
@@ -327,7 +327,7 @@ component CharacterDropdown inherits Rectangle {
                     Rectangle {
                         height: 30px;
                         border-radius: 4px;
-                        background: all-ta.has-hover ? #ffffff10 : transparent;
+                        background: all-ta.has-hover ? Palette.fg-10 : transparent;
 
                         all-ta := TouchArea {
                             clicked => {
@@ -351,8 +351,8 @@ component CharacterDropdown inherits Rectangle {
                         height: 30px;
                         border-radius: 4px;
                         background: root.selected == i
-                            ? #E8A02022
-                            : (option-ta.has-hover ? #ffffff10 : transparent);
+                            ? Palette.warning.with-alpha(0.133)
+                            : (option-ta.has-hover ? Palette.fg-10 : transparent);
 
                         option-ta := TouchArea {
                             clicked => {
@@ -373,7 +373,7 @@ component CharacterDropdown inherits Rectangle {
                                     width: 18px;
                                     height: 18px;
                                     border-radius: 9px;
-                                    background: #00000044;
+                                    background: Palette.shade-44;
                                     clip: true;
 
                                     Image {
@@ -389,7 +389,7 @@ component CharacterDropdown inherits Rectangle {
                             Text {
                                 horizontal-stretch: 1;
                                 text: char.name;
-                                color: root.selected == i ? #ffd280 : Palette.text-primary;
+                                color: root.selected == i ? Palette.warning-pale : Palette.text-primary;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -434,7 +434,7 @@ export component GameBananaBrowser inherits Rectangle {
     // Built in gbbrowser.rs so the names and their icons stay in one place.
     in property <[GbCharacter]> characters: [];
 
-    background: @linear-gradient(180deg, #111115ef 0%, #16161aeb 100%);
+    background: Palette.panel-background;
     border-radius: 16px;
     border-width: 1px;
     border-color: Palette.glass-border;
@@ -503,7 +503,7 @@ export component GameBananaBrowser inherits Rectangle {
                     width: self.preferred-width;
                     Text {
                         text: Tr.values[TrKey.gb-nsfw];
-                        color: #ffffff88;
+                        color: Palette.fg-88;
                         font-size: 12px;
                         font-weight: 600;
                         vertical-alignment: center;
@@ -526,14 +526,14 @@ export component GameBananaBrowser inherits Rectangle {
                         height: 28px;
                         border-radius: 6px;
                         border-width: 1px;
-                        border-color: clear-cache-ta.has-hover ? #ffffff28 : #ffffff16;
-                        background: clear-cache-ta.has-hover ? #ffffff12 : #ffffff08;
+                        border-color: clear-cache-ta.has-hover ? Palette.fg-28 : Palette.fg-16;
+                        background: clear-cache-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
                         animate background { duration: 100ms; }
                         animate border-color { duration: 100ms; }
 
                         clear-cache-label := Text {
                             text: Tr.values[TrKey.gb-clear-cache];
-                            color: clear-cache-ta.has-hover ? #ffffffdd : #ffffffcc;
+                            color: clear-cache-ta.has-hover ? Palette.fg-dd : Palette.fg-cc;
                             font-size: 11.5px;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -563,7 +563,7 @@ export component GameBananaBrowser inherits Rectangle {
                         width: 28px;
                         height: 28px;
                         border-radius: 6px;
-                        background: close-ta.has-hover ? #ffffff14 : transparent;
+                        background: close-ta.has-hover ? Palette.fg-14 : transparent;
                         animate background { duration: 100ms; }
 
                         Path {
@@ -576,7 +576,7 @@ export component GameBananaBrowser inherits Rectangle {
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
-                            stroke: close-ta.has-hover ? #ffffffdd : #ffffff66;
+                            stroke: close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
                             fill: transparent;
                             animate stroke { duration: 100ms; }
@@ -598,7 +598,7 @@ export component GameBananaBrowser inherits Rectangle {
         Rectangle {
             height: 48px;
             width: 100%;
-            background: #ffffff02;
+            background: Palette.fg-02;
 
             HorizontalLayout {
                 padding-left: 20px;
@@ -609,10 +609,10 @@ export component GameBananaBrowser inherits Rectangle {
                     alignment: center;
                     search-container := Rectangle {
                         height: 32px;
-                        background: #ffffff08;
+                        background: Palette.fg-08;
                         border-radius: 7px;
                         border-width: 1px;
-                        border-color: #ffffff16;
+                        border-color: Palette.fg-16;
 
                         Image {
                             source: @image-url("../../production/icons/search.png");
@@ -622,7 +622,7 @@ export component GameBananaBrowser inherits Rectangle {
                             height: 14px;
                             image-rendering: smooth;
                             image-fit: contain;
-                            colorize: #ffffff66;
+                            colorize: Palette.fg-66;
                         }
 
                         TextInput {
@@ -643,7 +643,7 @@ export component GameBananaBrowser inherits Rectangle {
                         if (root.search-text == ""): Text {
                             x: 32px;
                             text: Tr.values[TrKey.global-search-mods-placeholder];
-                            color: #ffffff44;
+                            color: Palette.fg-44;
                             font-size: 13px;
                             vertical-alignment: center;
                         }
@@ -729,7 +729,7 @@ export component GameBananaBrowser inherits Rectangle {
 
             if root.mods.length == 0 && !root.loading: Text {
                 text: Tr.values[TrKey.gb-no-mods];
-                color: #ffffff44;
+                color: Palette.fg-44;
                 font-size: 13px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -743,7 +743,7 @@ export component GameBananaBrowser inherits Rectangle {
 
                 Text {
                     text: Tr.values[TrKey.gb-loading];
-                    color: #ffffff77;
+                    color: Palette.fg-77;
                     font-size: 12px;
                     font-weight: 600;
                     horizontal-alignment: center;
@@ -757,7 +757,7 @@ export component GameBananaBrowser inherits Rectangle {
         width: 100%;
         height: 100%;
         border-radius: 16px;
-        background: #000000aa;
+        background: Palette.shade-aa;
 
         TouchArea { }
 
@@ -809,8 +809,8 @@ export component GameBananaBrowser inherits Rectangle {
                                 height: 48px;
                                 border-radius: 8px;
                                 border-width: 1px;
-                                border-color: file-ta.has-hover ? #ffffff28 : #ffffff14;
-                                background: file-ta.has-hover ? #ffffff10 : #ffffff06;
+                                border-color: file-ta.has-hover ? Palette.fg-28 : Palette.fg-14;
+                                background: file-ta.has-hover ? Palette.fg-10 : Palette.fg-06;
                                 animate background { duration: 100ms; }
                                 animate border-color { duration: 100ms; }
 
@@ -854,7 +854,7 @@ export component GameBananaBrowser inherits Rectangle {
                                             viewbox-width: 14;
                                             viewbox-height: 14;
                                             commands: "M7 1 L7 9 M3.5 5.5 L7 9 L10.5 5.5 M1.5 12.5 L12.5 12.5";
-                                            stroke: file-ta.has-hover ? #ffffffdd : #ffffff66;
+                                            stroke: file-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                                             stroke-width: 1.6px;
                                             fill: transparent;
                                         }
@@ -872,7 +872,7 @@ export component GameBananaBrowser inherits Rectangle {
                                 border-radius: 6px;
                                 border-width: 1px;
                                 border-color: Palette.glass-border;
-                                background: cancel-ta.has-hover ? #ffffff10 : transparent;
+                                background: cancel-ta.has-hover ? Palette.fg-10 : transparent;
                                 animate background { duration: 100ms; }
 
                                 Text {
