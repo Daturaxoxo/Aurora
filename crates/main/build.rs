@@ -286,9 +286,7 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
     for entry in fs::read_dir(current_source).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path == target_base {
-            continue;
-        }
+        if path == target_base {continue}
 
         let relative = path.strip_prefix(root_source).unwrap();
         let dest_path = target_base.join(relative);
@@ -302,7 +300,6 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
             let ext_lower = extension.to_lowercase();
             if ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg" {
                 let file_name = path.file_name().and_then(|os| os.to_str()).unwrap_or("");
-                // Wallpapers are shown full-bleed, so they are copied at full size.
                 if relative.starts_with("backgrounds") || file_name.contains("background") {
                     if !is_up_to_date(&path, &dest_path) {
                         fs::copy(&path, &dest_path).unwrap();
@@ -313,11 +310,8 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                 if is_up_to_date(&path, &dest_path) {
                     continue;
                 }
-                let size = if relative.starts_with("characters") {
-                    128
-                } else {
-                    64
-                };
+                let size = if relative.starts_with("characters") {128} 
+                else {64};
 
                 if let Ok(img) = image::open(&path) {
                     let scaled = img.resize(size, size, FilterType::Lanczos3);
