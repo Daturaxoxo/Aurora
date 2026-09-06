@@ -8,6 +8,7 @@ use backend::classes::rpc::RPC;
 use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
+use shared::classes::info::version::{Distribution, StartMethod, detect_distribution};
 use shared::config::{self, key};
 use shared::pathfind::resolve_selected_game_root;
 use shared::utils::open_folder;
@@ -527,7 +528,30 @@ impl SettingsHandler {
             }
         });
 
+        let ww = window.clone();
         w.on_start_method_index_changed(move |index| {
+            let game_path = config::get(key::GAME_PATH);
+            if StartMethod::from_num(i64::from(index)) == StartMethod::Manual
+                && game_path.as_str().is_some_and(|path| {
+                    matches!(
+                        detect_distribution(std::path::Path::new(path)),
+                        Distribution::Steam | Distribution::Epic
+                    )
+                })
+            {
+                if let Some(w) = ww.upgrade() {
+                    w.set_start_method_index(match StartMethod::from_config() {
+                        StartMethod::Direct => 0,
+                        StartMethod::Manual => 1,
+                    });
+                }
+                ToastHandler::show(
+                    &ww,
+                    "Manual mode is not supported on Steam or Epic. Use Direct mode.",
+                    "warning",
+                );
+                return;
+            }
             info!("start_method changed -> {index}");
             config::set(key::START_METHOD, index);
             debug!("start_method saved to config");

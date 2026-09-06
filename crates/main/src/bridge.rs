@@ -6,6 +6,7 @@ use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
 use backend::handler::{self, EngineCommand, EngineEvent, EngineHandler};
 use log::*;
+use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
 
 #[derive(Default)]
@@ -206,11 +207,11 @@ impl Bridge {
                         }
                     }
                     EngineEvent::LaunchSuccess => {
-                        Self::show_toast(
-                            &w,
-                            &crate::translations::tr("toast.launcher-opened"),
-                            "success",
-                        );
+                        let toast_key = match StartMethod::from_config() {
+                            StartMethod::Direct => "toast.launch-direct",
+                            StartMethod::Manual => "toast.launcher-opened",
+                        };
+                        Self::show_toast(&w, &crate::translations::tr(toast_key), "success");
                         let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if let Some(w) = w_ui.upgrade() {

@@ -3331,6 +3331,24 @@
         "id": "Aurora telah mendeteksi adanya folder mods, apakah kamu ingin memindahkan semua mods ke folder mods milik Aurora?"
     },
     {
+        "key": "toast.launch-direct",
+        "en": "Press play to launch NTE",
+        "tr": "NTE'yi başlatmak için Oyna düğmesine bas",
+        "zh-CN": "点击“开始游戏”以启动 NTE",
+        "es": "Pulsa Jugar para iniciar NTE",
+        "de": "Drücke auf Spielen, um NTE zu starten",
+        "nl": "Druk op Spelen om NTE te starten",
+        "fr": "Appuyez sur Jouer pour lancer NTE",
+        "it": "Premi Gioca per avviare NTE",
+        "ru": "Нажмите «Играть», чтобы запустить NTE",
+        "vi": "Nhấn Chơi để khởi chạy NTE",
+        "jp": "「プレイ」を押して NTE を起動してください",
+        "ko": "플레이를 눌러 NTE를 실행하세요",
+        "pt": "Prime Jogar para iniciar o NTE",
+        "pt-BR": "Pressione Jogar para iniciar o NTE",
+        "id": "Tekan Mainkan untuk menjalankan NTE"
+    },
+    {
         "key": "toast.launcher-opened",
         "en": "Launcher opened! Please press \"Play\" on the NTE Launcher",
         "tr": "Başlatıcı açıldı! Lütfen NTE Launcher üzerinde \"Play\" düğmesine bas",
