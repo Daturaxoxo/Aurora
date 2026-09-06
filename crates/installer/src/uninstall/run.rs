@@ -210,7 +210,9 @@ fn remove_app_dir(ui: &Weak<UninstallerWindow>, dir: &Path) -> Result<bool, Stri
     }
 
     for file in &owned.files {
-        if !file.exists() {continue}
+        if !file.exists() {
+            continue;
+        }
         let canonical = file.canonicalize().ok();
         if canonical.is_some() && (canonical == self_exe || canonical == active_log) {
             skipped = true;

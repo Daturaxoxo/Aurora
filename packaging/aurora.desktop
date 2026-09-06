@@ -2,9 +2,10 @@
 Type=Application
 Name=Aurora
 Comment=Mod manager and launcher
-Exec=Aurora
+Exec=Aurora %u
 Icon=aurora
 Terminal=false
 Categories=Game;
+MimeType=x-scheme-handler/aurora-launcher;
 StartupNotify=true
 StartupWMClass=aurora

@@ -1,18 +1,16 @@
 use crate::MainWindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::modules::ModulesHandler;
-
+use crate::classes::theme::{self, ThemeHandler};
 use i_slint_backend_winit::WinitWindowAccessor;
 use i_slint_backend_winit::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use log::*;
 use slint::ComponentHandle;
-
 use std::cell::Cell;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr::null_mut;
-
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, TRUE, WPARAM};
 use windows_sys::Win32::System::Ole::RevokeDragDrop;
 use windows_sys::Win32::UI::Shell::{
@@ -98,6 +96,20 @@ unsafe extern "system" fn subclass_proc(
             if let Some(win) = weak.upgrade()
                 && !paths.is_empty()
             {
+                let (themes, paths): (Vec<_>, Vec<_>) = paths.into_iter().partition(|path| {
+                    path.extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case(theme::model::EXTENSION))
+                });
+
+                if !themes.is_empty() {
+                    info!("[FileDrop] {} theme(s) dropped", themes.len());
+                    ThemeHandler::import_paths(weak, themes);
+                }
+
+                if paths.is_empty() {
+                    return 0;
+                }
+
                 if win.get_show_mod_manager() {
                     info!(
                         "[FileDrop] {} path(s) dropped on the mod manager",

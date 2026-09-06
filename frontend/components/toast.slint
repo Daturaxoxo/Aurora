@@ -1,3 +1,4 @@
+import { Icons } from "../icons.slint";
 import { Palette } from "../global.slint";
 
 export component WindowToast inherits Rectangle {
@@ -70,14 +71,14 @@ export component WindowToast inherits Rectangle {
     drop-shadow-offset-y: 6px;
 
     property <color> drain-color:
-        root.kind == "success" ? #22c55e :
-        (root.kind == "error" ? #ef4444 :
-        (root.kind == "warning" ? #f59e0b : #3b82f6));
+        root.kind == "success" ? Palette.success :
+        (root.kind == "error" ? Palette.danger :
+        (root.kind == "warning" ? Palette.warning : Palette.accent-strong));
     property <image> status-icon:
-        root.kind == "success" ? @image-url("../../production/icons/processed/success.png") :
-        (root.kind == "error" || root.kind == "warning" ? @image-url("../../production/icons/processed/error.png") :
-        @image-url("../../production/icons/processed/info.png"));
-    property <brush> status-icon-tint: root.kind == "warning" ? #f59e0b : transparent;
+        root.kind == "success" ? Icons.success :
+        (root.kind == "error" || root.kind == "warning" ? Icons.error :
+        Icons.info);
+    property <brush> status-icon-tint: root.kind == "warning" ? Palette.warning : transparent;
 
     VerticalLayout {
         HorizontalLayout {
@@ -107,7 +108,7 @@ export component WindowToast inherits Rectangle {
 
                     Text {
                         text: root.text;
-                        color: #ffffff;
+                        color: Palette.text-primary;
                         font-size: 13px;
                         wrap: word-wrap;
                         horizontal-stretch: 1;
@@ -121,10 +122,10 @@ export component WindowToast inherits Rectangle {
                     width: 20px;
                     height: 20px;
                     border-radius: 4px;
-                    background: ta.has-hover ? #ffffff14 : transparent;
+                    background: ta.has-hover ? Palette.fg-14 : transparent;
                     animate background { duration: 100ms; }
                     Image {
-                        source: @image-url("../../production/icons/processed/close.png");
+                        source: Icons.close;
                         width: 16px;
                         height: 16px;
                         opacity: ta.has-hover ? 1.0 : 0.7;
@@ -140,7 +141,7 @@ export component WindowToast inherits Rectangle {
 
         Rectangle {
             height: 2px;
-            background: #ffffff0d;
+            background: Palette.fg-0d;
 
             Rectangle {
                 x: 0px;

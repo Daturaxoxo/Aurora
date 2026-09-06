@@ -97,7 +97,9 @@ pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {
 }
 
 #[cfg(not(windows))]
-pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {listen(pipe)}
+pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {
+    listen(pipe)
+}
 
 /// The current process user's SID in string form, for building an SDDL string.
 #[cfg(windows)]
@@ -116,11 +118,15 @@ fn current_user_sid() -> io::Result<String> {
 
     unsafe {
         let mut raw: HANDLE = std::ptr::null_mut();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut raw) == 0 {return Err(io::Error::last_os_error());}
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut raw) == 0 {
+            return Err(io::Error::last_os_error());
+        }
         let token = Handle(raw);
         let mut needed: u32 = 0;
         GetTokenInformation(token.0, TokenUser, std::ptr::null_mut(), 0, &raw mut needed);
-        if needed == 0 {return Err(io::Error::last_os_error());}
+        if needed == 0 {
+            return Err(io::Error::last_os_error());
+        }
 
         let mut buffer = vec![0u8; needed as usize];
         if GetTokenInformation(
@@ -130,7 +136,9 @@ fn current_user_sid() -> io::Result<String> {
             needed,
             &raw mut needed,
         ) == 0
-        {return Err(io::Error::last_os_error());}
+        {
+            return Err(io::Error::last_os_error());
+        }
 
         let user: *const TOKEN_USER = buffer.as_ptr().cast();
         let mut sid_w: *mut u16 = std::ptr::null_mut();
@@ -142,8 +150,8 @@ fn current_user_sid() -> io::Result<String> {
         while *sid_w.add(len) != 0 {
             len += 1;
         }
-        let sid = String::from_utf16(std::slice::from_raw_parts(sid_w, len))
-            .map_err(io::Error::other);
+        let sid =
+            String::from_utf16(std::slice::from_raw_parts(sid_w, len)).map_err(io::Error::other);
         LocalFree(sid_w.cast());
         sid
     }
@@ -168,7 +176,7 @@ pub fn send_and_confirm(pipe: &str, msg: &Message, timeout: Duration) -> io::Res
     });
 
     match rx.recv_timeout(timeout) {
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(())) | Err(_) => Ok(()),
         Ok(Err(e))
             if matches!(
                 e.kind(),
@@ -180,7 +188,6 @@ pub fn send_and_confirm(pipe: &str, msg: &Message, timeout: Duration) -> io::Res
             Ok(())
         }
         Ok(Err(e)) => Err(e),
-        Err(_) => Ok(()),
     }
 }
 

@@ -333,7 +333,7 @@ struct DwProtonBuild {
 }
 
 impl DwProtonBuild {
-    fn new(rank: (u8, bool, Vec<u64>), name: String, script: PathBuf) -> Self {
+    const fn new(rank: (u8, bool, Vec<u64>), name: String, script: PathBuf) -> Self {
         Self { rank, name, script }
     }
 }

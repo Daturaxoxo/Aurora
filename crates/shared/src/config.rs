@@ -60,6 +60,7 @@ pub mod key {
     pub const MODMNG_NOTES: &str = "mod_notes";
     pub const MODMNG_DISPLAY_NAMES: &str = "mod_display_names";
     pub const MODMNG_VIEW_GRID: &str = "mod_view_grid";
+    pub const MODMNG_SORT: &str = "mod_sort";
     pub const MOD_NOTES: &str = "module_notes";
     pub const MOD_DISPLAY_NAMES: &str = "module_display_names";
     pub const SCREENSHOT_FAVORITES: &str = "screenshot_favorites";
@@ -75,6 +76,9 @@ pub mod key {
     pub const IGNORE_CHECKSUM: &str = "ignore_checksum";
     pub const LAUNCH_ARGS: &str = "launch_args";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
+    pub const ADDON_AUTO_UPDATES: &str = "addon_auto_updates";
+    pub const THEME: &str = "theme";
+    pub const ICON_PACK: &str = "icon_pack";
 }
 
 pub fn default_value(k: &str) -> Value {
@@ -100,6 +104,10 @@ pub fn default_value(k: &str) -> Value {
             json!(false)
         }
 
+        key::MODMNG_SORT => json!("folder"),
+        key::THEME => json!("aurora"),
+        key::ICON_PACK => json!("light"),
+
         key::GAME_PATH
         | key::APP_LOCATION
         | key::SELECTED_GAME
@@ -107,6 +115,8 @@ pub fn default_value(k: &str) -> Value {
         | key::PROTON_VERSION
         | key::LAUNCH_ARGS
         | key::PROTON_CUSTOM_PATH => json!(""),
+
+        key::ADDON_AUTO_UPDATES => json!({}),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

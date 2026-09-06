@@ -26,9 +26,15 @@ impl SingletonLock {
                         .ok()
                         .and_then(|s| s.trim().parse::<u32>().ok());
                     if let Some(pid) = owner
-                        && pid_alive(pid) {return Ok(None)}
+                        && pid_alive(pid)
+                    {
+                        return Ok(None);
+                    }
                     if let Err(e) = fs::remove_file(path)
-                        && e.kind() != io::ErrorKind::NotFound {return Err(e)}
+                        && e.kind() != io::ErrorKind::NotFound
+                    {
+                        return Err(e);
+                    }
                 }
                 Err(e) => return Err(e),
             }

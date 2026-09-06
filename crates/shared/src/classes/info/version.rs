@@ -1,5 +1,5 @@
-use std::fmt;
 use std::path::Path;
+use std::{fmt, fs};
 
 use anyhow::{Result, anyhow};
 use log::debug;
@@ -30,6 +30,7 @@ pub enum Distribution {
     #[default]
     Standalone,
     Epic,
+    Steam,
 }
 
 impl std::fmt::Display for Distribution {
@@ -37,6 +38,7 @@ impl std::fmt::Display for Distribution {
         let s = match self {
             Self::Standalone => "standalone",
             Self::Epic => "epic",
+            Self::Steam => "steam",
         };
         write!(f, "{s}")
     }
@@ -45,12 +47,11 @@ impl std::fmt::Display for Distribution {
 impl Distribution {
     pub const fn launch_args(&self) -> &'static [&'static str] {
         match self {
-            Self::Standalone => &[],
+            Self::Standalone | Self::Steam => &[],
             Self::Epic => &["-AUTH_PASSWORD=1234", "-AUTH_TYPE=exchangecode"],
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StartMethod {
@@ -102,15 +103,22 @@ impl StartMethod {
 }
 
 pub fn detect_distribution(game_path: &Path) -> Distribution {
-    if game_path
-        .join("NTEGlobal")
-        .join("EOSSDK-Win64-Shipping.dll")
-        .is_file()
-    {
-        Distribution::Epic
-    } else {
-        Distribution::Standalone
+    let mut distribution = Distribution::Standalone;
+    if let Ok(entries) = fs::read_dir(game_path) {
+        for entry in entries.filter_map(Result::ok) {
+            if !entry.file_name().to_string_lossy().starts_with("NTE") {
+                continue;
+            }
+            let path = entry.path();
+            if path.join("EOSSDK-Win64-Shipping.dll").is_file() {
+                return Distribution::Epic;
+            }
+            if path.join("steam_api64.dll").is_file() {
+                distribution = Distribution::Steam;
+            }
+        }
     }
+    distribution
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

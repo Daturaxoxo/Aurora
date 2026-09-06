@@ -1,7 +1,10 @@
-import { SettingsPage } from "components/pages/settings.slint";
+import { Icons } from "icons.slint";
+export { Icons }
+import { SettingsPage, ThemeChoice, IconPackChoice } from "components/pages/settings.slint";
 import { Tr, TrKey } from "translations.slint";
 export { Tr, TrKey }from "translations.slint";
 import { Palette } from "global.slint";
+export { Palette }
 import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem, PopupDetail } from "components/popup.slint";
 import { ProgressOverlay } from "components/progressoverlay.slint";
@@ -54,7 +57,7 @@ component IconButton inherits Rectangle {
     height: root.icon-size + 12px;
     border-radius: 6px;
 
-    background: root.active ? #ffffff16 : (ta.has-hover ? #ffffff0c : transparent);
+    background: root.active ? Palette.fg-16 : (ta.has-hover ? Palette.fg-0c : transparent);
 
     animate background { duration: 120ms; }
 
@@ -121,6 +124,9 @@ export component MainWindow inherits Window {
     in-out property <bool> launch-disabled: false;
     callback launch-clicked();
 
+    // Support Menu Properties
+    in-out property <bool> support-menu-open: false;
+
     // Launch Menu Properties
     in-out property <bool> launch-menu-open: false;
     in-out property <bool> launch-menu-hover: false;
@@ -157,6 +163,21 @@ export component MainWindow inherits Window {
     in property <bool> proton-version-not-recommended: false;
     in property <int> proton-builtin-count: 1;
     in-out property <bool> telemetry-opt-out: false;
+
+    // Theme Properties
+    in property <[ThemeChoice]> theme-choices: [];
+    in property <string> theme-name: "";
+    in property <string> theme-author: "";
+    callback theme-selected(string /* id */);
+    callback theme-import();
+    callback theme-delete(string /* id */);
+    callback theme-open-folder();
+
+    // Icon Pack Properties
+    in property <[IconPackChoice]> icon-pack-choices: [];
+    in property <string> icon-pack-name: "";
+    callback icon-pack-selected(string /* id */);
+
     callback browse-game-directory();
     callback export-telemetry();
     callback language-index-changed(int);
@@ -206,6 +227,7 @@ export component MainWindow inherits Window {
     // Addons Page Properties
     in-out property <[AddonItem]> addons: [];
     callback addon-action(int);
+    callback addon-auto-update(int);
     callback addon-open-link(int);
     callback addon-delete(int);
 
@@ -246,6 +268,8 @@ export component MainWindow inherits Window {
     in-out property <string> mods-filter-group-label: "";
     in-out property <int> mods-active-filter-count: 0;
     callback mods-filters-changed(ModFilters);
+    in-out property <string> mods-sort: "folder";
+    callback mods-sort-changed(string);
     callback mods-clear-filters();
     callback mods-refresh();
     callback open-mods-folder();
@@ -367,10 +391,16 @@ export component MainWindow inherits Window {
         width: 100%;
         height: 100%;
 
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: Palette.backdrop;
+        }
+
         Image {
             width: 100%;
             height: 100%;
-            source: @image-url("../production/assets/background.jpg");
+            source: Palette.background-image;
             image-fit: cover;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -379,7 +409,7 @@ export component MainWindow inherits Window {
         Rectangle {
             width: 100%;
             height: 100%;
-            background: @linear-gradient(180deg, #00000044 0%, #00000088 100%);
+            background: @linear-gradient(180deg, Palette.scrim-top 0%, Palette.scrim-bottom 100%);
         }
 
         VerticalLayout {
@@ -400,14 +430,28 @@ export component MainWindow inherits Window {
                 TouchArea {
                     width: 100%;
                     height: 100%;
+                    property <bool> drag-started: false;
                     moved => {
                         if (self.pressed) {
-                            root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                            if (!self.drag-started &&
+                                (abs(self.mouse-x - self.pressed-x) >= 4px ||
+                                 abs(self.mouse-y - self.pressed-y) >= 4px)) {
+                                self.drag-started = true;
+                                root.window-drag-started();
+                            }
+                            if (self.drag-started) {
+                                root.window-dragged(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+                            }
                         }
                     }
                     pointer-event(event) => {
                         if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
-                            root.window-drag-started();
+                            self.drag-started = false;
+                        }
+                    }
+                    double-clicked => {
+                        if (!self.drag-started) {
+                            root.maximize-clicked();
                         }
                     }
                 }
@@ -422,7 +466,7 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             IconButton {
-                                source: @image-url("../production/icons/settings.png");
+                                source: Icons.settings;
                                 icon-size: 22px;
                                 active: root.show-settings;
                                 clicked => { root.show-settings = !root.show-settings; }
@@ -436,7 +480,7 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Image {
-                                source: @image-url("../production/icons/logo.png");
+                                source: Icons.logo;
                                 width: 32px;
                                 height: 32px;
                                 image-rendering: smooth;
@@ -453,26 +497,23 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 IconButton {
-                                    source: @image-url("../production/icons/minimize.png");
+                                    source: Icons.minimize;
                                     icon-size: 22px;
                                     clicked => { root.minimize-clicked(); }
                                 }
 
                                 IconButton {
-                                    source: @image-url("../production/icons/maximize.png");
+                                    source: root.maximized
+                                        ? Icons.maximized
+                                        : Icons.maximize;
                                     icon-size: 22px;
                                     clicked => {
                                         root.maximize-clicked();
-                                        if root.maximized {
-                                            self.source = @image-url("../production/icons/maximized.png")
-                                        } else {
-                                            self.source = @image-url("../production/icons/maximize.png");
-                                        }
                                     }
                                 }
 
                                 IconButton {
-                                    source: @image-url("../production/icons/close.png");
+                                    source: Icons.close;
                                     icon-size: 22px;
                                     clicked => { root.close-clicked(); }
                                 }
@@ -484,14 +525,14 @@ export component MainWindow inherits Window {
         }
 
         // Icon Row
-        HorizontalLayout {
+        bottom-row := HorizontalLayout {
             x: 16px;
             y: parent.height - self.height - 14px;
             height: 60px;
             width: self.preferred-width;
             spacing: 8px;
 
-            Rectangle {
+            util-icon-card := Rectangle {
                 height: 60px;
                 width: util-icon-row.preferred-width + 16px * 2;
                 background: Palette.glass-background;
@@ -513,7 +554,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/menu.png");
+                            source: Icons.menu;
                             icon-size: 28px;
                             clicked => { root.bottom-icon-clicked(0); }
                         }
@@ -522,7 +563,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/discord.png");
+                            source: Icons.discord;
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "discord-popup";
@@ -540,7 +581,17 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         IconButton {
-                            source: @image-url("../production/icons/gamebanana.png");
+                            source: Icons.donate;
+                            icon-size: 28px;
+                            active: root.support-menu-open;
+                            clicked => { root.support-menu-open = !root.support-menu-open; }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        IconButton {
+                            source: Icons.gamebanana;
                             icon-size: 28px;
                             clicked => {
                                 root.popup-id = "gamebanana-popup";
@@ -556,7 +607,7 @@ export component MainWindow inherits Window {
             Rectangle {
                 height: 60px;
                 width: mod-manager-inner.preferred-width + 20px * 2;
-                background: mod-manager-ta.has-hover ? #1b1b22dd : Palette.glass-background;
+                background: mod-manager-ta.has-hover ? Palette.surface.with-alpha(0.867) : Palette.glass-background;
                 border-radius: 12px;
                 border-width: 1px;
                 border-color: Palette.glass-border;
@@ -581,7 +632,7 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Image {
-                            source: @image-url("../production/icons/manager.png");
+                            source: Icons.manager;
                             width: 26px;
                             height: 26px;
                             image-rendering: smooth;
@@ -595,7 +646,7 @@ export component MainWindow inherits Window {
                         alignment: center;
                         Text {
                             text: Tr.values[TrKey.main-button-row-mod-manager];
-                            color: #ffffff;
+                            color: Palette.text-primary;
                             font-size: 14px;
                             font-weight: 600;
                         }
@@ -608,7 +659,7 @@ export component MainWindow inherits Window {
             x: 4px;
             y: parent.height - self.height - 2px;
             text: root.app-version;
-            color: #ffffff55;
+            color: Palette.fg-55;
             font-size: 10px;
         }
 
@@ -630,7 +681,7 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 Rectangle {
                     horizontal-stretch: 1;
-                    background: launch-ta.has-hover ? #ffffff12 : transparent;
+                    background: launch-ta.has-hover ? Palette.fg-12 : transparent;
                     animate background { duration: 120ms; }
 
                     launch-ta := TouchArea {
@@ -650,7 +701,7 @@ export component MainWindow inherits Window {
                                 width: 20px;
                                 height: 20px;
                                 border-radius: 10px;
-                                background: root.launch-disabled ? #ffffff55 : #ffffff;
+                                background: root.launch-disabled ? Palette.fg-55 : Icons.tint;
                                 animate background { duration: 200ms; }
 
                                 Path {
@@ -663,7 +714,7 @@ export component MainWindow inherits Window {
                                     viewbox-width: 14;
                                     viewbox-height: 12;
                                     commands: "M1 6 L5 10 L13 1";
-                                    stroke: #111111;
+                                    stroke: Icons.tint-contrast;
                                     stroke-width: 2px;
                                     fill: transparent;
                                 }
@@ -680,7 +731,7 @@ export component MainWindow inherits Window {
                                     : root.launch-state == LaunchState.updating
                                     ? Tr.values[TrKey.main-launch-button-updating]
                                     : Tr.values[TrKey.main-launch-button-launch];
-                                color: root.launch-disabled ? #ffffff66 : #ffffff;
+                                color: root.launch-disabled ? Palette.fg-66 : Palette.text-primary;
                                 font-size: 15px;
                                 font-weight: 700;
                             }
@@ -695,7 +746,7 @@ export component MainWindow inherits Window {
 
                 menu-region := Rectangle {
                     width: 42px;
-                    background: (menu-ta.has-hover || root.launch-menu-open) ? #ffffff1a : transparent;
+                    background: (menu-ta.has-hover || root.launch-menu-open) ? Palette.fg-1a : transparent;
                     animate background { duration: 120ms; }
 
                     menu-ta := TouchArea {
@@ -715,7 +766,7 @@ export component MainWindow inherits Window {
                                     width: 4px;
                                     height: 4px;
                                     border-radius: 2px;
-                                    background: (menu-ta.has-hover || root.launch-menu-open) ? #ffffffff : #ffffffcc;
+                                    background: (menu-ta.has-hover || root.launch-menu-open) ? Palette.text-primary : Palette.fg-cc;
                                     animate background { duration: 120ms; }
                                 }
                             }
@@ -763,7 +814,7 @@ export component MainWindow inherits Window {
                 border-radius: 12px;
                 border-width: 1px;
                 border-color: Palette.glass-border;
-                drop-shadow-color: #00000099;
+                drop-shadow-color: Palette.shade-99;
                 drop-shadow-blur: 28px;
                 drop-shadow-offset-y: 8px;
                 height: menu-items-layout.preferred-height + 16px;
@@ -791,7 +842,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri0.has-hover ? #ffffff12 : transparent;
+                        background: ri0.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri0 := TouchArea {
                             clicked => { root.launch-menu-action(0); root.launch-menu-open = false; }
@@ -805,12 +856,12 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/wrench.png");
+                                    source: Icons.wrench;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -818,7 +869,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-repair];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -830,7 +881,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri1.has-hover ? #ffffff12 : transparent;
+                        background: ri1.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri1 := TouchArea {
                             clicked => { root.launch-menu-action(1); root.launch-menu-open = false; }
@@ -844,12 +895,12 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/refresh.png");
+                                    source: Icons.refresh;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -857,7 +908,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-updates];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -869,7 +920,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri2.has-hover ? #ffffff12 : transparent;
+                        background: ri2.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri2 := TouchArea {
                             clicked => { root.launch-menu-action(2); root.launch-menu-open = false; }
@@ -883,12 +934,12 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/monitor.png");
+                                    source: Icons.monitor;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -896,7 +947,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-shortcut];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -908,7 +959,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri4.has-hover ? #ffffff12 : transparent;
+                        background: ri4.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri4 := TouchArea {
                             clicked => { root.launch-menu-action(4); root.launch-menu-open = false; }
@@ -922,12 +973,12 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/folder.png");
+                                    source: Icons.folder;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -935,7 +986,7 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-folder];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
@@ -947,7 +998,7 @@ export component MainWindow inherits Window {
                         height: 40px;
                         width: parent.width;
                         border-radius: 6px;
-                        background: ri5.has-hover ? #ffffff12 : transparent;
+                        background: ri5.has-hover ? Palette.fg-12 : transparent;
                         animate background { duration: 80ms; }
                         ri5 := TouchArea {
                             clicked => { root.launch-menu-action(5); root.launch-menu-open = false; }
@@ -961,12 +1012,12 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 Image {
-                                    source: @image-url("../production/icons/kill.png");
+                                    source: Icons.kill;
                                     width: 16px;
                                     height: 16px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    colorize: #ffffffaa;
+                                    colorize: Palette.fg-aa;
                                 }
                             }
 
@@ -974,10 +1025,150 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 Text {
                                     text: Tr.values[TrKey.main-launch-menu-option-kill];
-                                    color: #ffffffdd;
+                                    color: Palette.fg-dd;
                                     font-size: 13px;
                                     font-weight: 500;
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Support Menu Popup
+        if root.support-menu-open: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+
+            TouchArea {
+                clicked => { root.support-menu-open = false; }
+            }
+
+            support-card := Rectangle {
+                width: util-icon-card.width;
+                x: bottom-row.x;
+                y: bottom-row.y - self.height - 10px;
+                background: Palette.glass-background;
+                border-radius: 12px;
+                border-width: 1px;
+                border-color: Palette.glass-border;
+                drop-shadow-color: Palette.shade-99;
+                drop-shadow-blur: 28px;
+                drop-shadow-offset-y: 8px;
+                height: support-items-layout.preferred-height + 16px;
+
+                TouchArea { }
+
+                support-items-layout := VerticalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    padding-top: 8px;
+                    padding-bottom: -8px;
+                    spacing: 1px;
+
+                    Rectangle {
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
+                        background: si0.has-hover ? Palette.fg-12 : transparent;
+                        animate background { duration: 80ms; }
+                        si0 := TouchArea {
+                            clicked => {
+                                root.open-about-link("patreon");
+                                root.support-menu-open = false;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: Icons.patreon;
+                                    width: 16px;
+                                    height: 16px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: Palette.fg-aa;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Patreon";
+                                    color: Palette.fg-dd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 40px;
+                        width: parent.width;
+                        border-radius: 6px;
+                        background: si1.has-hover ? Palette.fg-12 : transparent;
+                        animate background { duration: 80ms; }
+                        si1 := TouchArea {
+                            clicked => {
+                                root.open-about-link("kofi");
+                                root.support-menu-open = false;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 16px;
+                            spacing: 12px;
+                            alignment: start;
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: Icons.kofi;
+                                    width: 16px;
+                                    height: 16px;
+                                    image-rendering: smooth;
+                                    image-fit: contain;
+                                    colorize: Palette.fg-aa;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: "Ko-fi";
+                                    color: Palette.fg-dd;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            x: parent.width - self.width - 16px;
+                            y: (parent.height - self.height) / 2;
+                            height: 16px;
+                            width: recommended-tag.preferred-width + 12px;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: Palette.success.transparentize(0.7);
+                            background: Palette.success.transparentize(0.88);
+
+                            recommended-tag := Text {
+                                text: Tr.values[TrKey.main-support-menu-recommended];
+                                color: Palette.success;
+                                font-size: 10px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                         }
                     }
@@ -1084,6 +1275,7 @@ export component MainWindow inherits Window {
             addons <=> root.addons;
             close-addons => { root.show-addons = false; }
             addon-action(i) => { root.addon-action(i); }
+            addon-auto-update(i) => { root.addon-auto-update(i); }
             addon-open-link(i) => { root.addon-open-link(i); }
             addon-delete(i) => { root.addon-delete(i); }
         }
@@ -1133,6 +1325,8 @@ export component MainWindow inherits Window {
             delete-selected => { root.mods-delete-selected(); }
             search-changed(text) => { root.mods-search-changed(text); }
             filters <=> root.mods-filters;
+            sort-order <=> root.mods-sort;
+            sort-changed(id) => { root.mods-sort-changed(id); }
             filter-characters <=> root.mods-filter-characters;
             filter-authors <=> root.mods-filter-authors;
             filter-groups: root.mods-filter-groups;
@@ -1252,6 +1446,18 @@ export component MainWindow inherits Window {
             telemetry-opt-out <=> root.telemetry-opt-out;
             app-version: root.app-version;
             build-timestamp: root.build-timestamp;
+            theme-choices: root.theme-choices;
+            theme-name: root.theme-name;
+            theme-author: root.theme-author;
+
+            theme-selected(id) => { root.theme-selected(id); }
+            theme-import => { root.theme-import(); }
+            theme-delete(id) => { root.theme-delete(id); }
+            theme-open-folder => { root.theme-open-folder(); }
+
+            icon-pack-choices: root.icon-pack-choices;
+            icon-pack-name: root.icon-pack-name;
+            icon-pack-selected(id) => { root.icon-pack-selected(id); }
 
             browse-game-directory => { root.browse-game-directory(); }
             open-link(id) => { root.open-about-link(id); }
@@ -1287,7 +1493,7 @@ export component MainWindow inherits Window {
 
         dialog-widget := PopupDialog {
             active: root.popup-active;
-            background: root.popup-active ? #000000aa : #00000000;
+            background: root.popup-active ? Palette.shade-aa : transparent;
             title: root.popup-title;
             message: root.popup-message;
             confirm-delay: root.popup-confirm-delay;

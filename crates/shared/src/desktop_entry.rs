@@ -173,7 +173,7 @@ pub fn remove_desktop_shortcut() -> Result<()> {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn remove_desktop_shortcut() -> Result<()> {
+pub const fn remove_desktop_shortcut() -> Result<()> {
     Ok(())
 }
 

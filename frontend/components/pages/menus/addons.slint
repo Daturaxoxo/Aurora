@@ -1,3 +1,4 @@
+import { Icons } from "../../../icons.slint";
 import { Palette } from "../../../global.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Tr, TrKey } from "../../../translations.slint";
@@ -12,6 +13,7 @@ export struct AddonItem {
     installed: bool,
     enabled: bool,
     update_available: bool,
+    auto_update: bool,
     installing: bool,
     unavailable: bool,
 }
@@ -21,6 +23,7 @@ component AddonCard inherits Rectangle {
     in property <int> index;
 
     callback action(int);
+    callback auto-update(int);
     callback open-link(int);
     callback delete(int);
 
@@ -28,18 +31,18 @@ component AddonCard inherits Rectangle {
     border-radius: 12px;
     border-width: 1px;
     border-color: Palette.glass-border;
-    background: #ffffff08;
+    background: Palette.fg-08;
     clip: true;
 
     property <bool> busy: root.item.installing && (!root.item.installed || root.item.update_available);
 
     property <brush> action-color:
-        root.item.unavailable ? #6b6b6b :
-        root.busy ? #6b6b6b :
-        root.item.update_available ? #E8A020 :
-        !root.item.installed ? #E8A020 :
-        root.item.enabled ? #ee4937 :
-        #25d952;
+        root.item.unavailable ? Palette.fg-66 :
+        root.busy ? Palette.fg-66 :
+        root.item.update_available ? Palette.warning :
+        !root.item.installed ? Palette.warning :
+        root.item.enabled ? Palette.danger :
+        Palette.success;
 
 
     property <string> action-label:
@@ -51,6 +54,7 @@ component AddonCard inherits Rectangle {
         Tr.values[TrKey.addons-action-enable];
 
     property <bool> show-delete: root.item.installed && !root.item.unavailable && !root.busy;
+    property <bool> show-auto-update: root.item.installed && !root.item.unavailable;
 
     // Addons that ship a direct download have no GameBanana page to open
     property <bool> show-link: root.item.link != "";
@@ -66,7 +70,7 @@ component AddonCard inherits Rectangle {
         width: root.width;
         height: 160px;
         clip: true;
-        background: #000000;
+        background: Palette.shade-ff;
 
         Image {
             width: 100%;
@@ -81,7 +85,38 @@ component AddonCard inherits Rectangle {
             width: 100%;
             height: 40px;
             y: 120px;
-            background: @linear-gradient(180deg, #00000000 0%, #00000066 100%);
+            background: @linear-gradient(180deg, transparent 0%, Palette.shade-66 100%);
+        }
+
+        if root.show-auto-update: auto-update-btn := Rectangle {
+            x: 8px;
+            y: 8px;
+            width: max(96px, auto-update-text.preferred-width + 16px);
+            height: 28px;
+            border-radius: 8px;
+            property <color> toggle-color: root.item.auto_update ? Palette.success : Palette.danger;
+            background: auto-update-ta.has-hover && !root.item.installing
+                ? self.toggle-color.brighter(0.15)
+                : self.toggle-color;
+            animate background { duration: 120ms; }
+
+            auto-update-ta := TouchArea {
+                enabled: !root.item.installing;
+                clicked => { root.auto-update(root.index); }
+            }
+
+            auto-update-text := Text {
+                x: 8px;
+                width: parent.width - 16px;
+                text: Tr.values[TrKey.addons-action-auto-update];
+                color: Palette.text-primary;
+                font-size: 10.5px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
         }
 
         Rectangle {
@@ -90,15 +125,15 @@ component AddonCard inherits Rectangle {
             width: version-text.preferred-width + 14px;
             height: 22px;
             border-radius: 5px;
-            background: #000000aa;
+            background: Palette.shade-aa;
             border-width: 1px;
-            border-color: #ffffff18;
+            border-color: Palette.fg-18;
 
             version-text := Text {
                 x: 7px;
                 y: (parent.height - self.preferred-height) / 2;
                 text: root.item.version;
-                color: #ffffffcc;
+                color: Palette.fg-cc;
                 font-size: 10px;
                 font-weight: 600;
             }
@@ -177,7 +212,7 @@ component AddonCard inherits Rectangle {
                 spacing: 8px;
 
                 if !root.item.installed && !root.busy && !root.item.unavailable: Image {
-                    source: @image-url("../../../../production/icons/download.png");
+                    source: Icons.download;
                     width: 16px;
                     height: 16px;
                     image-rendering: smooth;
@@ -204,7 +239,7 @@ component AddonCard inherits Rectangle {
             y: 0;
             width: 1px;
             height: 48px;
-            background: #00000033;
+            background: Palette.shade-33;
         }
 
         if root.show-delete: delete-btn := Rectangle {
@@ -213,7 +248,7 @@ component AddonCard inherits Rectangle {
             width: 52px;
             height: 48px;
             background: delete-ta.has-hover
-                ? #ee4937
+                ? Palette.danger
                 : root.action-color.darker(0.08);
             animate background { duration: 120ms; }
 
@@ -222,7 +257,7 @@ component AddonCard inherits Rectangle {
             }
 
             Image {
-                source: @image-url("../../../../production/icons/delete.png");
+                source: Icons.delete;
                 width: 20px;
                 height: 20px;
                 image-rendering: smooth;
@@ -239,7 +274,7 @@ component AddonCard inherits Rectangle {
             y: 0;
             width: 1px;
             height: 48px;
-            background: #00000033;
+            background: Palette.shade-33;
         }
 
         if root.show-link && !root.item.unavailable: gb-btn := Rectangle {
@@ -257,7 +292,7 @@ component AddonCard inherits Rectangle {
             }
 
             Image {
-                source: @image-url("../../../../production/icons/gamebanana.png");
+                source: Icons.gamebanana;
                 width: 22px;
                 height: 22px;
                 image-rendering: smooth;
@@ -273,10 +308,11 @@ component AddonCard inherits Rectangle {
 export component AddonsPage inherits Rectangle {
     callback close-addons();
     callback addon-action(int);
+    callback addon-auto-update(int);
     callback addon-open-link(int);
     callback addon-delete(int);
     in property <[AddonItem]> addons: [];
-    background: #00000066;
+    background: Palette.shade-66;
 
     TouchArea {
         width: 100%;
@@ -293,7 +329,7 @@ export component AddonsPage inherits Rectangle {
         border-radius: 16px;
         border-width: 1px;
         border-color: Palette.glass-border;
-        drop-shadow-color: #00000099;
+        drop-shadow-color: Palette.shade-99;
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 12px;
         clip: true;
@@ -319,7 +355,7 @@ export component AddonsPage inherits Rectangle {
                         alignment: start;
 
                         Image {
-                            source: @image-url("../../../../production/icons/menu/addons.png");
+                            source: Icons.menu-addons;
                             width: 20px;
                             height: 20px;
                             image-rendering: smooth;
@@ -339,7 +375,7 @@ export component AddonsPage inherits Rectangle {
                             width: count-text.preferred-width + 14px;
                             height: 22px;
                             border-radius: 5px;
-                            background: #ffffff14;
+                            background: Palette.fg-14;
                             border-width: 1px;
                             border-color: Palette.glass-border;
 
@@ -359,11 +395,11 @@ export component AddonsPage inherits Rectangle {
                     width: 30px;
                     height: 30px;
                     border-radius: 6px;
-                    background: close-ta.has-hover ? #ffffff16 : transparent;
+                    background: close-ta.has-hover ? Palette.fg-16 : transparent;
                     animate background { duration: 120ms; }
 
                     Image {
-                        source: @image-url("../../../../production/icons/close.png");
+                        source: Icons.close;
                         width: 22px;
                         height: 22px;
                         image-rendering: smooth;
@@ -439,6 +475,7 @@ export component AddonsPage inherits Rectangle {
                                 item: root.addons[i];
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
+                                auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
                             }
@@ -456,6 +493,7 @@ export component AddonsPage inherits Rectangle {
                                 item: root.addons[i];
                                 index: i;
                                 action(idx) => { root.addon-action(idx); }
+                                auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
                             }

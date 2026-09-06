@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use display_info::DisplayInfo;
 use log::*;
 use slint::{PhysicalPosition, PhysicalSize, WindowPosition};
@@ -115,8 +115,10 @@ fn desktop_bounds() -> Option<DesktopBounds> {
         Err(poisoned) => poisoned.into_inner(),
     };
 
-    if let Some(cached) = cache.as_ref() {
-        if cached.fetched.elapsed() < Duration::from_secs(1) {return cached.bounds}
+    if let Some(cached) = cache.as_ref()
+        && cached.fetched.elapsed() < Duration::from_secs(1)
+    {
+        return cached.bounds;
     }
 
     let bounds = query_desktop_bounds();

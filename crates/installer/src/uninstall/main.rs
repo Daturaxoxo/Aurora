@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "windows")]
 include!(concat!(env!("OUT_DIR"), "/uninstall.rs"));
 
 #[cfg(windows)]

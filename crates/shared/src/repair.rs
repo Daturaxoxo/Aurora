@@ -138,12 +138,13 @@ pub fn restore_missing_files_in(root: &Path) -> RepairReport {
     let mut local_dirty = false;
 
     if let Some(local) = &local
-        && local.version != manifest.version {
-            info!(
-                "Repair: install is {} but the manifest is {}; restoring the manifest's copies",
-                local.version, manifest.version
-            );
-        }
+        && local.version != manifest.version
+    {
+        info!(
+            "Repair: install is {} but the manifest is {}; restoring the manifest's copies",
+            local.version, manifest.version
+        );
+    }
 
     for entry in &manifest.files {
         let Some(dest) = entry.resolve(root) else {
@@ -173,9 +174,10 @@ pub fn restore_missing_files_in(root: &Path) -> RepairReport {
 
     if local_dirty
         && let Some(local) = &local
-            && let Err(e) = local.save(root) {
-                warn!("Repair: could not update the local manifest: {e}");
-            }
+        && let Err(e) = local.save(root)
+    {
+        warn!("Repair: could not update the local manifest: {e}");
+    }
 
     report
 }

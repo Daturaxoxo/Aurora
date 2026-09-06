@@ -15,10 +15,12 @@ use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
 
 use classes::buttons::ButtonHandler;
+use classes::iconpack::IconPackHandler;
 use classes::oneclick::OneClickHandler;
 use classes::pages::addons::AddonsHandler;
 use classes::pages::settings::SettingsHandler;
 use classes::popup::PopupHandler;
+use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 
@@ -102,6 +104,14 @@ fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     if let Some(dir) = exe.parent() {
         let handler = shared::oneclick::handler_path(dir);
+        if let Err(e) = shared::oneclick::register_protocol(&handler) {
+            warn!("1-Click: could not refresh protocol registration: {e}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let handler = ipc::appimage_path().unwrap_or_else(|| exe.clone());
         if let Err(e) = shared::oneclick::register_protocol(&handler) {
             warn!("1-Click: could not refresh protocol registration: {e}");
         }
@@ -246,6 +256,8 @@ fn main() -> Result<()> {
         .build_global();
 
     ToastHandler::setup(window.as_weak());
+    ThemeHandler::setup(&window.as_weak());
+    IconPackHandler::setup(&window.as_weak());
     ButtonHandler::setup(&window.as_weak());
     SettingsHandler::setup(&window.as_weak());
     PopupHandler::setup(&window.as_weak());
@@ -274,11 +286,7 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
-
-    // Tells the updater, if this run was started by one, that the new build got
-    // as far as putting its window on screen.
     UpdateHandler::on_window_shown();
-
     shared::api::ccu::spawn();
     slint::run_event_loop_until_quit()?;
     OneClickHandler::shutdown();

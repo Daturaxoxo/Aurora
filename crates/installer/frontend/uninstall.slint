@@ -152,21 +152,21 @@ export component UninstallerWindow inherits Window {
                             spacing: 8px;
 
                             IconButton {
-                                source: @image-url("../../../production/icons/minimize.png");
+                                source: @image-url("../../../production/icons/light/minimize.png");
                                 icon-size: 22px;
                                 clicked => { root.minimize-clicked(); }
                             }
 
                             IconButton {
                                 source: root.maximized
-                                    ? @image-url("../../../production/icons/maximized.png")
-                                    : @image-url("../../../production/icons/maximize.png");
+                                    ? @image-url("../../../production/icons/light/maximized.png")
+                                    : @image-url("../../../production/icons/light/maximize.png");
                                 icon-size: 22px;
                                 clicked => { root.maximize-clicked(); }
                             }
 
                             IconButton {
-                                source: @image-url("../../../production/icons/close.png");
+                                source: @image-url("../../../production/icons/light/close.png");
                                 icon-size: 22px;
                                 clicked => { root.close-clicked(); }
                             }
