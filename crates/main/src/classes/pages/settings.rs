@@ -8,7 +8,7 @@ use backend::classes::rpc::RPC;
 use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
-use shared::classes::info::version::{Distribution, StartMethod, detect_distribution};
+use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
 use shared::pathfind::resolve_selected_game_root;
 use shared::utils::open_folder;
@@ -30,6 +30,7 @@ static LANGUAGES: Lazy<Vec<LangEntry>> = Lazy::new(|| {
 });
 
 pub const IGNORE_CHECKSUM_POPUP_ID: &str = "ignore-checksum";
+pub const DIRECT_MODE_POPUP_ID: &str = "direct-mode";
 
 const ABOUT_LINKS: &[(&str, &str)] = &[
     ("website", "https://getaurora.moe/"),
@@ -106,9 +107,9 @@ impl SettingsHandler {
         w.set_engine_method_index(engine_method);
 
         let raw_start = config::get(key::START_METHOD);
-        let start_method = raw_start.as_i64().unwrap_or(0).try_into().unwrap_or(0);
+        let start_method = StartMethod::from_config();
         debug!("start_method: raw={raw_start:?} → {start_method}");
-        w.set_start_method_index(start_method);
+        w.set_start_method_index(start_method.as_index());
 
         w.set_show_engine_scale(scale::SUPPORTED);
         if scale::SUPPORTED {
@@ -530,31 +531,30 @@ impl SettingsHandler {
 
         let ww = window.clone();
         w.on_start_method_index_changed(move |index| {
-            let game_path = config::get(key::GAME_PATH);
-            if StartMethod::from_num(i64::from(index)) == StartMethod::Manual
-                && game_path.as_str().is_some_and(|path| {
-                    matches!(
-                        detect_distribution(std::path::Path::new(path)),
-                        Distribution::Steam | Distribution::Epic
-                    )
-                })
-            {
-                if let Some(w) = ww.upgrade() {
-                    w.set_start_method_index(match StartMethod::from_config() {
-                        StartMethod::Direct => 0,
-                        StartMethod::Manual => 1,
-                    });
-                }
-                ToastHandler::show(
-                    &ww,
-                    "Manual mode is not supported on Steam or Epic. Use Direct mode.",
-                    "warning",
-                );
+            if StartMethod::from_num(i64::from(index)) == StartMethod::Manual {
+                info!("start_method changed -> {index}");
+                config::set(key::START_METHOD, index);
+                debug!("start_method saved to config");
                 return;
             }
-            info!("start_method changed -> {index}");
-            config::set(key::START_METHOD, index);
-            debug!("start_method saved to config");
+
+            let Some(w) = ww.upgrade() else {
+                error!("window handle dead when opening the direct mode warning");
+                return;
+            };
+
+            let keys = w.global::<TrKey>();
+            let title = Self::translation(&w, keys.get_popup_direct_mode_title());
+            let message = Self::translation(&w, keys.get_popup_direct_mode_message());
+
+            w.set_popup_id(DIRECT_MODE_POPUP_ID.into());
+            w.set_popup_kind("warning".into());
+            w.set_popup_title(title);
+            w.set_popup_message(message);
+            w.set_popup_confirm_delay(0);
+            w.set_popup_required_count(0);
+            w.set_popup_checkboxes(slint::ModelRc::default());
+            w.set_popup_active(true);
         });
 
         let ww = window.clone();
@@ -763,6 +763,21 @@ impl SettingsHandler {
         info!("ignore_checksum warning confirmed");
         config::set(key::IGNORE_CHECKSUM, true);
         debug!("ignore_checksum saved to config");
+    }
+
+    pub fn confirm_direct_mode() {
+        info!("direct mode warning confirmed");
+        config::set(key::START_METHOD, StartMethod::Direct.as_index());
+        debug!("start_method saved to config");
+    }
+
+    pub fn cancel_direct_mode(window: &slint::Weak<MainWindow>) {
+        info!("direct mode warning cancelled, staying on manual");
+        if let Some(w) = window.upgrade() {
+            w.set_start_method_index(StartMethod::Manual.as_index());
+        } else {
+            error!("window handle dead when reverting start_method");
+        }
     }
 
     pub fn cancel_ignore_checksum(window: &slint::Weak<MainWindow>) {

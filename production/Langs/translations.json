@@ -4859,5 +4859,41 @@
         "ko": "캐릭터 이름 (오름차순)",
         "vi": "Tên nhân vật (A–Z)",
         "id": "Nama karakter (A–Z)"
+    },
+    {
+        "key": "popup.direct-mode.title",
+        "en": "Direct Mode Warning",
+        "tr": "Doğrudan Mod Uyarısı",
+        "zh-CN": "直接启动模式警告",
+        "es": "Advertencia del modo directo",
+        "de": "Warnung zum Direktmodus",
+        "nl": "Waarschuwing directe modus",
+        "fr": "Avertissement du mode direct",
+        "it": "Avviso sulla modalità diretta",
+        "ru": "Предупреждение о прямом режиме",
+        "vi": "Cảnh báo chế độ trực tiếp",
+        "jp": "ダイレクトモードの警告",
+        "ko": "다이렉트 모드 경고",
+        "pt": "Aviso do modo direto",
+        "pt-BR": "Aviso do modo direto",
+        "id": "Peringatan Mode Langsung"
+    },
+    {
+        "key": "popup.direct-mode.message",
+        "en": "Direct mode skips the NTE launcher, but NTE then starts the game with no character voice lines. This is a bug in NTE's launcher that Aurora cannot work around. Stay on Manual mode if you want voice lines.",
+        "tr": "Doğrudan mod NTE başlatıcısını atlar, ancak NTE oyunu karakter seslendirmeleri olmadan başlatır. Bu, Aurora'nın çözemeyeceği bir NTE başlatıcısı hatasıdır. Seslendirme istiyorsan Manuel modda kal.",
+        "zh-CN": "直接启动模式会跳过 NTE 启动器，但这样启动的游戏没有角色语音。这是 NTE 启动器的问题，Aurora 无法绕过。如果需要语音，请保持手动模式。",
+        "es": "El modo directo omite el lanzador de NTE, pero entonces NTE inicia el juego sin voces de los personajes. Es un fallo del lanzador de NTE que Aurora no puede solucionar. Quédate en el modo manual si quieres las voces.",
+        "de": "Der Direktmodus überspringt den NTE-Launcher, doch NTE startet das Spiel dann ohne Charakterstimmen. Das ist ein Fehler im NTE-Launcher, den Aurora nicht umgehen kann. Bleib im manuellen Modus, wenn du Sprachausgabe möchtest.",
+        "nl": "De directe modus slaat de NTE-launcher over, maar NTE start het spel dan zonder stemmen van personages. Dit is een fout in de NTE-launcher die Aurora niet kan omzeilen. Blijf in de handmatige modus als je stemmen wilt.",
+        "fr": "Le mode direct ignore le lanceur NTE, mais NTE démarre alors le jeu sans les voix des personnages. C'est un bug du lanceur NTE qu'Aurora ne peut pas contourner. Restez en mode manuel si vous voulez les voix.",
+        "it": "La modalità diretta salta il launcher di NTE, ma NTE avvia il gioco senza le voci dei personaggi. È un bug del launcher di NTE che Aurora non può aggirare. Resta in modalità manuale se vuoi le voci.",
+        "ru": "Прямой режим пропускает лаунчер NTE, но тогда NTE запускает игру без озвучки персонажей. Это ошибка лаунчера NTE, которую Aurora не может обойти. Останьтесь в ручном режиме, если нужна озвучка.",
+        "vi": "Chế độ trực tiếp bỏ qua trình khởi chạy NTE, nhưng khi đó NTE mở game mà không có lồng tiếng nhân vật. Đây là lỗi của trình khởi chạy NTE mà Aurora không thể khắc phục. Hãy giữ chế độ thủ công nếu bạn muốn có lồng tiếng.",
+        "jp": "ダイレクトモードは NTE ランチャーを省略しますが、その場合 NTE はキャラクターボイスなしでゲームを起動します。これは Aurora では回避できない NTE ランチャー側の不具合です。ボイスが必要な場合は手動モードのままにしてください。",
+        "ko": "다이렉트 모드는 NTE 런처를 건너뛰지만, 이 경우 NTE가 캐릭터 음성 없이 게임을 실행합니다. Aurora가 우회할 수 없는 NTE 런처의 버그입니다. 음성이 필요하면 수동 모드를 유지하세요.",
+        "pt": "O modo direto ignora o lançador do NTE, mas o NTE inicia o jogo sem as vozes das personagens. É um erro do lançador do NTE que a Aurora não consegue contornar. Fica no modo manual se quiseres as vozes.",
+        "pt-BR": "O modo direto pula o launcher do NTE, mas o NTE inicia o jogo sem as vozes dos personagens. É um bug do launcher do NTE que a Aurora não consegue contornar. Fique no modo manual se quiser as vozes.",
+        "id": "Mode langsung melewati peluncur NTE, tetapi NTE lalu memulai gim tanpa suara karakter. Ini bug pada peluncur NTE yang tidak bisa diatasi Aurora. Tetaplah di mode manual jika kamu ingin ada suara karakter."
     }
 ]
