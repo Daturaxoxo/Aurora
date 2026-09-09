@@ -7,6 +7,8 @@ pub struct RepairHandler;
 
 impl RepairHandler {
     // TODO: Display any warnings, done actions, etc in a final window.
+    // commit author: alawapr (1 month ago)
+    // state of implementation: nothing 💀💀💀
     pub fn repair(validate_files: bool, clean_cache: bool, remove_files: bool) -> Result<()> {
         let engine_handler = backend::handler::get_tx()?;
         engine_handler.send(EngineCommand::KillProcesses)?;

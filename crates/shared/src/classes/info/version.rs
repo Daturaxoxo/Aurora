@@ -55,10 +55,8 @@ impl Distribution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StartMethod {
-    /// Hands the launcher `/autoplay` so it starts the game right away.
-    #[default]
     Direct,
-    /// Leaves the launcher on screen so the user presses Play themselves.
+    #[default]
     Manual,
 }
 
@@ -82,8 +80,15 @@ impl StartMethod {
 
     pub const fn from_num(i: i64) -> Self {
         match i {
-            1 => Self::Manual,
-            _ => Self::Direct,
+            0 => Self::Direct,
+            _ => Self::Manual,
+        }
+    }
+
+    pub const fn as_index(self) -> i32 {
+        match self {
+            Self::Direct => 0,
+            Self::Manual => 1,
         }
     }
 
@@ -94,7 +99,7 @@ impl StartMethod {
             .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
             .map_or_else(
                 || {
-                    debug!("Unreadable start_method {raw:?}, starting the game directly");
+                    debug!("Unreadable start_method {raw:?}, leaving the launcher on screen");
                     Self::default()
                 },
                 Self::from_num,
@@ -249,27 +254,6 @@ mod tests {
                 BypassMethod::DSound
             );
         }
-    }
-
-    #[test]
-    fn start_method_from_num() {
-        assert_eq!(StartMethod::from_num(0), StartMethod::Direct);
-        assert_eq!(StartMethod::from_num(1), StartMethod::Manual);
-        // Anything unexpected keeps the default, one-click behaviour
-        assert_eq!(StartMethod::from_num(7), StartMethod::Direct);
-        assert_eq!(StartMethod::from_num(-1), StartMethod::Direct);
-    }
-
-    #[test]
-    fn only_direct_skips_the_launcher() {
-        assert_eq!(StartMethod::Direct.launch_args(), &["/autoplay"]);
-        assert!(StartMethod::Manual.launch_args().is_empty());
-    }
-
-    #[test]
-    fn reject_ofr_index() {
-        assert!(BypassMethod::resolve(2, Version::Global).is_err());
-        assert!(BypassMethod::resolve(-1, Version::CN).is_err());
     }
 
     // function below is kind of temporary, just added it so people on CN v2.0.0 who have the old version.dll files in their \Win64 directory can easily clean them

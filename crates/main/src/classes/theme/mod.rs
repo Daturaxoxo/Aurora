@@ -15,19 +15,22 @@ use std::rc::Rc;
 use std::time::Duration;
 
 const PREVIEW_EDGE: u32 = 320;
-const FALLBACK_DELAY: Duration = Duration::from_millis(100);
 
 thread_local! {
     static THEMES: RefCell<Vec<Theme>> = const { RefCell::new(Vec::new()) };
     static PLAYBACK: RefCell<Option<Rc<Playback>>> = const { RefCell::new(None) };
 }
 
+/// The animation on screen. Holding this keeps the decoder thread alive; drop it
+/// and the worker's next send fails, which is how playback stops.
 struct Playback {
     timer: slint::Timer,
-    frames: Vec<slint::Image>,
-    delays: Vec<Duration>,
-    index: Cell<usize>,
+    frames: std::sync::mpsc::Receiver<wallpaper::Frame>,
+    /// What the timer is currently set to, so it is only re-armed when the next
+    /// frame is held for a different length of time.
     interval: Cell<Duration>,
+    /// Whether playback is currently held because nothing is on screen.
+    paused: Cell<bool>,
 }
 
 pub struct ThemeHandler;
@@ -100,10 +103,10 @@ impl ThemeHandler {
         let ww = window.clone();
         let id = theme.id.clone();
         std::thread::spawn(move || {
-            let decoded = wallpaper::bytes_for(&image).and_then(|bytes| wallpaper::decode(&bytes));
+            let opened = wallpaper::bytes_for(&image).and_then(wallpaper::open);
 
-            let decoded = match decoded {
-                Ok(decoded) => decoded,
+            let opened = match opened {
+                Ok(opened) => opened,
                 Err(e) => {
                     warn!("[Theme] '{id}' has no usable wallpaper: {e:#}");
                     return;
@@ -112,7 +115,7 @@ impl ThemeHandler {
 
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(w) = ww.upgrade() else { return };
-                install_wallpaper(&w, decoded);
+                install_wallpaper(&w, opened);
             });
         });
     }
@@ -177,14 +180,10 @@ impl ThemeHandler {
                         continue;
                     }
                 };
-                let Some(pixels) = decoded.frames.into_iter().next() else {
-                    continue;
-                };
-
                 let ww = ww.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(w) = ww.upgrade() else { return };
-                    let image = to_image(&pixels, decoded.width, decoded.height);
+                    let image = to_image(&decoded.pixels, decoded.width, decoded.height);
                     set_preview(&w, &id, &image);
                 });
             }
@@ -369,31 +368,22 @@ fn set_preview(w: &MainWindow, id: &str, image: &slint::Image) {
     }
 }
 
-fn install_wallpaper(w: &MainWindow, decoded: wallpaper::Decoded) {
-    let (width, height) = (decoded.width, decoded.height);
-    let animated = decoded.is_animated();
-
-    let frames: Vec<slint::Image> = decoded
-        .frames
-        .iter()
-        .map(|pixels| to_image(pixels, width, height))
-        .collect();
-
-    let Some(first) = frames.first().cloned() else {
-        warn!("[Theme] the wallpaper decoded to no frames");
-        return;
-    };
-    w.global::<Palette>().set_background_image(first);
-
-    if !animated {
-        return;
+fn install_wallpaper(w: &MainWindow, wallpaper: wallpaper::Wallpaper) {
+    match wallpaper {
+        wallpaper::Wallpaper::Still(still) => {
+            stop_playback();
+            w.global::<Palette>().set_background_image(to_image(
+                &still.pixels,
+                still.width,
+                still.height,
+            ));
+        }
+        wallpaper::Wallpaper::Animated {
+            width,
+            height,
+            frames,
+        } => start_playback(w, width, height, frames),
     }
-
-    info!(
-        "[Theme] playing a {}-frame animated wallpaper at {width}x{height}",
-        frames.len()
-    );
-    start_playback(w, frames, decoded.delays);
 }
 
 fn stop_playback() {
@@ -404,17 +394,27 @@ fn stop_playback() {
     });
 }
 
-fn start_playback(w: &MainWindow, frames: Vec<slint::Image>, mut delays: Vec<Duration>) {
+fn start_playback(
+    w: &MainWindow,
+    width: u32,
+    height: u32,
+    frames: std::sync::mpsc::Receiver<wallpaper::Frame>,
+) {
     stop_playback();
-    delays.resize(frames.len(), FALLBACK_DELAY);
+    let Ok(first) = frames.recv() else {
+        warn!("[Theme] the animation ended before it produced a frame");
+        return;
+    };
+    w.global::<Palette>()
+        .set_background_image(to_image(&first.pixels, first.width, first.height));
 
-    let first_delay = delays.first().copied().unwrap_or(FALLBACK_DELAY);
+    info!("[Theme] playing an animated wallpaper at {width}x{height}");
+
     let playback = Rc::new(Playback {
         timer: slint::Timer::default(),
-        delays,
         frames,
-        index: Cell::new(0),
-        interval: Cell::new(first_delay),
+        interval: Cell::new(first.delay),
+        paused: Cell::new(false),
     });
 
     let weak_window = w.as_weak();
@@ -422,18 +422,43 @@ fn start_playback(w: &MainWindow, frames: Vec<slint::Image>, mut delays: Vec<Dur
 
     playback
         .timer
-        .start(slint::TimerMode::Repeated, first_delay, move || {
+        .start(slint::TimerMode::Repeated, first.delay, move || {
             let (Some(playback), Some(w)) = (weak_playback.upgrade(), weak_window.upgrade()) else {
                 return;
             };
-            let next = (playback.index.get() + 1) % playback.frames.len();
-            playback.index.set(next);
-            w.global::<Palette>()
-                .set_background_image(playback.frames[next].clone());
-            let delay = playback.delays[next];
-            if delay != playback.interval.get() {
-                playback.interval.set(delay);
-                playback.timer.set_interval(delay);
+
+            let window = w.window();
+            let hidden = !window.is_visible() || window.is_minimized();
+            if hidden != playback.paused.get() {
+                playback.paused.set(hidden);
+                debug!(
+                    "[Theme] the wallpaper {} (visible={}, minimized={})",
+                    if hidden { "paused" } else { "resumed" },
+                    window.is_visible(),
+                    window.is_minimized()
+                );
+            }
+            if hidden {return}
+
+            let frame = match playback.frames.try_recv() {
+                Ok(frame) => frame,
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    warn!("[Theme] the wallpaper decoder stopped; the last frame stays on screen");
+                    playback.timer.stop();
+                    return;
+                }
+            };
+
+            w.global::<Palette>().set_background_image(to_image(
+                &frame.pixels,
+                frame.width,
+                frame.height,
+            ));
+
+            if frame.delay != playback.interval.get() {
+                playback.interval.set(frame.delay);
+                playback.timer.set_interval(frame.delay);
             }
         });
 

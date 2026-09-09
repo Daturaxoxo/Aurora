@@ -90,6 +90,15 @@ opt-level = 2
 [profile.dev.package.crc32fast]
 opt-level = 2
 
+[profile.dev.package.image]
+opt-level = 2
+
+[profile.dev.package.gif]
+opt-level = 2
+
+[profile.dev.package.weezl]
+opt-level = 2
+
 [profile.dev]
 debug = "line-tables-only"
 panic = "abort"

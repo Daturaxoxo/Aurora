@@ -133,8 +133,8 @@ pub fn default_value(k: &str) -> Value {
         key::UI_SCALING => json!(1.0),
 
         // ENGINE_METHOD: [0 = Default (version.dll)] [1 = Alternate (dsound)]
-        // START_METHOD:  [0 = Direct (/autoplay)] [1 = Manual (launcher UI)]
-        key::ENGINE_METHOD | key::START_METHOD => json!(0),
+        key::ENGINE_METHOD => json!(0),
+        key::START_METHOD => json!(1),
         _ => Value::Null,
     }
 }

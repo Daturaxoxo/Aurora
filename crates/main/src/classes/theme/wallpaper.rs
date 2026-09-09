@@ -8,25 +8,68 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 include!(concat!(env!("OUT_DIR"), "/theme_backgrounds.rs"));
-
-const MAX_DIMENSION: u32 = 1920; // for performance reasons, if someone on a 4K monitor cries that this shit makes it have less quality, plz change this -datura
-const FRAME_BUDGET_BYTES: usize = 192 * 1024 * 1024;
-const MAX_FRAMES: usize = 240;
-const MIN_DIMENSION: u32 = 320;
+// constants
+const MAX_TARGET_EDGE: u32 = 3840;
+const MIN_TARGET_EDGE: u32 = 1280;
+const FALLBACK_TARGET_EDGE: u32 = 1920;
+const LOOKAHEAD_FRAMES: usize = 2;
 const MIN_DELAY: Duration = Duration::from_millis(20);
 const DEFAULT_DELAY: Duration = Duration::from_millis(100);
+fn target_edge() -> u32 {
+    static TARGET_EDGE: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+
+    *TARGET_EDGE.get_or_init(|| {
+        let edge = match shared::display::get_monitor_size() {
+            Ok(display) => display
+                .width
+                .max(display.height)
+                .clamp(MIN_TARGET_EDGE, MAX_TARGET_EDGE),
+            Err(e) => {
+                warn!(
+                    "[Theme] could not measure the display ({e}); assuming {FALLBACK_TARGET_EDGE}px"
+                );
+                FALLBACK_TARGET_EDGE
+            }
+        };
+
+        info!("[Theme] wallpapers decode to at most {edge}px");
+        edge
+    })
+}
+
+fn target_size(width: u32, height: u32) -> (u32, u32) {
+    let longest = width.max(height);
+    if longest <= target_edge() || longest == 0 {return (width, height)}
+
+    let scale = f64::from(target_edge()) / f64::from(longest);
+    (scaled(width, scale), scaled(height, scale))
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn scaled(value: u32, scale: f64) -> u32 {
+    (f64::from(value) * scale).round().max(1.0) as u32
+}
+
+pub struct Frame {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+    pub delay: Duration,
+}
 
 pub struct Decoded {
     pub width: u32,
     pub height: u32,
-    pub frames: Vec<Vec<u8>>,
-    pub delays: Vec<Duration>,
+    pub pixels: Vec<u8>,
 }
 
-impl Decoded {
-    pub const fn is_animated(&self) -> bool {
-        self.frames.len() > 1
-    }
+pub enum Wallpaper {
+    Still(Decoded),
+    Animated {
+        width: u32,
+        height: u32,
+        frames: std::sync::mpsc::Receiver<Frame>,
+    },
 }
 
 pub fn builtin_bytes(stem: &str) -> Option<&'static [u8]> {
@@ -85,157 +128,160 @@ fn is_gif(bytes: &[u8]) -> bool {
     bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a")
 }
 
-pub fn decode(bytes: &[u8]) -> Result<Decoded> {
-    if is_gif(bytes) {
-        match decode_animated(bytes) {
-            Ok(decoded) => return Ok(decoded),
-            Err(e) => {
-                warn!("[Theme] could not read the GIF as an animation ({e}); using one frame");
+pub fn open(bytes: Vec<u8>) -> Result<Wallpaper> {
+    if is_gif(&bytes) {
+        match open_animated(bytes) {
+            Ok(wallpaper) => return Ok(wallpaper),
+            Err((bytes, e)) => {
+                warn!("[Theme] could not read the GIF as an animation ({e:#}); using one frame");
+                return Ok(Wallpaper::Still(decode_still(&bytes)?));
             }
         }
     }
 
-    decode_still(bytes)
+    Ok(Wallpaper::Still(decode_still(&bytes)?))
 }
 
 fn decode_still(bytes: &[u8]) -> Result<Decoded> {
     let decoded = image::load_from_memory(bytes).context("could not decode the wallpaper")?;
     let (width, height) = (decoded.width(), decoded.height());
+    let (target_width, target_height) = target_size(width, height);
 
-    let scaled = if width.max(height) > MAX_DIMENSION {
-        decoded.resize(MAX_DIMENSION, MAX_DIMENSION, FilterType::Lanczos3)
-    } else {
+    // A still costs one buffer, so it is only ever shrunk to fit the display.
+    let scaled = if (target_width, target_height) == (width, height) {
         decoded
+    } else {
+        info!("[Theme] shrinking the wallpaper from {width}x{height} to fit the display");
+        decoded.resize(target_width, target_height, FilterType::Lanczos3)
     };
     let rgba = scaled.into_rgba8();
 
     Ok(Decoded {
         width: rgba.width(),
         height: rgba.height(),
-        frames: vec![rgba.into_raw()],
-        delays: Vec::new(),
+        pixels: rgba.into_raw(),
     })
 }
 
-fn decode_animated(bytes: &[u8]) -> Result<Decoded> {
+/// Reads the GIF's header, then hands the bytes to a worker that decodes frames
+/// on demand for as long as anyone is listening.
+///
+/// Returns the bytes back on failure so the caller can still try them as a still
+/// image without re-reading the file.
+fn open_animated(bytes: Vec<u8>) -> std::result::Result<Wallpaper, (Vec<u8>, anyhow::Error)> {
+    use image::ImageDecoder as _;
+    use image::codecs::gif::GifDecoder;
+
+    let probe = |bytes: &[u8]| -> Result<(u32, u32)> {
+        let decoder =
+            GifDecoder::new(std::io::Cursor::new(bytes)).context("could not open the GIF")?;
+        let (width, height) = decoder.dimensions();
+        if width == 0 || height == 0 {
+            return Err(anyhow!("the GIF has a zero-sized canvas"));
+        }
+        Ok((width, height))
+    };
+
+    let (width, height) = match probe(&bytes) {
+        Ok(size) => size,
+        Err(e) => return Err((bytes, e)),
+    };
+
+    let (target_width, target_height) = target_size(width, height);
+    if (target_width, target_height) == (width, height) {
+        info!("[Theme] streaming an animated wallpaper at {width}x{height}");
+    } else {
+        info!(
+            "[Theme] streaming an animated wallpaper; it is {width}x{height} and the display              needs {target_width}x{target_height}"
+        );
+    }
+
+    let (sender, frames) = std::sync::mpsc::sync_channel(LOOKAHEAD_FRAMES);
+    std::thread::spawn(move || stream_frames(&bytes, (target_width, target_height), &sender));
+
+    Ok(Wallpaper::Animated {
+        width: target_width,
+        height: target_height,
+        frames,
+    })
+}
+
+/// Decodes frames in a loop until the receiver goes away.
+///
+/// The channel is bounded, so this parks on a full queue rather than racing
+/// ahead: at rest it wakes once per frame delay and does one frame's work.
+fn stream_frames(
+    bytes: &[u8],
+    (target_width, target_height): (u32, u32),
+    sender: &std::sync::mpsc::SyncSender<Frame>,
+) {
     use image::AnimationDecoder as _;
     use image::codecs::gif::GifDecoder;
 
-    let decoder = GifDecoder::new(std::io::Cursor::new(bytes)).context("could not open the GIF")?;
-    let frames = decoder
-        .into_frames()
-        .collect_frames()
-        .context("could not decode the GIF frames")?;
-
-    if frames.is_empty() {
-        return Err(anyhow!("the GIF holds no frames"));
-    }
-
-    let mut buffers = Vec::with_capacity(frames.len());
-    let mut delays = Vec::with_capacity(frames.len());
-    for frame in frames {
-        let (numerator, denominator) = frame.delay().numer_denom_ms();
-        let millis = if denominator == 0 {
-            0
-        } else {
-            u64::from(numerator) / u64::from(denominator).max(1)
+    let resizing = true;
+    loop {
+        let decoder = match GifDecoder::new(std::io::Cursor::new(bytes)) {
+            Ok(decoder) => decoder,
+            Err(e) => {
+                warn!("[Theme] the animation stopped: {e}");
+                return;
+            }
         };
-        let delay = Duration::from_millis(millis);
 
-        delays.push(if delay < MIN_DELAY {
-            DEFAULT_DELAY
-        } else {
-            delay
-        });
-        buffers.push(frame.into_buffer());
-    }
+        let mut sent = 0_usize;
+        for frame in decoder.into_frames() {
+            let frame = match frame {
+                Ok(frame) => frame,
+                Err(e) => {
+                    warn!("[Theme] the animation stopped at frame {sent}: {e}");
+                    return;
+                }
+            };
 
-    let (width, height) = (buffers[0].width(), buffers[0].height());
-    if width == 0 || height == 0 {
-        return Err(anyhow!("the GIF has a zero-sized canvas"));
-    }
+            let (numerator, denominator) = frame.delay().numer_denom_ms();
+            let millis = if denominator == 0 {
+                0
+            } else {
+                u64::from(numerator) / u64::from(denominator).max(1)
+            };
+            let delay = Duration::from_millis(millis);
+            // A GIF asking for 0ms means "as fast as sensible", not "spin the CPU".
+            let delay = if delay < MIN_DELAY {
+                DEFAULT_DELAY
+            } else {
+                delay
+            };
 
-    drop_frames_to_fit(&mut buffers, &mut delays);
-    let scale = scale_to_fit(width, height, buffers.len());
+            let buffer = frame.into_buffer();
+            let buffer = if resizing
+                && (buffer.width(), buffer.height()) != (target_width, target_height)
+            {
+                image::imageops::resize(&buffer, target_width, target_height, FilterType::Triangle)
+            } else {
+                buffer
+            };
 
-    let (width, height) = if scale < 1.0 {
-        let target_width = scaled(width, scale);
-        let target_height = scaled(height, scale);
-        info!(
-            "[Theme] scaling the animation from {width}x{height} to {target_width}x{target_height}"
-        );
-
-        for buffer in &mut buffers {
-            *buffer =
-                image::imageops::resize(buffer, target_width, target_height, FilterType::Triangle);
+            // A failed send means the theme changed or Aurora is closing.
+            if sender
+                .send(Frame {
+                    width: buffer.width(),
+                    height: buffer.height(),
+                    pixels: buffer.into_raw(),
+                    delay,
+                })
+                .is_err()
+            {
+                return;
+            }
+            sent += 1;
         }
-        (target_width, target_height)
-    } else {
-        (width, height)
-    };
 
-    Ok(Decoded {
-        width,
-        height,
-        frames: buffers
-            .into_iter()
-            .map(image::ImageBuffer::into_raw)
-            .collect(),
-        delays,
-    })
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn scaled(value: u32, scale: f64) -> u32 {
-    (f64::from(value) * scale).round().max(1.0) as u32
-}
-
-fn drop_frames_to_fit(frames: &mut Vec<image::RgbaImage>, delays: &mut Vec<Duration>) {
-    if frames.len() <= MAX_FRAMES {
-        return;
-    }
-
-    let step = frames.len().div_ceil(MAX_FRAMES);
-    info!("[Theme] the animation has {} frames {step}", frames.len());
-
-    let mut kept_frames = Vec::with_capacity(frames.len().div_ceil(step));
-    let mut kept_delays = Vec::with_capacity(kept_frames.capacity());
-    let mut carried = Duration::ZERO;
-
-    for (index, (frame, delay)) in std::mem::take(frames)
-        .into_iter()
-        .zip(std::mem::take(delays))
-        .enumerate()
-    {
-        carried += delay;
-        if index % step == 0 {
-            kept_frames.push(frame);
-            kept_delays.push(carried);
-            carried = Duration::ZERO;
+        if sent <= 1 {
+            // Nothing to animate, and re-reading would spin. The one frame that
+            // was sent stays on screen.
+            return;
         }
     }
-
-    if let Some(last) = kept_delays.last_mut() {
-        *last += carried;
-    }
-
-    *frames = kept_frames;
-    *delays = kept_delays;
-}
-
-fn scale_to_fit(width: u32, height: u32, frame_count: usize) -> f64 {
-    let longest = f64::from(width.max(height));
-    let dimension_scale = f64::from(MAX_DIMENSION) / longest;
-    let frame_bytes = width as usize * height as usize * 4;
-    let total = frame_bytes.saturating_mul(frame_count);
-    let budget_scale = if total > FRAME_BUDGET_BYTES {
-        (FRAME_BUDGET_BYTES as f64 / total as f64).sqrt()
-    } else {
-        1.0
-    };
-
-    let floor = (f64::from(MIN_DIMENSION) / longest).min(1.0);
-    dimension_scale.min(budget_scale).clamp(floor, 1.0)
 }
 
 pub fn thumbnail(bytes: &[u8], max_edge: u32) -> Result<Decoded> {
@@ -244,7 +290,6 @@ pub fn thumbnail(bytes: &[u8], max_edge: u32) -> Result<Decoded> {
     Ok(Decoded {
         width: rgba.width(),
         height: rgba.height(),
-        frames: vec![rgba.into_raw()],
-        delays: Vec::new(),
+        pixels: rgba.into_raw(),
     })
 }
