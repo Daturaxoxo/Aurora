@@ -228,3 +228,45 @@ impl BypassMethod {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cn_resolve() {
+        for raw in 0..=1 {
+            let method = BypassMethod::resolve(raw, Version::CN).unwrap();
+            assert_eq!(method, BypassMethod::DSound, "CN index {raw}");
+            assert!(!method.to_dll_names().contains(&"version.dll"));
+        }
+    }
+
+    #[test]
+    fn global_resolve() {
+        for version in [Version::Global, Version::TW] {
+            assert_eq!(
+                BypassMethod::resolve(0, version).unwrap(),
+                BypassMethod::Version
+            );
+            assert_eq!(
+                BypassMethod::resolve(1, version).unwrap(),
+                BypassMethod::DSound
+            );
+        }
+    }
+
+    // function below is kind of temporary, just added it so people on CN v2.0.0 who have the old version.dll files in their \Win64 directory can easily clean them
+    // so they don't have to deal with any old installations messing their experience (perchappenchance) -datura
+    #[test]
+    fn sweep_previous() {
+        for method in [BypassMethod::Version, BypassMethod::DSound] {
+            for dll in method.to_dll_names() {
+                assert!(
+                    BypassMethod::ALL_DLL_NAMES.contains(&dll),
+                    "{dll} would be stranded by sanitize"
+                );
+            }
+        }
+    }
+}
