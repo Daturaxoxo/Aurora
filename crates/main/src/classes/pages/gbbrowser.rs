@@ -854,7 +854,7 @@ impl GbBrowserHandler {
                 let mut attempt: u32 = 1;
 
                 let cancelled = loop {
-                    let mut request = HTTP.get(&file.url).timeout(DOWNLOAD_TOTAL_TIMEOUT);
+                    let mut request = HTTP.get(&file.url).query(&[("toolid", "22803")]).timeout(DOWNLOAD_TOTAL_TIMEOUT);
                     if done > 0 {
                         request =
                             request.header(reqwest::header::RANGE, format!("bytes={done}-"));
