@@ -9,6 +9,7 @@ use shared::config::{self, key};
 use crate::classes::validate::ensure_dir;
 use crate::engine::files::{FileGroup, ManagedFile, group_by_addon};
 use crate::engine::lua::LuaManager;
+use crate::global::PLUGINS;
 
 use super::AuroraEngine;
 
@@ -43,7 +44,7 @@ impl AuroraEngine {
             Some(custom_files) => self.copy_custom_files(&custom_files)?,
             None => vec![],
         };
-        injected.extend(self.copy_chksum_plugin()?);
+        injected.extend(self.copy_plugins()?);
         Self::record_injected_plugins(&injected);
 
         self.launch_game()
@@ -165,33 +166,38 @@ impl AuroraEngine {
         Ok(copied)
     }
 
-    fn copy_chksum_plugin(&self) -> Result<Option<PathBuf>> {
-        if super::everlight::checksum_ignored() {
-            info!("'Ignore Checksum Matching' is enabled, skipping chksum.asi");
-            return Ok(None);
+    fn copy_plugins(&self) -> Result<Vec<PathBuf>> {
+        let mut copied = Vec::with_capacity(PLUGINS.nte.len());
+
+        for &plugin in PLUGINS.nte {
+            if plugin == "chksum.asi" && super::everlight::checksum_ignored() {
+                info!("'Ignore Checksum Matching' is enabled, skipping {plugin}");
+                continue;
+            }
+
+            let source = self.bin_path.join("Plugins").join(plugin);
+            if !source.exists() {
+                warn!(
+                    "{plugin} is missing from {}, launching without it",
+                    source.display()
+                );
+                continue;
+            }
+
+            let destination = self.win64.join(plugin);
+            fs::copy(&source, &destination).map_err(|e| {
+                error!(
+                    "Failed to copy {} to {}: {e}",
+                    source.display(),
+                    destination.display()
+                );
+                anyhow!("Failed to copy {plugin}: {e}")
+            })?;
+            trace!("Copied {} to {}", source.display(), destination.display());
+            copied.push(destination);
         }
 
-        let source = self.bin_path.join("Plugins").join("chksum.asi");
-        if !source.exists() {
-            warn!(
-                "chksum.asi is missing from {}, launching without it",
-                source.display()
-            );
-            return Ok(None);
-        }
-
-        let destination = self.win64.join("chksum.asi");
-
-        fs::copy(&source, &destination).map_err(|e| {
-            error!(
-                "Failed to copy {} to {}: {e}",
-                source.display(),
-                destination.display()
-            );
-            anyhow!("Failed to copy chksum.asi: {e}")
-        })?;
-        trace!("Copied {} to {}", source.display(), destination.display());
-        Ok(Some(destination))
+        Ok(copied)
     }
 
     fn record_injected_plugins(destinations: &[PathBuf]) {

@@ -5,7 +5,6 @@ members = [
     "crates/shared",
     "crates/ipc",
     "crates/updater",
-    "crates/steam-wrapper",
     "crates/installer",
     "crates/oneclick",
 ]
