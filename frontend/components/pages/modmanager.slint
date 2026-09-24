@@ -533,8 +533,8 @@ component GroupDropdown inherits Rectangle {
                 y: 6px;
                 width: parent.width - 12px;
                 height: root.list-height;
-                viewport-width: self.width;
-                viewport-height: list-col.preferred-height;
+                content-width: self.width;
+                content-height: list-col.preferred-height;
 
                 list-col := VerticalLayout {
                     spacing: root.row-spacing;
@@ -1397,7 +1397,7 @@ export component ModManagerPage inherits Rectangle {
                                     y: 6px;
                                     width: parent.width - 12px;
                                     height: move-sel-btn.list-height;
-                                    viewport-height: move-menu-list.preferred-height;
+                                    content-height: move-menu-list.preferred-height;
 
                                     move-menu-list := VerticalLayout {
                                         spacing: move-sel-btn.row-spacing;
@@ -1611,7 +1611,7 @@ export component ModManagerPage inherits Rectangle {
             if (!root.view-grid): list-scroll := ScrollView {
                 width: 100%;
                 height: 100%;
-                viewport-height: mod-list.preferred-height;
+                content-height: mod-list.preferred-height;
 
                 function drag-content-y(wx: length, wy: length) -> length {
                     if (wx < self.absolute-position.x
@@ -1620,7 +1620,7 @@ export component ModManagerPage inherits Rectangle {
                         || wy > self.absolute-position.y + self.height) {
                         return -1px;
                     }
-                    return wy - self.absolute-position.y - self.viewport-y;
+                    return wy - self.absolute-position.y - self.content-y;
                 }
 
                 property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
@@ -1632,14 +1632,14 @@ export component ModManagerPage inherits Rectangle {
                 property <bool> drag-near-bottom: root.drag-id != ""
                     && self.drag-inside-x
                     && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
-                property <length> scroll-min: min(0px, self.height - self.viewport-height);
+                property <length> scroll-min: min(0px, self.height - self.content-height);
 
                 // Scrolls a row into view, taking its y in content space
                 function reveal(content-y: length, h: length) {
-                    if (content-y + self.viewport-y < 12px) {
-                        self.viewport-y = min(0px, 12px - content-y);
-                    } else if (content-y + h + self.viewport-y > self.height - 12px) {
-                        self.viewport-y = min(0px, max(self.scroll-min,
+                    if (content-y + self.content-y < 12px) {
+                        self.content-y = min(0px, 12px - content-y);
+                    } else if (content-y + h + self.content-y > self.height - 12px) {
+                        self.content-y = min(0px, max(self.scroll-min,
                             self.height - 12px - content-y - h));
                     }
                 }
@@ -1649,10 +1649,10 @@ export component ModManagerPage inherits Rectangle {
                     running: list-scroll.drag-near-top || list-scroll.drag-near-bottom;
                     triggered => {
                         if (list-scroll.drag-near-top) {
-                            list-scroll.viewport-y = min(0px, list-scroll.viewport-y + 8px);
+                            list-scroll.content-y = min(0px, list-scroll.content-y + 8px);
                         }
                         if (list-scroll.drag-near-bottom) {
-                            list-scroll.viewport-y = max(list-scroll.scroll-min, list-scroll.viewport-y - 8px);
+                            list-scroll.content-y = max(list-scroll.scroll-min, list-scroll.content-y - 8px);
                         }
                         root.mod-drag-moved(root.drag-id,
                             list-scroll.drag-content-y(root.drag-pos-x, root.drag-pos-y));
@@ -1774,7 +1774,7 @@ export component ModManagerPage inherits Rectangle {
             if (root.view-grid): grid-scroll := ScrollView {
                 width: 100%;
                 height: 100%;
-                viewport-height: grid-content.preferred-height;
+                content-height: grid-content.preferred-height;
 
                 property <length> drag-local-y: root.drag-pos-y - self.absolute-position.y;
                 property <bool> drag-inside-x: root.drag-pos-x >= self.absolute-position.x
@@ -1785,16 +1785,16 @@ export component ModManagerPage inherits Rectangle {
                 property <bool> drag-near-bottom: root.drag-id != ""
                     && self.drag-inside-x
                     && self.drag-local-y > self.height - 48px && self.drag-local-y <= self.height;
-                property <length> scroll-min: min(0px, self.height - self.viewport-height);
+                property <length> scroll-min: min(0px, self.height - self.content-height);
                 property <bool> drag-inside: root.drag-id != ""
                     && self.drag-inside-x
                     && self.drag-local-y >= 0px && self.drag-local-y <= self.height;
 
                 function reveal(content-y: length, h: length) {
-                    if (content-y + self.viewport-y < 12px) {
-                        self.viewport-y = min(0px, 12px - content-y);
-                    } else if (content-y + h + self.viewport-y > self.height - 12px) {
-                        self.viewport-y = min(0px, max(self.scroll-min,
+                    if (content-y + self.content-y < 12px) {
+                        self.content-y = min(0px, 12px - content-y);
+                    } else if (content-y + h + self.content-y > self.height - 12px) {
+                        self.content-y = min(0px, max(self.scroll-min,
                             self.height - 12px - content-y - h));
                     }
                 }
@@ -1804,10 +1804,10 @@ export component ModManagerPage inherits Rectangle {
                     running: grid-scroll.drag-near-top || grid-scroll.drag-near-bottom;
                     triggered => {
                         if (grid-scroll.drag-near-top) {
-                            grid-scroll.viewport-y = min(0px, grid-scroll.viewport-y + 8px);
+                            grid-scroll.content-y = min(0px, grid-scroll.content-y + 8px);
                         }
                         if (grid-scroll.drag-near-bottom) {
-                            grid-scroll.viewport-y = max(grid-scroll.scroll-min, grid-scroll.viewport-y - 8px);
+                            grid-scroll.content-y = max(grid-scroll.scroll-min, grid-scroll.content-y - 8px);
                         }
                     }
                 }
@@ -2053,8 +2053,8 @@ export component ModManagerPage inherits Rectangle {
         ScrollView {
             width: 100%;
             height: 100%;
-            viewport-width: self.width;
-            viewport-height: self.height + 1px;
+            content-width: self.width;
+            content-height: self.height + 1px;
         }
 
         Rectangle {
@@ -2131,11 +2131,15 @@ export component ModManagerPage inherits Rectangle {
                                 { id: "display_name_reverse", name: Tr.values[TrKey.modmanager-sort-display-name-reverse] },
                                 { id: "author", name: Tr.values[TrKey.modmanager-sort-author] },
                                 { id: "character", name: Tr.values[TrKey.modmanager-sort-character] },
+                                { id: "date_added", name: Tr.values[TrKey.modmanager-sort-date-added] },
+                                { id: "date_modified", name: Tr.values[TrKey.modmanager-sort-date-modified] },
                             ];
                             label: root.sort-order == "display_name" ? Tr.values[TrKey.modmanager-sort-display-name]
                                 : root.sort-order == "display_name_reverse" ? Tr.values[TrKey.modmanager-sort-display-name-reverse]
                                 : root.sort-order == "author" ? Tr.values[TrKey.modmanager-sort-author]
                                 : root.sort-order == "character" ? Tr.values[TrKey.modmanager-sort-character]
+                                : root.sort-order == "date_added" ? Tr.values[TrKey.modmanager-sort-date-added]
+                                : root.sort-order == "date_modified" ? Tr.values[TrKey.modmanager-sort-date-modified]
                                 : Tr.values[TrKey.modmanager-sort-folder];
                             picked(id) => {
                                 root.sort-order = id;
@@ -2148,8 +2152,8 @@ export component ModManagerPage inherits Rectangle {
                 ScrollView {
                     vertical-stretch: 1;
                     preferred-height: filter-body.preferred-height;
-                    viewport-width: self.width;
-                    viewport-height: filter-body.preferred-height;
+                    content-width: self.width;
+                    content-height: filter-body.preferred-height;
 
                     filter-body := HorizontalLayout {
                         spacing: 20px;
@@ -2277,8 +2281,8 @@ export component ModManagerPage inherits Rectangle {
         ScrollView {
             width: 100%;
             height: 100%;
-            viewport-width: self.width;
-            viewport-height: self.height + 1px;
+            content-width: self.width;
+            content-height: self.height + 1px;
         }
 
         Rectangle {
@@ -2346,8 +2350,8 @@ export component ModManagerPage inherits Rectangle {
         ScrollView {
             width: 100%;
             height: 100%;
-            viewport-width: self.width;
-            viewport-height: self.height + 1px;
+            content-width: self.width;
+            content-height: self.height + 1px;
         }
 
         Rectangle {
@@ -2433,8 +2437,8 @@ export component ModManagerPage inherits Rectangle {
                     ScrollView {
                         width: 100%;
                         height: 100%;
-                        viewport-width: self.width;
-                        viewport-height: add-existing-list.preferred-height;
+                        content-width: self.width;
+                        content-height: add-existing-list.preferred-height;
 
                         add-existing-list := VerticalLayout {
                             spacing: 2px;
@@ -2532,8 +2536,8 @@ export component ModManagerPage inherits Rectangle {
         ScrollView {
             width: 100%;
             height: 100%;
-            viewport-width: self.width;
-            viewport-height: self.height + 1px;
+            content-width: self.width;
+            content-height: self.height + 1px;
         }
 
         Rectangle {
@@ -2601,8 +2605,8 @@ export component ModManagerPage inherits Rectangle {
 
                 picker-scroll := ScrollView {
                     vertical-stretch: 1;
-                    viewport-width: self.width;
-                    viewport-height: icon-grid.height;
+                    content-width: self.width;
+                    content-height: icon-grid.height;
 
                     property <length> cell: 96px;
                     property <length> gap: 10px;

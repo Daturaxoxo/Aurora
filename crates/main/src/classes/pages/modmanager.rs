@@ -134,6 +134,8 @@ pub struct Mod {
     pub is_enabled: bool,
     pub has_json: bool,
     pub source: Option<ModSource>,
+    pub added: Option<SystemTime>,
+    pub modified: Option<SystemTime>,
 }
 
 impl Default for Mod {
@@ -152,6 +154,8 @@ impl Default for Mod {
             is_enabled: false,
             has_json: false,
             source: None,
+            added: None,
+            modified: None,
         }
     }
 }
@@ -192,6 +196,17 @@ impl ModManager {
             .iter()
             .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
 
+        let folder_meta = std::fs::metadata(folder).ok();
+        let added = folder_meta
+            .as_ref()
+            .and_then(|m| m.created().or_else(|_| m.modified()).ok());
+        let modified = files
+            .iter()
+            .filter(|p| p.file_type().is_file())
+            .filter_map(|p| p.metadata().ok()?.modified().ok())
+            .max()
+            .or_else(|| folder_meta.and_then(|m| m.modified().ok()));
+
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
             display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
@@ -199,6 +214,8 @@ impl ModManager {
             is_enabled,
             has_icon_png: folder.join("icon.png").is_file(),
             source: ModSource::read(folder),
+            added,
+            modified,
             ..Default::default()
         };
 
@@ -505,8 +522,6 @@ struct ScannedGroup {
 }
 
 const UNGROUPED: &str = "\u{1}ungrouped";
-
-/// `None` means the mod is up-to-date, `Some` means it needs to be updated
 type UpdateCheck = Option<NteModFile>;
 
 struct AddExistingEntry {
@@ -529,12 +544,26 @@ enum ModSort {
     DisplayNameReverse,
     Author,
     Character,
+    DateAdded,
+    DateModified,
 }
 
 impl ModSort {
     fn apply(self, mods: &mut Vec<&Mod>, shown_name: &dyn Fn(&Mod) -> String) {
         match self {
             Self::Folder => mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name)),
+            Self::DateAdded | Self::DateModified => mods.sort_by_cached_key(|m| {
+                let time = if matches!(self, Self::DateAdded) {
+                    m.added
+                } else {
+                    m.modified
+                };
+                (
+                    std::cmp::Reverse(time),
+                    shown_name(m).to_lowercase(),
+                    m.folder_name.clone(),
+                )
+            }),
             Self::DisplayName => {
                 mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()))
             }

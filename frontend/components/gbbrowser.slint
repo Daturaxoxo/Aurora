@@ -319,7 +319,7 @@ component CharacterDropdown inherits Rectangle {
                 y: 6px;
                 width: parent.width - 12px;
                 height: parent.height - 12px;
-                viewport-height: list-col.preferred-height;
+                content-height: list-col.preferred-height;
 
                 list-col := VerticalLayout {
                     spacing: 2px;
@@ -685,22 +685,22 @@ export component GameBananaBrowser inherits Rectangle {
                 property <length> cell-w: Math.floor(((self.width - 40px - self.gap * (self.columns - 1)) / self.columns) / 1px) * 1px;
                 property <length> cell-h: Math.round((self.cell-w * 9 / 16) / 1px) * 1px + 100px;
 
-                viewport-width: self.width;
-                viewport-height: Math.ceil(root.mods.length / self.columns)
+                content-width: self.width;
+                content-height: Math.ceil(root.mods.length / self.columns)
                     * (self.cell-h + self.gap) - self.gap + 32px;
 
                 // Fetch the next page when scrolled near the bottom, or when
                 // the loaded mods don't fill the view at all
                 function maybe-load-more() {
-                    if (-self.viewport-y + self.height > self.viewport-height - 300px) {
+                    if (-self.content-y + self.height > self.content-height - 300px) {
                         root.load-more();
                     }
                 }
 
                 property <int> first-visible-row: max(0, Math.floor(
-                    (-self.viewport-y - 16px) / (self.cell-h + self.gap)));
+                    (-self.content-y - 16px) / (self.cell-h + self.gap)));
                 property <int> last-visible-row: Math.floor(
-                    (-self.viewport-y + self.height - 16px) / (self.cell-h + self.gap));
+                    (-self.content-y + self.height - 16px) / (self.cell-h + self.gap));
 
                 function report-visible-range() {
                     if (root.mods.length == 0 || self.columns <= 0) {
@@ -713,8 +713,8 @@ export component GameBananaBrowser inherits Rectangle {
                     );
                 }
 
-                changed viewport-y => { self.maybe-load-more(); self.report-visible-range(); }
-                changed viewport-height => { self.maybe-load-more(); self.report-visible-range(); }
+                changed content-y => { self.maybe-load-more(); self.report-visible-range(); }
+                changed content-height => { self.maybe-load-more(); self.report-visible-range(); }
 
                 for item[i] in root.mods: GbModCard {
                     x: 20px + Math.mod(i, grid-scroll.columns) * (grid-scroll.cell-w + grid-scroll.gap);
@@ -766,8 +766,8 @@ export component GameBananaBrowser inherits Rectangle {
         ScrollView {
             width: 100%;
             height: 100%;
-            viewport-width: self.width;
-            viewport-height: self.height + 1px;
+            content-width: self.width;
+            content-height: self.height + 1px;
         }
 
         VerticalLayout {
