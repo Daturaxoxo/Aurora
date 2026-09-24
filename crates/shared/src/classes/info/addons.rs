@@ -1,6 +1,5 @@
 use super::version::Version;
-const UNAVAILABLE: &[(&str, &[Version])] =
-    &[("drv_lin", &[Version::CN, Version::Global, Version::TW])];
+const UNAVAILABLE: &[(&str, &[Version])] = &[];
 
 pub fn is_unavailable(config_key: &str, version: Version) -> bool {
     UNAVAILABLE
