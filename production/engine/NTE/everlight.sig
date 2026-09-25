@@ -6,7 +6,7 @@ debug  = true
 method = "sigbypass"
 
 [[moe.getaurora.daturaxoxo.2000/everlight/target]]
-label   = "NTE"
+label   = "NTE / UE 5.4+ generic (gacha UE5)"
 target  = "HTGame.exe"
 method  = "sigbypass"
 type    = 0
