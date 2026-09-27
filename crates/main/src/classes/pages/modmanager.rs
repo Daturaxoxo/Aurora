@@ -565,7 +565,7 @@ impl ModSort {
                 )
             }),
             Self::DisplayName => {
-                mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()))
+                mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()));
             }
             Self::DisplayNameReverse => mods.sort_by_cached_key(|m| {
                 (
@@ -1064,8 +1064,7 @@ impl ModManagerHandler {
                 let Some(path) = path else { continue };
                 let label = path
                     .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                    .map_or_default(|n| n.to_string_lossy().into_owned());
 
                 #[allow(clippy::cast_precision_loss)]
                 let base = index as f32;
@@ -1110,8 +1109,7 @@ impl ModManagerHandler {
                     Err(e) => {
                         let name = path
                             .file_name()
-                            .map(|n| n.to_string_lossy().into_owned())
-                            .unwrap_or_default();
+                            .map_or_default(|n| n.to_string_lossy().into_owned());
 
                         if let Some(reason) = expected_install_failure(&e) {
                             warn!("skipped '{}': {reason}", path.display());
@@ -1170,7 +1168,7 @@ impl ModManagerHandler {
 
             if MOD_EXTENSIONS.contains(&ext.as_str()) && path.is_file() {
                 let key = (
-                    path.parent().map(Path::to_path_buf).unwrap_or_default(),
+                    path.parent().map_or_default(Path::to_path_buf),
                     path.file_stem()
                         .unwrap_or_default()
                         .to_string_lossy()
@@ -1469,8 +1467,7 @@ impl ModManagerHandler {
                     id: g
                         .path
                         .as_ref()
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                        .map_or_default(|p| p.to_string_lossy().into_owned()),
                     name: g.name.clone().unwrap_or_default(),
                     mods: g.mods,
                 })
@@ -1887,8 +1884,7 @@ impl ModManagerHandler {
             .iter()
             .find(|option| option.selected)
             .or_else(|| groups.first())
-            .map(|option| option.name.clone())
-            .unwrap_or_default();
+            .map_or_default(|option| option.name.clone());
 
         let count = state.active_filter_count();
         drop(state);
@@ -2110,7 +2106,7 @@ impl ModManagerHandler {
     }
 
     fn current_zone(m: &Mod) -> String {
-        let parent = m.path.parent().map(Path::to_path_buf).unwrap_or_default();
+        let parent = m.path.parent().map_or_default(Path::to_path_buf);
         if get_mods_path().is_some_and(|mp| mp == parent) {
             String::new()
         } else {
@@ -2771,8 +2767,7 @@ impl ModManagerHandler {
                         .scanned
                         .iter()
                         .find(|g| g.id == id)
-                        .map(|g| g.mods.clone())
-                        .unwrap_or_default()
+                        .map_or_default(|g| g.mods.clone())
                 };
 
                 let all_enabled = !mods.is_empty() && mods.iter().all(|m| m.is_enabled);
@@ -2962,9 +2957,7 @@ impl ModManagerHandler {
             let Some(win) = ww.upgrade() else { return };
 
             let target = Self::zone_at(content_y).map_or_else(String::new, |zone| {
-                let source = Self::mod_by_id(&id)
-                    .map(|m| Self::current_zone(&m))
-                    .unwrap_or_default();
+                let source = Self::mod_by_id(&id).map_or_default(|m| Self::current_zone(&m));
                 if zone == source { String::new() } else { zone }
             });
 

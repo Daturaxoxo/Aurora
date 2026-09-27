@@ -37,7 +37,7 @@ impl IconPackHandler {
 
     pub fn apply(window: &slint::Weak<MainWindow>, pack: &str) {
         let pack = resolve_pack(pack);
-        ACTIVE.with(|cell| *cell.borrow_mut() = pack.clone());
+        ACTIVE.with(|cell| (*cell.borrow_mut()).clone_from(&pack));
 
         let Some(w) = window.upgrade() else {
             error!("[Icons] cannot apply '{pack}': the window is gone");
@@ -130,16 +130,14 @@ fn resolve_pack(pack: &str) -> String {
     }
     ICON_PACKS
         .first()
-        .map(|(name, _)| (*name).to_string())
-        .unwrap_or_default()
+        .map_or_default(|(name, _)| (*name).to_string())
 }
 
 fn display_name(pack: &str) -> String {
     let mut chars = pack.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().collect::<String>() + chars.as_str()
+    })
 }
 
 fn bytes_for(pack: &str, slug: &str) -> Option<(&'static str, &'static str, &'static [u8])> {
@@ -178,7 +176,7 @@ fn image_for(pack: &str, slug: &str) -> slint::Image {
 fn tint_for(pack: &str) -> (Color, Color) {
     if let Some(cached) = TINTS.with(|cell| cell.borrow().get(pack).copied()) {
         return cached;
-    };
+    }
 
     let mut counts: HashMap<(u8, u8, u8), usize> = HashMap::new();
     for slug in SAMPLES {
@@ -203,9 +201,7 @@ fn tint_for(pack: &str) -> (Color, Color) {
             Color::from_rgb_u8(r, g, b)
         });
 
-    let luminance = 0.2126 * f32::from(tint.red())
-        + 0.7152 * f32::from(tint.green())
-        + 0.0722 * f32::from(tint.blue());
+    let luminance = 0.7152f32.mul_add(f32::from(tint.green()), 0.2126 * f32::from(tint.red()));
     let contrast = if luminance > 140.0 {
         Color::from_rgb_u8(0, 0, 0)
     } else {
