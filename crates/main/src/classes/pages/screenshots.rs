@@ -199,10 +199,7 @@ fn selfie_screenshots() -> Vec<PathBuf> {
 }
 
 fn picture_screenshots() -> Vec<PathBuf> {
-    pictures_folder()
-        .as_deref()
-        .map(pngs_in)
-        .unwrap_or_default()
+    pictures_folder().as_deref().map_or_default(pngs_in)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -371,12 +368,11 @@ fn favorite_key(path: &Path) -> String {
 fn favorites() -> HashSet<String> {
     config::get(key::SCREENSHOT_FAVORITES)
         .as_array()
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 fn update_favorites(f: impl FnOnce(&mut HashSet<String>)) {
@@ -384,12 +380,11 @@ fn update_favorites(f: impl FnOnce(&mut HashSet<String>)) {
         let mut favs: HashSet<String> = data
             .get(key::SCREENSHOT_FAVORITES)
             .and_then(serde_json::Value::as_array)
-            .map(|arr| {
+            .map_or_default(|arr| {
                 arr.iter()
                     .filter_map(|v| v.as_str().map(String::from))
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         f(&mut favs);
 
@@ -440,12 +435,10 @@ fn scan() -> Vec<Screenshot> {
     for (path, duplicates) in screenshots {
         let file_name = path
             .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .map_or_default(|n| n.to_string_lossy().into_owned());
         let stem = path
             .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .map_or_default(|s| s.to_string_lossy().into_owned());
 
         let dt = parse_name_timestamp(&stem).or_else(|| created_timestamp(&path));
         let (timestamp, date) = dt.map_or((0, String::new()), |dt| {
@@ -812,8 +805,7 @@ impl ScreenshotHandler {
         let subject = if single {
             paths[0]
                 .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default()
+                .map_or_default(|n| n.to_string_lossy().into_owned())
         } else {
             format!("{} {}", paths.len(), tr("screenshots.count-suffix"))
         };

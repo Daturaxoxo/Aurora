@@ -351,6 +351,7 @@ fn generate_icon_packs() {
 
     let generated = format!(
         "{HEADER}\
+        #[allow(clippy::type_complexity)]\
          pub static ICON_PACKS: &[(&str, &[(&str, &[u8])])] = &[\n{table}\n];\n\
          \n\
          macro_rules! apply_icons {{\n\
