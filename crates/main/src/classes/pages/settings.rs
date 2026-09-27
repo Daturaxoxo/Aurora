@@ -272,14 +272,12 @@ impl SettingsHandler {
             .ok()
             .filter(|_| index > 0)
             .and_then(|index| w.get_proton_versions().row_data(index))
-            .map(|name| name.to_string())
-            .unwrap_or_default();
+            .map_or_default(|name| name.to_string());
 
         if let Ok(custom_index) = usize::try_from(index - w.get_proton_builtin_count()) {
             let path = linux::custom_proton_builds()
                 .get(custom_index)
-                .map(|dir| dir.to_string_lossy().into_owned())
-                .unwrap_or_default();
+                .map_or_default(|dir| dir.to_string_lossy().into_owned());
             info!("proton_version changed → manually added {path:?}");
             config::set(key::PROTON_CUSTOM_PATH, path);
             config::set(key::PROTON_VERSION, String::new());

@@ -704,8 +704,8 @@ export component ScreenshotsPage inherits Rectangle {
                 property <length> cell-w: Math.floor(((self.width - self.gutter - root.gap * (root.columns - 1)) / root.columns) / 1px) * 1px;
                 property <length> cell-h: Math.round((self.cell-w * 9 / 16) / 1px) * 1px + 44px;
 
-                viewport-width: self.width;
-                viewport-height: Math.ceil(root.screenshots.length / root.columns) * (self.cell-h + root.gap) - root.gap + 8px;
+                content-width: self.width;
+                content-height: Math.ceil(root.screenshots.length / root.columns) * (self.cell-h + root.gap) - root.gap + 8px;
 
                 for item[i] in root.screenshots: ScreenshotCard {
                     x: Math.mod(i, root.columns) * (grid-scroll.cell-w + root.gap);

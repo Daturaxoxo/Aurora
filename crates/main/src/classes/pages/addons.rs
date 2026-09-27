@@ -948,7 +948,7 @@ impl AddonsHandler {
         Err(anyhow::anyhow!(
             "failed to download '{file_name}' after {} attempts: {}",
             Self::DOWNLOAD_MAX_ATTEMPTS,
-            last_err.map(|e| e.to_string()).unwrap_or_default()
+            last_err.map_or_default(|e| e.to_string())
         ))
     }
 

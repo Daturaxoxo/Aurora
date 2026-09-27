@@ -1200,13 +1200,12 @@ impl GbBrowserHandler {
                 .mods
                 .iter()
                 .find(|e| e.id == mod_id)
-                .map(|e| GbMod {
+                .map_or_default(|e| GbMod {
                     id: e.id,
                     author: e.author.clone(),
                     name: e.name.clone(),
                     thumb: e.thumb.clone(),
-                })
-                .unwrap_or_default();
+                });
 
             let ww2 = ww.clone();
             RUNTIME.spawn(async move {

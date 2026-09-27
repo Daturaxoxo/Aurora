@@ -385,7 +385,7 @@ fn acquire_instance_lock() -> std::io::Result<Option<ipc::lock::SingletonLock>> 
 }
 
 pub(crate) fn ensure_cjk_fallback() {
-    use slint::fontique_010::fontique;
+    use slint::fontique_011::fontique;
 
     static REGISTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if REGISTERED.swap(true, std::sync::atomic::Ordering::SeqCst) {
@@ -421,7 +421,7 @@ pub(crate) fn ensure_cjk_fallback() {
     };
 
     let blob = fontique::Blob::new(std::sync::Arc::new(data));
-    let mut collection = slint::fontique_010::shared_collection();
+    let mut collection = slint::fontique_011::shared_collection();
     let fonts = collection.register_fonts(blob, None);
     for script in ["Hani", "Hans", "Hant"] {
         collection.append_fallbacks(

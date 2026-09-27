@@ -453,8 +453,8 @@ export component AddonsPage inherits Rectangle {
 
                     property <length> gutter: 12px;
 
-                    viewport-width: self.width - self.gutter;
-                    viewport-height: (Math.ceil(root.addons.length / 2) * (310px + 16px)) - 16px + 24px;
+                    content-width: self.width - self.gutter;
+                    content-height: (Math.ceil(root.addons.length / 2) * (310px + 16px)) - 16px + 24px;
 
                     HorizontalLayout {
                         y: 8px;

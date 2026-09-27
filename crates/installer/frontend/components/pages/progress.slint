@@ -14,7 +14,7 @@ export component ProgressPage inherits VerticalLayout {
     spacing: 8px;
 
     changed log-count => {
-        list.viewport-y = min(0px, list.visible-height - root.log-count * root.row-height);
+        list.content-y = min(0px, list.visible-height - root.log-count * root.row-height);
     }
 
     Text {

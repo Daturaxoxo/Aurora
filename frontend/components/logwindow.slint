@@ -106,7 +106,7 @@ export component LogWindow inherits Window {
 
     public function scroll-to-bottom() {
         if (list.visible-height > 0px) {
-            list.viewport-y = min(0px, list.visible-height - root.content-height);
+            list.content-y = min(0px, list.visible-height - root.content-height);
         }
     }
 
@@ -236,7 +236,7 @@ export component LogWindow inherits Window {
                     y: 0px;
                     width: parent.width;
                     height: parent.height;
-                    viewport-width: max(root.content-width, self.visible-width);
+                    content-width: max(root.content-width, self.visible-width);
 
                     changed visible-height => {
                         if (root.follow) {
@@ -244,8 +244,8 @@ export component LogWindow inherits Window {
                         }
                     }
 
-                    changed viewport-y => {
-                        root.follow = self.viewport-y <= min(0px, self.visible-height - self.viewport-height) + root.row-height;
+                    changed content-y => {
+                        root.follow = self.content-y <= min(0px, self.visible-height - self.content-height) + root.row-height;
                     }
 
                     for line in root.lines: Rectangle {

@@ -204,13 +204,11 @@ impl GameBananaApi {
         let root = record
             .root_category
             .as_ref()
-            .map(|c| c.name.to_lowercase())
-            .unwrap_or_default();
+            .map_or_default(|c| c.name.to_lowercase());
         let sub = record
             .sub_category
             .as_ref()
-            .map(|c| c.name.to_lowercase())
-            .unwrap_or_default();
+            .map_or_default(|c| c.name.to_lowercase());
 
         root.contains("nsfw") || sub.contains("nsfw")
     }
@@ -263,13 +261,11 @@ impl GameBananaApi {
         let root_cat = record
             .root_category
             .as_ref()
-            .map(|c| c.name.clone())
-            .unwrap_or_default();
+            .map_or_default(|c| c.name.clone());
         let sub_cat = record
             .sub_category
             .as_ref()
-            .map(|c| c.name.clone())
-            .unwrap_or_default();
+            .map_or_default(|c| c.name.clone());
         let is_nsfw = Self::detect_nsfw(&record);
         let mod_url = record
             .profile_url
@@ -279,7 +275,7 @@ impl GameBananaApi {
             .preview_media
             .as_ref()
             .and_then(|media| media.images.as_ref())
-            .map(|images| {
+            .map_or_default(|images| {
                 images
                     .iter()
                     .map(|img| {
@@ -287,8 +283,7 @@ impl GameBananaApi {
                         format!("{}/{filename}", img.base_url)
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         NteMod {
             id: record.id,

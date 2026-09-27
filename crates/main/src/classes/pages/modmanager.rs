@@ -134,6 +134,8 @@ pub struct Mod {
     pub is_enabled: bool,
     pub has_json: bool,
     pub source: Option<ModSource>,
+    pub added: Option<SystemTime>,
+    pub modified: Option<SystemTime>,
 }
 
 impl Default for Mod {
@@ -152,6 +154,8 @@ impl Default for Mod {
             is_enabled: false,
             has_json: false,
             source: None,
+            added: None,
+            modified: None,
         }
     }
 }
@@ -192,6 +196,17 @@ impl ModManager {
             .iter()
             .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
 
+        let folder_meta = std::fs::metadata(folder).ok();
+        let added = folder_meta
+            .as_ref()
+            .and_then(|m| m.created().or_else(|_| m.modified()).ok());
+        let modified = files
+            .iter()
+            .filter(|p| p.file_type().is_file())
+            .filter_map(|p| p.metadata().ok()?.modified().ok())
+            .max()
+            .or_else(|| folder_meta.and_then(|m| m.modified().ok()));
+
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
             display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
@@ -199,6 +214,8 @@ impl ModManager {
             is_enabled,
             has_icon_png: folder.join("icon.png").is_file(),
             source: ModSource::read(folder),
+            added,
+            modified,
             ..Default::default()
         };
 
@@ -505,8 +522,6 @@ struct ScannedGroup {
 }
 
 const UNGROUPED: &str = "\u{1}ungrouped";
-
-/// `None` means the mod is up-to-date, `Some` means it needs to be updated
 type UpdateCheck = Option<NteModFile>;
 
 struct AddExistingEntry {
@@ -529,14 +544,28 @@ enum ModSort {
     DisplayNameReverse,
     Author,
     Character,
+    DateAdded,
+    DateModified,
 }
 
 impl ModSort {
     fn apply(self, mods: &mut Vec<&Mod>, shown_name: &dyn Fn(&Mod) -> String) {
         match self {
             Self::Folder => mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name)),
+            Self::DateAdded | Self::DateModified => mods.sort_by_cached_key(|m| {
+                let time = if matches!(self, Self::DateAdded) {
+                    m.added
+                } else {
+                    m.modified
+                };
+                (
+                    std::cmp::Reverse(time),
+                    shown_name(m).to_lowercase(),
+                    m.folder_name.clone(),
+                )
+            }),
             Self::DisplayName => {
-                mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()))
+                mods.sort_by_cached_key(|m| (shown_name(m).to_lowercase(), m.folder_name.clone()));
             }
             Self::DisplayNameReverse => mods.sort_by_cached_key(|m| {
                 (
@@ -1035,8 +1064,7 @@ impl ModManagerHandler {
                 let Some(path) = path else { continue };
                 let label = path
                     .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                    .map_or_default(|n| n.to_string_lossy().into_owned());
 
                 #[allow(clippy::cast_precision_loss)]
                 let base = index as f32;
@@ -1081,8 +1109,7 @@ impl ModManagerHandler {
                     Err(e) => {
                         let name = path
                             .file_name()
-                            .map(|n| n.to_string_lossy().into_owned())
-                            .unwrap_or_default();
+                            .map_or_default(|n| n.to_string_lossy().into_owned());
 
                         if let Some(reason) = expected_install_failure(&e) {
                             warn!("skipped '{}': {reason}", path.display());
@@ -1141,7 +1168,7 @@ impl ModManagerHandler {
 
             if MOD_EXTENSIONS.contains(&ext.as_str()) && path.is_file() {
                 let key = (
-                    path.parent().map(Path::to_path_buf).unwrap_or_default(),
+                    path.parent().map_or_default(Path::to_path_buf),
                     path.file_stem()
                         .unwrap_or_default()
                         .to_string_lossy()
@@ -1440,8 +1467,7 @@ impl ModManagerHandler {
                     id: g
                         .path
                         .as_ref()
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                        .map_or_default(|p| p.to_string_lossy().into_owned()),
                     name: g.name.clone().unwrap_or_default(),
                     mods: g.mods,
                 })
@@ -1858,8 +1884,7 @@ impl ModManagerHandler {
             .iter()
             .find(|option| option.selected)
             .or_else(|| groups.first())
-            .map(|option| option.name.clone())
-            .unwrap_or_default();
+            .map_or_default(|option| option.name.clone());
 
         let count = state.active_filter_count();
         drop(state);
@@ -2081,7 +2106,7 @@ impl ModManagerHandler {
     }
 
     fn current_zone(m: &Mod) -> String {
-        let parent = m.path.parent().map(Path::to_path_buf).unwrap_or_default();
+        let parent = m.path.parent().map_or_default(Path::to_path_buf);
         if get_mods_path().is_some_and(|mp| mp == parent) {
             String::new()
         } else {
@@ -2742,8 +2767,7 @@ impl ModManagerHandler {
                         .scanned
                         .iter()
                         .find(|g| g.id == id)
-                        .map(|g| g.mods.clone())
-                        .unwrap_or_default()
+                        .map_or_default(|g| g.mods.clone())
                 };
 
                 let all_enabled = !mods.is_empty() && mods.iter().all(|m| m.is_enabled);
@@ -2933,9 +2957,7 @@ impl ModManagerHandler {
             let Some(win) = ww.upgrade() else { return };
 
             let target = Self::zone_at(content_y).map_or_else(String::new, |zone| {
-                let source = Self::mod_by_id(&id)
-                    .map(|m| Self::current_zone(&m))
-                    .unwrap_or_default();
+                let source = Self::mod_by_id(&id).map_or_default(|m| Self::current_zone(&m));
                 if zone == source { String::new() } else { zone }
             });
 

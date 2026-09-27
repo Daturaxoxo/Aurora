@@ -67,6 +67,48 @@
     "icon_pack": "light"
   },
   {
+    "id": "grove",
+    "name": "Grove",
+    "author": "Aurora Team",
+    "background": ["#0f1712dd", "#131d17dd"],
+    "border": ["#b8e0c02a", "#b8e0c00c"],
+    "shadow": "#020a05aa",
+    "primary_text": "#eef6ef",
+    "secondary_text": "#9fb5a5",
+    "surface": "#17231b",
+    "accent": "#8fd6a4",
+    "accent_strong": "#3fae6a",
+    "danger": "#ef5a4a",
+    "warning": "#e2b54a",
+    "success": "#4cc9a0",
+    "favorite": "#f2d27a",
+    "backdrop": "#09100b",
+    "overlay": ["#020a0566", "#020a05b0"],
+    "image": "forest",
+    "icon_pack": "light"
+  },
+  {
+    "id": "amethyst",
+    "name": "Amethyst",
+    "author": "Aurora Team",
+    "background": ["#15101ddd", "#1b1424dd"],
+    "border": ["#d4b8ff2c", "#d4b8ff0e"],
+    "shadow": "#0a0412aa",
+    "primary_text": "#f5f0ff",
+    "secondary_text": "#ab9fc4",
+    "surface": "#1f1729",
+    "accent": "#c4a1ff",
+    "accent_strong": "#9360f0",
+    "danger": "#f0506a",
+    "warning": "#f0b050",
+    "success": "#4fd1a0",
+    "favorite": "#ffd47a",
+    "backdrop": "#0c0812",
+    "overlay": ["#0a041266", "#0a0412b4"],
+    "image": "purpleskies",
+    "icon_pack": "light"
+  },
+  {
     "id": "paper",
     "name": "Paper",
     "author": "Aurora Team",
@@ -84,7 +126,7 @@
     "favorite": "#d8a018",
     "backdrop": "#e8e8ee",
     "overlay": ["#ffffff33", "#ffffff11"],
-    "image": "background",
+    "image": "greyskies",
     "icon_pack": "midnight"
   }
 ]
