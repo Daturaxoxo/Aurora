@@ -4606,9 +4606,70 @@
         "writes": [
             {
                 "file": "Engine.ini",
+                "section": "[/Script/Engine.RendererSettings]",
+                "key": "r.RayTracing",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.SkinCache.CompileShaders",
+                "value": 1,
+                "default": ""
+            },
+            {
                 "section": "[ConsoleVariables]",
+                "key": "r.DynamicGlobalIlluminationMethod",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.ReflectionMethod",
+                "value": 1,
+                "default": ""
+            },
+            {
                 "key": "r.Lumen.HardwareRayTracing",
                 "value": 1,
+                "default": ""
+            },
+            {
+                "key": "r.Lumen.Reflections.HardwareRayTracing",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "section": "[/Script/WindowsTargetPlatform.WindowsTargetSettings]",
+                "key": "DefaultGraphicsRHI",
+                "value": "DefaultGraphicsRHI_DX12",
+                "default": ""
+            }
+        ]
+    },
+    "-reflex": {
+        "fallback": 2,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "t.Streamline.Reflex.Enable",
+                "value": 1,
+                "default": ""
+            },
+            {
+                "key": "t.Streamline.Reflex.Mode",
+                "value": "{}",
+                "default": ""
+            }
+        ]
+    },
+    "-dlsspreset": {
+        "fallback": 0,
+        "writes": [
+            {
+                "file": "Engine.ini",
+                "section": "[ConsoleVariables]",
+                "key": "r.NGX.DLSS.Preset",
+                "value": "{}",
                 "default": ""
             }
         ]

@@ -7,12 +7,14 @@ pub mod version;
 use std::{path::Path, sync::LazyLock};
 
 use anyhow::Result;
+use serde_json::Value;
 
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier,
     capabilities::{AddonSupport, LauncherSupport},
     identity::{GameId, SafeRelativePath},
 };
+use crate::config::{self, ProfileKey};
 
 pub const NTE_PROCESSES: &[&str] = &[
     // GL
@@ -30,9 +32,7 @@ pub const NTE_PROCESSES: &[&str] = &[
 ];
 
 pub const NTE_GAME_EXE: &str = "HTGame.exe";
-
 const FOLDER_NAMES: &[&str] = &[paths::GAME_FOLDER_NAME, "異環", "NTE"];
-
 const MARKERS: &[&str] = &[
     "NTELauncher.exe",
     "NTEGlobalLauncher.exe",
@@ -88,6 +88,11 @@ impl Game for Nte {
             version.key(),
             distribution.key(),
         ))
+    }
+
+    fn profile_default(&self, key: ProfileKey) -> Value {
+        // The legacy unscoped defaults are NTE's, since NTE was the only game.
+        config::default_value(key.as_str())
     }
 
     fn launcher(&self) -> Option<&dyn LauncherSupport> {

@@ -42,6 +42,9 @@ fn main() -> Result<()> {
     }));
 
     config::migrate();
+    if let Err(e) = config::migrate_games() {
+        error!("Could not copy the legacy settings into their game profile: {e}");
+    }
     addons::migrate();
 
     #[cfg(target_os = "windows")]

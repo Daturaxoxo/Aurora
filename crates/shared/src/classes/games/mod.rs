@@ -11,7 +11,9 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
+use serde_json::Value;
 
+use crate::config::ProfileKey;
 use capabilities::{AddonSupport, LauncherSupport};
 use identity::{GameId, SafeRelativePath};
 
@@ -73,6 +75,12 @@ impl InstallationFacts {
 pub trait Game: Send + Sync {
     fn descriptor(&self) -> &GameDescriptor;
     fn inspect_installation(&self, root: &Path) -> Result<InstallationFacts>;
+
+    /// This game's default for a profile field that has never been persisted.
+    fn profile_default(&self, key: ProfileKey) -> Value {
+        let _ = key;
+        Value::Null
+    }
 
     fn launcher(&self) -> Option<&dyn LauncherSupport> {
         None

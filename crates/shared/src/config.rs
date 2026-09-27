@@ -11,6 +11,8 @@ static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 
 const LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCK_RETRY_DELAY: Duration = Duration::from_millis(15);
+const LEGACY_ERROR_TELEMETRY: &str = "error_telemetry";
+const REMOVED_ADDONS: [&str; 2] = ["col_tim", "collectibles"];
 
 pub const LANGS: &[(&str, &str)] = &[
     ("English", "en"),
@@ -192,18 +194,20 @@ fn try_lock_file(path: &Path) -> std::io::Result<File> {
 }
 
 fn acquire_cross_process_lock() -> Option<File> {
-    let path = lock_file_path();
+    lock_with_timeout(&lock_file_path(), LOCK_TIMEOUT)
+}
+
+fn lock_with_timeout(path: &Path, timeout: Duration) -> Option<File> {
     let started = Instant::now();
 
     loop {
-        match try_lock_file(&path) {
+        match try_lock_file(path) {
             Ok(file) => return Some(file),
             Err(e) => {
-                if started.elapsed() >= LOCK_TIMEOUT {
+                if started.elapsed() >= timeout {
                     warn!(
-                        "Gave up waiting for {} after {:?}: {e}",
-                        path.display(),
-                        LOCK_TIMEOUT
+                        "Gave up waiting for {} after {timeout:?}: {e}",
+                        path.display()
                     );
                     return None;
                 }
@@ -262,56 +266,52 @@ fn quarantine(path: &Path, cause: &anyhow::Error) {
 }
 
 fn load_raw() -> Result<Map<String, Value>> {
-    let path = config_file_path();
-    let Some(contents) = read_raw(&path)? else {
+    load_raw_at(&config_file_path())
+}
+
+fn load_raw_at(path: &Path) -> Result<Map<String, Value>> {
+    let Some(contents) = read_raw(path)? else {
         return Ok(Map::new());
     };
 
-    let e = match parse_raw(&contents, &path) {
+    let e = match parse_raw(&contents, path) {
         Ok(map) => return Ok(map),
         Err(e) => e,
     };
     thread::sleep(LOCK_RETRY_DELAY);
 
-    match read_raw(&path) {
+    match read_raw(path) {
         Ok(None) => Ok(Map::new()),
-        Ok(Some(retry)) if retry != contents => parse_raw(&retry, &path),
+        Ok(Some(retry)) if retry != contents => parse_raw(&retry, path),
         _ => {
-            quarantine(&path, &e);
+            quarantine(path, &e);
             Ok(Map::new())
         }
     }
 }
 
-fn save_raw(data: &Map<String, Value>) -> bool {
-    let json_string = match serde_json::to_string_pretty(data) {
-        Ok(json_string) => json_string,
-        Err(e) => {
-            error!("Failed to serialize the config: {e}");
-            return false;
-        }
-    };
-
-    let path = config_file_path();
+fn write_atomic(path: &Path, data: &Map<String, Value>) -> Result<(), ConfigError> {
+    let json_string = serde_json::to_string_pretty(data).map_err(ConfigError::Serialize)?;
     let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
 
     if let Err(e) = write_durable(&tmp, json_string.as_bytes()) {
-        error!("Failed to write {}: {e}", tmp.display());
         let _ = fs::remove_file(&tmp);
-        return false;
+        return Err(ConfigError::io("write", &tmp, e));
     }
 
-    if let Err(e) = fs::rename(&tmp, &path) {
-        warn!("Could not replace {} atomically: {e}", path.display());
+    if let Err(e) = fs::rename(&tmp, path) {
         let _ = fs::remove_file(&tmp);
-
-        if let Err(e) = write_durable(&path, json_string.as_bytes()) {
-            error!("Failed to write {}: {e}", path.display());
-            return false;
-        }
+        return Err(ConfigError::io("replace", path, e));
     }
 
-    true
+    #[cfg(target_os = "linux")]
+    if let Some(dir) = path.parent()
+        && let Ok(dir) = File::open(dir)
+    {
+        let _ = dir.sync_all();
+    }
+
+    Ok(())
 }
 
 fn write_durable(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -346,7 +346,13 @@ pub fn modify(f: impl FnOnce(&mut Map<String, Value>)) -> bool {
     };
 
     f(&mut data);
-    save_raw(&data)
+    match write_atomic(&config_file_path(), &data) {
+        Ok(()) => true,
+        Err(e) => {
+            error!("Failed to save the config: {e}");
+            false
+        }
+    }
 }
 
 pub fn set(k: &str, value: impl Into<Value>) {
@@ -356,11 +362,6 @@ pub fn set(k: &str, value: impl Into<Value>) {
         data.insert(k.to_string(), value);
     });
 }
-
-/// Superseded by [`key::TELEMETRY_OPT_OUT`]
-const LEGACY_ERROR_TELEMETRY: &str = "error_telemetry";
-
-const REMOVED_ADDONS: [&str; 2] = ["col_tim", "collectibles"];
 
 pub fn migrate() {
     let existing = get_all_configs();
@@ -398,3 +399,12 @@ pub fn get_all_configs() -> Map<String, Value> {
         Map::new()
     })
 }
+
+mod migration;
+mod profile;
+
+pub use migration::{ModuleMigration, ProfileMigrationReport, legacy_modules_path, migrate_games};
+pub use profile::{
+    ConfigChange, ConfigError, ConfigUndo, GameProfile, GlobalKey, ProfileKey, ProfilePatch,
+    commit_change, game_modules_path, read_global, read_profile, rollback_change, update_profile,
+};
