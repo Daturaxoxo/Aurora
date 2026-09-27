@@ -40,7 +40,7 @@ pub struct GameDescriptor {
     pub game_executable: SafeRelativePath,
     pub binaries: SafeRelativePath,
     pub payload_dir: SafeRelativePath,
-    pub engine: EngineKind,
+    pub engine: Option<EngineKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

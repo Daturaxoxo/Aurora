@@ -1,5 +1,4 @@
 pub mod engine;
-pub mod global;
 pub mod handler;
 
 pub mod classes {

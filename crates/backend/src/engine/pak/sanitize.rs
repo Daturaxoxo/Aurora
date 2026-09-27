@@ -6,25 +6,14 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use log::*;
 
-use shared::classes::info::version::BypassMethod;
-use shared::config::{self, key};
+use shared::classes::games::nte::version::BypassMethod;
 use shared::utils::read_dir_recursive;
 
-use super::AuroraEngine;
+use super::PakEngine;
+use crate::engine::contract::{InjectedPluginRecord, RecordChanges};
+
 const INCOMPATIBLE: &[&str] = &["anticensor"];
 const FLAGGED_PREFIXES: &[&str] = &["gctip_p", "uidrm_p"];
-
-fn injected_plugins() -> Vec<PathBuf> {
-    config::get(key::INJECTED_PLUGINS)
-        .as_array()
-        .map_or_default(|paths| {
-            paths
-                .iter()
-                .filter_map(|v| v.as_str())
-                .map(PathBuf::from)
-                .collect()
-        })
-}
 
 fn flagged_files(pak_dir: &Path) -> Vec<(String, PathBuf)> {
     read_dir_recursive(&pak_dir.to_path_buf())
@@ -68,32 +57,36 @@ fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-fn prune_injected_plugins(injected: &[PathBuf]) {
-    let remaining: Vec<String> = injected
-        .iter()
-        .filter(|p| p.exists())
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
-
-    if !remaining.is_empty() {
-        warn!(
-            "{} injected plugin(s) could not be removed, keeping them in the manifest",
-            remaining.len()
-        );
+fn removed_records(injected: &[InjectedPluginRecord]) -> RecordChanges {
+    let mut changes = RecordChanges::default();
+    let mut kept = 0;
+    for record in injected {
+        if record.path.exists() {
+            kept += 1;
+        } else {
+            changes.remove(record.clone());
+        }
     }
 
-    config::set(key::INJECTED_PLUGINS, remaining);
+    if kept > 0 {
+        warn!("{kept} injected plugin(s) could not be removed, keeping them tracked");
+    }
+    changes
 }
 
-impl AuroraEngine {
-    pub fn sanitize(&self, stop_processes: bool) -> Result<()> {
+impl PakEngine {
+    pub fn sanitize_files(
+        &self,
+        stop_processes: bool,
+        injected: &[InjectedPluginRecord],
+    ) -> (Result<()>, RecordChanges) {
         info!("Starting system sanitization");
         if stop_processes {
             trace!("Killing processes");
-            self.kill_nte_processes()?;
+            if let Err(e) = self.kill_nte_processes() {
+                return (Err(e), RecordChanges::default());
+            }
         }
-
-        let injected = injected_plugins();
 
         let mut failures: Vec<String> = Vec::new();
 
@@ -118,7 +111,7 @@ impl AuroraEngine {
             .chain(
                 injected
                     .iter()
-                    .map(|p| ("Injected plugin".to_string(), p.clone())),
+                    .map(|r| ("Injected plugin".to_string(), r.path.clone())),
             )
             .chain(remove_incompatible(&self.win64))
             .chain(flagged_files(&self.pak_dir))
@@ -144,17 +137,20 @@ impl AuroraEngine {
             }
         }
 
-        prune_injected_plugins(&injected);
+        let records = removed_records(injected);
 
         if !failures.is_empty() {
-            return Err(anyhow!(
-                "Sanitization failed for {} target(s): {}",
-                failures.len(),
-                failures.join("; ")
-            ));
+            return (
+                Err(anyhow!(
+                    "Sanitization failed for {} target(s): {}",
+                    failures.len(),
+                    failures.join("; ")
+                )),
+                records,
+            );
         }
 
-        Ok(())
+        (Ok(()), records)
     }
 
     fn remove_target(label: &str, path: &Path) -> Result<()> {

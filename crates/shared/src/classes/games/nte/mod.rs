@@ -69,7 +69,7 @@ impl Nte {
                 game_executable: path(NTE_GAME_EXE),
                 binaries: path(paths::CLIENT_WIN64),
                 payload_dir: path("nte"),
-                engine: EngineKind::Pak,
+                engine: Some(EngineKind::Pak),
             },
         }
     }

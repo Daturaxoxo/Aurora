@@ -1,13 +1,35 @@
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+pub mod engine;
 
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
-use backend::handler::{self, EngineCommand, EngineEvent, EngineHandler};
+use backend::engine::contract::{NotificationKind, Readiness};
+use backend::handler::EngineEvent;
 use log::*;
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
+
+const INIT_WARNINGS: &[(&str, &str)] = &[
+    (
+        "None of the expected launchers were found",
+        "Invalid game installation: no game markers were found.",
+    ),
+    (
+        "Game path not found",
+        "Your game path couldn't be found, set it manually in the settings.",
+    ),
+    (
+        "Aurora couldn't find the game path",
+        "Your game path couldn't be found, set it manually in the settings.",
+    ), // dont ask me why there are 2. -daturas
+];
+
+pub fn init_warning(msg: &str) -> Option<&'static str> {
+    INIT_WARNINGS
+        .iter()
+        .find(|(needle, _)| msg.contains(needle))
+        .map(|(_, warning)| *warning)
+}
 
 #[derive(Default)]
 pub struct PopupSpec {
@@ -59,91 +81,94 @@ impl PopupSpec {
 
 pub struct Bridge;
 
-static GAME_BUSY: AtomicBool = AtomicBool::new(false);
-
 impl Bridge {
     pub fn game_busy() -> bool {
-        GAME_BUSY.load(Ordering::SeqCst)
+        engine::session_active()
     }
 
+    // TODO(lane B, b4-3): run the shared startup preparation before launching.
     pub fn quick_start() -> Result<()> {
-        let handler = EngineHandler::start()?;
-        handler
-            .cmd_tx
-            .send(EngineCommand::Launch(Self::custom_addon_files()))
-            .map_err(|e| anyhow!("failed to send launch command: {e}"))?;
+        let events = engine::start()?;
+        engine::configure()
+            .map_err(|e| anyhow!("Quick start failed: engine could not initialise: {e}"))?;
 
-        for event in handler.evt_rx {
+        let result = Self::quick_start_events(&events);
+        if let Err(e) = engine::shutdown() {
+            error!("Quick start: engine shutdown failed: {e}");
+        }
+        result
+    }
+
+    fn quick_start_events(events: &std::sync::mpsc::Receiver<EngineEvent>) -> Result<()> {
+        for event in events {
             match event {
-                EngineEvent::EngineReady => {
-                    info!("Quick start: engine ready");
+                EngineEvent::Configured(outcome) => match outcome.result {
+                    Ok(Readiness::Ready) => {
+                        info!("Quick start: engine ready");
+                        engine::launch()?;
+                    }
+                    Ok(Readiness::Unavailable) => {
+                        return Err(anyhow!(
+                            "Quick start failed: engine could not initialise: no game installation"
+                        ));
+                    }
+                    Err(e) => {
+                        return Err(anyhow!(
+                            "Quick start failed: engine could not initialise: {e}"
+                        ));
+                    }
+                },
+                EngineEvent::Launched(outcome) => {
+                    engine::persist_records(&outcome.tag, &outcome.records);
+                    match outcome.result {
+                        Ok(()) => info!("Quick start: launcher opened, waiting for NTE to exit"),
+                        Err(e) => return Err(anyhow!("Quick start launch failed: {e}")),
+                    }
                 }
-                EngineEvent::EngineInitFailed(msg) => {
-                    return Err(anyhow!(
-                        "Quick start failed: engine could not initialise: {msg}"
-                    ));
-                }
-                EngineEvent::LaunchSuccess => {
-                    info!("Quick start: launcher opened, waiting for NTE to exit");
-                }
-                EngineEvent::LaunchFailed(msg) => {
-                    return Err(anyhow!("Quick start launch failed: {msg}"));
-                }
-                EngineEvent::GameClosed => {
+                EngineEvent::SessionClosed(outcome) => {
+                    engine::persist_records(&outcome.tag, &outcome.records);
                     info!("Quick start: game closed and clean-up finished, exiting");
                     return Ok(());
                 }
-                EngineEvent::EverlightFatal(msg) => {
-                    error!("Quick start: Everlight fatal error, game was closed: {msg}");
+                EngineEvent::Notification { kind, text, .. } => match kind {
+                    NotificationKind::Error => error!("Quick start: {text}"),
+                    NotificationKind::Warning => warn!("Quick start: {text}"),
+                    NotificationKind::Success => info!("Quick start: {text}"),
+                },
+                EngineEvent::EverlightFatal { message, .. } => {
+                    error!("Quick start: Everlight fatal error, game was closed: {message}");
                 }
-                EngineEvent::EverlightTimeout => {
+                EngineEvent::EverlightTimeout { .. } => {
                     error!(
                         "Quick start: Everlight produced no log within the timeout, game was \
                          closed. Try switching engine methods in settings."
                     );
                 }
-                EngineEvent::ValidationResult { missing } => {
-                    if missing.is_empty() {
-                        info!("Quick start: validation passed, all required files are present");
-                    } else {
-                        error!(
-                            "Quick start: validation found missing files: {}",
-                            missing.join(", ")
-                        );
-                    }
-                }
-                EngineEvent::Toast { .. } | EngineEvent::GamePathUpdated(_) => {}
+                EngineEvent::Validated(_) | EngineEvent::Sanitized(_) | EngineEvent::Killed(_) => {}
             }
         }
         Err(anyhow!("engine event channel closed unexpectedly"))
     }
 
-    fn custom_addon_files() -> Option<Vec<PathBuf>> {
-        if !config::get(key::CUSTOM_ADDONS_TOGGLED)
-            .as_bool()
-            .unwrap_or(false)
-        {
-            return None;
-        }
-        let plugin_files = config::get(key::CUSTOM_ADDONS)
-            .as_array()
-            .map_or_default(|a| {
-                a.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(PathBuf::from)
-                    .collect::<Vec<PathBuf>>()
-            });
-
-        if plugin_files.is_empty() {
-            None
+    pub fn report_configure(window: &slint::Weak<MainWindow>, result: Result<()>) {
+        let Err(e) = result else { return };
+        let msg = e.to_string();
+        if let Some(warning) = init_warning(&msg) {
+            warn!("Engine failed to initialise: {msg}");
+            Self::show_toast(window, warning, "warning");
         } else {
-            Some(plugin_files)
+            error!("Engine failed to initialise: {msg}");
+            Self::show_toast(
+                window,
+                &format!("Engine error: {msg}\nCheck your game path in Settings."),
+                "error",
+            );
         }
     }
 
     pub fn setup(window: &slint::Weak<MainWindow>) {
-        let handler = match EngineHandler::start() {
-            Ok(h) => h,
+        let events = match engine::start() {
+            Ok(events) => events,
             Err(e) => {
                 error!("Failed to start engine handler: {e}");
                 return;
@@ -154,14 +179,14 @@ impl Bridge {
             w.set_launch_disabled(true);
         }
 
-        let cmd_tx = handler.cmd_tx.clone();
         let w_launch = window.clone();
         if let Some(w) = window.upgrade() {
             w.on_launch_clicked(move || {
-                let plugin_files = Self::custom_addon_files();
-                debug!("Launching game with plugins: {plugin_files:?}");
-                GAME_BUSY.store(true, Ordering::SeqCst);
-                cmd_tx.send(EngineCommand::Launch(plugin_files)).ok();
+                if let Err(e) = engine::launch() {
+                    error!("Launch failed: {e}");
+                    Self::show_toast(&w_launch, &e.to_string(), "error");
+                    return;
+                }
 
                 let w_inner = w_launch.clone();
                 slint::invoke_from_event_loop(move || {
@@ -176,35 +201,50 @@ impl Bridge {
 
         let w = window.clone();
         std::thread::spawn(move || {
-            for event in handler.evt_rx {
+            Self::report_configure(&w, engine::configure());
+            if let Some(root) = engine::installation_root() {
+                let path_str: String = root.to_string_lossy().into_owned();
                 let w = w.clone();
-                match event {
-                    EngineEvent::EngineReady => {
-                        slint::invoke_from_event_loop(move || {
-                            if updater::UpdateHandler::ui_locked() {
-                                info!("Engine ready while an update holds the UI lock");
-                                return;
-                            }
-                            if let Some(w) = w.upgrade() {
-                                w.set_launch_disabled(false);
-                            }
-                        })
-                        .ok();
+                slint::invoke_from_event_loop(move || {
+                    if let Some(w) = w.upgrade() {
+                        w.set_game_directory(path_str.into());
                     }
-                    EngineEvent::EngineInitFailed(msg) => {
-                        if let Some(warning) = handler::init_warning(&msg) {
-                            warn!("Engine failed to initialise: {msg}");
-                            Self::show_toast(&w, warning, "warning");
-                        } else {
-                            error!("Engine failed to initialise: {msg}");
-                            Self::show_toast(
-                                &w,
-                                &format!("Engine error: {msg}\nCheck your game path in Settings."),
-                                "error",
-                            );
+                })
+                .ok();
+            }
+
+            // TODO(lane B, b4-5): drop events whose tag is no longer the runtime's current one.
+            for event in events {
+                Self::handle_event(&w, event);
+            }
+        });
+    }
+
+    fn handle_event(w: &slint::Weak<MainWindow>, event: EngineEvent) {
+        let w = w.clone();
+        match event {
+            EngineEvent::Configured(outcome) => match outcome.result {
+                Ok(Readiness::Ready) => {
+                    slint::invoke_from_event_loop(move || {
+                        if updater::UpdateHandler::ui_locked() {
+                            info!("Engine ready while an update holds the UI lock");
+                            return;
                         }
-                    }
-                    EngineEvent::LaunchSuccess => {
+                        if let Some(w) = w.upgrade() {
+                            w.set_launch_disabled(false);
+                        }
+                    })
+                    .ok();
+                }
+                Ok(Readiness::Unavailable) => {
+                    info!("Engine for {} is unavailable", outcome.tag);
+                }
+                Err(e) => Self::report_configure(&w, Err(e)),
+            },
+            EngineEvent::Launched(outcome) => {
+                engine::persist_records(&outcome.tag, &outcome.records);
+                match outcome.result {
+                    Ok(()) => {
                         let toast_key = match StartMethod::decode(&config::get(key::START_METHOD)) {
                             StartMethod::Direct => "toast.launch-direct",
                             StartMethod::Manual => "toast.launcher-opened",
@@ -222,9 +262,11 @@ impl Bridge {
                             crate::classes::tray::activate(&w, true);
                         }
                     }
-                    EngineEvent::LaunchFailed(msg) => {
-                        GAME_BUSY.store(false, Ordering::SeqCst);
-                        Self::show_toast(&w, &msg, "error");
+                    Err(e) => {
+                        if engine::session_ended() {
+                            Self::report_configure(&w, engine::configure());
+                        }
+                        Self::show_toast(&w, &e.to_string(), "error");
                         slint::invoke_from_event_loop(move || {
                             if updater::UpdateHandler::ui_locked() {
                                 info!("Launch failed while an update holds the UI lock");
@@ -237,75 +279,91 @@ impl Bridge {
                         })
                         .ok();
                     }
-                    EngineEvent::GameClosed => {
-                        GAME_BUSY.store(false, Ordering::SeqCst);
-                        crate::classes::tray::deactivate(&w);
-                        let w_ui = w.clone();
-                        slint::invoke_from_event_loop(move || {
-                            let Some(w) = w_ui.upgrade() else { return };
-                            ModManagerHandler::game_closed(&w);
-                            if updater::UpdateHandler::ui_locked() {
-                                info!("Game closed while an update holds the UI lock");
-                                return;
-                            }
-                            w.set_launch_state(LaunchState::Launch);
-                            w.set_launch_disabled(false);
-                        })
-                        .ok();
-                        Self::show_toast(&w, "Game closed.", "success");
+                }
+            }
+            EngineEvent::SessionClosed(outcome) => {
+                engine::persist_records(&outcome.tag, &outcome.records);
+                if engine::session_ended() {
+                    Self::report_configure(&w, engine::configure());
+                }
+                crate::classes::tray::deactivate(&w);
+                let w_ui = w.clone();
+                slint::invoke_from_event_loop(move || {
+                    let Some(w) = w_ui.upgrade() else { return };
+                    ModManagerHandler::game_closed(&w);
+                    if updater::UpdateHandler::ui_locked() {
+                        info!("Game closed while an update holds the UI lock");
+                        return;
                     }
-                    EngineEvent::GamePathUpdated(path) => {
-                        let path_str: String = path.to_string_lossy().into_owned();
-                        slint::invoke_from_event_loop(move || {
-                            if let Some(w) = w.upgrade() {
-                                w.set_game_directory(path_str.into());
-                            }
-                        })
-                        .ok();
-                    }
-                    EngineEvent::ValidationResult { missing } => {
-                        if missing.is_empty() {
-                            info!("Validation passed, all required files are present");
-                            Self::show_toast(
-                                &w,
-                                "Validation passed! All required files are present.",
-                                "success",
-                            );
-                        } else {
-                            error!("Validation found missing files: {}", missing.join(", "));
-                            Self::show_toast(
-                                &w,
-                                &format!("Missing required files:\n{}", missing.join("\n")),
-                                "error",
-                            );
-                        }
-                    }
-                    EngineEvent::Toast { text, kind } => {
-                        Self::show_toast(&w, &text, &kind);
-                    }
-                    EngineEvent::EverlightFatal(msg) => {
-                        Self::show_popup(
+                    w.set_launch_state(LaunchState::Launch);
+                    w.set_launch_disabled(false);
+                })
+                .ok();
+                Self::show_toast(&w, "Game closed.", "success");
+            }
+            EngineEvent::Validated(outcome) => {
+                engine::persist_records(&outcome.tag, &outcome.records);
+                match outcome.result {
+                    Ok(report) if report.missing.is_empty() => {
+                        info!("Validation passed, all required files are present");
+                        Self::show_toast(
                             &w,
-                            "everlight-fatal",
-                            "Everlight fatal error",
-                            &format!(
-                                "Everlight ran into a fatal error and cannot continue this \
-                                 session:\n\n{msg}\n\nThe game has been closed."
-                            ),
+                            "Validation passed! All required files are present.",
+                            "success",
                         );
                     }
-                    EngineEvent::EverlightTimeout => {
-                        Self::show_popup(
-                            &w,
-                            "everlight-timeout",
-                            "Everlight did not start",
-                            "Everlight did not produce a log file within 45 seconds, so the game \
-                             has been closed.\n\nTry switching engine methods in Settings.",
+                    Ok(report) => {
+                        error!(
+                            "Validation found missing files: {}",
+                            report.missing.join(", ")
                         );
+                        Self::show_toast(
+                            &w,
+                            &format!("Missing required files:\n{}", report.missing.join("\n")),
+                            "error",
+                        );
+                    }
+                    Err(e) => {
+                        error!("Validate failed: {e}");
+                        Self::show_toast(&w, &format!("Validation failed: {e}"), "error");
                     }
                 }
             }
-        });
+            EngineEvent::Sanitized(outcome) => {
+                engine::persist_records(&outcome.tag, &outcome.records);
+                if let Err(e) = outcome.result {
+                    error!("Sanitize failed: {e}");
+                }
+            }
+            EngineEvent::Killed(outcome) => {
+                if let Err(e) = outcome.result {
+                    error!("Failed to kill the game processes: {e}");
+                }
+            }
+            EngineEvent::Notification { kind, text, .. } => {
+                Self::show_toast(&w, &text, kind.as_str());
+            }
+            EngineEvent::EverlightFatal { message, .. } => {
+                Self::show_popup(
+                    &w,
+                    "everlight-fatal",
+                    "Everlight fatal error",
+                    &format!(
+                        "Everlight ran into a fatal error and cannot continue this \
+                         session:\n\n{message}\n\nThe game has been closed."
+                    ),
+                );
+            }
+            EngineEvent::EverlightTimeout { .. } => {
+                Self::show_popup(
+                    &w,
+                    "everlight-timeout",
+                    "Everlight did not start",
+                    "Everlight did not produce a log file within 45 seconds, so the game \
+                     has been closed.\n\nTry switching engine methods in Settings.",
+                );
+            }
+        }
     }
 
     pub fn show_popup(window: &slint::Weak<MainWindow>, id: &str, title: &str, message: &str) {

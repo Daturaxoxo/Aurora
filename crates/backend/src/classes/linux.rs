@@ -6,22 +6,38 @@ use anyhow::{Context, Result, anyhow};
 use log::{debug, info, warn};
 
 use crate::classes::launch_options::{self, LaunchOptions};
+use crate::engine::contract::LaunchInput;
+use shared::classes::games::launch::CompatRequirement;
 use shared::classes::steam::real_user;
 use shared::classes::steam::{
     STEAM_APP_ID, aurora_compat_data_dir, find_steam_root, steam_libraries,
 };
 
-const DLL_OVERRIDES: [&str; 3] = ["version", "dsound", "dwmapi"];
-
-pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process::Child> {
+pub fn launch_via_proton(request: &LaunchInput) -> Result<std::process::Child> {
+    let plan = &request.plan;
+    let exe = plan.executable.as_path();
     debug!("launch_via_proton: exe={}", exe.display());
+
+    if plan.compatibility != Some(CompatRequirement::Proton) {
+        return Err(anyhow!(
+            "the launch plan for {} has no Proton requirement",
+            exe.display()
+        ));
+    }
+    // TODO(lane B, b2-3): STEAM_APP_ID and the compat data directory below are still
+    // NTE's; take them from explicit game/Steam metadata.
 
     let steam_root = find_steam_root()
         .ok_or_else(|| anyhow!("could not determine Steam client install directory"))?;
 
     debug!("Using Steam root at {}", steam_root.display());
 
-    let proton_bin = find_dwproton_script(&steam_root).ok_or_else(|| {
+    let proton_bin = find_dwproton_script(
+        &steam_root,
+        &request.proton_version,
+        &request.proton_custom_path,
+    )
+    .ok_or_else(|| {
         anyhow!(
             "DW-Proton is not installed (looked for a DW-Proton build in {})",
             steam_root.join("compatibilitytools.d").display()
@@ -38,9 +54,7 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
 
     // Steam runs a game from its own install directory, and protonfixes reads
     // `PWD` to work out which library the game belongs to.
-    let work_dir = exe
-        .parent()
-        .ok_or_else(|| anyhow!("{} has no parent directory", exe.display()))?;
+    let work_dir = plan.working_directory.as_path();
 
     // The prefix has to exist before we can write registry keys into it, and
     // on a fresh Aurora compat data directory it won't until Proton has run
@@ -55,7 +69,7 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
         }
     }
 
-    ensure_dll_overrides(&proton_bin, &compat_data.join("pfx"));
+    ensure_dll_overrides(&proton_bin, &compat_data.join("pfx"), &plan.dll_overrides);
 
     info!(
         "Launching {} via Proton at {} (compat data {})",
@@ -64,14 +78,14 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
         compat_data.display()
     );
 
-    let opts = proton_launch_options();
+    let opts = proton_launch_options(&request.proton_args);
 
     let mut command_line: Vec<OsString> = Vec::new();
     command_line.extend(opts.wrapper.iter().map(OsString::from));
     command_line.push(proton_bin.into_os_string());
     command_line.push(OsString::from("waitforexitandrun"));
     command_line.push(exe.as_os_str().to_os_string());
-    command_line.extend(game_args.iter().map(OsString::from));
+    command_line.extend(plan.arguments.iter().map(OsString::from));
     command_line.extend(opts.trailing_args.iter().map(OsString::from));
 
     let mut command_line = command_line.into_iter();
@@ -83,6 +97,7 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
 
     let mut cmd = command_as_real_user(&program);
     cmd.args(command_line);
+    cmd.envs(plan.environment.iter().map(|(k, v)| (k, v)));
     for (k, v) in &opts.env {
         cmd.env(k, v);
     }
@@ -106,15 +121,14 @@ pub fn launch_via_proton(exe: &Path, game_args: &[&str]) -> Result<std::process:
     Ok(child)
 }
 
-fn proton_launch_options() -> LaunchOptions {
-    let raw = shared::config::get(shared::config::key::PROTON_ARGS);
-    let raw = raw.as_str().unwrap_or("").trim().to_string();
+fn proton_launch_options(raw: &str) -> LaunchOptions {
+    let raw = raw.trim();
 
     if raw.is_empty() {
         return LaunchOptions::default();
     }
 
-    let opts = launch_options::parse(&raw);
+    let opts = launch_options::parse(raw);
 
     info!(
         "Proton launch options: env={:?} wrapper={:?} args={:?} (%command% {})",
@@ -160,11 +174,10 @@ fn bootstrap_prefix(
 
 /// Applies the DLL overrides mods need to `prefix`, using the wine binary
 /// belonging to the same Proton build that owns it.
-fn ensure_dll_overrides(proton_bin: &Path, prefix: &Path) {
-    match apply_overrides(proton_bin, prefix) {
+fn ensure_dll_overrides(proton_bin: &Path, prefix: &Path, overrides: &[String]) {
+    match apply_overrides(proton_bin, prefix, overrides) {
         Ok(()) => info!(
-            "Applied WINEDLLOVERRIDES for {:?} to prefix {}",
-            DLL_OVERRIDES,
+            "Applied WINEDLLOVERRIDES for {overrides:?} to prefix {}",
             prefix.display()
         ),
         Err(e) => warn!(
@@ -175,7 +188,7 @@ fn ensure_dll_overrides(proton_bin: &Path, prefix: &Path) {
     }
 }
 
-fn apply_overrides(proton_bin: &Path, prefix: &Path) -> Result<()> {
+fn apply_overrides(proton_bin: &Path, prefix: &Path, overrides: &[String]) -> Result<()> {
     if !prefix.is_dir() {
         return Err(anyhow!("prefix {} does not exist", prefix.display()));
     }
@@ -185,7 +198,7 @@ fn apply_overrides(proton_bin: &Path, prefix: &Path) -> Result<()> {
 
     debug!("Using wine binary at {}", wine.display());
 
-    for dll in DLL_OVERRIDES {
+    for dll in overrides {
         set_override(&wine, prefix, dll)
             .with_context(|| format!("failed to set override for {dll}.dll"))?;
     }
@@ -473,9 +486,8 @@ pub fn remove_custom_proton_build(dir: &Path) {
     save_custom_paths(&paths);
 }
 
-fn selected_custom_proton() -> Option<PathBuf> {
-    let configured = shared::config::get(shared::config::key::PROTON_CUSTOM_PATH);
-    let configured = configured.as_str().unwrap_or("").trim().to_string();
+fn selected_custom_proton(configured: &str) -> Option<PathBuf> {
+    let configured = configured.trim();
 
     if configured.is_empty() {
         return None;
@@ -499,8 +511,8 @@ pub fn is_proton_version_not_recommended(version: &str) -> bool {
     !version.contains("10.") && !version.is_empty()
 }
 
-fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
-    if let Some(dir) = selected_custom_proton() {
+fn find_dwproton_script(steam_root: &Path, configured: &str, custom_path: &str) -> Option<PathBuf> {
+    if let Some(dir) = selected_custom_proton(custom_path) {
         info!(
             "Using the manually selected Proton installation at {}",
             dir.display()
@@ -510,8 +522,7 @@ fn find_dwproton_script(steam_root: &Path) -> Option<PathBuf> {
 
     let builds = dwproton_builds(steam_root);
 
-    let configured = shared::config::get(shared::config::key::PROTON_VERSION);
-    let configured = configured.as_str().unwrap_or("").trim().to_string();
+    let configured = configured.trim();
 
     if !configured.is_empty() {
         match builds.iter().find(|build| build.name == configured) {

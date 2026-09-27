@@ -1,6 +1,5 @@
 use crate::classes::toast::ToastHandler;
 use crate::{CheckboxItem, MainWindow};
-use backend::handler::{self, EngineCommand};
 use log::*;
 use shared::{
     classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory, utils::open_folder,
@@ -136,13 +135,8 @@ impl ButtonHandler {
     }
 
     fn kill_game() {
-        match handler::get_tx() {
-            Ok(tx) => {
-                if let Err(err) = tx.send(EngineCommand::KillProcesses) {
-                    error!("Failed to send kill process command: {err}");
-                }
-            }
-            Err(err) => error!("Failed to get engine command sender: {err}"),
+        if let Err(err) = crate::bridge::engine::kill() {
+            error!("Failed to send kill process command: {err}");
         }
     }
 }

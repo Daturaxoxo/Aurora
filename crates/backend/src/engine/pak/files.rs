@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use log::*;
-use shared::classes::info::{Target, addons};
-use shared::config::{get, key};
+use shared::classes::games::nte::addons;
+use shared::classes::info::Target;
+use shared::config::key;
 
 use crate::classes::addons::CENSORSHIP_DIR;
 use crate::classes::addons::pak::PakAddon;
 
-use super::AuroraEngine;
+use super::PakEngine;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileGroup {
@@ -28,7 +29,7 @@ pub struct ManagedFile {
     pub addon: Option<String>,
 }
 
-impl AuroraEngine {
+impl PakEngine {
     pub fn managed_files(&self) -> Vec<ManagedFile> {
         let mut files = self.loader_dll_files();
         files.extend(self.signature_bypass_files());
@@ -54,7 +55,7 @@ impl AuroraEngine {
                 );
                 Some(ManagedFile {
                     label,
-                    source: self.bin_path.join("Wrappers").join(&name),
+                    source: self.payload.wrappers().join(&name),
                     destination,
                     required: true,
                     enabled: true,
@@ -67,15 +68,17 @@ impl AuroraEngine {
 
     pub(super) fn asi_source(&self, target: Target) -> PathBuf {
         match target {
-            Target::AuroraTf | Target::CNAuroraTF => {
-                self.addons_path.join(CENSORSHIP_DIR).join(target.as_file())
-            }
-            Target::AsiPlugin | Target::Cutils => self.bin_path.join(target.as_file()),
+            Target::AuroraTf | Target::CNAuroraTF => self
+                .payload
+                .addons()
+                .join(CENSORSHIP_DIR)
+                .join(target.as_file()),
+            Target::AsiPlugin | Target::Cutils => self.payload.root().join(target.as_file()),
         }
     }
 
     fn signature_bypass_files(&self) -> Vec<ManagedFile> {
-        let crr = get(key::CENSORSHIP_REMOVE).as_bool().unwrap_or(false)
+        let crr = self.deployment.addon_enabled(key::CENSORSHIP_REMOVE)
             && !self.addon_unavailable(key::CENSORSHIP_REMOVE);
 
         self.targets
@@ -118,22 +121,19 @@ impl AuroraEngine {
         PakAddon::get_pak_addons()
             .into_iter()
             .flat_map(|addon| {
-                let enabled = get(&addon.config_key).as_bool().unwrap_or_else(|| {
-                    // TODO: old behaviour aborted injection entirely in this case,
-                    // imo warning without failing is better @daturas
-                    warn!(
-                        "Could not read config key '{}' for PAK addon '{}', treating it as disabled",
-                        addon.config_key, addon.base_name
-                    );
-                    false
-                }) && !self.addon_unavailable(&addon.config_key);
+                let enabled = self.deployment.addon_enabled(&addon.config_key)
+                    && !self.addon_unavailable(&addon.config_key);
 
                 addon
                     .resolve(&self.pak_dir)
                     .into_iter()
                     .map(move |resolved| ManagedFile {
                         label: resolved.file_name.clone(),
-                        source: self.addons_path.join(resolved.to_folder_name()).join(&resolved.file_name),
+                        source: self
+                            .payload
+                            .addons()
+                            .join(resolved.to_folder_name())
+                            .join(&resolved.file_name),
                         destination: resolved.path,
                         required: false,
                         enabled,

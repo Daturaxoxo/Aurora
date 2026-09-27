@@ -5,8 +5,8 @@ use crate::{
     FilterOption, GroupOption, IconChoice, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag,
 };
 
+use crate::bridge::engine;
 use anyhow::{Context, Result, anyhow};
-use backend::handler::GAME_RUNNING;
 use log::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -980,7 +980,7 @@ impl ModManagerHandler {
     }
 
     fn note_toggle(id: &str) {
-        if !GAME_RUNNING.load(Ordering::SeqCst) {
+        if !engine::session_active() {
             return;
         }
         let mut state = STATE.lock().unwrap();
@@ -1593,7 +1593,7 @@ impl ModManagerHandler {
 
             // Anything toggled during a session is live again once the game is
             // gone, whether or not we saw the close event
-            if !GAME_RUNNING.load(Ordering::SeqCst) {
+            if !engine::session_active() {
                 state.restart_required.clear();
             }
 

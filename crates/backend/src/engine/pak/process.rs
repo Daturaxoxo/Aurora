@@ -2,14 +2,13 @@ use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-use super::AuroraEngine;
+use super::PakEngine;
 use super::locks;
 
 /// How long to wait for a process to actually disappear after asking it to die.
@@ -258,8 +257,8 @@ pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<
     Ok(killed)
 }
 
-#[derive(Clone)]
-pub struct KillSnapshot {
+#[derive(Debug, Clone)]
+pub struct ProcessTargets {
     pub launcher_process: &'static str,
     pub game_process: &'static str,
     pub helper_processes: Vec<&'static str>,
@@ -267,32 +266,11 @@ pub struct KillSnapshot {
     pub loader_dlls: Vec<(String, PathBuf)>,
 }
 
-static KILL_SNAPSHOT: OnceLock<RwLock<Option<KillSnapshot>>> = OnceLock::new();
-
-fn kill_snapshot_lock() -> &'static RwLock<Option<KillSnapshot>> {
-    KILL_SNAPSHOT.get_or_init(|| RwLock::new(None))
-}
-
-pub fn set_kill_snapshot(snapshot: KillSnapshot) {
-    if let Ok(mut guard) = kill_snapshot_lock().write() {
-        *guard = Some(snapshot);
-    }
-}
-
-pub fn kill_nte_processes_standalone() -> Result<()> {
-    let snapshot = {
-        let guard = kill_snapshot_lock()
-            .read()
-            .map_err(|e| anyhow!("Kill snapshot poisoned: {e}"))?;
-        guard
-            .clone()
-            .ok_or_else(|| anyhow!("Kill snapshot not initialized yet"))?
-    };
-
+pub(super) fn kill_targets(targets: &ProcessTargets) -> Result<()> {
     let snapshot_data = ProcessSnapshot::refresh();
 
-    let mut names = vec![snapshot.launcher_process, snapshot.game_process];
-    names.extend(snapshot.helper_processes.iter().copied());
+    let mut names = vec![targets.launcher_process, targets.game_process];
+    names.extend(targets.helper_processes.iter().copied());
     trace!("Processes to kill: {}", names.join(", "));
 
     let mut to_kill = Vec::new();
@@ -302,7 +280,7 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
         }
     }
 
-    for (pid, process) in snapshot_data.in_dir(&snapshot.win64) {
+    for (pid, process) in snapshot_data.in_dir(&targets.win64) {
         to_kill.push((*pid, process));
         trace!(
             "Killing {} (runs from Win64)",
@@ -313,7 +291,7 @@ pub fn kill_nte_processes_standalone() -> Result<()> {
     let killed = kill_processes(to_kill)?;
     trace!("Killed {} process(es)", killed.len());
 
-    for (label, destination) in &snapshot.loader_dlls {
+    for (label, destination) in &targets.loader_dlls {
         if !destination.exists() {
             continue;
         }
@@ -389,8 +367,8 @@ fn clear_readonly(path: &Path) -> bool {
     std::fs::set_permissions(path, perms).is_ok()
 }
 
-impl AuroraEngine {
+impl PakEngine {
     pub fn kill_nte_processes(&self) -> Result<()> {
-        kill_nte_processes_standalone()
+        kill_targets(&self.process_targets())
     }
 }

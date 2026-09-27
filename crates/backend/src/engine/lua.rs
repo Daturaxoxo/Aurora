@@ -9,17 +9,7 @@ use crate::classes::validate::ensure_dir;
 pub struct LuaManager;
 
 impl LuaManager {
-    pub fn exists(bin_path: &Path) -> bool {
-        bin_path
-            .join("Lua")
-            .join("ue4ss")
-            .join("UE4SS.dll")
-            .exists()
-    }
-
-    pub fn setup(bin_path: &Path, win64_path: &Path) -> Result<()> {
-        let lua_dir = bin_path.join("Lua");
-
+    pub fn setup(lua_dir: &Path, win64_path: &Path) -> Result<()> {
         ensure_dir(&win64_path.to_path_buf())?;
 
         let dwmapi_src = lua_dir.join("dwmapi.dll");

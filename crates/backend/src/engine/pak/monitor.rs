@@ -1,18 +1,18 @@
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use log::*;
-use shared::classes::info::NTE_PROCESSES;
+use shared::classes::games::nte::{NTE_PROCESSES, version::Version};
 
 use crate::classes::rpc::RPC;
-use crate::handler::EngineEvent;
+use crate::engine::contract::{EventSink, SessionExit};
 
-use super::AuroraEngine;
 use super::everlight;
-use super::process::ProcessSnapshot;
+use super::process::{ProcessSnapshot, ProcessTargets, kill_targets};
 
 // This is intentionally high, because when the launcher updates and restarts it takes a while.
 const LAUNCHER_GRACE_SECS: u32 = 10;
@@ -20,57 +20,74 @@ const LAUNCHER_GRACE_SECS: u32 = 10;
 // TODO: Probably want to consider decreasing these at some point
 // Is it worth decreasing tho? -Datura
 // No it's not, i had to increase it - wapr
-const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(7);
+pub(super) const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(7);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
 
-impl AuroraEngine {
-    pub fn monitor(&mut self, evt_tx: mpsc::Sender<EngineEvent>) -> Result<()> {
+pub(super) struct Monitor {
+    pub targets: ProcessTargets,
+    pub game_path: PathBuf,
+    pub version: Version,
+    pub ignore_checksum: bool,
+    pub events: EventSink,
+    pub stop: Arc<AtomicBool>,
+}
+
+impl Monitor {
+    pub fn run(&self) -> Result<SessionExit> {
         info!(
             "Helper processes: {}",
-            self.gpaths.helper_processes.join(", ")
+            self.targets.helper_processes.join(", ")
         );
         info!("Monitoring for NTE, you must press \"Play\" in the launcher!");
 
-        if !self.wait_for_launcher(LAUNCHER_GRACE_SECS)? {
-            return Ok(());
+        match self.wait_for_launcher(LAUNCHER_GRACE_SECS) {
+            Some(SessionExit::GameExited) => {}
+            Some(exit) => return Ok(self.finish(exit)),
+            None => return Ok(SessionExit::Stopped),
         }
 
         let watcher_stop = Arc::new(AtomicBool::new(false));
         let watcher = {
-            let win64 = self.win64.clone();
+            let win64 = self.targets.win64.clone();
             let game_path = self.game_path.clone();
             let version = self.version;
+            let events = self.events.clone();
+            let ignore_checksum = self.ignore_checksum;
             let stop = watcher_stop.clone();
             thread::spawn(move || {
-                everlight::watch(&win64, &game_path, version, &evt_tx, &stop);
+                everlight::watch(&win64, &game_path, version, ignore_checksum, &events, &stop);
             })
         };
 
-        let exit_result = self.wait_for_game_exit();
+        let exited = self.wait_for_game_exit();
         watcher_stop.store(true, Ordering::Relaxed);
         if watcher.join().is_err() {
             error!("Everlight watcher thread panicked");
         }
-        exit_result?;
 
+        if !exited? {
+            return Ok(SessionExit::Stopped);
+        }
         info!("NTE was closed, initializing clean-up process...");
-        self.cleanup()
+        Ok(self.finish(SessionExit::GameExited))
     }
 
-    /// Waits for NTE to be gone, then removes the files it was using.
-    pub(super) fn cleanup(&self) -> Result<()> {
-        if let Err(e) = self.ensure_processes_gone(POST_EXIT_KILL_GRACE) {
+    fn stopped(&self) -> bool {
+        self.stop.load(Ordering::Relaxed)
+    }
+
+    fn finish(&self, exit: SessionExit) -> SessionExit {
+        if let Err(e) = ensure_processes_gone(&self.targets, POST_EXIT_KILL_GRACE) {
             warn!("Could not confirm every NTE process exited: {e}");
         }
-
-        self.sanitize(false)
+        exit
     }
 
-    fn wait_for_launcher(&self, grace_secs: u32) -> Result<bool> {
-        let launcher_process = self.gpaths.launcher_process;
-        let game_process = self.gpaths.game_process;
+    fn wait_for_launcher(&self, grace_secs: u32) -> Option<SessionExit> {
+        let launcher_process = self.targets.launcher_process;
+        let game_process = self.targets.game_process;
         let mut watch_names = vec![launcher_process];
-        watch_names.extend(self.gpaths.helper_processes.iter().copied());
+        watch_names.extend(self.targets.helper_processes.iter().copied());
         #[cfg(not(target_os = "windows"))]
         {
             watch_names.push("wineserver");
@@ -88,6 +105,9 @@ impl AuroraEngine {
 
         loop {
             thread::sleep(THREAD_SLEEP_DURATION);
+            if self.stopped() {
+                return None;
+            }
             snapshot.rerefresh();
 
             if !snapshot.matching(game_process).is_empty() {
@@ -95,7 +115,7 @@ impl AuroraEngine {
                 if let Err(e) = RPC.set_ingame() {
                     warn!("Failed to update Discord RPC: {e}");
                 }
-                return Ok(true);
+                return Some(SessionExit::GameExited);
             }
 
             if snapshot.any_matching(&watch_names) {
@@ -122,18 +142,20 @@ impl AuroraEngine {
                 warn!(
                     "NTE Launcher failed to resolve within {grace_secs}s of continuous absence. Aborting monitor."
                 );
-                self.cleanup()?;
-                return Ok(false);
+                return Some(SessionExit::LauncherAbandoned);
             }
         }
     }
 
-    fn wait_for_game_exit(&self) -> Result<()> {
-        let game_process = self.gpaths.game_process;
+    fn wait_for_game_exit(&self) -> Result<bool> {
+        let game_process = self.targets.game_process;
         let mut snapshot = ProcessSnapshot::refresh();
 
         while !snapshot.matching(game_process).is_empty() {
             thread::sleep(THREAD_SLEEP_DURATION);
+            if self.stopped() {
+                return Ok(false);
+            }
             snapshot.rerefresh();
         }
 
@@ -142,23 +164,22 @@ impl AuroraEngine {
             return Err(anyhow!(e));
         }
 
-        Ok(())
+        Ok(true)
     }
+}
 
-    fn ensure_processes_gone(&self, grace: Duration) -> Result<()> {
-        let deadline = Instant::now() + grace;
-        let mut snapshot = ProcessSnapshot::refresh();
+pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -> Result<()> {
+    let deadline = Instant::now() + grace;
+    let mut snapshot = ProcessSnapshot::refresh();
 
-        while Instant::now() < deadline {
-            snapshot.rerefresh();
-            if !snapshot.any_matching(NTE_PROCESSES) && !snapshot.any_in_dir(&self.win64) {
-                return Ok(());
-            }
-            thread::sleep(THREAD_SLEEP_DURATION);
+    while Instant::now() < deadline {
+        snapshot.rerefresh();
+        if !snapshot.any_matching(NTE_PROCESSES) && !snapshot.any_in_dir(&targets.win64) {
+            return Ok(());
         }
-
-        warn!("Processes did not close within {grace:?}. Force killing...");
-        self.kill_nte_processes()
-            .map_err(|e| anyhow!("Failed to kill NTE processes: {e}"))
+        thread::sleep(THREAD_SLEEP_DURATION);
     }
+
+    warn!("Processes did not close within {grace:?}. Force killing...");
+    kill_targets(targets).map_err(|e| anyhow!("Failed to kill NTE processes: {e}"))
 }
