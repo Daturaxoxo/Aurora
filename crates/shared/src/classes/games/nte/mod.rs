@@ -91,7 +91,6 @@ impl Game for Nte {
     }
 
     fn profile_default(&self, key: ProfileKey) -> Value {
-        // The legacy unscoped defaults are NTE's, since NTE was the only game.
         config::default_value(key.as_str())
     }
 

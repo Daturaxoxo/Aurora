@@ -3,6 +3,7 @@ pub mod identity;
 pub mod launch;
 pub mod markers;
 pub mod nte;
+pub mod payload;
 
 use std::{
     collections::HashMap,
@@ -32,7 +33,6 @@ pub struct LauncherIdentifier {
 pub struct GameDescriptor {
     pub id: GameId,
     pub display_name: &'static str,
-    /// Install folder names, also accepted by `find_game`.
     pub aliases: &'static [&'static str],
     pub launchers: Vec<LauncherIdentifier>,
     pub markers: Vec<SafeRelativePath>,
@@ -75,8 +75,6 @@ impl InstallationFacts {
 pub trait Game: Send + Sync {
     fn descriptor(&self) -> &GameDescriptor;
     fn inspect_installation(&self, root: &Path) -> Result<InstallationFacts>;
-
-    /// This game's default for a profile field that has never been persisted.
     fn profile_default(&self, key: ProfileKey) -> Value {
         let _ = key;
         Value::Null

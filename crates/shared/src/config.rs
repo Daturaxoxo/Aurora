@@ -290,18 +290,19 @@ fn load_raw_at(path: &Path) -> Result<Map<String, Value>> {
     }
 }
 
-fn write_atomic(path: &Path, data: &Map<String, Value>) -> Result<(), ConfigError> {
-    let json_string = serde_json::to_string_pretty(data).map_err(ConfigError::Serialize)?;
+fn write_atomic(path: &Path, data: &Map<String, Value>) -> Result<()> {
+    let json_string =
+        serde_json::to_string_pretty(data).context("the config could not be serialized")?;
     let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
 
     if let Err(e) = write_durable(&tmp, json_string.as_bytes()) {
         let _ = fs::remove_file(&tmp);
-        return Err(ConfigError::io("write", &tmp, e));
+        return Err(e).with_context(|| format!("could not write {}", tmp.display()));
     }
 
     if let Err(e) = fs::rename(&tmp, path) {
         let _ = fs::remove_file(&tmp);
-        return Err(ConfigError::io("replace", path, e));
+        return Err(e).with_context(|| format!("could not replace {}", path.display()));
     }
 
     #[cfg(target_os = "linux")]
@@ -405,6 +406,6 @@ mod profile;
 
 pub use migration::{ModuleMigration, ProfileMigrationReport, legacy_modules_path, migrate_games};
 pub use profile::{
-    ConfigChange, ConfigError, ConfigUndo, GameProfile, GlobalKey, ProfileKey, ProfilePatch,
-    commit_change, game_modules_path, read_global, read_profile, rollback_change, update_profile,
+    ConfigChange, ConfigUndo, GameProfile, GlobalKey, ProfileKey, ProfilePatch, commit_change,
+    game_modules_path, read_global, read_profile, rollback_change, update_profile,
 };

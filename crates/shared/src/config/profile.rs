@@ -1,3 +1,4 @@
+use anyhow::{Context, Result, anyhow};
 use serde_json::{Map, Value};
 use std::fmt;
 use std::fs;
@@ -87,64 +88,6 @@ config_keys! {
     }
 }
 
-#[derive(Debug)]
-pub enum ConfigError {
-    Locked(PathBuf),
-    Io {
-        action: &'static str,
-        path: PathBuf,
-        source: std::io::Error,
-    },
-    Unreadable(anyhow::Error),
-    Serialize(serde_json::Error),
-    Shape(String),
-    Conflict(String),
-    Migration(String),
-}
-
-impl ConfigError {
-    pub(super) fn io(action: &'static str, path: &Path, source: std::io::Error) -> Self {
-        Self::Io {
-            action,
-            path: path.to_path_buf(),
-            source,
-        }
-    }
-}
-
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Locked(path) => write!(f, "could not lock {}", path.display()),
-            Self::Io {
-                action,
-                path,
-                source,
-            } => write!(f, "could not {action} {}: {source}", path.display()),
-            Self::Unreadable(e) => write!(f, "the config could not be read: {e:#}"),
-            Self::Serialize(e) => write!(f, "the config could not be serialized: {e}"),
-            Self::Shape(field) => write!(f, "{field} is not a JSON object"),
-            Self::Conflict(field) => {
-                write!(
-                    f,
-                    "{field} changed after it was committed, Aurora wont roll it back"
-                )
-            }
-            Self::Migration(reason) => write!(f, "migration failed: {reason}"),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Io { source, .. } => Some(source),
-            Self::Serialize(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
 pub(super) struct Store {
     root: PathBuf,
     lock_timeout: Duration,
@@ -170,27 +113,28 @@ impl Store {
         self.config_path().with_extension("json.lock")
     }
 
-    fn locked<T>(&self, f: impl FnOnce(&Path) -> Result<T, ConfigError>) -> Result<T, ConfigError> {
-        fs::create_dir_all(&self.root).map_err(|e| ConfigError::io("create", &self.root, e))?;
+    fn locked<T>(&self, f: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
+        fs::create_dir_all(&self.root)
+            .with_context(|| format!("could not create {}", self.root.display()))?;
 
         let _guard = CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         let lock = self.lock_path();
-        let _cross_guard =
-            lock_with_timeout(&lock, self.lock_timeout).ok_or(ConfigError::Locked(lock))?;
+        let _cross_guard = lock_with_timeout(&lock, self.lock_timeout)
+            .ok_or_else(|| anyhow!("could not lock {}", lock.display()))?;
 
         f(&self.config_path())
     }
 
-    pub(super) fn read(&self) -> Result<Map<String, Value>, ConfigError> {
-        self.locked(|path| load_raw_at(path).map_err(ConfigError::Unreadable))
+    pub(super) fn read(&self) -> Result<Map<String, Value>> {
+        self.locked(|path| load_raw_at(path).context("the config could not be read"))
     }
 
     pub(super) fn transact<T>(
         &self,
-        f: impl FnOnce(&mut Map<String, Value>) -> Result<(T, bool), ConfigError>,
-    ) -> Result<T, ConfigError> {
+        f: impl FnOnce(&mut Map<String, Value>) -> Result<(T, bool)>,
+    ) -> Result<T> {
         self.locked(|path| {
-            let mut data = load_raw_at(path).map_err(ConfigError::Unreadable)?;
+            let mut data = load_raw_at(path).context("the config could not be read")?;
             let (out, changed) = f(&mut data)?;
             if changed {
                 write_atomic(path, &data)?;
@@ -218,37 +162,37 @@ impl fmt::Display for Field {
 pub(super) fn profile_of<'a>(
     data: &'a Map<String, Value>,
     game: &GameId,
-) -> Result<Option<&'a Map<String, Value>>, ConfigError> {
+) -> Result<Option<&'a Map<String, Value>>> {
     let Some(games) = data.get(GAMES) else {
         return Ok(None);
     };
     let games = games
         .as_object()
-        .ok_or_else(|| ConfigError::Shape(GAMES.to_string()))?;
+        .ok_or_else(|| anyhow!("{GAMES} is not a JSON object"))?;
     match games.get(game.as_str()) {
         None => Ok(None),
         Some(Value::Object(profile)) => Ok(Some(profile)),
-        Some(_) => Err(ConfigError::Shape(format!("{GAMES}.{game}"))),
+        Some(_) => Err(anyhow!("{GAMES}.{game} is not a JSON object")),
     }
 }
 
 pub(super) fn profile_mut<'a>(
     data: &'a mut Map<String, Value>,
     game: &GameId,
-) -> Result<&'a mut Map<String, Value>, ConfigError> {
+) -> Result<&'a mut Map<String, Value>> {
     let games = data
         .entry(GAMES)
         .or_insert_with(|| Value::Object(Map::new()))
         .as_object_mut()
-        .ok_or_else(|| ConfigError::Shape(GAMES.to_string()))?;
+        .ok_or_else(|| anyhow!("{GAMES} is not a JSON object"))?;
     games
         .entry(game.as_str())
         .or_insert_with(|| Value::Object(Map::new()))
         .as_object_mut()
-        .ok_or_else(|| ConfigError::Shape(format!("{GAMES}.{game}")))
+        .ok_or_else(|| anyhow!("{GAMES}.{game} is not a JSON object"))
 }
 
-fn field_get(data: &Map<String, Value>, field: &Field) -> Result<Option<Value>, ConfigError> {
+fn field_get(data: &Map<String, Value>, field: &Field) -> Result<Option<Value>> {
     match field {
         Field::Global(k) => Ok(data.get(k.as_str()).cloned()),
         Field::Profile(game, k) => {
@@ -257,11 +201,7 @@ fn field_get(data: &Map<String, Value>, field: &Field) -> Result<Option<Value>, 
     }
 }
 
-fn field_set(
-    data: &mut Map<String, Value>,
-    field: &Field,
-    value: Option<Value>,
-) -> Result<(), ConfigError> {
+fn field_set(data: &mut Map<String, Value>, field: &Field, value: Option<Value>) -> Result<()> {
     match (field, value) {
         (Field::Global(k), Some(v)) => {
             data.insert(k.as_str().to_string(), v);
@@ -401,7 +341,7 @@ impl ConfigUndo {
     }
 }
 
-pub(super) fn commit_in(store: &Store, change: &ConfigChange) -> Result<ConfigUndo, ConfigError> {
+pub(super) fn commit_in(store: &Store, change: &ConfigChange) -> Result<ConfigUndo> {
     store.transact(|data| {
         let mut undo = ConfigUndo::default();
 
@@ -428,7 +368,7 @@ pub(super) fn commit_in(store: &Store, change: &ConfigChange) -> Result<ConfigUn
     })
 }
 
-pub(super) fn rollback_in(store: &Store, undo: &ConfigUndo) -> Result<(), ConfigError> {
+pub(super) fn rollback_in(store: &Store, undo: &ConfigUndo) -> Result<()> {
     if undo.is_empty() {
         return Ok(());
     }
@@ -436,7 +376,10 @@ pub(super) fn rollback_in(store: &Store, undo: &ConfigUndo) -> Result<(), Config
     store.transact(|data| {
         for entry in &undo.entries {
             if field_get(data, &entry.field)? != entry.after {
-                return Err(ConfigError::Conflict(entry.field.to_string()));
+                return Err(anyhow!(
+                    "{} changed after it was committed, Aurora wont roll it back",
+                    entry.field
+                ));
             }
         }
         for entry in undo.entries.iter().rev() {
@@ -446,7 +389,7 @@ pub(super) fn rollback_in(store: &Store, undo: &ConfigUndo) -> Result<(), Config
     })
 }
 
-pub(super) fn read_profile_in(store: &Store, game: &GameId) -> Result<GameProfile, ConfigError> {
+pub(super) fn read_profile_in(store: &Store, game: &GameId) -> Result<GameProfile> {
     let data = store.read()?;
     Ok(GameProfile {
         game: game.clone(),
@@ -454,7 +397,7 @@ pub(super) fn read_profile_in(store: &Store, game: &GameId) -> Result<GameProfil
     })
 }
 
-pub(super) fn read_global_in(store: &Store, key: GlobalKey) -> Result<Value, ConfigError> {
+pub(super) fn read_global_in(store: &Store, key: GlobalKey) -> Result<Value> {
     let data = store.read()?;
     Ok(data
         .get(key.as_str())
@@ -462,23 +405,23 @@ pub(super) fn read_global_in(store: &Store, key: GlobalKey) -> Result<Value, Con
         .unwrap_or_else(|| default_value(key.as_str())))
 }
 
-pub fn read_global(key: GlobalKey) -> Result<Value, ConfigError> {
+pub fn read_global(key: GlobalKey) -> Result<Value> {
     read_global_in(&Store::system(), key)
 }
 
-pub fn read_profile(game: &GameId) -> Result<GameProfile, ConfigError> {
+pub fn read_profile(game: &GameId) -> Result<GameProfile> {
     read_profile_in(&Store::system(), game)
 }
 
-pub fn update_profile(game: &GameId, update: &ProfilePatch) -> Result<(), ConfigError> {
+pub fn update_profile(game: &GameId, update: &ProfilePatch) -> Result<()> {
     commit_change(&ConfigChange::new().profile(game, update.clone())).map(drop)
 }
 
-pub fn commit_change(change: &ConfigChange) -> Result<ConfigUndo, ConfigError> {
+pub fn commit_change(change: &ConfigChange) -> Result<ConfigUndo> {
     commit_in(&Store::system(), change)
 }
 
-pub fn rollback_change(undo: &ConfigUndo) -> Result<(), ConfigError> {
+pub fn rollback_change(undo: &ConfigUndo) -> Result<()> {
     rollback_in(&Store::system(), undo)
 }
 

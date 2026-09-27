@@ -1,6 +1,7 @@
-use super::profile::{ConfigError, ProfileKey, Store, modules_path_under, profile_mut, profile_of};
+use super::profile::{ProfileKey, Store, modules_path_under, profile_mut, profile_of};
 use super::{get_userdata_path, write_durable};
 use crate::classes::games::{Game, identity::GameId, identity::SafeRelativePath, nte};
+use anyhow::{Context, Result, anyhow};
 use log::*;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -43,7 +44,7 @@ pub fn legacy_modules_path() -> PathBuf {
     legacy_modules_under(&get_userdata_path())
 }
 
-pub fn migrate_games() -> Result<ProfileMigrationReport, ConfigError> {
+pub fn migrate_games() -> Result<ProfileMigrationReport> {
     let game = &nte::NTE.descriptor().id;
     let report = migrate_legacy_in(&Store::system(), game)?;
 
@@ -74,10 +75,7 @@ pub fn migrate_games() -> Result<ProfileMigrationReport, ConfigError> {
     Ok(report)
 }
 
-pub(super) fn migrate_legacy_in(
-    store: &Store,
-    game: &GameId,
-) -> Result<ProfileMigrationReport, ConfigError> {
+pub(super) fn migrate_legacy_in(store: &Store, game: &GameId) -> Result<ProfileMigrationReport> {
     let legacy_dir = legacy_modules_under(store.root());
     let target_dir = modules_path_under(store.root(), game);
 
@@ -113,10 +111,7 @@ pub(super) fn migrate_legacy_in(
     })
 }
 
-fn candidates(
-    data: &Map<String, Value>,
-    game: &GameId,
-) -> Result<Vec<(ProfileKey, Value)>, ConfigError> {
+fn candidates(data: &Map<String, Value>, game: &GameId) -> Result<Vec<(ProfileKey, Value)>> {
     let profile = profile_of(data, game)?;
 
     Ok(ProfileKey::ALL
@@ -133,18 +128,20 @@ fn is_module_file(name: &str) -> bool {
         .any(|suffix| lower.len() > suffix.len() && lower.ends_with(suffix))
 }
 
-fn copy_modules(legacy_dir: &Path, target_dir: &Path) -> Result<ModuleMigration, ConfigError> {
+fn copy_modules(legacy_dir: &Path, target_dir: &Path) -> Result<ModuleMigration> {
     let mut report = ModuleMigration::default();
 
     let entries = match fs::read_dir(legacy_dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(report),
-        Err(e) => return Err(ConfigError::io("list", legacy_dir, e)),
+        Err(e) => {
+            return Err(e).with_context(|| format!("could not list {}", legacy_dir.display()));
+        }
     };
 
     let mut sources = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|e| ConfigError::io("list", legacy_dir, e))?;
+        let entry = entry.with_context(|| format!("could not list {}", legacy_dir.display()))?;
         let raw = entry.file_name().to_string_lossy().into_owned();
 
         let is_file = entry.file_type().is_ok_and(|t| t.is_file());
@@ -164,7 +161,8 @@ fn copy_modules(legacy_dir: &Path, target_dir: &Path) -> Result<ModuleMigration,
     sources.sort();
 
     if !sources.is_empty() {
-        fs::create_dir_all(target_dir).map_err(|e| ConfigError::io("create", target_dir, e))?;
+        fs::create_dir_all(target_dir)
+            .with_context(|| format!("could not create {}", target_dir.display()))?;
     }
 
     for name in sources {
@@ -256,7 +254,7 @@ fn remap_references(
     legacy_dir: &Path,
     modules: &ModuleMigration,
     dropped: &mut Vec<String>,
-) -> Result<Value, ConfigError> {
+) -> Result<Value> {
     let Value::Array(items) = value else {
         return Ok(value.clone());
     };
@@ -279,9 +277,9 @@ fn remap_references(
         if let Some(dest) = modules.destination(name) {
             mapped.push(Value::from(dest.to_string_lossy().into_owned()));
         } else if legacy_dir.join(name).exists() {
-            return Err(ConfigError::Migration(format!(
-                "the module {raw} has no verified copy"
-            )));
+            return Err(anyhow!(
+                "migration failed: the module {raw} has no verified copy"
+            ));
         } else {
             dropped.push(raw.to_string());
         }
