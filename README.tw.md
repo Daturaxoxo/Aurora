@@ -22,7 +22,7 @@
   </object>
 </p>
 <p align="center">
-  <strong>English</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tw.md">繁體中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.jp.md">日本語</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
+  <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.md">English</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <strong>繁體中文</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.jp.md">日本語</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
 </p>
 <br></br>
 Aurora 是一款專為 Unreal Engine 動漫遊戲打造的輕量化 MOD 平台，讓您自由載入 Unreal Engine 5 的 PAK MOD、Lua 腳本與藍圖。

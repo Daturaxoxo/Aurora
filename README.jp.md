@@ -26,7 +26,7 @@ Lightweight modding platform for anime games.
   </object>
 </p>
 <p align="center">
-  <strong>English</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tw.md">繁體中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.jp.md">日本語</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
+  <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.md">English</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tw.md">繁體中文</a> | <strong>日本語</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
 </p>
 <br></br>
 Aurora is a lightweight modding platform for Unreal Engine anime games allowing you to freely load Unreal Engine 5 PAK mods, Lua scripts and blueprints.
