@@ -207,13 +207,12 @@ impl AuroraEngine {
 
         let mut paths: Vec<String> = config::get(key::INJECTED_PLUGINS)
             .as_array()
-            .map(|list| {
+            .map_or_default(|list| {
                 list.iter()
                     .filter_map(|v| v.as_str())
                     .map(ToString::to_string)
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         for destination in destinations {
             let path = destination.to_string_lossy().into_owned();

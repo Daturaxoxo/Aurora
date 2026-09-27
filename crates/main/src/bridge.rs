@@ -127,13 +127,12 @@ impl Bridge {
         }
         let plugin_files = config::get(key::CUSTOM_ADDONS)
             .as_array()
-            .map(|a| {
+            .map_or_default(|a| {
                 a.iter()
                     .filter_map(|v| v.as_str())
                     .map(PathBuf::from)
                     .collect::<Vec<PathBuf>>()
-            })
-            .unwrap_or_default();
+            });
 
         if plugin_files.is_empty() {
             None
@@ -181,13 +180,12 @@ impl Bridge {
                 let w = w.clone();
                 match event {
                     EngineEvent::EngineReady => {
-                        let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if updater::UpdateHandler::ui_locked() {
                                 info!("Engine ready while an update holds the UI lock");
                                 return;
                             }
-                            if let Some(w) = w_ui.upgrade() {
+                            if let Some(w) = w.upgrade() {
                                 w.set_launch_disabled(false);
                             }
                         })
@@ -227,13 +225,12 @@ impl Bridge {
                     EngineEvent::LaunchFailed(msg) => {
                         GAME_BUSY.store(false, Ordering::SeqCst);
                         Self::show_toast(&w, &msg, "error");
-                        let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
                             if updater::UpdateHandler::ui_locked() {
                                 info!("Launch failed while an update holds the UI lock");
                                 return;
                             }
-                            if let Some(w) = w_ui.upgrade() {
+                            if let Some(w) = w.upgrade() {
                                 w.set_launch_state(LaunchState::Launch);
                                 w.set_launch_disabled(false);
                             }
@@ -259,9 +256,8 @@ impl Bridge {
                     }
                     EngineEvent::GamePathUpdated(path) => {
                         let path_str: String = path.to_string_lossy().into_owned();
-                        let w_ui = w.clone();
                         slint::invoke_from_event_loop(move || {
-                            if let Some(w) = w_ui.upgrade() {
+                            if let Some(w) = w.upgrade() {
                                 w.set_game_directory(path_str.into());
                             }
                         })

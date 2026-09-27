@@ -24,7 +24,7 @@ fn release_grab<T: ComponentHandle + 'static>(component: &T) {
         };
         if let Err(e) = component
             .window()
-            .try_dispatch_event(slint::platform::WindowEvent::PointerExited)
+            .dispatch_event_with_result(slint::platform::WindowEvent::PointerExited)
         {
             warn!("Could not reset the pointer state after a drag: {e}");
         }

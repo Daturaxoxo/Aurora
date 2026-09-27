@@ -39,7 +39,9 @@ fn target_edge() -> u32 {
 
 fn target_size(width: u32, height: u32) -> (u32, u32) {
     let longest = width.max(height);
-    if longest <= target_edge() || longest == 0 {return (width, height)}
+    if longest <= target_edge() || longest == 0 {
+        return (width, height);
+    }
 
     let scale = f64::from(target_edge()) / f64::from(longest);
     (scaled(width, scale), scaled(height, scale))

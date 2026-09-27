@@ -438,7 +438,9 @@ fn start_playback(
                     window.is_minimized()
                 );
             }
-            if hidden {return}
+            if hidden {
+                return;
+            }
 
             let frame = match playback.frames.try_recv() {
                 Ok(frame) => frame,
