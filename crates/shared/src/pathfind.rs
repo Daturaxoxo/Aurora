@@ -80,7 +80,7 @@ pub fn validate_game_path(path: &Path, game_folder_name: &str) -> Result<bool> {
 
     if let Some(markers) = find_marker(game_folder_name) {
         for marker in markers {
-            if path.join(marker).exists() {
+            if marker.resolve_under(path).exists() {
                 trace!("Validated {} via game marker {marker}", path.display());
                 return Ok(true);
             }

@@ -205,7 +205,7 @@ impl Bridge {
                         }
                     }
                     EngineEvent::LaunchSuccess => {
-                        let toast_key = match StartMethod::from_config() {
+                        let toast_key = match StartMethod::decode(&config::get(key::START_METHOD)) {
                             StartMethod::Direct => "toast.launch-direct",
                             StartMethod::Manual => "toast.launcher-opened",
                         };

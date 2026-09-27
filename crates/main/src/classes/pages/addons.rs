@@ -6,8 +6,7 @@ use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
-use shared::classes::info::addons;
-use shared::classes::info::version::{Version, detect_version};
+use shared::classes::games::{Game, InstallationFacts, capabilities::AddonSupport, nte::NTE};
 use shared::utils::get_cache_dir;
 use shared::{config, pathfind, utils};
 
@@ -49,19 +48,11 @@ static DOWNLOAD_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
 
 static GAMEBANANA_API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
 
-const ADDON_CONFIG_KEYS: [(&str, &str); 5] = [
-    ("Censorship Remover", "csn_rem"),
-    ("UI Mod Pack", "ui_pack"),
-    ("Hide UID", "uid_rem"),
-    ("No 3D Driving Waypoint", "drv_lin"),
-    ("Hide Notification Dots", "nor_rem"),
-];
-
 fn config_key(name: &str) -> Option<&'static str> {
-    ADDON_CONFIG_KEYS
+    NTE.shipped_addons()
         .iter()
-        .find(|(addon_name, _)| *addon_name == name)
-        .map(|(_, config_key)| *config_key)
+        .find(|addon| addon.name == name)
+        .map(|addon| addon.config_key)
 }
 
 fn decoded_thumb(bytes: &[u8]) -> anyhow::Result<(Vec<u8>, u32, u32)> {
@@ -122,7 +113,7 @@ impl AddonsHandler {
         let ww = window.clone();
         std::thread::spawn(move || {
             let mut addons = Self::scan();
-            let version = Self::detected_version();
+            let installation = Self::detected_installation();
             let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
             let mut failures = Vec::new();
 
@@ -130,7 +121,7 @@ impl AddonsHandler {
                 if !addon.installed
                     || !addon.update_available
                     || !Self::auto_update_enabled(&auto_updates, &addon.name)
-                    || Self::is_unavailable(addon, version)
+                    || Self::is_unavailable(addon, installation.as_ref())
                 {
                     continue;
                 }
@@ -175,7 +166,7 @@ impl AddonsHandler {
 
                 let slint_items: Vec<AddonItem> = addons
                     .iter()
-                    .map(|addon| Self::to_slint_item(addon, version, &auto_updates))
+                    .map(|addon| Self::to_slint_item(addon, installation.as_ref(), &auto_updates))
                     .collect();
 
                 w.set_addons(Rc::new(VecModel::from(slint_items)).into());
@@ -585,7 +576,8 @@ impl AddonsHandler {
             .join("Addons");
         let mut addons = Vec::new();
 
-        let mut unseen_keys: Vec<&str> = ADDON_CONFIG_KEYS.iter().map(|(_, k)| *k).collect();
+        let shipped = NTE.shipped_addons();
+        let mut unseen_keys: Vec<&str> = shipped.iter().map(|a| a.config_key).collect();
         let mut seen_keys: Vec<(&str, bool)> = Vec::new();
 
         let entries = match std::fs::read_dir(&addon_dir) {
@@ -678,20 +670,20 @@ impl AddonsHandler {
                     !remote_hash.is_empty() && local_hash.trim() != remote_hash;
             }
 
-            let Some((_, k)) = ADDON_CONFIG_KEYS.iter().find(|(n, _)| *n == addon.name) else {
+            let Some(k) = config_key(&addon.name) else {
                 error!("Unknown addon name: {}", addon.name);
                 continue;
             };
             seen_keys.push((k, addon.enabled));
-            unseen_keys.retain(|key| key != k);
+            unseen_keys.retain(|key| *key != k);
 
             addons.push(addon);
         }
 
         addons.sort_by_key(|addon| {
-            ADDON_CONFIG_KEYS
+            shipped
                 .iter()
-                .position(|(name, _)| *name == addon.name)
+                .position(|shipped| shipped.name == addon.name)
         });
 
         let persisted = config::modify(|data| {
@@ -1002,27 +994,31 @@ impl AddonsHandler {
         }
     }
 
-    fn detected_version() -> Version {
-        let version = pathfind::get_game_directory()
+    fn detected_installation() -> Option<InstallationFacts> {
+        let installation = pathfind::get_game_directory()
             .ok()
-            .and_then(|path| detect_version(&path).ok())
-            .unwrap_or_default();
+            .and_then(|path| NTE.inspect_installation(&path).ok());
 
-        debug!("Resolved addon against game region: {version}");
-        version
+        debug!(
+            "Resolved addon against game region: {}",
+            installation
+                .as_ref()
+                .map_or("unknown", InstallationFacts::variant)
+        );
+        installation
     }
 
-    fn is_unavailable(addon: &Addon, version: Version) -> bool {
+    fn is_unavailable(addon: &Addon, installation: Option<&InstallationFacts>) -> bool {
         config_key(&addon.name)
-            .is_some_and(|config_key| addons::is_unavailable(config_key, version))
+            .is_some_and(|config_key| !NTE.is_available(config_key, installation))
     }
 
     fn to_slint_item(
         addon: &Addon,
-        version: Version,
+        installation: Option<&InstallationFacts>,
         auto_updates: &serde_json::Value,
     ) -> AddonItem {
-        let unavailable = Self::is_unavailable(addon, version);
+        let unavailable = Self::is_unavailable(addon, installation);
 
         AddonItem {
             name: addon.name.clone().into(),

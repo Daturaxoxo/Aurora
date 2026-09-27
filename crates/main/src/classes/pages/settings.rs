@@ -107,7 +107,7 @@ impl SettingsHandler {
         w.set_engine_method_index(engine_method);
 
         let raw_start = config::get(key::START_METHOD);
-        let start_method = StartMethod::from_config();
+        let start_method = StartMethod::decode(&raw_start);
         debug!("start_method: raw={raw_start:?} → {start_method}");
         w.set_start_method_index(start_method.as_index());
 

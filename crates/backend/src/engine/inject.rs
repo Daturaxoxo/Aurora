@@ -3,6 +3,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow};
 use log::*;
+use shared::classes::games::{
+    InstallationFacts,
+    capabilities::LauncherSupport,
+    launch::{LaunchPlatform, LaunchRequest},
+    nte::NTE,
+};
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
 
@@ -226,27 +232,38 @@ impl AuroraEngine {
     }
 
     fn launch_game(&self) -> Result<()> {
-        let launcher_exe = self.game_path.join(self.gpaths.launcher_process);
-        let start_method = StartMethod::from_config();
+        let start_method = StartMethod::decode(&config::get(key::START_METHOD));
+        let installation = InstallationFacts::new(
+            self.game_path.clone(),
+            self.gpaths.version.key(),
+            self.distribution.key(),
+        );
+        let plan = NTE
+            .launch_plan(&LaunchRequest {
+                installation: &installation,
+                start_method: start_method.id(),
+                platform: LaunchPlatform::host(),
+            })
+            .map_err(|e| anyhow!("Cannot launch NTE: {e}"))?;
 
-        let mut args = self.gpaths.launch_args.clone();
-        args.extend_from_slice(start_method.launch_args());
-
-        info!("Launching NTE: {}", launcher_exe.display());
+        info!("Launching NTE: {}", plan.executable.display());
         info!("Distribution: {}", self.distribution);
         info!("Start method: {start_method}");
-        debug!("Launch arguments: {args:?}");
+        debug!("Launch arguments: {:?}", plan.arguments);
 
         #[cfg(target_os = "linux")]
         {
-            crate::classes::linux::launch_via_proton(&launcher_exe, &args)?;
+            let args: Vec<&str> = plan.arguments.iter().map(String::as_str).collect();
+            crate::classes::linux::launch_via_proton(&plan.executable, &args)?;
             Ok(())
         }
 
         #[cfg(not(target_os = "linux"))]
         {
-            std::process::Command::new(&launcher_exe)
-                .args(&args)
+            std::process::Command::new(&plan.executable)
+                .args(&plan.arguments)
+                .current_dir(&plan.working_directory)
+                .envs(plan.environment.iter().map(|(k, v)| (k, v)))
                 .spawn()
                 .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
             Ok(())
