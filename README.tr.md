@@ -22,7 +22,7 @@ Anime oyunları için yapılan hafif bir mod platformu.
   </object>
 </p>
 <p align="center">
-  <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.md">English</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.jp.md">日本語</a> | <strong>Türkçe</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
+  <strong>English</strong> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.cn.md">中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tw.md">繁體中文</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.jp.md">日本語</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.tr.md">Türkçe</a> | <a href="https://github.com/Daturaxoxo/Aurora/blob/main/README.es.md">Español</a>
 </p>
 <br></br>
 Aurora, Unreal Engine tabanlı anime oyunları için yapılmış hafif bir mod platformudur. Oyunlarına kolayca Unreal Engine 5 PAK modları, Lua komutları ve blueprint'leri
