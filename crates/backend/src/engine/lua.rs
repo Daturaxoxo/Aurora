@@ -1,11 +1,8 @@
 use std::fs;
 use std::path::Path;
-
 use anyhow::{Context, Result};
 use log::*;
-
 use crate::classes::validate::ensure_dir;
-
 pub struct LuaManager;
 
 impl LuaManager {
@@ -66,7 +63,7 @@ impl LuaManager {
     }
 }
 
-fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
+pub(super) fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
     ensure_dir(&dst.to_path_buf())?;
 
     for entry in fs::read_dir(src).with_context(|| format!("Failed to read {}", src.display()))? {

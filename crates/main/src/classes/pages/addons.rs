@@ -49,12 +49,16 @@ static DOWNLOAD_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
 
 static GAMEBANANA_API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
 
-const ADDON_CONFIG_KEYS: [(&str, &str); 5] = [
+const ADDON_CONFIG_KEYS: [(&str, &str); 9] = [
     ("Censorship Remover", "csn_rem"),
     ("UI Mod Pack", "ui_pack"),
+    ("QoL Mod Pack", "ui_pack"),
+    ("Utility Mod Pack", config::key::UTILITY_MOD_PACK),
     ("Hide UID", "uid_rem"),
     ("No 3D Driving Waypoint", "drv_lin"),
     ("Hide Notification Dots", "nor_rem"),
+    ("ReShade", config::key::RESHADE),
+    ("OptiScaler", config::key::OPTISCALER)
 ];
 
 fn config_key(name: &str) -> Option<&'static str> {
@@ -94,12 +98,19 @@ impl AddonData {
 }
 
 #[derive(Debug, Clone, Default)]
+struct AddonVariant {
+    label: String,
+    urls: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
 struct Addon {
     folder: PathBuf,
     name: String,
     author: String,
     version: String,
     description: String,
+    variants: Vec<AddonVariant>,
     install_data: Vec<AddonData>,
     link: String,
     image_url: String,
@@ -211,6 +222,67 @@ impl AddonsHandler {
         })
     }
 
+    fn add_variant_url(variants: &mut Vec<AddonVariant>, label: &str, url: &str) {
+        if label.is_empty() || url.is_empty() {
+            warn!("Addons: ignoring a VARIANT with an empty label or url");
+            return;
+        }
+
+        if let Some(variant) = variants.iter_mut().find(|v| v.label == label) {
+            variant.urls.push(url.to_string());
+        } else {
+            variants.push(AddonVariant {
+                label: label.to_string(),
+                urls: vec![url.to_string()],
+            });
+        }
+    }
+
+    fn selected_variant(addon: &Addon) -> Option<&AddonVariant> {
+        let key = config_key(&addon.name)?;
+        let preferences = config::get(config::key::ADDON_VARIANTS);
+        let label = preferences.get(key)?.as_str()?;
+        addon.variants.iter().find(|v| v.label == label)
+    }
+
+    fn variant_files(variant: &AddonVariant) -> Vec<AddonData> {
+        variant
+            .urls
+            .iter()
+            .map(|url| Self::direct_file(url))
+            .collect()
+    }
+
+    fn set_variant(name: &str, label: Option<&str>) -> bool {
+        let Some(addon_key) = config_key(name) else {
+            error!("Could not persist the selected variant for unknown addon '{name}'");
+            return false;
+        };
+
+        config::modify(|data| {
+            let preferences = data
+                .entry(config::key::ADDON_VARIANTS.to_string())
+                .or_insert_with(|| serde_json::json!({}));
+
+            if !preferences.is_object() {
+                *preferences = serde_json::json!({});
+            }
+
+            let preferences = preferences
+                .as_object_mut()
+                .expect("variant preferences were initialized as an object");
+
+            match label {
+                Some(label) => {
+                    preferences.insert(addon_key.to_string(), label.into());
+                }
+                None => {
+                    preferences.remove(addon_key);
+                }
+            }
+        })
+    }
+
     fn auto_update_enabled(preferences: &serde_json::Value, name: &str) -> bool {
         config_key(name)
             .and_then(|addon_key| preferences.get(addon_key))
@@ -301,88 +373,106 @@ impl AddonsHandler {
         }
     }
 
-    // [CALLBACKS]
+    fn run_action(ww: &slint::Weak<MainWindow>, index: i32, variant: Option<usize>) {
+        let Ok(i) = usize::try_from(index) else {return};
+
+        let Some(win) = ww.upgrade() else {return};
+        let model = win.get_addons();
+        let Some(mut row) = model.row_data(i) else {return};
+        if row.installing {return}
+
+        let is_toggle = row.installed && !row.update_available;
+        row.installing = true;
+        if is_toggle {
+            row.enabled = !row.enabled;
+        }
+        model.set_row_data(i, row);
+
+        let ww = ww.clone();
+        std::thread::spawn(move || {
+            let updated = if is_toggle {
+                let mut addons = Self::scan_local();
+                if let Some(addon) = addons.get_mut(i) {
+                    Self::set_enabled(addon, !addon.enabled);
+                }
+                Self::scan_local().into_iter().nth(i)
+            } else {
+                let mut addons = Self::scan();
+                if let Some(addon) = addons.get_mut(i) {
+                    match Self::install_selected(addon, variant) {
+                        Err(e) => {
+                            error!(
+                                "Addons manager could not install addon '{}': {e}",
+                                addon.name
+                            );
+                            ToastHandler::show(
+                                &ww,
+                                format!("Failed to install {}: {e}", addon.name),
+                                "error",
+                            );
+                        }
+                        Ok(()) => {
+                            ToastHandler::show(
+                                &ww,
+                                format!("{} installed successfully.", addon.name),
+                                "success",
+                            );
+                        }
+                    }
+                }
+                Self::scan().into_iter().nth(i)
+            };
+
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(win) = ww.upgrade() else {
+                    error!("Could not reload addons: window handle is dead");
+                    return;
+                };
+
+                let model = win.get_addons();
+                if let Some(mut row) = model.row_data(i) {
+                    if let Some(addon) = updated {
+                        row.installed = addon.installed;
+                        row.enabled = addon.enabled;
+                        if !is_toggle {
+                            row.update_available = addon.update_available;
+                        }
+                    }
+                    row.installing = false;
+                    model.set_row_data(i, row);
+                }
+            });
+        });
+    }
+
+    fn install_selected(addon: &mut Addon, variant: Option<usize>) -> Result<()> {
+        if let Some(chosen) = variant.and_then(|v| addon.variants.get(v)).cloned() {
+            addon.install_data = Self::variant_files(&chosen);
+            if !Self::set_variant(&addon.name, Some(&chosen.label)) {
+                warn!(
+                    "Addons manager could not remember variant '{}' for '{}'",
+                    chosen.label, addon.name
+                );
+            }
+        } else if !addon.variants.is_empty() && !addon.installed {
+            return Err(anyhow::anyhow!("no version was selected"));
+        }
+
+        Self::install(addon)
+    }
 
     fn bind(window: &slint::Weak<MainWindow>) {
         let w = window.unwrap();
 
         let ww = window.clone();
-        w.on_addon_action(move |index| {
-            let Ok(i) = usize::try_from(index) else {
+        w.on_addon_action(move |index| Self::run_action(&ww, index, None));
+
+        let ww = window.clone();
+        w.on_addon_install_variant(move |index, variant| {
+            let Ok(variant) = usize::try_from(variant) else {
                 return;
             };
-
-            let Some(win) = ww.upgrade() else { return };
-            let model = win.get_addons();
-            let Some(mut row) = model.row_data(i) else {
-                return;
-            };
-            if row.installing {
-                return;
-            }
-
-            let is_toggle = row.installed && !row.update_available;
-            row.installing = true;
-            if is_toggle {
-                row.enabled = !row.enabled;
-            }
-            model.set_row_data(i, row);
-
-            let ww = ww.clone();
-            std::thread::spawn(move || {
-                let updated = if is_toggle {
-                    let mut addons = Self::scan_local();
-                    if let Some(addon) = addons.get_mut(i) {
-                        Self::set_enabled(addon, !addon.enabled);
-                    }
-                    Self::scan_local().into_iter().nth(i)
-                } else {
-                    let mut addons = Self::scan();
-                    if let Some(addon) = addons.get_mut(i) {
-                        match Self::install(addon) {
-                            Err(e) => {
-                                error!(
-                                    "Addons manager could not install addon '{}': {e}",
-                                    addon.name
-                                );
-                                ToastHandler::show(
-                                    &ww,
-                                    format!("Failed to install {}: {e}", addon.name),
-                                    "error",
-                                );
-                            }
-                            Ok(()) => {
-                                ToastHandler::show(
-                                    &ww,
-                                    format!("{} installed successfully.", addon.name),
-                                    "success",
-                                );
-                            }
-                        }
-                    }
-                    Self::scan().into_iter().nth(i)
-                };
-
-                let _ = slint::invoke_from_event_loop(move || {
-                    let Some(win) = ww.upgrade() else {
-                        error!("Could not reload addons: window handle is dead");
-                        return;
-                    };
-
-                    let model = win.get_addons();
-                    if let Some(mut row) = model.row_data(i) {
-                        if let Some(addon) = updated {
-                            row.installed = addon.installed;
-                            row.enabled = addon.enabled;
-                            if !is_toggle {
-                                row.update_available = addon.update_available;
-                            }
-                        }
-                        row.installing = false;
-                        model.set_row_data(i, row);
-                    }
-                });
-            });
+            Self::run_action(&ww, index, Some(variant));
         });
 
         let ww = window.clone();
@@ -484,6 +574,9 @@ impl AddonsHandler {
 
             let auto_update_reset = match &result {
                 Ok(name) => {
+                    if !Self::set_variant(name, None) {
+                        warn!("Could not forget the selected variant of '{name}'");
+                    }
                     let reset = Self::set_auto_update(name, false);
                     if reset {
                         ToastHandler::show(&ww, format!("{name} deleted."), "success");
@@ -504,7 +597,6 @@ impl AddonsHandler {
                 }
             };
 
-            // Re-scan so the config keys line up with what is left on disk
             let updated = Self::scan_local().into_iter().nth(i);
 
             let _ = slint::invoke_from_event_loop(move || {
@@ -643,24 +735,28 @@ impl AddonsHandler {
                     "NAME" => addon.name = value.trim().to_string(),
                     "AUTHOR" => addon.author = value.trim().to_string(),
                     // TODO: get version from gamebanana api too
+                    // alawapr (2 months ago)
+                    // status: ain't done shit :laugh_57:
                     "VERSION" => addon.version = value.trim().to_string(),
                     "DESCRIPTION" => addon.description = value.trim().to_string(),
                     "LINK" => addon.link = value.trim().to_string(),
                     "FILE" => file_urls.push(value.trim().to_string()),
+                    "VARIANT" => match value.split_once('|') {
+                        Some((label, url)) => {
+                            Self::add_variant_url(&mut addon.variants, label.trim(), url.trim());
+                        }
+                        None => warn!(
+                            "Addons scan: malformed VARIANT '{}' in '{}', expected 'label|url'",
+                            value.trim(),
+                            auadd_path.display()
+                        ),
+                    },
                     "IMAGE" => addon.image_url = value.trim().to_string(),
                     other => warn!(
                         "Addons scan: unknown field '{other}' in '{}'",
                         auadd_path.display()
                     ),
                 }
-            }
-
-            if fetch_remote {
-                addon.install_data = if file_urls.is_empty() {
-                    Self::fetch_gamebanana_files(&addon)
-                } else {
-                    file_urls.iter().map(|url| Self::direct_file(url)).collect()
-                };
             }
 
             let payload_files = payload_files(&folder);
@@ -670,6 +766,21 @@ impl AddonsHandler {
                 && payload_files
                     .iter()
                     .all(|f| !f.to_string_lossy().ends_with(".disabled"));
+
+            if fetch_remote {
+                addon.install_data = if !addon.variants.is_empty() {
+                    addon
+                        .installed
+                        .then(|| Self::selected_variant(&addon))
+                        .flatten()
+                        .map(Self::variant_files)
+                        .unwrap_or_default()
+                } else if file_urls.is_empty() {
+                    Self::fetch_gamebanana_files(&addon)
+                } else {
+                    file_urls.iter().map(|url| Self::direct_file(url)).collect()
+                };
+            }
 
             if addon.installed {
                 let local_hash = fs::read_to_string(folder.join("addon.md5")).unwrap_or_default();
@@ -793,6 +904,10 @@ impl AddonsHandler {
     }
 
     fn install(addon: &Addon) -> Result<()> {
+        if addon.install_data.is_empty() {
+            return Err(anyhow::anyhow!("there are no files to download for this addon"));
+        }
+
         let mut failures: Vec<String> = Vec::new();
         for data in &addon.install_data {
             debug!(
@@ -851,6 +966,7 @@ impl AddonsHandler {
 
     fn unpack(dest: &Path, folder: &Path) -> Result<()> {
         extract_archive(dest, folder)?;
+        Self::flatten_wrapper_folders(folder)?;
 
         let files = fs::read_dir(folder)?.collect::<Vec<_>>();
         for file in files {
@@ -874,6 +990,7 @@ impl AddonsHandler {
                 for file in files {
                     let path = file?.path();
                     // put them in the parent
+                    // ayooo chill rook wtf?? consent??
                     fs::rename(&path, folder.join(path.file_name().unwrap()))?;
                 }
 
@@ -885,6 +1002,80 @@ impl AddonsHandler {
             if name.contains("PingStatus") || name.contains("PhoneFunctions") {
                 fs::remove_file(&path)?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn flatten_wrapper_folders(folder: &Path) -> Result<()> {
+        const MAX_DEPTH: usize = 4;
+
+        for _ in 0..MAX_DEPTH {
+            let mut wrappers = Vec::new();
+            for entry in fs::read_dir(folder)? {
+                let path = entry?.path();
+                if path.is_dir() {
+                    wrappers.push(path);
+                } else if !Self::is_ignored_for_flattening(&path) {return Ok(())}
+            }
+
+            let [wrapper] = wrappers.as_slice() else {
+                return Ok(());
+            };
+
+            let children = fs::read_dir(wrapper)?
+                .map(|entry| entry.map(|e| e.path()))
+                .collect::<std::io::Result<Vec<_>>>()?;
+
+            if children
+                .iter()
+                .any(|child| child.file_name() == wrapper.file_name())
+            {
+                warn!(
+                    "Installed addon: not flattening '{}', it contains an entry of the same name",
+                    wrapper.display()
+                );
+                return Ok(());
+            }
+
+            for child in &children {
+                if let Some(name) = child.file_name() {
+                    Self::merge_move(child, &folder.join(name))?;
+                }
+            }
+            fs::remove_dir_all(wrapper)?;
+            info!(
+                "Installed addon: moved the contents of '{}' up into '{}'",
+                wrapper.display(),
+                folder.display()
+            );
+        }
+
+        Ok(())
+    }
+
+    fn is_ignored_for_flattening(path: &Path) -> bool {
+        path.extension().is_some_and(|ext| {
+            ["auadd", "md5", "txt"]
+                .iter()
+                .chain(ARCHIVE_EXTENSIONS.iter())
+                .any(|ignored| ext.eq_ignore_ascii_case(ignored))
+        })
+    }
+
+    fn merge_move(src: &Path, dst: &Path) -> Result<()> {
+        if src.is_dir() {
+            fs::create_dir_all(dst)?;
+            for entry in fs::read_dir(src)? {
+                let entry = entry?;
+                Self::merge_move(&entry.path(), &dst.join(entry.file_name()))?;
+            }
+            fs::remove_dir(src)?;
+        } else {
+            if dst.exists() {
+                fs::remove_file(dst)?;
+            }
+            Self::move_into_place(src, dst)?;
         }
 
         Ok(())
@@ -1029,6 +1220,14 @@ impl AddonsHandler {
             author: addon.author.clone().into(),
             version: addon.version.clone().into(),
             description: addon.description.clone().into(),
+            variants: Rc::new(VecModel::from(
+                addon
+                    .variants
+                    .iter()
+                    .map(|v| slint::SharedString::from(v.label.as_str()))
+                    .collect::<Vec<_>>(),
+            ))
+            .into(),
             link: addon.link.clone().into(),
             image: slint::Image::default(),
             installed: addon.installed,

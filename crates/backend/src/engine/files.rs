@@ -1,11 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-
 use log::*;
 use shared::classes::info::{Target, addons};
 use shared::config::{get, key};
-
 use crate::classes::addons::CENSORSHIP_DIR;
+use crate::classes::addons::overlay::{self, OVERLAY_ADDONS};
 use crate::classes::addons::pak::PakAddon;
 
 use super::AuroraEngine;
@@ -15,6 +14,7 @@ pub enum FileGroup {
     LoaderDll,
     SignatureBypass,
     PakAddon,
+    OverlayAddon,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,31 @@ impl AuroraEngine {
         let mut files = self.loader_dll_files();
         files.extend(self.signature_bypass_files());
         files.extend(self.pak_addon_files());
+        files.extend(self.overlay_addon_files());
         files
+    }
+
+    fn overlay_addon_files(&self) -> Vec<ManagedFile> {
+        OVERLAY_ADDONS
+            .iter()
+            .flat_map(|addon| {
+                let enabled = get(addon.config_key).as_bool().unwrap_or(false)
+                    && !self.addon_unavailable(addon.config_key);
+
+                overlay::entries(&self.addons_path, addon)
+                    .into_iter()
+                    .map(move |entry| ManagedFile {
+                        label: entry.name.clone(),
+                        destination: self.win64.join(&entry.name),
+                        source: entry.source,
+                        required: false,
+                        enabled: enabled && !entry.disabled,
+                        group: FileGroup::OverlayAddon,
+                        addon: Some(addon.folder.to_string()),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 
     fn loader_dll_files(&self) -> Vec<ManagedFile> {

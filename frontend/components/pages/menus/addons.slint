@@ -8,6 +8,7 @@ export struct AddonItem {
     author: string,
     version: string,
     description: string,
+    variants: [string],
     link: string,
     image: image,
     installed: bool,
@@ -308,11 +309,23 @@ component AddonCard inherits Rectangle {
 export component AddonsPage inherits Rectangle {
     callback close-addons();
     callback addon-action(int);
+    callback addon-install-variant(int /* addon */, int /* variant */);
     callback addon-auto-update(int);
     callback addon-open-link(int);
     callback addon-delete(int);
     in property <[AddonItem]> addons: [];
+    property <int> picker-index: -1;
     background: Palette.shade-66;
+    
+    function card-action(idx: int) {
+        if (!root.addons[idx].installed && root.addons[idx].variants.length > 1) {
+            root.picker-index = idx;
+        } else if (!root.addons[idx].installed && root.addons[idx].variants.length == 1) {
+            root.addon-install-variant(idx, 0);
+        } else {
+            root.addon-action(idx);
+        }
+    }
 
     TouchArea {
         width: 100%;
@@ -474,7 +487,7 @@ export component AddonsPage inherits Rectangle {
                                 height: 310px;
                                 item: root.addons[i];
                                 index: i;
-                                action(idx) => { root.addon-action(idx); }
+                                action(idx) => { root.card-action(idx); }
                                 auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
@@ -492,10 +505,141 @@ export component AddonsPage inherits Rectangle {
                                 height: 310px;
                                 item: root.addons[i];
                                 index: i;
-                                action(idx) => { root.addon-action(idx); }
+                                action(idx) => { root.card-action(idx); }
                                 auto-update(idx) => { root.addon-auto-update(idx); }
                                 open-link(idx) => { root.addon-open-link(idx); }
                                 delete(idx) => { root.addon-delete(idx); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.picker-index >= 0 && root.picker-index < root.addons.length: Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+            background: Palette.shade-aa;
+
+            TouchArea {
+                clicked => { root.picker-index = -1; }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+
+                    Rectangle {
+                        width: 400px;
+                        background: Palette.glass-background;
+                        border-color: Palette.glass-border;
+                        border-width: 1px;
+                        border-radius: 12px;
+                        drop-shadow-color: Palette.shadow-color;
+                        drop-shadow-blur: 24px;
+                        drop-shadow-offset-y: 8px;
+
+                        TouchArea {}
+
+                        VerticalLayout {
+                            padding: 24px;
+                            spacing: 14px;
+
+                            Text {
+                                text: Tr.values[TrKey.addons-variant-title];
+                                font-size: 16px;
+                                font-weight: 700;
+                                color: Palette.text-primary;
+                            }
+
+                            Text {
+                                text: root.addons[root.picker-index].name;
+                                font-size: 12.5px;
+                                color: Palette.text-secondary;
+                                overflow: elide;
+                            }
+
+                            VerticalLayout {
+                                spacing: 6px;
+
+                                for variant[i] in root.addons[root.picker-index].variants: Rectangle {
+                                    height: 48px;
+                                    border-radius: 8px;
+                                    border-width: 1px;
+                                    border-color: variant-ta.has-hover ? Palette.fg-28 : Palette.fg-14;
+                                    background: variant-ta.has-hover ? Palette.fg-10 : Palette.fg-06;
+                                    animate background { duration: 100ms; }
+                                    animate border-color { duration: 100ms; }
+
+                                    variant-ta := TouchArea {
+                                        clicked => {
+                                            root.addon-install-variant(root.picker-index, i);
+                                            root.picker-index = -1;
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        spacing: 10px;
+
+                                        Text {
+                                            text: variant;
+                                            color: Palette.text-primary;
+                                            font-size: 12.5px;
+                                            font-weight: 600;
+                                            vertical-alignment: center;
+                                            horizontal-stretch: 1;
+                                            overflow: elide;
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            width: self.preferred-width;
+                                            Path {
+                                                width: 13px;
+                                                height: 13px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 14;
+                                                viewbox-height: 14;
+                                                commands: "M7 1 L7 9 M3.5 5.5 L7 9 L10.5 5.5 M1.5 12.5 L12.5 12.5";
+                                                stroke: variant-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
+                                                stroke-width: 1.6px;
+                                                fill: transparent;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                alignment: end;
+
+                                Rectangle {
+                                    width: 100px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: Palette.glass-border;
+                                    background: cancel-ta.has-hover ? Palette.fg-10 : transparent;
+                                    animate background { duration: 100ms; }
+
+                                    Text {
+                                        text: Tr.values[TrKey.global-popup-cancel-button];
+                                        color: Palette.text-secondary;
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+
+                                    cancel-ta := TouchArea {
+                                        clicked => { root.picker-index = -1; }
+                                    }
+                                }
                             }
                         }
                     }

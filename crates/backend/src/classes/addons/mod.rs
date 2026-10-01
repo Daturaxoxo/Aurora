@@ -1,10 +1,9 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-
 use anyhow::{Result, anyhow};
 use log::*;
 use shared::utils::get_bin_path;
-
+pub mod overlay;
 pub mod pak;
 pub mod scale;
 

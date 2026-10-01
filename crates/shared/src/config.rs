@@ -48,6 +48,9 @@ pub mod key {
     pub const HIDE_UID: &str = "uid_rem";
     pub const HIDE_NOTIF_DOTS: &str = "nor_rem";
     pub const UI_MOD_PACK: &str = "ui_pack";
+    pub const RESHADE: &str = "rshd";
+    pub const OPTISCALER: &str = "optsc";
+    pub const UTILITY_MOD_PACK: &str = "util_pack";
     pub const DISCORD_RPC: &str = "discord_rpc";
     pub const EXPORT_CONSOLE: &str = "export_console";
     pub const UI_SCALING: &str = "ui_scaling";
@@ -77,6 +80,7 @@ pub mod key {
     pub const LAUNCH_ARGS: &str = "launch_args";
     pub const INJECTED_PLUGINS: &str = "injected_plugins";
     pub const ADDON_AUTO_UPDATES: &str = "addon_auto_updates";
+    pub const ADDON_VARIANTS: &str = "addon_variants";
     pub const THEME: &str = "theme";
     pub const ICON_PACK: &str = "icon_pack";
 }
@@ -95,6 +99,9 @@ pub fn default_value(k: &str) -> Value {
         | key::CUSTOM_ADDONS_TOGGLED
         | key::CENSORSHIP_REMOVE
         | key::UI_MOD_PACK
+        | key::UTILITY_MOD_PACK
+        | key::RESHADE
+        | key::OPTISCALER
         | key::GB_NSFW
         | key::QUICK_START_CREATED
         | key::DESKTOP_ENTRY
@@ -116,7 +123,7 @@ pub fn default_value(k: &str) -> Value {
         | key::LAUNCH_ARGS
         | key::PROTON_CUSTOM_PATH => json!(""),
 
-        key::ADDON_AUTO_UPDATES => json!({}),
+        key::ADDON_AUTO_UPDATES | key::ADDON_VARIANTS => json!({}),
 
         key::CUSTOM_ADDONS
         | key::MODMNG_NOTES

@@ -2,15 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
-
 use anyhow::{Result, anyhow};
 use log::*;
-
 use shared::classes::info::version::BypassMethod;
 use shared::config::{self, key};
 use shared::utils::read_dir_recursive;
-
+use crate::classes::addons::overlay;
 use super::AuroraEngine;
+use super::files::FileGroup;
 const INCOMPATIBLE: &[&str] = &["anticensor"];
 const FLAGGED_PREFIXES: &[&str] = &["gctip_p", "uidrm_p"];
 
@@ -95,12 +94,13 @@ impl AuroraEngine {
         }
 
         let injected = injected_plugins();
+        overlay::persist_settings(&self.addons_path, &self.win64, &injected);
 
         let mut failures: Vec<String> = Vec::new();
-
         let mut targets: Vec<(String, PathBuf)> = self
             .managed_files()
             .into_iter()
+            .filter(|f| f.group != FileGroup::OverlayAddon)
             .map(|f| (f.label, f.destination))
             .chain([
                 (

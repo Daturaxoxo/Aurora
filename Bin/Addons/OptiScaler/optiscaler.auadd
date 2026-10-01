@@ -1,0 +1,7 @@
+NAME|OptiScaler
+AUTHOR|OptiScaler Team
+VERSION|v0.9.4
+DESCRIPTION|Swaps the game's upscaler for DLSS, FSR or XeSS and adds frame generation. Press Insert in game to open the menu
+VARIANT|Intel/AMD|https://host.getaurora.moe/files/addons/optiscaler/OptiScaler_IntelAMD.zip
+VARIANT|NVIDIA|https://host.getaurora.moe/files/addons/optiscaler/OptiScaler_NVIDIA.zip
+IMAGE|https://host.getaurora.moe/assets/app/addons/OptiScalerThumbnail.png
