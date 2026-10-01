@@ -16,14 +16,13 @@ const FLAGGED_PREFIXES: &[&str] = &["gctip_p", "uidrm_p"];
 fn injected_plugins() -> Vec<PathBuf> {
     config::get(key::INJECTED_PLUGINS)
         .as_array()
-        .map(|paths| {
+        .map_or_default(|paths| {
             paths
                 .iter()
                 .filter_map(|v| v.as_str())
                 .map(PathBuf::from)
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 fn flagged_files(pak_dir: &Path) -> Vec<(String, PathBuf)> {

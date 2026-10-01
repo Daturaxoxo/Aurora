@@ -75,7 +75,7 @@ impl CacheManager {
             {
                 continue;
             }
-            let size = entry.metadata().map(|m| m.len()).unwrap_or_default();
+            let size = entry.metadata().map_or_default(|m| m.len());
             let Some(age) = Self::file_age_seconds(&path) else {
                 continue;
             };

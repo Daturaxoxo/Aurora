@@ -180,10 +180,7 @@ pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<
             continue;
         }
 
-        let exe = process
-            .exe()
-            .map(|e| e.display().to_string())
-            .unwrap_or_default();
+        let exe = process.exe().map_or_default(|e| e.display().to_string());
         trace!("Killing process {exe} (pid {pid})");
 
         if process.kill() && wait_for_exit(pid) {
