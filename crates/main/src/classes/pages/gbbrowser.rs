@@ -37,8 +37,10 @@ const INSTALL_COMMITTED: u8 = 3;
 /// Must stay in the same order as the character list in gbbrowser.slint.
 pub const CHARACTERS: &[(&str, u32)] = &[
     ("Adler", 43034),
+    ("Akane", 49661),
     ("Aurelia", 46387),
     ("Baicang", 43035),
+    ("Blackbird", 49659),
     ("Chaos", 46559),
     ("Chiz", 45472),
     ("Daffodill", 45474),
