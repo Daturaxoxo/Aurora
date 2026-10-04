@@ -1440,24 +1440,6 @@
         "id": "Manajer tangkapan layar"
     },
     {
-        "key": "menu.item.movies",
-        "en": "Movie Manager",
-        "tr": "Video Yöneticisi",
-        "zh-CN": "视频管理器",
-        "es": "Gestor de vídeos",
-        "de": "Video-Manager",
-        "nl": "Videobeheer",
-        "fr": "Gestionnaire de vidéos",
-        "it": "Gestore video",
-        "ru": "Менеджер видео",
-        "vi": "Trình quản lý video",
-        "jp": "動画マネージャー",
-        "ko": "영상 관리자",
-        "pt": "Gestor de vídeos",
-        "pt-BR": "Gerenciador de vídeos",
-        "id": "Manajer Film"
-    },
-    {
         "key": "menu.item.lua",
         "en": "Lua Scripts",
         "tr": "Lua Betikleri",

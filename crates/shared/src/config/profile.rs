@@ -11,7 +11,7 @@ use super::{
     lock_with_timeout, write_atomic,
 };
 use crate::classes::games::{Game, identity::GameId};
-pub(super) const GAMES: &str = "games";
+pub const GAMES: &str = "games";
 
 macro_rules! config_keys {
     ($(#[$meta:meta])* $name:ident { $($variant:ident => $key:ident,)* }) => {

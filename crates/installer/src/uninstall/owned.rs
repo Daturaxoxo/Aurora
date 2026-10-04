@@ -1,4 +1,6 @@
+use crate::logic::{BIN_DIR, bin_scope};
 use ipc::manifest::{LocalManifest, Manifest, is_trusted_url};
+use shared::classes::games::registry;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 pub const UNINSTALLER_EXE: &str = "AuroraUninstaller.exe";
@@ -18,9 +20,7 @@ const PACKAGED_FILES: [(&str, PackagedCheck); 2] = [
 ];
 const STEAM_APP_ID: &str = "4508340";
 const SIDECAR_SUFFIXES: [&str; 2] = ["tmp", "bak"];
-const BIN_DIR: &str = "Bin";
 const LOGS_DIR: &str = "Logs";
-const BIN_SIGNATURE: [&str; 2] = ["cutils.dll", "Everlight.asi"];
 
 pub struct Owned {
     pub trees: Vec<PathBuf>,
@@ -52,20 +52,24 @@ pub fn resolve(app_dir: &Path) -> Owned {
     }
 
     let bin = app_dir.join(BIN_DIR);
-    let bin_owned = is_aurora_bin(&bin);
+    let listed_in_bin: Vec<PathBuf> = relative
+        .iter()
+        .filter_map(|rel| rel.strip_prefix(BIN_DIR).ok())
+        .map(Path::to_path_buf)
+        .collect();
+    let bin_scope = bin_scope(app_dir, registry(), &listed_in_bin);
     let logs = app_dir.join(LOGS_DIR);
     let log_files = log_files(&logs);
 
-    let mut trees = Vec::new();
-    if bin_owned {
-        trees.push(bin.clone());
-    }
-
-    let mut files = Vec::new();
+    let trees = bin_scope.trees;
+    let mut files = bin_scope.files;
     let mut prune: BTreeSet<PathBuf> = BTreeSet::new();
+    if !trees.is_empty() || !files.is_empty() {
+        prune.insert(bin.clone());
+    }
     for rel in &relative {
         let path = app_dir.join(rel);
-        if bin_owned && path.starts_with(&bin) {
+        if trees.iter().any(|tree| path.starts_with(tree)) || files.contains(&path) {
             continue;
         }
         if !path.is_file() {
@@ -87,7 +91,7 @@ pub fn resolve(app_dir: &Path) -> Owned {
         .iter()
         .filter_map(|rel| rel.components().next().map(|c| key(c.as_os_str())))
         .collect();
-    if bin_owned {
+    if prune.contains(&bin) {
         owned_names.insert(key(BIN_DIR.as_ref()));
     }
     if prune.contains(&app_dir.join(LOGS_DIR)) {
@@ -99,7 +103,10 @@ pub fn resolve(app_dir: &Path) -> Owned {
         trees,
         files,
         prune: deepest_first(prune),
-        foreign: foreign_in(app_dir, &owned_names),
+        foreign: foreign_in(app_dir, &owned_names)
+            .into_iter()
+            .chain(bin_scope.kept)
+            .collect(),
         from_manifest,
     }
 }
@@ -158,10 +165,6 @@ fn is_aurora_manifest(contents: &str) -> bool {
 
 fn is_aurora_appid(contents: &str) -> bool {
     contents.trim() == STEAM_APP_ID
-}
-
-fn is_aurora_bin(bin: &Path) -> bool {
-    bin.is_dir() && BIN_SIGNATURE.iter().any(|name| bin.join(name).is_file())
 }
 
 fn parents_below(app_dir: &Path, path: &Path) -> Vec<PathBuf> {

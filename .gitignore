@@ -34,6 +34,7 @@ config.json
 *.md5
 *.zip
 /Bin/Lua
+/Bin/*/Lua/
 AuroraTF.asi
 CNAuroraTF.asi
 /target-appimage

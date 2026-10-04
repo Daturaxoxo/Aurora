@@ -1,20 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use crate::logic::{GameRoot, ModTarget, configured_roots, is_protected_dir, mod_targets};
 use serde_json::Value;
-use shared::classes::info::paths::CLIENT_PAK_DIR;
+use shared::classes::games::registry;
 use shared::config::{get_userdata_path, key};
-const PROTECTED_ENV_VARS: [&str; 9] = [
-    "ProgramFiles",
-    "ProgramFiles(x86)",
-    "ProgramW6432",
-    "ProgramData",
-    "SystemRoot",
-    "windir",
-    "PUBLIC",
-    "USERPROFILE",
-    "LOCALAPPDATA",
-];
 
 const DATA_DIR_NAME: &str = "Aurora";
 
@@ -36,7 +26,9 @@ pub struct Plan {
     /// The application folder holds things Aurora did not install, so the user
     /// is told upfront that those are left alone.
     pub app_dir_shared: bool,
-    pub mods_dir: Option<PathBuf>,
+    pub mods: Vec<ModTarget>,
+    pub mods_rejected: Vec<String>,
+    pub game_roots: Vec<GameRoot>,
     pub backup_dir: PathBuf,
 }
 
@@ -44,12 +36,10 @@ impl Plan {
     pub fn resolve() -> Self {
         let config = read_config();
 
-        let mods_dir = path_value(&config, key::GAME_PATH).map(|game| game.join(CLIENT_PAK_DIR));
-
         Self::from_candidates(
             aurora_data_dir(),
             candidate_app_dirs(&config),
-            mods_dir,
+            configured_roots(registry(), &config),
             default_backup_dir(),
         )
     }
@@ -57,13 +47,13 @@ impl Plan {
     pub fn from_paths(
         data_dir: PathBuf,
         app_dir: Option<PathBuf>,
-        mods_dir: Option<PathBuf>,
+        game_roots: Vec<GameRoot>,
         backup_dir: PathBuf,
     ) -> Self {
         Self::from_candidates(
             data_dir,
             app_dir.into_iter().collect(),
-            mods_dir,
+            game_roots,
             backup_dir,
         )
     }
@@ -71,20 +61,23 @@ impl Plan {
     fn from_candidates(
         data_dir: PathBuf,
         candidates: Vec<PathBuf>,
-        mods_dir: Option<PathBuf>,
+        game_roots: Vec<GameRoot>,
         backup_dir: PathBuf,
     ) -> Self {
         let (app_dir, app_dir_error) = select_app_dir(candidates);
         let app_dir_shared = app_dir
             .as_deref()
             .is_some_and(|dir| !crate::owned::foreign_entries(dir).is_empty());
+        let mods = mod_targets(registry(), &game_roots);
 
         Self {
             data_dir,
             app_dir,
             app_dir_error,
             app_dir_shared,
-            mods_dir: mods_dir.filter(|mods| mods.is_dir()),
+            mods: mods.targets,
+            mods_rejected: mods.rejected,
+            game_roots,
             backup_dir,
         }
     }
@@ -156,19 +149,6 @@ pub fn verify_data_dir(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Only the folder Aurora installs mods into, never the game's own pak folder
-/// one level up.
-pub fn verify_mods_dir(dir: &Path) -> Result<(), String> {
-    if dir.ends_with(CLIENT_PAK_DIR) {
-        return Ok(());
-    }
-
-    Err(format!(
-        "refusing to delete {}: it is not the {CLIENT_PAK_DIR} folder",
-        dir.display()
-    ))
-}
-
 fn candidate_app_dirs(config: &Value) -> Vec<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
 
@@ -209,47 +189,4 @@ fn path_value(config: &Value, key: &str) -> Option<PathBuf> {
 
 fn sibling_app_dir() -> Option<PathBuf> {
     Some(std::env::current_exe().ok()?.parent()?.to_path_buf())
-}
-
-fn is_protected_dir(dir: &Path) -> bool {
-    let target = normalize(dir);
-    if target.parent().is_none() {
-        return true;
-    }
-    protected_dirs()
-        .iter()
-        .any(|protected| normalize(protected) == target)
-}
-
-fn normalize(path: &Path) -> PathBuf {
-    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
-}
-
-fn protected_dirs() -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = [
-        dirs::home_dir(),
-        dirs::desktop_dir(),
-        dirs::download_dir(),
-        dirs::document_dir(),
-        dirs::picture_dir(),
-        dirs::video_dir(),
-        dirs::audio_dir(),
-        dirs::data_dir(),
-        dirs::data_local_dir(),
-        dirs::config_dir(),
-        dirs::executable_dir(),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-
-    for var in PROTECTED_ENV_VARS {
-        if let Some(value) = std::env::var_os(var) {
-            let path = PathBuf::from(value);
-            dirs.push(path.join("System32"));
-            dirs.push(path);
-        }
-    }
-
-    dirs
 }

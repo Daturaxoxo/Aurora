@@ -167,35 +167,38 @@ pub fn extract_archive_with_progress<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Deflate level used by [`zip_directory`]. Measured on a 4.4 GB mod folder,
-/// level 1 runs roughly 3x faster than the default level 6 and only gives up
-/// about 6% of archive size, which is the right trade for a backup.
 const ZIP_COMPRESSION_LEVEL: i64 = 1;
-
-/// How often the progress callback fires while a single file is being written.
 const ZIP_CHUNK: usize = 1024 * 1024;
 
-/// Compresses everything inside `src` into a deflated zip archive at `dest`.
-///
-/// Entries are stored relative to `src`, so extracting the archive recreates
-/// the folder's contents rather than the folder itself.
-///
-/// `progress` is called with the entry being written plus the number of source
-/// bytes read so far and in total. Large folders take minutes, so callers are
-/// expected to surface it; it fires often and should be throttled.
-pub fn zip_directory(
-    src: &Path,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ZippedFile {
+    pub name: String,
+    pub size: u64,
+}
+
+pub fn zip_directories(
+    sources: &[(&str, &Path)],
     dest: &Path,
     mut progress: impl FnMut(&Path, u64, u64),
-) -> Result<()> {
+) -> Result<Vec<ZippedFile>> {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create {}", parent.display()))?;
     }
 
-    let entries: Vec<_> = WalkDir::new(src).into_iter().flatten().collect();
-    let total: u64 = entries
+    let walked: Vec<(&str, &Path, Vec<_>)> = sources
         .iter()
+        .map(|(prefix, src)| {
+            (
+                *prefix,
+                *src,
+                WalkDir::new(src).into_iter().flatten().collect(),
+            )
+        })
+        .collect();
+    let total: u64 = walked
+        .iter()
+        .flat_map(|(_, _, entries)| entries)
         .filter(|entry| entry.file_type().is_file())
         .filter_map(|entry| entry.metadata().ok())
         .map(|meta| meta.len())
@@ -206,46 +209,116 @@ pub fn zip_directory(
     let mut writer = ZipWriter::new(std::io::BufWriter::new(file));
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
-        .compression_level(Some(ZIP_COMPRESSION_LEVEL));
+        .compression_level(Some(ZIP_COMPRESSION_LEVEL))
+        .large_file(true);
 
     let mut done: u64 = 0;
     let mut buffer = vec![0u8; ZIP_CHUNK];
+    let mut written = Vec::new();
 
-    for entry in entries {
-        let path = entry.path();
-        let Ok(rel) = path.strip_prefix(src) else {
-            continue;
-        };
-        if rel.as_os_str().is_empty() {
-            continue;
+    for (prefix, src, entries) in walked {
+        if !prefix.is_empty() {
+            writer.add_directory(prefix, options)?;
         }
 
-        if entry.file_type().is_dir() {
-            writer.add_directory_from_path(rel, options)?;
-            continue;
-        }
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        progress(rel, done, total);
-        writer.start_file_from_path(rel, options)?;
-
-        let mut source = std::fs::File::open(&path)
-            .with_context(|| format!("Failed to read {}", path.display()))?;
-        loop {
-            let read = source
-                .read(&mut buffer)
-                .with_context(|| format!("Failed to read {}", path.display()))?;
-            if read == 0 {
-                break;
+        for entry in entries {
+            let path = entry.path();
+            let Ok(rel) = path.strip_prefix(src) else {
+                continue;
+            };
+            if rel.as_os_str().is_empty() {
+                continue;
             }
-            writer.write_all(&buffer[..read])?;
-            done += read as u64;
+            let name = entry_name(prefix, rel);
+
+            if entry.file_type().is_dir() {
+                writer.add_directory(name, options)?;
+                continue;
+            }
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
             progress(rel, done, total);
+            writer.start_file(name.as_str(), options)?;
+
+            let mut source = std::fs::File::open(&path)
+                .with_context(|| format!("Failed to read {}", path.display()))?;
+            let mut size: u64 = 0;
+            loop {
+                let read = source
+                    .read(&mut buffer)
+                    .with_context(|| format!("Failed to read {}", path.display()))?;
+                if read == 0 {
+                    break;
+                }
+                writer.write_all(&buffer[..read])?;
+                size += read as u64;
+                done += read as u64;
+                progress(rel, done, total);
+            }
+            written.push(ZippedFile { name, size });
         }
     }
 
-    writer.finish()?;
+    writer
+        .finish()?
+        .into_inner()
+        .map_err(std::io::IntoInnerError::into_error)?
+        .sync_all()?;
+    Ok(written)
+}
+
+pub fn verify_zip(archive: &Path, expected: &[ZippedFile]) -> Result<()> {
+    let file = std::fs::File::open(archive)
+        .with_context(|| format!("Failed to open {}", archive.display()))?;
+    let mut zip = zip::ZipArchive::new(std::io::BufReader::new(file))
+        .with_context(|| format!("{} is not a readable zip", archive.display()))?;
+
+    let mut found = Vec::new();
+    let mut sink = vec![0u8; ZIP_CHUNK];
+    for index in 0..zip.len() {
+        let mut entry = zip.by_index(index)?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name()?.into_owned();
+        let mut size: u64 = 0;
+        loop {
+            let read = entry
+                .read(&mut sink)
+                .with_context(|| format!("{name} in {} is damaged", archive.display()))?;
+            if read == 0 {
+                break;
+            }
+            size += read as u64;
+        }
+        found.push(ZippedFile { name, size });
+    }
+
+    let mut expected = expected.to_vec();
+    expected.sort();
+    found.sort();
+    if found != expected {
+        anyhow::bail!(
+            "{} does not match what was archived ({} files found, {} expected)",
+            archive.display(),
+            found.len(),
+            expected.len()
+        );
+    }
     Ok(())
+}
+
+fn entry_name(prefix: &str, rel: &Path) -> String {
+    let rel = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    if prefix.is_empty() {
+        rel
+    } else {
+        format!("{prefix}/{rel}")
+    }
 }
