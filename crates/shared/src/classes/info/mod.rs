@@ -25,7 +25,6 @@ pub enum Target {
     AsiPlugin,
     AuroraTf,
     CNAuroraTF,
-    Cutils,
 }
 
 impl Target {
