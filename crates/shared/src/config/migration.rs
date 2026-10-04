@@ -184,13 +184,13 @@ fn copy_modules(legacy_dir: &Path, target_dir: &Path) -> Result<ModuleMigration>
     Ok(report)
 }
 
-enum CopyOutcome {
+pub enum CopyOutcome {
     Copied,
     Identical,
     Conflict,
 }
 
-fn copy_verified(src: &Path, dest: &Path) -> std::io::Result<CopyOutcome> {
+pub fn copy_verified(src: &Path, dest: &Path) -> std::io::Result<CopyOutcome> {
     let bytes = fs::read(src)?;
     let hash = md5::compute(&bytes).0;
 

@@ -1,9 +1,11 @@
 pub mod capabilities;
 pub mod identity;
 pub mod launch;
-pub mod markers;
+pub mod locate;
 pub mod nte;
 pub mod payload;
+#[cfg(test)]
+pub(crate) mod testing;
 
 use std::{
     collections::HashMap,
@@ -29,6 +31,11 @@ pub struct LauncherIdentifier {
     pub variant: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SteamMetadata {
+    pub app_id: &'static str,
+}
+
 #[derive(Debug, Clone)]
 pub struct GameDescriptor {
     pub id: GameId,
@@ -40,6 +47,8 @@ pub struct GameDescriptor {
     pub game_executable: SafeRelativePath,
     pub binaries: SafeRelativePath,
     pub payload_dir: SafeRelativePath,
+    pub payload_files: Vec<SafeRelativePath>,
+    pub steam: Option<SteamMetadata>,
     pub engine: EngineKind,
 }
 
@@ -190,6 +199,20 @@ pub fn validate_registry(games: &[&dyn Game]) -> Result<()> {
         let markers: Vec<String> = d.markers.iter().map(ToString::to_string).collect();
         check_list(&id, "markers", markers.iter().map(String::as_str))?;
         check_list(&id, "processes", d.processes.iter().copied())?;
+        let payload_files: Vec<String> = d.payload_files.iter().map(ToString::to_string).collect();
+        check_list(
+            &id,
+            "payload_files",
+            payload_files.iter().map(String::as_str),
+        )?;
+        if let Some(steam) = d.steam
+            && (steam.app_id.is_empty() || !steam.app_id.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return Err(anyhow!(
+                "{id}: steam.app_id '{}' is not a numeric app id",
+                steam.app_id
+            ));
+        }
         if d.display_name.trim().is_empty() {
             return Err(anyhow!("{id}: display name has an empty value"));
         }

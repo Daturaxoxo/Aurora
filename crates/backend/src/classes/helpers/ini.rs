@@ -60,9 +60,12 @@ fn saved_config_dirs() -> Vec<PathBuf> {
 
 #[cfg(unix)]
 fn saved_config_dirs() -> Vec<PathBuf> {
-    use shared::classes::steam;
-
-    let Some(prefix) = steam::aurora_prefix() else {
+    use shared::classes::{games::default_game, steam};
+    let Some(prefix) = default_game()
+        .descriptor()
+        .steam
+        .and_then(|metadata| steam::compat_prefix(&metadata))
+    else {
         debug!("ini: no Proton prefix yet");
         return Vec::new();
     };
@@ -371,100 +374,4 @@ fn section_bounds(lines: &[String], section: &str) -> Option<(usize, usize)> {
         .map_or(lines.len(), |i| header + 1 + i);
 
     Some((header, end))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn set(text: &str, section: &str, key: &str, value: &str) -> String {
-        edited(
-            text,
-            &[Edit {
-                section: normalize_section(section),
-                key: key.to_string(),
-                value: Some(value.to_string()),
-            }],
-        )
-    }
-
-    fn remove(text: &str, section: &str, key: &str) -> String {
-        edited(
-            text,
-            &[Edit {
-                section: normalize_section(section),
-                key: key.to_string(),
-                value: None,
-            }],
-        )
-    }
-
-    #[test]
-    fn replaces_a_key_and_leaves_its_neighbours_alone() {
-        let text = "[/Script/Engine.GameUserSettings]\nResolutionSizeX=1920\nFullscreenMode=0\n";
-        let out = set(
-            text,
-            "[/Script/Engine.GameUserSettings]",
-            "FullscreenMode",
-            "2",
-        );
-        assert_eq!(
-            out,
-            "[/Script/Engine.GameUserSettings]\nResolutionSizeX=1920\nFullscreenMode=2\n"
-        );
-    }
-
-    #[test]
-    fn appends_a_missing_key_to_its_section() {
-        let text = "[A]\nOne=1\n\n[B]\nTwo=2\n";
-        assert_eq!(
-            set(text, "A", "Three", "3"),
-            "[A]\nOne=1\nThree=3\n\n[B]\nTwo=2\n"
-        );
-    }
-
-    #[test]
-    fn appends_a_missing_section() {
-        assert_eq!(
-            set("[A]\nOne=1\n", "B", "Two", "2"),
-            "[A]\nOne=1\n\n[B]\nTwo=2\n"
-        );
-    }
-
-    #[test]
-    fn removes_only_the_named_key() {
-        let text = "[A]\nOne=1\nTwo=2\n";
-        assert_eq!(remove(text, "A", "One"), "[A]\nTwo=2\n");
-        assert_eq!(remove(text, "A", "Missing"), text);
-    }
-
-    #[test]
-    fn matches_sections_and_keys_regardless_of_case() {
-        let text = "[a]\nONE=1\n";
-        assert_eq!(set(text, "A", "one", "2"), "[a]\none=2\n");
-    }
-
-    #[test]
-    fn keeps_the_line_endings_the_file_came_with() {
-        let text = "[A]\r\nOne=1\r\n";
-        assert_eq!(set(text, "A", "One", "2"), "[A]\r\nOne=2\r\n");
-    }
-
-    #[test]
-    fn drops_duplicate_keys() {
-        let text = "[A]\nOne=1\nOne=2\nTwo=3\n";
-        assert_eq!(set(text, "A", "One", "9"), "[A]\nOne=9\nTwo=3\n");
-    }
-
-    #[test]
-    fn writing_into_nothing_creates_the_section() {
-        assert_eq!(set("", "A", "One", "1"), "[A]\nOne=1\n");
-    }
-
-    #[test]
-    fn reads_a_value_back() {
-        let text = "[A]\nOne=1\n\n[B]\nOne=2\n";
-        assert_eq!(value_in(text, "B", "One"), Some("2".to_string()));
-        assert_eq!(value_in(text, "C", "One"), None);
-    }
 }

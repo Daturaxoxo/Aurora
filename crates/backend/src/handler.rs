@@ -1,7 +1,7 @@
 use crate::engine::AuroraEngine;
 use anyhow::{Result, anyhow};
 use log::*;
-use shared::pathfind::get_game_directory;
+use shared::classes::games::locate::{locate_installation_root, transitional_selected_game};
 use std::{
     path::PathBuf,
     sync::{
@@ -124,7 +124,7 @@ impl EngineHandler {
         std::thread::spawn(move || {
             let engine: Arc<Mutex<Option<AuroraEngine>>> = Arc::new(Mutex::new(None));
 
-            match get_game_directory() {
+            match locate_installation_root(transitional_selected_game()) {
                 Ok(game_path) => {
                     evt_tx
                         .send(EngineEvent::GamePathUpdated(game_path.clone()))
@@ -231,18 +231,19 @@ impl EngineHandler {
                     }
                     EngineCommand::Update => {
                         std::thread::spawn(move || {
-                            let game_path = match get_game_directory() {
-                                Ok(p) => p,
-                                Err(e) => {
-                                    error!("Update failed: could not resolve game path: {e}");
-                                    evt_tx
-                                        .send(EngineEvent::EngineInitFailed(format!(
-                                            "Game path not found: {e}"
-                                        )))
-                                        .ok();
-                                    return;
-                                }
-                            };
+                            let game_path =
+                                match locate_installation_root(transitional_selected_game()) {
+                                    Ok(p) => p,
+                                    Err(e) => {
+                                        error!("Update failed: could not resolve game path: {e}");
+                                        evt_tx
+                                            .send(EngineEvent::EngineInitFailed(format!(
+                                                "Game path not found: {e}"
+                                            )))
+                                            .ok();
+                                        return;
+                                    }
+                                };
                             evt_tx
                                 .send(EngineEvent::GamePathUpdated(game_path.clone()))
                                 .ok();

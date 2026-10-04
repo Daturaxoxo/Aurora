@@ -3,7 +3,11 @@ use crate::{CheckboxItem, MainWindow};
 use backend::handler::{self, EngineCommand};
 use log::*;
 use shared::{
-    classes::info::paths::CLIENT_PAK_DIR, pathfind::get_game_directory, utils::open_folder,
+    classes::{
+        games::locate::{locate_installation_root, transitional_selected_game},
+        info::paths::CLIENT_PAK_DIR,
+    },
+    utils::open_folder,
 };
 use slint::VecModel;
 
@@ -42,7 +46,7 @@ impl ButtonHandler {
     }
 
     fn open_mods_folder(window: &slint::Weak<MainWindow>) {
-        let path = match get_game_directory() {
+        let path = match locate_installation_root(transitional_selected_game()) {
             Ok(path) => path,
             Err(e) => {
                 error!("Could not find game directory: {e}");

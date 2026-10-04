@@ -26,7 +26,6 @@ use crate::{
         version::{BypassMethod, detect_distribution, detect_version},
     },
     config::{self, get_all_configs, key},
-    pathfind::get_game_directory,
     utils::{get_local_version, read_dir_recursive},
 };
 use crate::{logger::get_latest_logs, utils};
@@ -119,7 +118,10 @@ pub fn export_telemetry() -> Result<()> {
 
     writeln!(file, "=== Game Information ===")?;
 
-    let game_path = get_game_directory().with_context(|| "Failed to get game directory")?;
+    let game_path = crate::classes::games::locate::locate_installation_root(
+        crate::classes::games::locate::transitional_selected_game(),
+    )
+    .with_context(|| "Failed to get game directory")?;
     writeln!(file, "Game Path:       {}", game_path.display())?;
 
     let version = detect_version(game_path.as_path()).unwrap_or_default();

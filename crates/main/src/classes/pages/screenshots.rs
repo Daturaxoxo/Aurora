@@ -125,7 +125,10 @@ fn selfie_folder() -> Option<PathBuf> {
 
 fn pictures_folder() -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
-    let base = shared::classes::steam::aurora_prefix()?
+    let base = shared::classes::games::default_game()
+        .descriptor()
+        .steam
+        .and_then(|metadata| shared::classes::steam::compat_prefix(&metadata))?
         .join("drive_c")
         .join("users")
         .join("steamuser")

@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
 use backend::handler::EngineCommand;
 use log::*;
-use shared::{pathfind, utils::get_cache_dir};
+use shared::{
+    classes::games::locate::{locate_installation_root, transitional_selected_game},
+    utils::get_cache_dir,
+};
 
 pub struct RepairHandler;
 
@@ -16,7 +19,7 @@ impl RepairHandler {
             info!("[Repair] Validating files");
             engine_handler.send(EngineCommand::Validate)?;
 
-            let game_path = pathfind::get_game_directory()
+            let game_path = locate_installation_root(transitional_selected_game())
                 .context("Repair could not find the game directory")?;
             trace!("[Repair] Game directory: {}", game_path.display());
         }

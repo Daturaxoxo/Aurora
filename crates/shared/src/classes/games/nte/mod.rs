@@ -10,7 +10,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use super::{
-    EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier,
+    EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
     capabilities::{AddonSupport, LauncherSupport},
     identity::{GameId, SafeRelativePath},
 };
@@ -32,7 +32,19 @@ pub const NTE_PROCESSES: &[&str] = &[
 ];
 
 pub const NTE_GAME_EXE: &str = "HTGame.exe";
+const STEAM_APP_ID: &str = "4508340";
 const FOLDER_NAMES: &[&str] = &[paths::GAME_FOLDER_NAME, "異環", "NTE"];
+const PAYLOAD_FILES: &[&str] = &[
+    "AuroraEngine.dll",
+    "Everlight.asi",
+    "Plugins/chksum.asi",
+    "Wrappers/version.dll",
+    "Wrappers/dsound.dll",
+    "Addons/Censorship/censorship.auadd",
+    "Addons/HideRedDots/hideRedDots.auadd",
+    "Addons/HideUID/hideUID.auadd",
+    "Addons/UIModPack/uiModPack.auadd",
+];
 const MARKERS: &[&str] = &[
     "NTELauncher.exe",
     "NTEGlobalLauncher.exe",
@@ -69,6 +81,10 @@ impl Nte {
                 game_executable: path(NTE_GAME_EXE),
                 binaries: path(paths::CLIENT_WIN64),
                 payload_dir: path("nte"),
+                payload_files: PAYLOAD_FILES.iter().copied().map(path).collect(),
+                steam: Some(SteamMetadata {
+                    app_id: STEAM_APP_ID,
+                }),
                 engine: EngineKind::Pak,
             },
         }

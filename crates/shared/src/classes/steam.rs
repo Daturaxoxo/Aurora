@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use log::{debug, warn};
 
+use crate::classes::games::SteamMetadata;
+
 pub struct RealUser {
     pub uid: u32,
     pub gid: u32,
@@ -25,9 +27,6 @@ pub fn real_user() -> Option<RealUser> {
     };
 
     let c_name = CString::new(name.as_bytes()).ok()?;
-
-    // getpwnam returns a pointer into static storage, so everything we need
-    // gets copied out before the next libc call can clobber it.
     let pw = unsafe { libc::getpwnam(c_name.as_ptr()) };
     if pw.is_null() {
         warn!(
@@ -60,18 +59,18 @@ pub fn real_home() -> Option<PathBuf> {
     real_user().map(|user| user.home)
 }
 
-pub const STEAM_APP_ID: &str = "4508340";
-
-pub fn aurora_compat_data_dir() -> Option<PathBuf> {
-    real_home().map(|home| {
-        home.join(".local/share/Aurora")
-            .join("compatdata")
-            .join(STEAM_APP_ID)
-    })
+pub fn compat_data_dir(steam: &SteamMetadata) -> Option<PathBuf> {
+    real_home().map(|home| compat_data_under(&home, steam))
 }
 
-pub fn aurora_prefix() -> Option<PathBuf> {
-    aurora_compat_data_dir().map(|dir| dir.join("pfx"))
+pub fn compat_prefix(steam: &SteamMetadata) -> Option<PathBuf> {
+    compat_data_dir(steam).map(|dir| dir.join("pfx"))
+}
+
+fn compat_data_under(home: &Path, steam: &SteamMetadata) -> PathBuf {
+    home.join(".local/share/Aurora")
+        .join("compatdata")
+        .join(steam.app_id)
 }
 
 pub fn steam_libraries() -> Vec<PathBuf> {
@@ -116,9 +115,6 @@ pub fn find_steam_root() -> Option<PathBuf> {
         home.join(".steam/root"),
         home.join(".local/share/Steam"),
     ] {
-        // Resolve symlinks (common on Arch, where ~/.steam/steam is a
-        // symlink into ~/.local/share/Steam) and confirm it actually
-        // points somewhere that looks like a Steam install.
         if let Ok(resolved) = candidate.canonicalize()
             && (resolved.join("steamapps").is_dir() || resolved.join("ubuntu12_32").is_dir())
         {
@@ -147,10 +143,10 @@ pub fn parse_library_folders(vdf_path: &Path) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
-pub fn compatdata_prefixes() -> Vec<PathBuf> {
+pub fn compatdata_prefixes(libraries: &[PathBuf], steam: Option<&SteamMetadata>) -> Vec<PathBuf> {
     let mut prefixes = Vec::new();
 
-    for library in steam_libraries() {
+    for library in libraries {
         let compatdata = library.join("steamapps").join("compatdata");
         let Ok(entries) = std::fs::read_dir(&compatdata) else {
             continue;
@@ -167,5 +163,9 @@ pub fn compatdata_prefixes() -> Vec<PathBuf> {
 
     prefixes.sort();
     prefixes.dedup();
+    if let Some(steam) = steam {
+        prefixes
+            .sort_by_key(|prefix| prefix.file_name() != Some(std::ffi::OsStr::new(steam.app_id)));
+    }
     prefixes
 }

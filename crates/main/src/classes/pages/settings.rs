@@ -8,9 +8,10 @@ use backend::classes::rpc::RPC;
 use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
+use shared::classes::games::locate::{store_installation_root, transitional_selected_game};
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
-use shared::pathfind::resolve_selected_game_root;
+use shared::pathfind::resolve_game_root;
 use shared::utils::open_folder;
 use slint::{ComponentHandle as _, Model as _};
 use std::sync::atomic::Ordering;
@@ -436,7 +437,8 @@ impl SettingsHandler {
                     Some(path) => {
                         info!("game directory selected -> {:?}", path.display());
 
-                        let path = if let Some(root) = resolve_selected_game_root(&path) {
+                        let game = transitional_selected_game();
+                        let path = if let Some((root, _)) = resolve_game_root(game, &path) {
                             if root != path {
                                 info!("resolved selection to install root -> {:?}", root.display());
                             }
@@ -451,8 +453,11 @@ impl SettingsHandler {
                         };
 
                         let path_str: String = path.to_string_lossy().into_owned();
-                        config::set(key::GAME_PATH, path_str.clone());
-                        debug!("game_path saved to config");
+                        if let Err(e) = store_installation_root(game, &path) {
+                            error!("could not save the game directory: {e:#}");
+                        } else {
+                            debug!("game_path saved to config");
+                        }
 
                         match get_tx() {
                             Ok(tx) => {

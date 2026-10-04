@@ -253,8 +253,12 @@ impl AuroraEngine {
 
         #[cfg(target_os = "linux")]
         {
+            use shared::classes::games::Game as _;
+            let steam = NTE.descriptor().steam.ok_or_else(|| {
+                anyhow!("Cannot launch NTE through Proton: it has no Steam metadata")
+            })?;
             let args: Vec<&str> = plan.arguments.iter().map(String::as_str).collect();
-            crate::classes::linux::launch_via_proton(&plan.executable, &args)?;
+            crate::classes::linux::launch_via_proton(&plan.executable, &args, &steam)?;
             Ok(())
         }
 

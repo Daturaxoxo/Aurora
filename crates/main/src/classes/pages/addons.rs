@@ -6,9 +6,11 @@ use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
-use shared::classes::games::{Game, InstallationFacts, capabilities::AddonSupport, nte::NTE};
+use shared::classes::games::{
+    Game, InstallationFacts, capabilities::AddonSupport, locate, nte::NTE,
+};
 use shared::utils::get_cache_dir;
-use shared::{config, pathfind, utils};
+use shared::{config, utils};
 
 use anyhow::{Context, Result};
 use log::*;
@@ -995,7 +997,7 @@ impl AddonsHandler {
     }
 
     fn detected_installation() -> Option<InstallationFacts> {
-        let installation = pathfind::get_game_directory()
+        let installation = locate::locate_installation_root(&*NTE)
             .ok()
             .and_then(|path| NTE.inspect_installation(&path).ok());
 

@@ -404,6 +404,7 @@ pub fn get_all_configs() -> Map<String, Value> {
 mod migration;
 mod profile;
 
+pub(crate) use migration::{CopyOutcome, copy_verified};
 pub use migration::{ModuleMigration, ProfileMigrationReport, legacy_modules_path, migrate_games};
 pub use profile::{
     ConfigChange, ConfigUndo, GameProfile, GlobalKey, ProfileKey, ProfilePatch, commit_change,
