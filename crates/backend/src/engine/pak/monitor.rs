@@ -3,14 +3,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
-
 use anyhow::{Result, anyhow};
 use log::*;
 use shared::classes::games::nte::{NTE_PROCESSES, version::Version};
-
 use crate::classes::rpc::RPC;
 use crate::engine::contract::{EventSink, SessionExit};
-
 use super::everlight;
 use super::process::{ProcessSnapshot, ProcessTargets, kill_targets};
 
@@ -130,9 +127,7 @@ impl Monitor {
                 continue;
             }
 
-            if !launcher_seen {
-                continue;
-            }
+            if !launcher_seen {continue}
 
             missing_ticks += 1;
             if missing_ticks == 1 {

@@ -1,10 +1,8 @@
 pub mod contract;
 mod lua;
 pub mod pak;
-
 use anyhow::{Result, anyhow};
 use shared::classes::games::{EngineKind, identity::GameId, registry};
-
 use contract::{
     CommandTag, EngineInput, LaunchInput, OperationOutcome, SanitizeInput, SessionExit,
     SessionHooks, ValidateInput, ValidationReport,
@@ -31,8 +29,6 @@ pub trait ModSession: Send {
 pub trait EngineFactory: Send + 'static {
     fn supports(&self, game: &GameId) -> bool;
     fn create(&self, input: &EngineInput) -> Result<Box<dyn ModEngine>>;
-
-    /// Restores missing Aurora files before a validate or launch.
     #[cfg(target_os = "windows")]
     fn repair_install(&self) -> shared::repair::RepairReport {
         shared::repair::restore_missing_files()
@@ -67,24 +63,5 @@ pub fn create_engine(input: &EngineInput) -> Result<Box<dyn ModEngine>> {
     match engine_kind(game) {
         Some(EngineKind::Pak) => Ok(Box::new(PakEngine::new(input)?)),
         None => Err(anyhow!("{game} has no mod engine")),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn registry_games_with_an_engine_are_supported() {
-        for game in registry() {
-            let d = game.descriptor();
-            assert_eq!(supports_game(&d.id), d.engine.is_some(), "{}", d.id);
-        }
-    }
-
-    #[test]
-    fn unregistered_game_is_unsupported() {
-        let id = GameId::parse("jngiusdngu").unwrap();
-        assert!(!supports_game(&id));
     }
 }

@@ -57,13 +57,7 @@ pub fn launch_via_proton(
         debug!("launch_via_proton: exe is outside any Steam library");
     }
 
-    // Steam runs a game from its own install directory, and protonfixes reads
-    // `PWD` to work out which library the game belongs to.
     let work_dir = plan.working_directory.as_path();
-
-    // The prefix has to exist before we can write registry keys into it, and
-    // on a fresh Aurora compat data directory it won't until Proton has run
-    // once. Bootstrap it explicitly rather than racing the game's own startup.
     if !compat_data.join("pfx").is_dir() {
         info!(
             "Prefix at {} does not exist yet; bootstrapping it via Proton",
@@ -155,8 +149,6 @@ fn proton_launch_options(raw: &str) -> LaunchOptions {
     opts
 }
 
-/// Runs Proton once with no real work to do, purely so it creates and
-/// initializes `<compat_data>/pfx`. Blocks until it finishes.
 fn bootstrap_prefix(
     proton_bin: &Path,
     steam_root: &Path,
@@ -183,8 +175,6 @@ fn bootstrap_prefix(
     Ok(())
 }
 
-/// Applies the DLL overrides mods need to `prefix`, using the wine binary
-/// belonging to the same Proton build that owns it.
 fn ensure_dll_overrides(
     proton_bin: &Path,
     prefix: &Path,
@@ -247,10 +237,6 @@ fn set_override(wine: &Path, prefix: &Path, dll_name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Whether `exe` lives inside one of the Steam library folders we know about.
-/// Both sides are canonicalized first so symlinked library roots (very common
-/// on Arch, where `~/.steam/steam` points into `~/.local/share/Steam`) still
-/// compare equal.
 fn is_in_steam_library(exe: &Path) -> bool {
     let Ok(exe) = exe.canonicalize() else {
         warn!(
@@ -266,12 +252,6 @@ fn is_in_steam_library(exe: &Path) -> bool {
         .any(|library| exe.starts_with(&library))
 }
 
-/// Creates the compat data directory Aurora owns and hands it to the invoking
-/// user. The path itself is defined by [`compat_data_dir`].
-///
-/// Aurora runs as root, but Proton is dropped back to the invoking user, so
-/// anything we create here has to be handed over to them or Proton won't be
-/// able to write into it.
 fn aurora_compat_data(steam: &SteamMetadata) -> Result<PathBuf> {
     let dir = compat_data_dir(steam)
         .ok_or_else(|| anyhow!("could not determine the user's home directory"))?;
@@ -298,31 +278,17 @@ fn aurora_compat_data(steam: &SteamMetadata) -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Builds a `Command` that runs as the invoking user rather than as root.
-/// Proton writes a great deal into the prefix and into Steam's own
-/// directories; doing that as root would leave files the user can no longer
-/// touch, and would break launching the game through Steam normally.
 fn command_as_real_user(program: &Path) -> Command {
     use std::os::unix::process::CommandExt;
-
     let mut cmd = Command::new(program);
+    let Some(user) = real_user() else {return cmd};
+    if unsafe { libc::geteuid() } != 0 || user.uid == 0 {return cmd}
 
-    let Some(user) = real_user() else {
-        return cmd;
-    };
-
-    if unsafe { libc::geteuid() } != 0 || user.uid == 0 {
-        return cmd;
-    }
-
-    // std applies gid before uid, and clears supplementary groups for us.
     cmd.uid(user.uid).gid(user.gid);
     cmd.env("HOME", &user.home);
     cmd.env("USER", &user.name);
     cmd.env("LOGNAME", &user.name);
 
-    // Proton and wine both want a writable runtime dir; the one inherited
-    // from sudo belongs to root.
     let runtime_dir = PathBuf::from(format!("/run/user/{}", user.uid));
     if runtime_dir.is_dir() {
         cmd.env("XDG_RUNTIME_DIR", &runtime_dir);
@@ -333,7 +299,6 @@ fn command_as_real_user(program: &Path) -> Command {
         user.uid,
         program.display()
     );
-
     cmd
 }
 
@@ -352,7 +317,6 @@ fn chown_to_real_user(path: &Path) -> Result<()> {
         return Err(std::io::Error::last_os_error())
             .with_context(|| format!("chown {}", path.display()));
     }
-
     Ok(())
 }
 
@@ -381,9 +345,7 @@ fn dwproton_builds(steam_root: &Path) -> Vec<DwProtonBuild> {
         let name = entry.file_name();
         let name = name.to_string_lossy().into_owned();
         let lower = name.to_lowercase();
-        if !lower.contains("dw-proton") && !lower.contains("dwproton") {
-            continue;
-        }
+        if !lower.contains("dw-proton") && !lower.contains("dwproton") {continue}
 
         let script = entry.path().join("proton");
         if !script.is_file() {
@@ -408,7 +370,6 @@ fn dwproton_builds(steam_root: &Path) -> Vec<DwProtonBuild> {
     }
 
     builds.sort_by(|a, b| b.rank.cmp(&a.rank));
-
     builds
 }
 
@@ -506,9 +467,7 @@ pub fn remove_custom_proton_build(dir: &Path) {
 fn selected_custom_proton(configured: &str) -> Option<PathBuf> {
     let configured = configured.trim();
 
-    if configured.is_empty() {
-        return None;
-    }
+    if configured.is_empty() {return None}
 
     let dir = PathBuf::from(configured);
     if !is_proton_dir(&dir) {
@@ -569,8 +528,6 @@ fn find_dwproton_script(steam_root: &Path, configured: &str, custom_path: &str) 
     Some(build.script)
 }
 
-/// Numeric components of a build name, in order, so `dwproton-10.2` sorts
-/// above `dwproton-9.11` (a plain string compare would get that backwards).
 fn version_key(name: &str) -> Vec<u64> {
     let mut parts = Vec::new();
     let mut current = String::new();
@@ -590,9 +547,6 @@ fn version_key(name: &str) -> Vec<u64> {
     parts
 }
 
-/// The `wine` binary shipped inside the Proton build whose launcher script is
-/// `proton_bin`. Using that build's own wine (rather than whatever is on PATH)
-/// keeps the registry writes consistent with the prefix it created.
 fn find_wine_binary(proton_bin: &Path) -> Option<PathBuf> {
     if let Some(build_dir) = proton_bin.parent() {
         for candidate in [

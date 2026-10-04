@@ -14,7 +14,6 @@ use super::locks;
 /// How long to wait for a process to actually disappear after asking it to die.
 const KILL_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
 const KILL_CONFIRM_POLL: Duration = Duration::from_millis(100);
-
 const PROBE_ATTEMPTS: u32 = 5;
 const PROBE_INTERVAL: Duration = Duration::from_millis(300);
 
@@ -101,8 +100,6 @@ fn wait_for_exit(pid: Pid) -> bool {
     }
 }
 
-/// True when `path` sits inside `dir`. Compared case-insensitively on Windows,
-/// where the same directory reaches us in whatever casing the caller stored.
 fn path_under(path: &Path, dir: &Path) -> bool {
     #[cfg(target_os = "windows")]
     {
@@ -118,7 +115,6 @@ fn path_under(path: &Path, dir: &Path) -> bool {
 }
 
 pub(super) struct ProcessSnapshot(System);
-
 impl ProcessSnapshot {
     pub fn refresh() -> Self {
         let mut system = System::new();
@@ -175,9 +171,7 @@ pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<
     let mut remaining = Vec::new();
 
     for (pid, process) in processes {
-        if !seen.insert(pid) {
-            continue;
-        }
+        if !seen.insert(pid) {continue}
 
         let exe = process.exe().map_or_default(|e| e.display().to_string());
         trace!("Killing process {exe} (pid {pid})");

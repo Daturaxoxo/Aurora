@@ -1,10 +1,6 @@
-// TODO(lane B, phase 4): replace this module with GameRuntime. it should own the handle,
-// generations, context and activity state, and build inputs from the resolved context.
-
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
-
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{
     AddonSelection, CommandTag, DeploymentSelection, EngineInput, EngineSettings,
@@ -24,12 +20,10 @@ use shared::classes::games::{
 };
 use shared::config::{self, ProfileKey, ProfilePatch, key};
 use shared::utils;
-
 struct Current {
     tag: CommandTag,
     installation: Option<InstallationFacts>,
 }
-
 static ENGINE: OnceLock<EngineHandle> = OnceLock::new();
 static CURRENT: Mutex<Option<Current>> = Mutex::new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -102,7 +96,6 @@ pub fn configure() -> Result<()> {
         generation: GENERATION.fetch_add(1, Ordering::SeqCst) + 1,
     };
 
-    // Phase 4 moves the choice and persistence into the runtime as generation-tagged work.
     let (installation, problem) = match locate_installation_root(game) {
         Ok(root) => match game.inspect_installation(&root) {
             Ok(facts) => (Some(facts), None),
@@ -182,8 +175,7 @@ pub fn kill() -> Result<()> {
     handle()?.send(EngineCommand::KillProcesses(current_tag()?))
 }
 
-// TODO(lane B, b4-7): persist under the operation's mutation guard, and only for the
-// generation that produced the changes.
+// TODO(lane B, b4-7): persist under the mutex guard
 pub fn persist_records(tag: &CommandTag, changes: &RecordChanges) {
     if changes.is_empty() {
         return;
@@ -221,8 +213,7 @@ fn records() -> Result<Vec<InjectedPluginRecord>> {
     Ok(parse_records(profile.get(ProfileKey::InjectedPlugins)))
 }
 
-// TODO(lane B, b5): the inputs below still read the legacy global keys because the UI
-// writes them. switch to read_profile once the writers move to games.<id>.
+// TODO(lane B, b5): the inputs below still read the legacy global keys because the UI writes them. switch to read_profile once the writers move to games.<id>.
 fn text(key: &str) -> String {
     config::get(key).as_str().unwrap_or_default().to_string()
 }
@@ -268,7 +259,6 @@ fn deployment() -> DeploymentSelection {
     DeploymentSelection { addons, modules }
 }
 
-// The payload still ships flat; phase 7 moves it to Bin/<game> and switches the policy.
 fn payload() -> Result<ResolvedPayloadLayout> {
     let bin = utils::get_bin_path().ok_or_else(|| anyhow!("Could not resolve bin path"))?;
     resolve_payload(

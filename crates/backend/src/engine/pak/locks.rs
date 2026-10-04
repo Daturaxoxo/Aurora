@@ -12,8 +12,6 @@ pub(super) fn holders(path: &Path) -> Vec<String> {
     use windows_sys::Win32::System::RestartManager::{
         RmEndSession, RmRegisterResources, RmStartSession,
     };
-
-    // CCH_RM_SESSION_KEY + 1
     let mut key = [0u16; 33];
     let mut session = 0u32;
 
@@ -43,7 +41,6 @@ pub(super) fn holders(path: &Path) -> Vec<String> {
     };
 
     unsafe { RmEndSession(session) };
-
     names
 }
 
@@ -55,7 +52,6 @@ fn list_processes(session: u32) -> Vec<String> {
     const MAX_TRIES: usize = 3;
 
     let mut capacity = 8u32;
-
     for _ in 0..MAX_TRIES {
         let len = usize::try_from(capacity).unwrap_or_default();
         let mut info = vec![unsafe { std::mem::zeroed::<RM_PROCESS_INFO>() }; len];

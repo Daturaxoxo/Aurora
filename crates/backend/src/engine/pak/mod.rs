@@ -8,10 +8,8 @@ mod sanitize;
 mod session;
 mod state;
 mod validate;
-
 use anyhow::Result;
 use log::*;
-
 use super::contract::{
     CommandTag, EngineInput, InjectedPluginRecord, LaunchInput, OperationOutcome, RecordChanges,
     SanitizeInput, SessionHooks, ValidateInput, ValidationReport,
