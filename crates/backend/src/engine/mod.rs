@@ -31,6 +31,12 @@ pub trait ModSession: Send {
 pub trait EngineFactory: Send + 'static {
     fn supports(&self, game: &GameId) -> bool;
     fn create(&self, input: &EngineInput) -> Result<Box<dyn ModEngine>>;
+
+    /// Restores missing Aurora files before a validate or launch.
+    #[cfg(target_os = "windows")]
+    fn repair_install(&self) -> shared::repair::RepairReport {
+        shared::repair::restore_missing_files()
+    }
 }
 
 pub struct RegistryFactory;

@@ -360,7 +360,7 @@ impl<F: EngineFactory> Worker<F> {
     #[cfg(target_os = "windows")]
     fn repair_install(&self, tag: &CommandTag) {
         let events = EventSink::new(tag.clone(), self.events.clone());
-        let report = shared::repair::restore_missing_files();
+        let report = self.factory.repair_install();
 
         if !report.restored.is_empty() {
             info!("Repaired {} missing file(s)", report.restored.len());
@@ -384,5 +384,486 @@ impl<F: EngineFactory> Worker<F> {
                 ),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use shared::classes::games::{
+        Game as _, InstallationFacts,
+        identity::GameId,
+        launch::LaunchPlan,
+        nte::NTE,
+        payload::{PayloadLayoutKind, ResolvedPayloadLayout},
+    };
+
+    use super::*;
+    use crate::engine::contract::{DeploymentSelection, EngineSettings, RecordChanges};
+
+    const WAIT: Duration = Duration::from_secs(5);
+
+    /// What the fake engines did, shared with the test after the factory
+    /// moves into the worker.
+    #[derive(Default)]
+    struct Probe {
+        log: Mutex<Vec<String>>,
+        ended: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+        exit: Mutex<Option<mpsc::Sender<SessionExit>>>,
+    }
+
+    impl Probe {
+        fn record(&self, entry: String) {
+            self.log
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(entry);
+        }
+
+        fn log(&self) -> Vec<String> {
+            self.log
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+
+        /// Simulates the game closing on its own.
+        fn game_exits(&self) {
+            let exit = self.exit.lock().unwrap().take().expect("a running session");
+            exit.send(SessionExit::GameExited).unwrap();
+            let ended = self.ended.lock().unwrap().take().expect("session hooks");
+            ended();
+        }
+    }
+
+    struct FakeFactory {
+        supported: Vec<GameId>,
+        probe: Arc<Probe>,
+    }
+
+    impl EngineFactory for FakeFactory {
+        fn supports(&self, game: &GameId) -> bool {
+            self.supported.contains(game)
+        }
+
+        fn create(&self, input: &EngineInput) -> Result<Box<dyn ModEngine>> {
+            self.probe.record(format!("create {}", input.tag));
+            Ok(Box::new(FakeEngine {
+                probe: self.probe.clone(),
+            }))
+        }
+
+        #[cfg(target_os = "windows")]
+        fn repair_install(&self) -> shared::repair::RepairReport {
+            shared::repair::RepairReport::default()
+        }
+    }
+
+    struct FakeEngine {
+        probe: Arc<Probe>,
+    }
+
+    fn plugin() -> InjectedPluginRecord {
+        InjectedPluginRecord {
+            path: PathBuf::from("Win64").join("plugin.asi"),
+        }
+    }
+
+    impl ModEngine for FakeEngine {
+        fn reconfigure(&mut self, input: &EngineInput) -> Result<()> {
+            self.probe.record(format!("reconfigure {}", input.tag));
+            Ok(())
+        }
+
+        fn validate(&mut self, request: &ValidateInput) -> OperationOutcome<ValidationReport> {
+            self.probe.record(format!("validate {}", request.tag));
+            OperationOutcome::ok(request.tag.clone(), ValidationReport::default())
+        }
+
+        fn launch(
+            &mut self,
+            request: &LaunchInput,
+            hooks: SessionHooks,
+        ) -> OperationOutcome<Box<dyn ModSession>> {
+            self.probe.record(format!("launch {}", request.tag));
+            let (exit_tx, exit_rx) = mpsc::channel();
+            *self.probe.exit.lock().unwrap() = Some(exit_tx.clone());
+            *self.probe.ended.lock().unwrap() = Some(hooks.ended);
+
+            let mut records = RecordChanges::default();
+            records.add(plugin());
+            let session: Box<dyn ModSession> = Box::new(FakeSession {
+                tag: request.tag.clone(),
+                probe: self.probe.clone(),
+                stop: exit_tx,
+                exit: exit_rx,
+            });
+            OperationOutcome::ok(request.tag.clone(), session).with_records(records)
+        }
+
+        fn sanitize(&mut self, request: &SanitizeInput) -> OperationOutcome<()> {
+            let plugins: Vec<String> = request
+                .injected_plugins
+                .iter()
+                .map(|r| r.path.file_name().unwrap().to_string_lossy().into_owned())
+                .collect();
+            self.probe
+                .record(format!("sanitize {} {}", request.tag, plugins.join(",")));
+            let mut records = RecordChanges::default();
+            request
+                .injected_plugins
+                .iter()
+                .cloned()
+                .for_each(|r| records.remove(r));
+            OperationOutcome::ok(request.tag.clone(), ()).with_records(records)
+        }
+
+        fn kill_processes(&mut self, tag: &CommandTag) -> OperationOutcome<()> {
+            self.probe.record(format!("kill {tag}"));
+            OperationOutcome::ok(tag.clone(), ())
+        }
+    }
+
+    struct FakeSession {
+        tag: CommandTag,
+        probe: Arc<Probe>,
+        stop: mpsc::Sender<SessionExit>,
+        exit: mpsc::Receiver<SessionExit>,
+    }
+
+    impl ModSession for FakeSession {
+        fn request_stop(&mut self) -> Result<()> {
+            self.probe.record(format!("stop {}", self.tag));
+            self.stop.send(SessionExit::Stopped).ok();
+            Ok(())
+        }
+
+        /// Blocks like a real monitor until the game exits or a stop arrives.
+        fn join(&mut self) -> OperationOutcome<SessionExit> {
+            self.probe.record(format!("join {}", self.tag));
+            match self.exit.recv_timeout(WAIT) {
+                Ok(exit) => OperationOutcome::ok(self.tag.clone(), exit),
+                Err(e) => OperationOutcome::failed(self.tag.clone(), anyhow!("join hung: {e}")),
+            }
+        }
+    }
+
+    struct Fixture {
+        handle: EngineHandle,
+        events: mpsc::Receiver<EngineEvent>,
+        probe: Arc<Probe>,
+        payload: ResolvedPayloadLayout,
+        root: PathBuf,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn game_id(raw: &str) -> GameId {
+        GameId::parse(raw).unwrap()
+    }
+
+    fn tag(game: &str, generation: u64) -> CommandTag {
+        CommandTag {
+            game_id: game_id(game),
+            generation,
+        }
+    }
+
+    /// A complete flat payload for the registered game, so the layout is
+    /// built through its only constructor.
+    fn payload_under(root: &Path) -> ResolvedPayloadLayout {
+        for file in &NTE.descriptor().payload_files {
+            let path = file.resolve_under(root);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, b"payload").unwrap();
+        }
+        for dir in ["Wrappers", "Plugins", "Addons"] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        ResolvedPayloadLayout::inspect(&*NTE, root, PayloadLayoutKind::LegacyFlat).unwrap()
+    }
+
+    fn fixture(label: &str, supported: &[&str]) -> Fixture {
+        let root =
+            std::env::temp_dir().join(format!("aurora-handler-{label}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let payload = payload_under(&root.join("Bin"));
+        let probe = Arc::new(Probe::default());
+        let (handle, events) = EngineHandle::spawn_with(FakeFactory {
+            supported: supported.iter().map(|id| game_id(id)).collect(),
+            probe: probe.clone(),
+        });
+        Fixture {
+            handle,
+            events,
+            probe,
+            payload,
+            root,
+        }
+    }
+
+    impl Fixture {
+        fn input(&self, tag: &CommandTag, installed: bool) -> EngineInput {
+            EngineInput {
+                tag: tag.clone(),
+                installation: installed.then(|| {
+                    InstallationFacts::new(self.root.join("Game"), "global", "standalone")
+                }),
+                settings: EngineSettings {
+                    engine_method: 0,
+                    ignore_checksum: false,
+                },
+                payload: self.payload.clone(),
+                deployment: DeploymentSelection::default(),
+                injected_plugins: Vec::new(),
+            }
+        }
+
+        fn launch_input(&self, tag: &CommandTag) -> LaunchInput {
+            LaunchInput {
+                tag: tag.clone(),
+                plan: LaunchPlan {
+                    executable: self.root.join("Game").join("Game.exe"),
+                    working_directory: self.root.join("Game"),
+                    arguments: Vec::new(),
+                    environment: Vec::new(),
+                    compatibility: None,
+                    dll_overrides: Vec::new(),
+                },
+                deployment: DeploymentSelection::default(),
+                injected_plugins: Vec::new(),
+                proton_args: String::new(),
+                proton_version: String::new(),
+                proton_custom_path: String::new(),
+            }
+        }
+
+        fn send(&self, command: EngineCommand) {
+            self.handle.send(command).unwrap();
+        }
+
+        fn next(&self) -> EngineEvent {
+            self.events
+                .recv_timeout(WAIT)
+                .expect("the worker should answer")
+        }
+
+        fn configure(&self, tag: &CommandTag, installed: bool) -> OperationOutcome<Readiness> {
+            self.send(EngineCommand::Configure(self.input(tag, installed)));
+            match self.next() {
+                EngineEvent::Configured(outcome) => outcome,
+                other => panic!("expected Configured, got {other:?}"),
+            }
+        }
+
+        fn launch(&self, tag: &CommandTag) -> OperationOutcome<()> {
+            self.send(EngineCommand::Launch(self.launch_input(tag)));
+            match self.next() {
+                EngineEvent::Launched(outcome) => outcome,
+                other => panic!("expected Launched, got {other:?}"),
+            }
+        }
+
+        fn session_closed(&self) -> OperationOutcome<SessionExit> {
+            match self.next() {
+                EngineEvent::SessionClosed(outcome) => outcome,
+                other => panic!("expected SessionClosed, got {other:?}"),
+            }
+        }
+
+        /// Proves nothing else is queued: the worker answers commands in
+        /// order, so the next event must be the reply to this probe.
+        fn assert_quiet(&self) {
+            let probe = tag("quiet", u64::MAX);
+            self.send(EngineCommand::KillProcesses(probe.clone()));
+            match self.next() {
+                EngineEvent::Killed(outcome) => assert_eq!(outcome.tag, probe),
+                other => panic!("expected only the probe's reply, got {other:?}"),
+            }
+        }
+    }
+
+    fn error_text<T>(outcome: &OperationOutcome<T>) -> String {
+        match &outcome.result {
+            Ok(_) => panic!("expected a failure for {}", outcome.tag),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn fake_engine_trace_covers_a_whole_session() {
+        let f = fixture("trace", &["nte"]);
+        let t = tag("nte", 1);
+
+        let configured = f.configure(&t, true);
+        assert_eq!(configured.tag, t);
+        assert_eq!(configured.result.unwrap(), Readiness::Ready);
+
+        f.send(EngineCommand::Validate(ValidateInput {
+            tag: t.clone(),
+            deployment: DeploymentSelection::default(),
+        }));
+        match f.next() {
+            EngineEvent::Validated(outcome) => assert!(outcome.result.is_ok()),
+            other => panic!("expected Validated, got {other:?}"),
+        }
+
+        let launched = f.launch(&t);
+        assert!(launched.result.is_ok());
+        assert_eq!(launched.records.added, [plugin()]);
+
+        f.probe.game_exits();
+        let closed = f.session_closed();
+        assert_eq!(closed.tag, t);
+        assert_eq!(closed.result.unwrap(), SessionExit::GameExited);
+        assert_eq!(closed.records.removed, [plugin()]);
+
+        assert_eq!(
+            f.probe.log(),
+            [
+                "create nte#1",
+                "validate nte#1",
+                "launch nte#1",
+                "join nte#1",
+                "sanitize nte#1 plugin.asi",
+            ]
+        );
+        f.assert_quiet();
+    }
+
+    #[test]
+    fn a_game_without_an_engine_is_rejected() {
+        let f = fixture("engineless", &["nte"]);
+        let t = tag("noengine", 1);
+
+        let configured = f.configure(&t, true);
+        assert!(error_text(&configured).contains("has no mod engine"));
+
+        let launched = f.launch(&t);
+        assert!(error_text(&launched).contains("Engine not initialized"));
+        assert!(f.probe.log().is_empty(), "{:?}", f.probe.log());
+    }
+
+    #[test]
+    fn a_missing_installation_leaves_the_engine_unavailable() {
+        let f = fixture("uninstalled", &["nte"]);
+        let t = tag("nte", 1);
+
+        assert_eq!(
+            f.configure(&t, false).result.unwrap(),
+            Readiness::Unavailable
+        );
+        assert!(error_text(&f.launch(&t)).contains("Engine not initialized"));
+        assert!(f.probe.log().is_empty(), "{:?}", f.probe.log());
+    }
+
+    #[test]
+    fn stale_commands_are_rejected_without_reaching_the_engine() {
+        let f = fixture("stale", &["nte", "other"]);
+        let old = tag("nte", 1);
+        let current = tag("nte", 2);
+
+        f.configure(&old, true).result.unwrap();
+        f.configure(&current, true).result.unwrap();
+
+        f.send(EngineCommand::Validate(ValidateInput {
+            tag: old.clone(),
+            deployment: DeploymentSelection::default(),
+        }));
+        match f.next() {
+            EngineEvent::Validated(outcome) => {
+                assert_eq!(outcome.tag, old);
+                assert!(error_text(&outcome).contains("stale"));
+            }
+            other => panic!("expected Validated, got {other:?}"),
+        }
+        assert!(error_text(&f.launch(&old)).contains("stale"));
+
+        f.send(EngineCommand::StopSession(old));
+        f.assert_quiet();
+
+        // The same game reuses its engine; another game gets a fresh one.
+        f.configure(&tag("other", 3), true).result.unwrap();
+        assert_eq!(
+            f.probe.log(),
+            ["create nte#1", "reconfigure nte#2", "create other#3"]
+        );
+    }
+
+    #[test]
+    fn a_running_session_blocks_relaunch_and_reconfigure() {
+        let f = fixture("busy", &["nte"]);
+        let t = tag("nte", 1);
+        f.configure(&t, true).result.unwrap();
+        f.launch(&t).result.unwrap();
+
+        assert!(error_text(&f.launch(&t)).contains("already running"));
+        assert!(error_text(&f.configure(&tag("nte", 2), true)).contains("cannot reconfigure"));
+
+        f.send(EngineCommand::StopSession(t));
+        assert_eq!(f.session_closed().result.unwrap(), SessionExit::Stopped);
+    }
+
+    #[test]
+    fn stop_joins_the_session_without_cleaning_up() {
+        let f = fixture("stop", &["nte"]);
+        let t = tag("nte", 1);
+        f.configure(&t, true).result.unwrap();
+        f.launch(&t).result.unwrap();
+
+        f.send(EngineCommand::StopSession(tag("nte", 9)));
+        f.send(EngineCommand::StopSession(t.clone()));
+        let closed = f.session_closed();
+        assert_eq!(closed.tag, t);
+        assert_eq!(closed.result.unwrap(), SessionExit::Stopped);
+
+        assert_eq!(
+            f.probe.log(),
+            ["create nte#1", "launch nte#1", "stop nte#1", "join nte#1"]
+        );
+        f.assert_quiet();
+    }
+
+    #[test]
+    fn a_late_session_end_after_stop_is_ignored() {
+        let f = fixture("late-end", &["nte"]);
+        let t = tag("nte", 1);
+        f.configure(&t, true).result.unwrap();
+        f.launch(&t).result.unwrap();
+
+        let ended = f.probe.ended.lock().unwrap().take().unwrap();
+        f.send(EngineCommand::StopSession(t));
+        f.session_closed().result.unwrap();
+
+        ended();
+        f.assert_quiet();
+    }
+
+    #[test]
+    fn shutdown_stops_and_joins_a_running_session() {
+        let f = fixture("shutdown", &["nte"]);
+        let t = tag("nte", 1);
+        f.configure(&t, true).result.unwrap();
+        f.launch(&t).result.unwrap();
+
+        let (done_tx, done_rx) = mpsc::channel();
+        thread::scope(|scope| {
+            scope.spawn(|| done_tx.send(f.handle.shutdown()).unwrap());
+            done_rx
+                .recv_timeout(WAIT)
+                .expect("shutdown deadlocked")
+                .unwrap();
+        });
+
+        assert_eq!(f.session_closed().result.unwrap(), SessionExit::Stopped);
+        assert!(f.handle.send(EngineCommand::Shutdown).is_err());
+        assert!(f.handle.shutdown().is_ok(), "a second shutdown is a no-op");
     }
 }
