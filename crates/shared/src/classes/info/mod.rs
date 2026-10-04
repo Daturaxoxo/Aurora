@@ -34,7 +34,6 @@ impl Target {
             Self::AsiPlugin => "Everlight.asi",
             Self::AuroraTf => "AuroraTF.asi",
             Self::CNAuroraTF => "CNAuroraTF.asi",
-            Self::Cutils => "cutils.dll",
         }
     }
 }
