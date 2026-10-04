@@ -4931,5 +4931,23 @@
         "pt": "O modo direto ignora o lançador do NTE, mas o NTE inicia o jogo sem as vozes das personagens. É um erro do lançador do NTE que a Aurora não consegue contornar. Fica no modo manual se quiseres as vozes.",
         "pt-BR": "O modo direto pula o launcher do NTE, mas o NTE inicia o jogo sem as vozes dos personagens. É um bug do launcher do NTE que a Aurora não consegue contornar. Fique no modo manual se quiser as vozes.",
         "id": "Mode langsung melewati peluncur NTE, tetapi NTE lalu memulai gim tanpa suara karakter. Ini bug pada peluncur NTE yang tidak bisa diatasi Aurora. Tetaplah di mode manual jika kamu ingin ada suara karakter."
+    },
+    {
+        "key": "addons.variant.title",
+        "en": "Select Version",
+        "tr": "Sürüm Seçin",
+        "zh-CN": "选择版本",
+        "es": "Selecciona una versión",
+        "de": "Version auswählen",
+        "nl": "Selecteer een versie",
+        "fr": "Sélectionnez une version",
+        "it": "Seleziona una versione",
+        "ru": "Выберите версию",
+        "vi": "Chọn phiên bản",
+        "jp": "バージョンを選択",
+        "ko": "버전 선택",
+        "pt": "Seleciona uma versão",
+        "pt-BR": "Selecione uma versão",
+        "id": "Pilih versi"
     }
 ]

@@ -36,6 +36,7 @@ impl AuroraEngine {
         Self::copy_non_addon_files(&files)?;
         super::everlight::install_signature(&self.win64)?;
         self.copy_pak_addons(&files)?;
+        self.copy_overlay_addons(&files);
 
         if LuaManager::exists(&self.bin_path) {
             info!(
@@ -72,7 +73,9 @@ impl AuroraEngine {
     fn copy_non_addon_files(files: &[ManagedFile]) -> Result<()> {
         let to_copy: Vec<&ManagedFile> = files
             .iter()
-            .filter(|f| f.enabled && f.group != FileGroup::PakAddon)
+            .filter(|f| {
+                f.enabled && !matches!(f.group, FileGroup::PakAddon | FileGroup::OverlayAddon)
+            })
             .collect();
 
         for f in &to_copy {
@@ -145,6 +148,64 @@ impl AuroraEngine {
 
         self.last_addon_warnings = warnings;
         Ok(())
+    }
+
+    fn copy_overlay_addons(&mut self, files: &[ManagedFile]) {
+        let mut copied = Vec::new();
+
+        for f in files
+            .iter()
+            .filter(|f| f.group == FileGroup::OverlayAddon && f.enabled)
+        {
+            if !f.source.exists() {
+                continue;
+            }
+
+            if f.destination.exists() {
+                let msg = format!(
+                    "Overlay addon '{}': '{}' already exists in the game folder, leaving it untouched",
+                    f.addon.as_deref().unwrap_or_default(),
+                    f.label
+                );
+                warn!("{msg}");
+                self.last_addon_warnings.push(msg);
+                continue;
+            }
+
+            let result = if f.source.is_dir() {
+                super::lua::copy_dir_all(&f.source, &f.destination)
+            } else {
+                fs::copy(&f.source, &f.destination)
+                    .map(|_| ())
+                    .map_err(Into::into)
+            };
+
+            if f.destination.exists() {
+                copied.push(f.destination.clone());
+            }
+
+            match result {
+                Ok(()) => trace!(
+                    "Overlay addon: copied {} to {}",
+                    f.source.display(),
+                    f.destination.display()
+                ),
+                Err(e) => {
+                    let msg = format!(
+                        "Overlay addon '{}': could not copy '{}': {e}",
+                        f.addon.as_deref().unwrap_or_default(),
+                        f.label
+                    );
+                    error!("{msg}");
+                    self.last_addon_warnings.push(msg);
+                }
+            }
+        }
+
+        if !copied.is_empty() {
+            info!("Copied {} overlay addon file(s) to Win64", copied.len());
+            Self::record_injected_plugins(&copied);
+        }
     }
 
     fn copy_custom_files(&self, custom_files: &[PathBuf]) -> Result<Vec<PathBuf>> {

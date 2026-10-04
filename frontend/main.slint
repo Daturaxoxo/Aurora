@@ -227,6 +227,7 @@ export component MainWindow inherits Window {
     // Addons Page Properties
     in-out property <[AddonItem]> addons: [];
     callback addon-action(int);
+    callback addon-install-variant(int, int);
     callback addon-auto-update(int);
     callback addon-open-link(int);
     callback addon-delete(int);
@@ -1275,6 +1276,7 @@ export component MainWindow inherits Window {
             addons <=> root.addons;
             close-addons => { root.show-addons = false; }
             addon-action(i) => { root.addon-action(i); }
+            addon-install-variant(i, v) => { root.addon-install-variant(i, v); }
             addon-auto-update(i) => { root.addon-auto-update(i); }
             addon-open-link(i) => { root.addon-open-link(i); }
             addon-delete(i) => { root.addon-delete(i); }

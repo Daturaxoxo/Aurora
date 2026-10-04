@@ -43,6 +43,8 @@ impl PakAddon {
             // key::UI_MOD_PACK
             Self::new("ui_pack".to_string(), "ModPack_P".to_string()),
             Self::new("ui_pack".to_string(), "ModPack_Launcher_P".to_string()),
+            // key::UTILITY_MOD_PACK
+            Self::new("util_pack".to_string(), "UtilityPack_P".to_string()),
         ]
     }
 }
@@ -66,6 +68,7 @@ impl ResolvedAddonFile {
             "HideUI_UserID_P" => "HideUID",
             "Disable_RedDot_P" => "HideRedDots",
             "ModPack_P" | "ModPack_Launcher_P" => "UIModPack",
+            "UtilityPack_P" => "UtilityModPack",
             _ => base_name,
         }
         .to_string()

@@ -4,8 +4,6 @@ pub mod launch;
 pub mod locate;
 pub mod nte;
 pub mod payload;
-#[cfg(test)]
-pub(crate) mod testing;
 
 use std::{
     collections::HashMap,
@@ -167,12 +165,44 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
 
     if let Some(addons) = game.addons() {
         let shipped = addons.shipped_addons();
-        check_list(&id, "shipped_addons.name", shipped.iter().map(|a| a.name))?;
+        check_list(
+            &id,
+            "shipped_addons.name",
+            shipped
+                .iter()
+                .flat_map(|a| std::iter::once(a.name).chain(a.legacy_names.iter().copied())),
+        )?;
         check_list(
             &id,
             "shipped_addons.config_key",
             shipped.iter().map(|a| a.config_key),
         )?;
+
+        let overlays = addons.overlay_addons();
+        check_list(
+            &id,
+            "overlay_addons.config_key",
+            overlays.iter().map(|o| o.config_key),
+        )?;
+        check_list(
+            &id,
+            "overlay_addons.folder",
+            overlays.iter().map(|o| o.folder),
+        )?;
+        for overlay in overlays {
+            if !shipped.iter().any(|a| a.config_key == overlay.config_key) {
+                return Err(anyhow!(
+                    "{id}: overlay addon '{}' has config key '{}', which no shipped addon uses",
+                    overlay.folder,
+                    overlay.config_key
+                ));
+            }
+            check_list(
+                &id,
+                "overlay_addons.persist",
+                overlay.persist.iter().copied(),
+            )?;
+        }
     }
 
     Ok(())
