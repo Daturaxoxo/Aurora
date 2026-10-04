@@ -4,12 +4,12 @@ use std::sync::{Mutex, PoisonError};
 
 use anyhow::Result;
 use log::*;
-use shared::{classes::info::Target, config};
+use shared::{classes::info::Target, config::key};
 
 use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
 use crate::classes::validate::validate_files;
 
-use super::AuroraEngine;
+use super::PakEngine;
 use super::files::FileGroup;
 
 /// Files we have already tried to fetch this session
@@ -22,8 +22,8 @@ fn first_attempt(path: &Path) -> bool {
         .insert(path.to_path_buf())
 }
 
-impl AuroraEngine {
-    pub fn validate(&self) -> Result<Vec<String>> {
+impl PakEngine {
+    pub fn validate_files(&self) -> Result<Vec<String>> {
         let missing = self.validate_builtins()?;
         if missing.is_empty() {
             info!("Validation passed, all required files are present");
@@ -35,7 +35,7 @@ impl AuroraEngine {
 
     pub fn validate_builtins(&self) -> Result<Vec<String>> {
         let mut missing = validate_files(
-            self.bin_path.clone(),
+            self.payload.root().to_path_buf(),
             vec![Target::AsiPlugin.as_file().to_string()],
         )?;
 
@@ -56,10 +56,7 @@ impl AuroraEngine {
 
         self.repair_censorship_files();
 
-        let crr = config::get(config::key::CENSORSHIP_REMOVE)
-            .as_bool()
-            .unwrap_or(false);
-        if crr {
+        if self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {
             missing.extend(
                 self.targets
                     .iter()
@@ -73,14 +70,11 @@ impl AuroraEngine {
     }
 
     pub(super) fn repair_censorship_files(&self) {
-        let enabled = config::get(config::key::CENSORSHIP_REMOVE)
-            .as_bool()
-            .unwrap_or(false);
-        if !enabled {
+        if !self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {
             return;
         }
 
-        let folder = self.addons_path.join(CENSORSHIP_DIR);
+        let folder = self.payload.addons().join(CENSORSHIP_DIR);
         for (target, _) in self
             .targets
             .iter()

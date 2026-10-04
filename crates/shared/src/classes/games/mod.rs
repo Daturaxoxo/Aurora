@@ -47,7 +47,7 @@ pub struct GameDescriptor {
     pub payload_dir: SafeRelativePath,
     pub payload_files: Vec<SafeRelativePath>,
     pub steam: Option<SteamMetadata>,
-    pub engine: EngineKind,
+    pub engine: Option<EngineKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

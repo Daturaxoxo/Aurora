@@ -1,5 +1,5 @@
+use crate::bridge::engine;
 use anyhow::{Context, Result};
-use backend::handler::EngineCommand;
 use log::*;
 use shared::{
     classes::games::locate::{locate_installation_root, transitional_selected_game},
@@ -13,11 +13,10 @@ impl RepairHandler {
     // commit author: alawapr (1 month ago)
     // state of implementation: nothing 💀💀💀
     pub fn repair(validate_files: bool, clean_cache: bool, remove_files: bool) -> Result<()> {
-        let engine_handler = backend::handler::get_tx()?;
-        engine_handler.send(EngineCommand::KillProcesses)?;
+        engine::kill()?;
         if validate_files {
             info!("[Repair] Validating files");
-            engine_handler.send(EngineCommand::Validate)?;
+            engine::validate()?;
 
             let game_path = locate_installation_root(transitional_selected_game())
                 .context("Repair could not find the game directory")?;
@@ -26,8 +25,7 @@ impl RepairHandler {
 
         if remove_files {
             info!("[Repair] Removing files");
-            // TODO: Doesn't check for old files
-            engine_handler.send(EngineCommand::Sanitize)?;
+            engine::sanitize()?;
         }
 
         if clean_cache {

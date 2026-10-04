@@ -1,60 +1,53 @@
 use std::fs;
-use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow};
 use log::*;
-use shared::classes::games::{
-    InstallationFacts,
-    capabilities::LauncherSupport,
-    launch::{LaunchPlatform, LaunchRequest},
-    nte::NTE,
-};
-use shared::classes::info::version::StartMethod;
-use shared::config::{self, key};
 
 use crate::classes::validate::ensure_dir;
-use crate::engine::files::{FileGroup, ManagedFile, group_by_addon};
+use crate::engine::contract::{InjectedPluginRecord, LaunchInput, ModuleSelection, RecordChanges};
 use crate::engine::lua::LuaManager;
-use crate::global::PLUGINS;
 
-use super::AuroraEngine;
+use super::PakEngine;
+use super::files::{FileGroup, ManagedFile, group_by_addon};
 
-impl AuroraEngine {
-    pub fn inject(&mut self, custom_files: Option<Vec<PathBuf>>) -> Result<()> {
+const PLUGINS: &[&str] = &["chksum.asi", "ipc.asi"];
+
+impl PakEngine {
+    pub fn inject(&mut self, request: &LaunchInput, records: &mut RecordChanges) -> Result<()> {
         info!("Injecting into NTE...");
         info!("Game path:  {}", self.game_path.display());
-        info!("Bin path:   {}", self.bin_path.display());
+        info!("Payload:    {}", self.payload.root().display());
         info!("Mods path:  {}", self.pak_base.display());
+        info!("Distribution: {}", self.distribution);
 
+        self.deployment = request.deployment.clone();
         self.repair_censorship_files();
 
         let files = self.managed_files();
         Self::check_required(&files)?;
 
-        self.cleanup()?;
+        let (cleaned, removed) = self.cleanup(&request.injected_plugins);
+        records.extend(removed);
+        cleaned?;
 
         Self::copy_non_addon_files(&files)?;
         super::everlight::install_signature(&self.win64)?;
         self.copy_pak_addons(&files)?;
-        self.copy_overlay_addons(&files);
+        self.copy_overlay_addons(&files, records);
 
-        if LuaManager::exists(&self.bin_path) {
+        if let Some(lua) = self.payload.lua() {
             info!(
                 "UE4SS Lua runtime detected in {}, copying into {}",
-                self.bin_path.join("Lua").display(),
+                lua.display(),
                 self.win64.display()
             );
-            LuaManager::setup(&self.bin_path, &self.win64)?;
+            LuaManager::setup(lua, &self.win64)?;
         }
 
-        let mut injected = match custom_files {
-            Some(custom_files) => self.copy_custom_files(&custom_files)?,
-            None => vec![],
-        };
-        injected.extend(self.copy_plugins()?);
-        Self::record_injected_plugins(&injected);
+        self.copy_custom_files(&request.deployment.modules, records)?;
+        self.copy_plugins(records)?;
 
-        self.launch_game()
+        Self::launch_game(request)
     }
 
     fn check_required(files: &[ManagedFile]) -> Result<()> {
@@ -150,7 +143,7 @@ impl AuroraEngine {
         Ok(())
     }
 
-    fn copy_overlay_addons(&mut self, files: &[ManagedFile]) {
+    fn copy_overlay_addons(&mut self, files: &[ManagedFile], records: &mut RecordChanges) {
         let mut copied = Vec::new();
 
         for f in files
@@ -173,7 +166,7 @@ impl AuroraEngine {
             }
 
             let result = if f.source.is_dir() {
-                super::lua::copy_dir_all(&f.source, &f.destination)
+                crate::engine::lua::copy_dir_all(&f.source, &f.destination)
             } else {
                 fs::copy(&f.source, &f.destination)
                     .map(|_| ())
@@ -204,14 +197,18 @@ impl AuroraEngine {
 
         if !copied.is_empty() {
             info!("Copied {} overlay addon file(s) to Win64", copied.len());
-            Self::record_injected_plugins(&copied);
+            for path in copied {
+                records.add(InjectedPluginRecord { path });
+            }
         }
     }
 
-    fn copy_custom_files(&self, custom_files: &[PathBuf]) -> Result<Vec<PathBuf>> {
-        let mut copied = Vec::with_capacity(custom_files.len());
-
-        for file in custom_files {
+    fn copy_custom_files(
+        &self,
+        modules: &[ModuleSelection],
+        records: &mut RecordChanges,
+    ) -> Result<()> {
+        for file in modules.iter().filter(|m| m.enabled).map(|m| &m.path) {
             info!(
                 "Copying custom file {} to {}",
                 file.display(),
@@ -228,21 +225,19 @@ impl AuroraEngine {
                     file.display()
                 ));
             }
-            copied.push(destination);
+            records.add(InjectedPluginRecord { path: destination });
         }
-        Ok(copied)
+        Ok(())
     }
 
-    fn copy_plugins(&self) -> Result<Vec<PathBuf>> {
-        let mut copied = Vec::with_capacity(PLUGINS.nte.len());
-
-        for &plugin in PLUGINS.nte {
-            if plugin == "chksum.asi" && super::everlight::checksum_ignored() {
+    fn copy_plugins(&self, records: &mut RecordChanges) -> Result<()> {
+        for &plugin in PLUGINS {
+            if plugin == "chksum.asi" && self.settings.ignore_checksum {
                 info!("'Ignore Checksum Matching' is enabled, skipping {plugin}");
                 continue;
             }
 
-            let source = self.bin_path.join("Plugins").join(plugin);
+            let source = self.payload.plugins().join(plugin);
             if !source.exists() {
                 warn!(
                     "{plugin} is missing from {}, launching without it",
@@ -261,65 +256,22 @@ impl AuroraEngine {
                 anyhow!("Failed to copy {plugin}: {e}")
             })?;
             trace!("Copied {} to {}", source.display(), destination.display());
-            copied.push(destination);
+            records.add(InjectedPluginRecord { path: destination });
         }
 
-        Ok(copied)
+        Ok(())
     }
 
-    fn record_injected_plugins(destinations: &[PathBuf]) {
-        if destinations.is_empty() {
-            return;
-        }
-
-        let mut paths: Vec<String> = config::get(key::INJECTED_PLUGINS)
-            .as_array()
-            .map_or_default(|list| {
-                list.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(ToString::to_string)
-                    .collect()
-            });
-
-        for destination in destinations {
-            let path = destination.to_string_lossy().into_owned();
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
-        }
-
-        trace!("Recording {} injected plugin(s)", destinations.len());
-        config::set(key::INJECTED_PLUGINS, paths);
-    }
-
-    fn launch_game(&self) -> Result<()> {
-        let start_method = StartMethod::decode(&config::get(key::START_METHOD));
-        let installation = InstallationFacts::new(
-            self.game_path.clone(),
-            self.gpaths.version.key(),
-            self.distribution.key(),
-        );
-        let plan = NTE
-            .launch_plan(&LaunchRequest {
-                installation: &installation,
-                start_method: start_method.id(),
-                platform: LaunchPlatform::host(),
-            })
-            .map_err(|e| anyhow!("Cannot launch NTE: {e}"))?;
-
+    fn launch_game(request: &LaunchInput) -> Result<()> {
+        let plan = &request.plan;
         info!("Launching NTE: {}", plan.executable.display());
-        info!("Distribution: {}", self.distribution);
-        info!("Start method: {start_method}");
         debug!("Launch arguments: {:?}", plan.arguments);
 
         #[cfg(target_os = "linux")]
         {
-            use shared::classes::games::Game as _;
-            let steam = NTE.descriptor().steam.ok_or_else(|| {
-                anyhow!("Cannot launch NTE through Proton: it has no Steam metadata")
-            })?;
-            let args: Vec<&str> = plan.arguments.iter().map(String::as_str).collect();
-            crate::classes::linux::launch_via_proton(&plan.executable, &args, &steam)?;
+            let steam = shared::classes::games::find_game(request.tag.game_id.as_str())
+                .and_then(|game| game.descriptor().steam);
+            crate::classes::linux::launch_via_proton(request, steam.as_ref())?;
             Ok(())
         }
 

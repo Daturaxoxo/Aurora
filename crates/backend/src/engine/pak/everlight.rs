@@ -1,15 +1,14 @@
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use log::*;
-use shared::classes::info::{patcher, version::Version};
+use shared::classes::games::nte::{patcher, version::Version};
 
-use crate::handler::EngineEvent;
+use crate::engine::contract::{EventSink, NotificationKind};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -17,7 +16,7 @@ const CHKSUM_MARKER: &str = "CHKSUM";
 
 pub(super) const SIGNATURE_FILE_NAME: &str = "everlight.sig";
 
-const NTE_SIGNATURE: &[u8] = include_bytes!("../../../../production/engine/NTE/everlight.sig");
+const NTE_SIGNATURE: &[u8] = include_bytes!("../../../../../production/engine/NTE/everlight.sig");
 
 pub(super) fn install_signature(win64: &Path) -> Result<()> {
     let destination = win64.join(SIGNATURE_FILE_NAME);
@@ -31,12 +30,14 @@ pub(super) fn watch(
     win64: &Path,
     game_path: &Path,
     version: Version,
-    evt_tx: &mpsc::Sender<EngineEvent>,
+    ignore_checksum: bool,
+    events: &EventSink,
     stop: &AtomicBool,
 ) {
     thread::scope(|scope| {
-        let chksum_tx = evt_tx.clone();
-        scope.spawn(move || watch_checksum(win64, game_path, version, &chksum_tx, stop));
+        scope.spawn(move || {
+            watch_checksum(win64, game_path, version, ignore_checksum, events, stop);
+        });
     });
 }
 
@@ -44,10 +45,11 @@ fn watch_checksum(
     win64: &Path,
     game_path: &Path,
     version: Version,
-    evt_tx: &mpsc::Sender<EngineEvent>,
+    ignore_checksum: bool,
+    events: &EventSink,
     stop: &AtomicBool,
 ) {
-    if checksum_ignored() {
+    if ignore_checksum {
         info!("'Ignore Checksum Matching' is enabled, not watching for the CHKSUM marker");
         return;
     }
@@ -80,12 +82,7 @@ fn watch_checksum(
                         )
                     },
                 );
-                evt_tx
-                    .send(EngineEvent::Toast {
-                        text,
-                        kind: "error".to_string(),
-                    })
-                    .ok();
+                events.notify(NotificationKind::Error, text);
             }
         }
 
@@ -96,10 +93,4 @@ fn watch_checksum(
 
         thread::sleep(POLL_INTERVAL);
     }
-}
-
-pub(super) fn checksum_ignored() -> bool {
-    shared::config::get(shared::config::key::IGNORE_CHECKSUM)
-        .as_bool()
-        .unwrap_or(false)
 }

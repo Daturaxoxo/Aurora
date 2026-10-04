@@ -1,3 +1,4 @@
+use crate::bridge::{Bridge, engine};
 use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
@@ -5,7 +6,6 @@ use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::launch_args;
 use backend::classes::rpc::RPC;
-use backend::handler::{EngineCommand, GAME_RUNNING, get_tx};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use shared::classes::games::locate::{store_installation_root, transitional_selected_game};
@@ -14,7 +14,6 @@ use shared::config::{self, key};
 use shared::pathfind::resolve_game_root;
 use shared::utils::open_folder;
 use slint::{ComponentHandle as _, Model as _};
-use std::sync::atomic::Ordering;
 
 #[derive(serde::Deserialize)]
 #[allow(dead_code)]
@@ -404,7 +403,7 @@ impl SettingsHandler {
             config::set(key::UI_MINIMIZATION, enabled);
             debug!("interface_minimization saved to config");
             if enabled {
-                if GAME_RUNNING.load(Ordering::Relaxed) {
+                if engine::session_active() {
                     crate::classes::tray::activate(&ww, false);
                 }
             } else {
@@ -459,14 +458,7 @@ impl SettingsHandler {
                             debug!("game_path saved to config");
                         }
 
-                        match get_tx() {
-                            Ok(tx) => {
-                                if let Err(e) = tx.send(EngineCommand::Update) {
-                                    error!("failed to notify engine of game_path change: {e}");
-                                }
-                            }
-                            Err(e) => warn!("engine not started yet, skipping live update: {e}"),
-                        }
+                        Bridge::report_configure(&ww, engine::configure());
 
                         ModManagerHandler::reload(&ww);
 
@@ -517,19 +509,14 @@ impl SettingsHandler {
             w.set_popup_active(true);
         });
 
+        let ww = window.clone();
         w.on_engine_method_index_changed(move |index| {
             info!("engine_method changed -> {index}");
             config::set(key::ENGINE_METHOD, index);
             debug!("engine_method saved to config");
 
-            match get_tx() {
-                Ok(tx) => {
-                    if let Err(e) = tx.send(EngineCommand::Update) {
-                        error!("failed to notify engine of engine_method change: {e}");
-                    }
-                }
-                Err(e) => warn!("engine not started yet, skipping live update: {e}"),
-            }
+            let ww = ww.clone();
+            std::thread::spawn(move || Bridge::report_configure(&ww, engine::configure()));
         });
 
         let ww = window.clone();

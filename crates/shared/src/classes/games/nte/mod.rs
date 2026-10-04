@@ -85,7 +85,7 @@ impl Nte {
                 steam: Some(SteamMetadata {
                     app_id: STEAM_APP_ID,
                 }),
-                engine: EngineKind::Pak,
+                engine: Some(EngineKind::Pak),
             },
         }
     }
