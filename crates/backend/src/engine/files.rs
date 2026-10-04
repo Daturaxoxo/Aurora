@@ -94,7 +94,7 @@ impl AuroraEngine {
             Target::AuroraTf | Target::CNAuroraTF => {
                 self.addons_path.join(CENSORSHIP_DIR).join(target.as_file())
             }
-            Target::AsiPlugin | Target::Cutils => self.bin_path.join(target.as_file()),
+            Target::AsiPlugin => self.bin_path.join(target.as_file()),
         }
     }
 

@@ -154,13 +154,11 @@ impl AuroraEngine {
             vec![
                 (Target::AsiPlugin, gpaths.asi_plugin.clone()),
                 (Target::CNAuroraTF, win64.join(Target::CNAuroraTF.as_file())),
-                (Target::Cutils, win64.join(Target::Cutils.as_file())),
             ]
         } else {
             vec![
                 (Target::AsiPlugin, gpaths.asi_plugin.clone()),
                 (Target::AuroraTf, win64.join(Target::AuroraTf.as_file())),
-                (Target::Cutils, win64.join(Target::Cutils.as_file())),
             ]
         };
 
