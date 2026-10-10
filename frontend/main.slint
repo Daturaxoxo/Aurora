@@ -9,6 +9,7 @@ import { WindowToast } from "components/toast.slint";
 import { PopupDialog, CheckboxItem, PopupDetail } from "components/popup.slint";
 import { ProgressOverlay } from "components/progressoverlay.slint";
 import { MenuPage } from "components/pages/menu.slint";
+import { GamesPage, GameChoice } from "components/pages/games.slint";
 import { AddonsPage, AddonItem } from "components/pages/menus/addons.slint";
 import { ModulesPage } from "components/pages/menus/modules.slint";
 import {
@@ -104,6 +105,7 @@ export component MainWindow inherits Window {
 
     // Page Properties
     in-out property <bool> show-settings: false;
+    in-out property <bool> show-games: false;
     in-out property <bool> show-menu: false;
     in-out property <bool> show-addons: false;
     in-out property <bool> show-modules: false;
@@ -123,6 +125,11 @@ export component MainWindow inherits Window {
     in-out property <LaunchState> launch-state: LaunchState.launch;
     in-out property <bool> launch-disabled: false;
     callback launch-clicked();
+
+    // Game selector
+    in property <[GameChoice]> game-choices: [];
+    in property <bool> games-busy: false;
+    callback game-selected(string /* id */);
 
     // Support Menu Properties
     in-out property <bool> support-menu-open: false;
@@ -151,6 +158,8 @@ export component MainWindow inherits Window {
     in-out property <int> start-method-index: 0;
     in-out property <int> engine-scale: 100;
     in-out property <bool> show-engine-scale: false;
+    in property <bool> engine-settings: true;
+    in property <bool> start-method-choice: true;
     in-out property <bool> ignore-checksum: false;
     in-out property <string> launch-args: "";
     in-out property <bool> developer-mode: false;
@@ -466,11 +475,28 @@ export component MainWindow inherits Window {
                         width: 30%;
                         VerticalLayout {
                             alignment: center;
-                            IconButton {
-                                source: Icons.settings;
-                                icon-size: 22px;
-                                active: root.show-settings;
-                                clicked => { root.show-settings = !root.show-settings; }
+                            HorizontalLayout {
+                                spacing: 8px;
+
+                                IconButton {
+                                    source: Icons.settings;
+                                    icon-size: 22px;
+                                    active: root.show-settings;
+                                    clicked => {
+                                        root.show-games = false;
+                                        root.show-settings = !root.show-settings;
+                                    }
+                                }
+
+                                IconButton {
+                                    source: Icons.game;
+                                    icon-size: 22px;
+                                    active: root.show-games;
+                                    clicked => {
+                                        root.show-settings = false;
+                                        root.show-games = !root.show-games;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1419,6 +1445,29 @@ export component MainWindow inherits Window {
             }
         }
 
+        if (root.show-games): Rectangle {
+            width: 100%;
+            height: parent.height - Palette.topbar-height;
+            y: Palette.topbar-height + 1px;
+            background: transparent;
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.show-games = false; }
+            }
+        }
+
+        if (root.show-games): GamesPage {
+            x: 20px;
+            y: Palette.topbar-height + 15px;
+            width: parent.width - 40px;
+            height: parent.height - (Palette.topbar-height + 35px);
+            games: root.game-choices;
+            busy: root.games-busy;
+            close-games => { root.show-games = false; }
+            game-selected(id) => { root.game-selected(id); }
+        }
+
         if (root.show-settings): SettingsPage {
             x: 20px;
             y: Palette.topbar-height + 15px;
@@ -1434,6 +1483,8 @@ export component MainWindow inherits Window {
             start-method-index <=> root.start-method-index;
             engine-scale <=> root.engine-scale;
             show-engine-scale: root.show-engine-scale;
+            engine-settings: root.engine-settings;
+            start-method-choice: root.start-method-choice;
             ignore-checksum <=> root.ignore-checksum;
             launch-args <=> root.launch-args;
             developer-mode <=> root.developer-mode;

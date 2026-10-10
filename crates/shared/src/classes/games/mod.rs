@@ -4,7 +4,7 @@ pub mod launch;
 pub mod locate;
 pub mod nte;
 pub mod payload;
-
+pub mod sp;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -13,7 +13,6 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use serde_json::Value;
-
 use crate::config::ProfileKey;
 use capabilities::{AddonSupport, LauncherSupport, ModManagerSupport};
 use identity::{GameId, SafeRelativePath};
@@ -42,8 +41,8 @@ pub struct GameDescriptor {
     pub launchers: Vec<LauncherIdentifier>,
     pub markers: Vec<SafeRelativePath>,
     pub processes: &'static [&'static str],
-    pub game_executable: SafeRelativePath,
-    pub binaries: SafeRelativePath,
+    pub game_executable: Option<SafeRelativePath>,
+    pub binaries: Option<SafeRelativePath>,
     pub payload_dir: SafeRelativePath,
     pub payload_files: Vec<SafeRelativePath>,
     pub steam: Option<SteamMetadata>,
@@ -99,7 +98,7 @@ pub trait Game: Send + Sync {
 }
 
 static REGISTRY: LazyLock<Vec<&'static dyn Game>> = LazyLock::new(|| {
-    let games: Vec<&'static dyn Game> = vec![&*nte::NTE];
+    let games: Vec<&'static dyn Game> = vec![&*nte::NTE, &*sp::SP];
     if let Err(e) = validate_registry(&games) {
         panic!("invalid game registry: {e}");
     }

@@ -1,8 +1,8 @@
 use crate::classes::characters;
 use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
+use crate::runtime::MutationGuard;
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
-
 use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
@@ -11,7 +11,6 @@ use shared::classes::gamebanana::types::{ModProfile, NteMod, NteModFile};
 use shared::config::{self, key};
 use shared::utils::{format_bytes, get_gamebanana_download_dir, get_local_version};
 use slint::{Model, ModelRc, VecModel};
-
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -34,7 +33,7 @@ const INSTALL_RUNNING: u8 = 1;
 const INSTALL_CANCELLED: u8 = 2;
 const INSTALL_COMMITTED: u8 = 3;
 
-/// Must stay in the same order as the character list in gbbrowser.slint.
+// must be in the same order as gbbrowser.slint
 pub const CHARACTERS: &[(&str, u32)] = &[
     ("Adler", 43034),
     ("Aurelia", 46387),
@@ -151,6 +150,7 @@ impl Default for GbState {
 
 static STATE: Lazy<Mutex<GbState>> = Lazy::new(|| Mutex::new(GbState::default()));
 static INSTALL_STATE: AtomicU8 = AtomicU8::new(INSTALL_IDLE);
+static INSTALL_GUARD: Mutex<Option<MutationGuard>> = Mutex::new(None);
 static INSTALL_CANCEL_SIGNAL: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
 static RESTORING: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 static RESTORE_FAILED: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -731,6 +731,7 @@ impl GbBrowserHandler {
 
     fn finish_install() {
         INSTALL_STATE.store(INSTALL_IDLE, Ordering::SeqCst);
+        INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
     }
 
     fn download_and_install(window: &slint::Weak<MainWindow>, mod_: GbMod, file: NteModFile) {
@@ -741,8 +742,10 @@ impl GbBrowserHandler {
         }
     }
 
+    // the guard is held until the install finishes, so the game cant change underneath it
     pub(crate) fn download_oneclick(
         window: &slint::Weak<MainWindow>,
+        guard: MutationGuard,
         mod_id: u32,
         author: String,
         name: String,
@@ -753,7 +756,8 @@ impl GbBrowserHandler {
             buf: slint::SharedPixelBuffer::clone_from_slice(&rgba, width, height),
         });
 
-        Self::start_download(
+        *INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(guard);
+        let started = Self::start_download(
             window,
             GbMod {
                 id: mod_id,
@@ -763,7 +767,11 @@ impl GbBrowserHandler {
             },
             file,
             None,
-        )
+        );
+        if !started {
+            INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        }
+        started
     }
 
     pub(crate) fn download_update(

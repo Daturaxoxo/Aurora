@@ -243,12 +243,17 @@ pub fn export_telemetry() -> Result<()> {
         Ok(())
     };
 
-    let engine_method_raw = match config::get(key::ENGINE_METHOD).as_i64() {
+    let raw_engine_method = context()
+        .and_then(|c| crate::classes::games::find_game(c.game.as_str()))
+        .and_then(|game| {
+            config::read_profile(&game.descriptor().id)
+                .ok()
+                .map(|profile| profile.value(config::ProfileKey::EngineMethod, game))
+        })
+        .unwrap_or_else(|| config::default_value(key::ENGINE_METHOD));
+    let engine_method_raw = match raw_engine_method.as_i64() {
         Some(v) => v,
-        None => config::get(key::ENGINE_METHOD)
-            .as_str()
-            .unwrap_or("0")
-            .parse::<i64>()?,
+        None => raw_engine_method.as_str().unwrap_or("0").parse::<i64>()?,
     };
     let engine_method = BypassMethod::resolve(engine_method_raw, version)?;
     let vpaths = get_version_paths(game_path.as_path(), version, distro, engine_method);

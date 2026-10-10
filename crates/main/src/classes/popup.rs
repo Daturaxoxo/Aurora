@@ -6,10 +6,10 @@ use crate::classes::pages::screenshots::ScreenshotHandler;
 use crate::classes::pages::settings::SettingsHandler;
 use crate::classes::repair::RepairHandler;
 use crate::classes::updater::UpdateHandler;
+use crate::runtime;
+use shared::classes::gamebanana::api::game_page;
 use crate::{CheckboxItem, MainWindow};
-
 use slint::Model as _;
-
 pub struct PopupHandler;
 
 impl PopupHandler {
@@ -22,7 +22,15 @@ impl PopupHandler {
                         let _ = open::that("https://discord.gg/565jfeYsbp");
                     }
                     "gamebanana-popup" => {
-                        let _ = open::that("https://gamebanana.com/games/23012");
+                        let page = runtime::get()
+                            .ok()
+                            .and_then(|r| game_page(&r.snapshot().game.descriptor().id));
+                        match page {
+                            Some(page) => {
+                                let _ = open::that(page);
+                            }
+                            None => log::warn!("the selected game has no GameBanana page"),
+                        }
                     }
                     "screenshot-delete" => {
                         ScreenshotHandler::confirm_delete(&w);
@@ -70,6 +78,9 @@ impl PopupHandler {
                     crate::classes::oneclick::POPUP_ID => {
                         OneClickHandler::confirm(&w);
                     }
+                    crate::classes::oneclick::SWITCH_POPUP_ID => {
+                        OneClickHandler::confirm_switch(&w);
+                    }
                     _ => {}
                 }
             }
@@ -94,7 +105,9 @@ impl PopupHandler {
                     SettingsHandler::cancel_direct_mode(&w);
                 }
 
-                if id.as_str() == crate::classes::oneclick::POPUP_ID {
+                if id.as_str() == crate::classes::oneclick::POPUP_ID
+                    || id.as_str() == crate::classes::oneclick::SWITCH_POPUP_ID
+                {
                     OneClickHandler::cancel();
                 }
 

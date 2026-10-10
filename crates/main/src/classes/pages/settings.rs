@@ -2,14 +2,15 @@ use crate::bridge::engine;
 use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
-use crate::runtime::{self, Reconfigured};
+use crate::runtime::{self, GameContext, Reconfigured};
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::launch_args;
 use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
-use shared::classes::games::locate::transitional_selected_game;
+use serde_json::Value;
+use shared::classes::games::{EngineKind, Game, InstallationFacts, locate::transitional_selected_game};
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, ConfigChange, ProfileKey, ProfilePatch, key};
 use shared::pathfind::resolve_game_root;
@@ -93,55 +94,12 @@ impl SettingsHandler {
             error!("could not set Discord RPC to idle: {e}");
         }
 
-        // Launcher
-        let raw_path = config::get(key::GAME_PATH);
-        let game_path = raw_path.as_str().unwrap_or("").to_string();
-        debug!("game_path: raw={raw_path:?} → {game_path:?}");
-        if game_path.is_empty() {
-            warn!("game_path is empty - user has not set a game directory yet");
-        }
-        w.set_game_directory(game_path.into());
-
-        let raw_engine = config::get(key::ENGINE_METHOD);
-        let engine_method = raw_engine.as_i64().unwrap_or(0).try_into().unwrap_or(0);
-        debug!("engine_method: raw={raw_engine:?} → {engine_method}");
-        w.set_engine_method_index(engine_method);
-
-        let raw_start = config::get(key::START_METHOD);
-        let start_method = StartMethod::decode(&raw_start);
-        debug!("start_method: raw={raw_start:?} → {start_method}");
-        w.set_start_method_index(start_method.as_index());
-
-        w.set_show_engine_scale(scale::SUPPORTED);
-        if scale::SUPPORTED {
-            let current_scale = scale::get_current_scale();
-            let engine_scale = Self::scale_to_percent(current_scale);
-            debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
-            w.set_engine_scale(engine_scale);
-        } else {
-            debug!("engine_scale: not supported on this platform, slider hidden");
-        }
-
-        let raw_ignore_checksum = config::get(key::IGNORE_CHECKSUM);
-        let ignore_checksum = raw_ignore_checksum.as_bool().unwrap_or(false);
-        debug!("ignore_checksum: raw={raw_ignore_checksum:?} → {ignore_checksum}");
-        w.set_ignore_checksum(ignore_checksum);
-
-        let raw_launch_args = config::get(key::LAUNCH_ARGS);
-        let launch_args = raw_launch_args.as_str().unwrap_or("").to_string();
-        debug!("launch_args: raw={raw_launch_args:?} → {launch_args:?}");
-        w.set_launch_args(launch_args.into());
+        // Launcher, until the runtime commits a game this shows the selected game's profile
+        Self::load_game(&w, Self::current_game(), None);
 
         // Linux only
         w.set_is_linux(cfg!(target_os = "linux"));
         if cfg!(target_os = "linux") {
-            let raw_proton = config::get(key::PROTON_ARGS);
-            let proton_args = raw_proton.as_str().unwrap_or("").to_string();
-            debug!("proton_args: raw={raw_proton:?} → {proton_args:?}");
-            w.set_proton_launch_args(proton_args.into());
-
-            Self::load_proton_versions(&w);
-
             let raw_entry = config::get(key::DESKTOP_ENTRY);
             let desktop_entry = raw_entry.as_bool().unwrap_or(false);
             debug!("desktop_entry: raw={raw_entry:?} → {desktop_entry}");
@@ -172,6 +130,101 @@ impl SettingsHandler {
         info!("load() complete shortcut all config values applied to UI");
     }
 
+    pub fn apply_context(w: &MainWindow, context: &GameContext) {
+        Self::load_game(w, context.game(), context.installation().map(InstallationFacts::root));
+    }
+
+    fn load_game(w: &MainWindow, game: &'static dyn Game, root: Option<&std::path::Path>) {
+        let d = game.descriptor();
+        debug!("loading the launcher settings of {}", d.id);
+
+        let game_path = root.map_or_else(
+            || {
+                Self::profile_value(game, ProfileKey::GamePath)
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string()
+            },
+            |root| root.to_string_lossy().into_owned(),
+        );
+        if game_path.is_empty() {
+            warn!("{} has no game directory yet", d.id);
+        }
+        w.set_game_directory(game_path.into());
+
+        let engine_settings = d.engine == Some(EngineKind::Pak);
+        let start_method_choice = game.launcher().is_some_and(|l| l.start_methods().len() > 1);
+        debug!("{}: engine_settings={engine_settings} start_method_choice={start_method_choice}", d.id);
+        w.set_engine_settings(engine_settings);
+        w.set_start_method_choice(start_method_choice);
+
+        let raw_engine = Self::profile_value(game, ProfileKey::EngineMethod);
+        let engine_method = raw_engine
+            .as_i64()
+            .or_else(|| raw_engine.as_str().and_then(|s| s.parse().ok()))
+            .unwrap_or(0)
+            .try_into()
+            .unwrap_or(0);
+        debug!("engine_method: raw={raw_engine:?} → {engine_method}");
+        w.set_engine_method_index(engine_method);
+
+        let raw_start = Self::profile_value(game, ProfileKey::StartMethod);
+        let start_method = StartMethod::decode(&raw_start);
+        debug!("start_method: raw={raw_start:?} → {start_method}");
+        w.set_start_method_index(start_method.as_index());
+
+        w.set_show_engine_scale(scale::SUPPORTED && engine_settings);
+        if scale::SUPPORTED && engine_settings {
+            let current_scale = scale::get_current_scale();
+            let engine_scale = Self::scale_to_percent(current_scale);
+            debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
+            w.set_engine_scale(engine_scale);
+        }
+
+        let raw_ignore_checksum = Self::profile_value(game, ProfileKey::IgnoreChecksum);
+        w.set_ignore_checksum(raw_ignore_checksum.as_bool().unwrap_or(false));
+
+        let raw_launch_args = Self::profile_value(game, ProfileKey::LaunchArgs);
+        w.set_launch_args(raw_launch_args.as_str().unwrap_or("").into());
+
+        if cfg!(target_os = "linux") {
+            let raw_proton = Self::profile_value(game, ProfileKey::ProtonArgs);
+            w.set_proton_launch_args(raw_proton.as_str().unwrap_or("").into());
+            Self::load_proton_versions(w);
+        }
+    }
+
+    fn current_game() -> &'static dyn Game {
+        runtime::get().map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game)
+    }
+
+    fn profile_value(game: &dyn Game, key: ProfileKey) -> Value {
+        match config::read_profile(&game.descriptor().id) {
+            Ok(profile) => profile.value(key, game),
+            Err(e) => {
+                error!("could not read the {} profile: {e:#}", game.descriptor().id);
+                game.profile_default(key)
+            }
+        }
+    }
+
+    fn save_profile(patch: &ProfilePatch) {
+        let game = Self::current_game();
+        match config::update_profile(&game.descriptor().id, patch) {
+            Ok(()) => debug!("saved to the {} profile", game.descriptor().id),
+            Err(e) => error!("could not save to the {} profile: {e:#}", game.descriptor().id),
+        }
+    }
+
+    fn reconfigure_profile(patch: ProfilePatch) {
+        let change = ConfigChange::new().profile(&Self::current_game().descriptor().id, patch);
+        std::thread::spawn(move || {
+            if let Err(e) = runtime::get().and_then(|r| r.reconfigure(change)) {
+                error!("could not reconfigure the engine: {e:#}");
+            }
+        });
+    }
+
     #[cfg(not(target_os = "linux"))]
     const fn load_proton_versions(w: &MainWindow) {
         let _ = w;
@@ -187,9 +240,10 @@ impl SettingsHandler {
 
         let builtin_count = builds.len() + 1;
 
-        let raw_custom = config::get(key::PROTON_CUSTOM_PATH);
+        let game = Self::current_game();
+        let raw_custom = Self::profile_value(game, ProfileKey::ProtonCustomPath);
         let selected_custom = raw_custom.as_str().unwrap_or("").trim().to_string();
-        let raw_version = config::get(key::PROTON_VERSION);
+        let raw_version = Self::profile_value(game, ProfileKey::ProtonVersion);
         let saved = raw_version.as_str().unwrap_or("").trim().to_string();
 
         let index = if !selected_custom.is_empty() {
@@ -225,7 +279,6 @@ impl SettingsHandler {
         let mut names = builds;
         names.extend(customs.iter().map(|dir| Self::proton_build_name(dir)));
 
-        // Index 0 is "Automatic"
         let selected_name = index
             .checked_sub(1)
             .and_then(|i| names.get(i))
@@ -246,7 +299,6 @@ impl SettingsHandler {
         ));
     }
 
-    /// The name a manually added Proton installation is listed under.
     #[cfg(target_os = "linux")]
     fn proton_build_name(dir: &std::path::Path) -> String {
         dir.file_name()
@@ -280,12 +332,18 @@ impl SettingsHandler {
                 .get(custom_index)
                 .map_or_default(|dir| dir.to_string_lossy().into_owned());
             info!("proton_version changed → manually added {path:?}");
-            config::set(key::PROTON_CUSTOM_PATH, path);
-            config::set(key::PROTON_VERSION, String::new());
+            Self::save_profile(
+                &ProfilePatch::new()
+                    .set(ProfileKey::ProtonCustomPath, path)
+                    .set(ProfileKey::ProtonVersion, String::new()),
+            );
         } else {
             info!("proton_version changed → index={index}, build={name:?}");
-            config::set(key::PROTON_CUSTOM_PATH, String::new());
-            config::set(key::PROTON_VERSION, name.clone());
+            Self::save_profile(
+                &ProfilePatch::new()
+                    .set(ProfileKey::ProtonCustomPath, String::new())
+                    .set(ProfileKey::ProtonVersion, name.clone()),
+            );
         }
         debug!("proton_version saved to config");
 
@@ -367,10 +425,10 @@ impl SettingsHandler {
             "removing the manually added Proton installation {}",
             removed.display()
         );
-        let selected = config::get(key::PROTON_CUSTOM_PATH);
+        let selected = Self::profile_value(Self::current_game(), ProfileKey::ProtonCustomPath);
         if selected.as_str() == Some(&removed.to_string_lossy()) {
             debug!("it was the selected one, falling back to Automatic");
-            config::set(key::PROTON_CUSTOM_PATH, String::new());
+            Self::save_profile(&ProfilePatch::new().set(ProfileKey::ProtonCustomPath, String::new()));
         }
         linux::remove_custom_proton_build(removed);
 
@@ -437,8 +495,7 @@ impl SettingsHandler {
                     Some(path) => {
                         info!("game directory selected -> {:?}", path.display());
 
-                        let game = runtime::get()
-                            .map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game);
+                        let game = Self::current_game();
                         let path = if let Some((root, _)) = resolve_game_root(game, &path) {
                             if root != path {
                                 info!("resolved selection to install root -> {:?}", root.display());
@@ -488,8 +545,7 @@ impl SettingsHandler {
             info!("ignore_checksum toggled → {enabled}");
 
             if !enabled {
-                config::set(key::IGNORE_CHECKSUM, false);
-                debug!("ignore_checksum saved to config");
+                Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::IgnoreChecksum, false));
                 return;
             }
 
@@ -514,23 +570,14 @@ impl SettingsHandler {
 
         w.on_engine_method_index_changed(move |index| {
             info!("engine_method changed -> {index}");
-            config::set(key::ENGINE_METHOD, index);
-            debug!("engine_method saved to config");
-
-            // TODO(lane B, b5-2): commit engine_method to the profile through this change
-            std::thread::spawn(move || {
-                if let Err(e) = runtime::get().and_then(|r| r.reconfigure(ConfigChange::new())) {
-                    error!("could not reconfigure the engine: {e:#}");
-                }
-            });
+            Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::EngineMethod, index));
         });
 
         let ww = window.clone();
         w.on_start_method_index_changed(move |index| {
             if StartMethod::from_num(i64::from(index)) == StartMethod::Manual {
                 info!("start_method changed -> {index}");
-                config::set(key::START_METHOD, index);
-                debug!("start_method saved to config");
+                Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::StartMethod, index));
                 return;
             }
 
@@ -581,8 +628,7 @@ impl SettingsHandler {
         let ww = window.clone();
         w.on_launch_args_changed(move |args| {
             info!("launch_args changed -> {args:?}");
-            config::set(key::LAUNCH_ARGS, args.as_str());
-            debug!("launch_args saved to config");
+            Self::save_profile(&ProfilePatch::new().set(ProfileKey::LaunchArgs, args.as_str()));
 
             match launch_args::apply(args.as_str()) {
                 Ok(()) => debug!("launch_args written to the game's config files"),
@@ -600,8 +646,7 @@ impl SettingsHandler {
         // [LINUX]
         w.on_proton_launch_args_changed(move |args| {
             info!("proton_launch_args changed → {args:?}");
-            config::set(key::PROTON_ARGS, args.as_str());
-            debug!("proton_args saved to config");
+            Self::save_profile(&ProfilePatch::new().set(ProfileKey::ProtonArgs, args.as_str()));
         });
 
         let ww = window.clone();
@@ -757,14 +802,14 @@ impl SettingsHandler {
 
     pub fn confirm_ignore_checksum() {
         info!("ignore_checksum warning confirmed");
-        config::set(key::IGNORE_CHECKSUM, true);
-        debug!("ignore_checksum saved to config");
+        Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::IgnoreChecksum, true));
     }
 
     pub fn confirm_direct_mode() {
         info!("direct mode warning confirmed");
-        config::set(key::START_METHOD, StartMethod::Direct.as_index());
-        debug!("start_method saved to config");
+        Self::reconfigure_profile(
+            ProfilePatch::new().set(ProfileKey::StartMethod, StartMethod::Direct.as_index()),
+        );
     }
 
     pub fn cancel_direct_mode(window: &slint::Weak<MainWindow>) {

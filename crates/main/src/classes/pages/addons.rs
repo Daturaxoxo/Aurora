@@ -1,5 +1,5 @@
 use crate::bridge::PopupSpec;
-use crate::runtime;
+use crate::runtime::{self, MutationGuard};
 use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::translations::tr;
@@ -7,11 +7,11 @@ use crate::{AddonItem, MainWindow};
 use backend::classes::addons::payload_files;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
-use shared::classes::games::{
-    Game, InstallationFacts, capabilities::AddonSupport, nte::NTE,
-};
+use serde_json::{Map, Value};
+use shared::classes::games::{Game, InstallationFacts, identity::GameId};
+use shared::config::{self, ProfileKey, ProfilePatch};
+use shared::utils;
 use shared::utils::get_cache_dir;
-use shared::{config, utils};
 use anyhow::{Context, Result};
 use log::*;
 use once_cell::sync::Lazy;
@@ -23,15 +23,49 @@ use std::sync::{Mutex, PoisonError};
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
 static AUTO_UPDATE_GATE: Mutex<AutoUpdateGate> = Mutex::new(AutoUpdateGate {
-    committed: false,
     confirmed: false,
-    started: false,
+    updated: Vec::new(),
 });
 
 struct AutoUpdateGate {
-    committed: bool,
     confirmed: bool,
-    started: bool,
+    updated: Vec<GameId>,
+}
+#[derive(Clone)]
+struct Scope {
+    game: &'static dyn Game,
+    generation: u64,
+    installation: Option<InstallationFacts>,
+    dir: PathBuf,
+}
+
+impl Scope {
+    fn of(context: &runtime::GameContext) -> Option<Self> {
+        context.game().addons()?;
+        Some(Self {
+            game: context.game(),
+            generation: context.generation(),
+            installation: context.installation().cloned(),
+            dir: context.payload().addons().to_path_buf(),
+        })
+    }
+
+    fn current() -> Option<Self> {
+        let context = runtime::get().ok()?.snapshot().context?;
+        Self::of(&context)
+    }
+
+    fn guarded() -> Result<(MutationGuard, Self)> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let scope = Self::of(guard.context()).ok_or_else(|| {
+            anyhow::anyhow!("{} has no addons", guard.context().game().descriptor().display_name)
+        })?;
+        Ok((guard, scope))
+    }
+
+    fn id(&self) -> &GameId {
+        &self.game.descriptor().id
+    }
 }
 
 static IMAGES_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
@@ -60,11 +94,37 @@ static DOWNLOAD_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
 
 static GAMEBANANA_API: Lazy<GameBananaApi> = Lazy::new(GameBananaApi::new);
 
-fn config_key(name: &str) -> Option<&'static str> {
-    NTE.shipped_addons()
+fn config_key(game: &dyn Game, name: &str) -> Option<&'static str> {
+    game.addons()?
+        .shipped_addons()
         .iter()
         .find(|addon| addon.matches(name))
         .map(|addon| addon.config_key)
+}
+
+fn preferences(game: &dyn Game, key: ProfileKey) -> Value {
+    match config::read_profile(&game.descriptor().id) {
+        Ok(profile) => profile.value(key, game),
+        Err(e) => {
+            error!("Addons manager could not read the {} profile: {e:#}", game.descriptor().id);
+            Value::Object(Map::new())
+        }
+    }
+}
+
+fn set_preference(game: &dyn Game, key: ProfileKey, addon_key: &str, value: Option<Value>) -> bool {
+    let mut preferences = match preferences(game, key) {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    };
+    match value {
+        Some(value) => preferences.insert(addon_key.to_string(), value),
+        None => preferences.remove(addon_key),
+    };
+
+    config::update_profile(&game.descriptor().id, &ProfilePatch::new().set(key, Value::Object(preferences)))
+        .map_err(|e| error!("Addons manager could not save {}: {e:#}", key.as_str()))
+        .is_ok()
 }
 
 fn decoded_thumb(bytes: &[u8]) -> anyhow::Result<(Vec<u8>, u32, u32)> {
@@ -123,31 +183,28 @@ pub struct AddonsHandler;
 impl AddonsHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         info!("Addon Manager setup() called");
-        Self::load(window);
         Self::bind(window);
         info!("Addon Manager setup() complete");
     }
-
-    fn load(window: &slint::Weak<MainWindow>) {
+    pub fn reload(window: &slint::Weak<MainWindow>) {
         let ww = window.clone();
         std::thread::spawn(move || {
-            let addons = Self::scan();
-            let installation = Self::committed_installation();
-            let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
-            Self::show(&ww, addons, installation, auto_updates, None);
+            let Some(scope) = Scope::current() else {
+                Self::show(&ww, None, Vec::new());
+                return;
+            };
+            let addons = Self::scan(&scope);
+            Self::show(&ww, Some(scope), addons);
         });
     }
 
-    fn show(
-        window: &slint::Weak<MainWindow>,
-        addons: Vec<Addon>,
-        installation: Option<InstallationFacts>,
-        auto_updates: serde_json::Value,
-        generation: Option<u64>,
-    ) {
+    fn show(window: &slint::Weak<MainWindow>, scope: Option<Scope>, addons: Vec<Addon>) {
+        let auto_updates = scope
+            .as_ref()
+            .map_or(Value::Null, |scope| preferences(scope.game, ProfileKey::AddonAutoUpdates));
         let ww = window.clone();
         let _ = slint::invoke_from_event_loop(move || {
-            if generation.is_some_and(|g| !runtime::is_current_generation(g)) {
+            if scope.as_ref().is_some_and(|s| !runtime::is_current_generation(s.generation)) {
                 debug!("Addons manager skipped a reload for a superseded game");
                 return;
             }
@@ -156,63 +213,67 @@ impl AddonsHandler {
                 return;
             };
 
-            let slint_items: Vec<AddonItem> = addons
-                .iter()
-                .map(|addon| Self::to_slint_item(addon, installation.as_ref(), &auto_updates))
-                .collect();
+            let slint_items: Vec<AddonItem> = scope.as_ref().map_or_default(|scope| {
+                addons
+                    .iter()
+                    .map(|addon| Self::to_slint_item(scope, addon, &auto_updates))
+                    .collect()
+            });
 
             w.set_addons(Rc::new(VecModel::from(slint_items)).into());
             Self::fetch_images_async(&ww, addons);
         });
     }
 
-    pub fn startup_committed(window: &slint::Weak<MainWindow>) {
-        Self::admit_auto_updates(window, |gate| gate.committed = true);
+    pub fn context_committed(window: &slint::Weak<MainWindow>, game: &GameId) {
+        Self::admit_auto_updates(window, Some(game));
     }
 
     pub fn startup_confirmed(window: &slint::Weak<MainWindow>) {
-        Self::admit_auto_updates(window, |gate| gate.confirmed = true);
+        AUTO_UPDATE_GATE.lock().unwrap_or_else(PoisonError::into_inner).confirmed = true;
+        let game = Scope::current().map(|scope| scope.id().clone());
+        Self::admit_auto_updates(window, game.as_ref());
     }
 
-    fn admit_auto_updates(window: &slint::Weak<MainWindow>, mark: impl FnOnce(&mut AutoUpdateGate)) {
+    fn admit_auto_updates(window: &slint::Weak<MainWindow>, game: Option<&GameId>) {
+        let Some(game) = game else { return };
         let admitted = {
             let mut gate = AUTO_UPDATE_GATE.lock().unwrap_or_else(PoisonError::into_inner);
-            mark(&mut gate);
-            let admitted = gate.committed && gate.confirmed && !gate.started;
-            gate.started |= admitted;
+            let admitted = gate.confirmed && !gate.updated.contains(game);
+            if admitted {
+                gate.updated.push(game.clone());
+            }
             admitted
         };
         if admitted {
-            Self::run_auto_updates(window);
+            Self::run_auto_updates(window, game.clone());
         }
     }
 
-    fn run_auto_updates(window: &slint::Weak<MainWindow>) {
+    fn run_auto_updates(window: &slint::Weak<MainWindow>, game: GameId) {
         let ww = window.clone();
         std::thread::spawn(move || {
-            let guard = match runtime::get().and_then(runtime::GameRuntime::try_begin_mutation) {
-                Ok(guard) => guard,
+            let (guard, scope) = match Scope::guarded() {
+                Ok(guarded) => guarded,
                 Err(e) => {
-                    info!("Skipping automatic addon updates: {e}");
+                    info!("Skipping automatic addon updates for {game}: {e}");
                     return;
                 }
             };
-            let context = guard.context().clone();
-            if context.id() != &NTE.descriptor().id {
-                info!("Skipping automatic addon updates, {} has no addons manager yet", context.id());
+            if scope.id() != &game {
+                info!("Skipping automatic addon updates for {game}, {} is selected now", scope.id());
                 return;
             }
 
-            let mut addons = Self::scan();
-            let installation = context.installation().cloned();
-            let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
+            let mut addons = Self::scan(&scope);
+            let auto_updates = preferences(scope.game, ProfileKey::AddonAutoUpdates);
             let mut failures = Vec::new();
 
             for addon in &mut addons {
                 if !addon.installed
                     || !addon.update_available
-                    || !Self::auto_update_enabled(&auto_updates, &addon.name)
-                    || Self::is_unavailable(addon, installation.as_ref())
+                    || !Self::auto_update_enabled(scope.game, &auto_updates, &addon.name)
+                    || Self::is_unavailable(&scope, addon)
                 {
                     continue;
                 }
@@ -240,6 +301,7 @@ impl AddonsHandler {
                     }
                 }
             }
+            Self::persist_enabled(&scope, &addons);
             drop(guard);
 
             if !failures.is_empty() {
@@ -249,35 +311,16 @@ impl AddonsHandler {
                     "error",
                 );
             }
-            Self::show(&ww, addons, installation, auto_updates, Some(context.generation()));
+            Self::show(&ww, Some(scope), addons);
         });
     }
 
-    fn set_auto_update(name: &str, enabled: bool) -> bool {
-        let Some(addon_key) = config_key(name) else {
+    fn set_auto_update(game: &dyn Game, name: &str, enabled: bool) -> bool {
+        let Some(addon_key) = config_key(game, name) else {
             error!("Could not persist auto-update for unknown addon '{name}'");
             return false;
         };
-
-        config::modify(|data| {
-            let preferences = data
-                .entry(config::key::ADDON_AUTO_UPDATES.to_string())
-                .or_insert_with(|| serde_json::json!({}));
-
-            if !preferences.is_object() {
-                *preferences = serde_json::json!({});
-            }
-
-            let preferences = preferences
-                .as_object_mut()
-                .expect("auto-update preferences were initialized as an object");
-
-            if enabled {
-                preferences.insert(addon_key.to_string(), true.into());
-            } else {
-                preferences.remove(addon_key);
-            }
-        })
+        set_preference(game, ProfileKey::AddonAutoUpdates, addon_key, enabled.then_some(Value::Bool(true)))
     }
 
     fn add_variant_url(variants: &mut Vec<AddonVariant>, label: &str, url: &str) {
@@ -296,9 +339,9 @@ impl AddonsHandler {
         }
     }
 
-    fn selected_variant(addon: &Addon) -> Option<&AddonVariant> {
-        let key = config_key(&addon.name)?;
-        let preferences = config::get(config::key::ADDON_VARIANTS);
+    fn selected_variant<'a>(game: &dyn Game, addon: &'a Addon) -> Option<&'a AddonVariant> {
+        let key = config_key(game, &addon.name)?;
+        let preferences = preferences(game, ProfileKey::AddonVariants);
         let label = preferences.get(key)?.as_str()?;
         addon.variants.iter().find(|v| v.label == label)
     }
@@ -311,40 +354,18 @@ impl AddonsHandler {
             .collect()
     }
 
-    fn set_variant(name: &str, label: Option<&str>) -> bool {
-        let Some(addon_key) = config_key(name) else {
+    fn set_variant(game: &dyn Game, name: &str, label: Option<&str>) -> bool {
+        let Some(addon_key) = config_key(game, name) else {
             error!("Could not persist the selected variant for unknown addon '{name}'");
             return false;
         };
-
-        config::modify(|data| {
-            let preferences = data
-                .entry(config::key::ADDON_VARIANTS.to_string())
-                .or_insert_with(|| serde_json::json!({}));
-
-            if !preferences.is_object() {
-                *preferences = serde_json::json!({});
-            }
-
-            let preferences = preferences
-                .as_object_mut()
-                .expect("variant preferences were initialized as an object");
-
-            match label {
-                Some(label) => {
-                    preferences.insert(addon_key.to_string(), label.into());
-                }
-                None => {
-                    preferences.remove(addon_key);
-                }
-            }
-        })
+        set_preference(game, ProfileKey::AddonVariants, addon_key, label.map(Value::from))
     }
 
-    fn auto_update_enabled(preferences: &serde_json::Value, name: &str) -> bool {
-        config_key(name)
+    fn auto_update_enabled(game: &dyn Game, preferences: &Value, name: &str) -> bool {
+        config_key(game, name)
             .and_then(|addon_key| preferences.get(addon_key))
-            .and_then(serde_json::Value::as_bool)
+            .and_then(Value::as_bool)
             .unwrap_or(false)
     }
 
@@ -437,6 +458,15 @@ impl AddonsHandler {
         let model = win.get_addons();
         let Some(mut row) = model.row_data(i) else {return};
         if row.installing {return;}
+
+        let (guard, scope) = match Scope::guarded() {
+            Ok(guarded) => guarded,
+            Err(e) => {
+                ToastHandler::show(ww, e.to_string(), "warning");
+                return;
+            }
+        };
+
         let is_toggle = row.installed && !row.update_available;
         row.installing = true;
         if is_toggle {
@@ -446,15 +476,17 @@ impl AddonsHandler {
         let ww = ww.clone();
         std::thread::spawn(move || {
             let updated = if is_toggle {
-                let mut addons = Self::scan_local();
+                let mut addons = Self::scan_local(&scope);
                 if let Some(addon) = addons.get_mut(i) {
                     Self::set_enabled(addon, !addon.enabled);
                 }
-                Self::scan_local().into_iter().nth(i)
+                let addons = Self::scan_local(&scope);
+                Self::persist_enabled(&scope, &addons);
+                addons.into_iter().nth(i)
             } else {
-                let mut addons = Self::scan();
+                let mut addons = Self::scan(&scope);
                 if let Some(addon) = addons.get_mut(i) {
-                    match Self::install_selected(addon, variant) {
+                    match Self::install_selected(scope.game, addon, variant) {
                         Err(e) => {
                             error!(
                                 "Addons manager could not install addon '{}': {e}",
@@ -475,9 +507,13 @@ impl AddonsHandler {
                         }
                     }
                 }
-                Self::scan().into_iter().nth(i)
+                let addons = Self::scan(&scope);
+                Self::persist_enabled(&scope, &addons);
+                addons.into_iter().nth(i)
             };
+            drop(guard);
 
+            let generation = scope.generation;
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(win) = ww.upgrade() else {
                     error!("Could not reload addons: window handle is dead");
@@ -486,7 +522,7 @@ impl AddonsHandler {
 
                 let model = win.get_addons();
                 if let Some(mut row) = model.row_data(i) {
-                    if let Some(addon) = updated {
+                    if let Some(addon) = updated.filter(|_| runtime::is_current_generation(generation)) {
                         row.installed = addon.installed;
                         row.enabled = addon.enabled;
                         if !is_toggle {
@@ -500,10 +536,10 @@ impl AddonsHandler {
         });
     }
 
-    fn install_selected(addon: &mut Addon, variant: Option<usize>) -> Result<()> {
+    fn install_selected(game: &dyn Game, addon: &mut Addon, variant: Option<usize>) -> Result<()> {
         if let Some(chosen) = variant.and_then(|v| addon.variants.get(v)).cloned() {
             addon.install_data = Self::variant_files(&chosen);
-            if !Self::set_variant(&addon.name, Some(&chosen.label)) {
+            if !Self::set_variant(game, &addon.name, Some(&chosen.label)) {
                 warn!(
                     "Addons manager could not remember variant '{}' for '{}'",
                     chosen.label, addon.name
@@ -546,8 +582,9 @@ impl AddonsHandler {
                 return;
             }
 
+            let Some(scope) = Scope::current() else { return };
             let enabled = !row.auto_update;
-            if Self::set_auto_update(row.name.as_str(), enabled) {
+            if Self::set_auto_update(scope.game, row.name.as_str(), enabled) {
                 row.auto_update = enabled;
                 model.set_row_data(i, row);
             } else {
@@ -612,6 +649,13 @@ impl AddonsHandler {
         };
 
         let Some(win) = window.upgrade() else { return };
+        let (guard, scope) = match Scope::guarded() {
+            Ok(guarded) => guarded,
+            Err(e) => {
+                ToastHandler::show(window, e.to_string(), "warning");
+                return;
+            }
+        };
         let model = win.get_addons();
         let Some(mut row) = model.row_data(i) else {
             return;
@@ -621,7 +665,7 @@ impl AddonsHandler {
 
         let ww = window.clone();
         std::thread::spawn(move || {
-            let addons = Self::scan_local();
+            let addons = Self::scan_local(&scope);
             let result = addons.get(i).map_or_else(
                 || Err(anyhow::anyhow!("addon no longer exists")),
                 |addon| Self::delete(addon).map(|()| addon.name.clone()),
@@ -629,10 +673,10 @@ impl AddonsHandler {
 
             let auto_update_reset = match &result {
                 Ok(name) => {
-                    if !Self::set_variant(name, None) {
+                    if !Self::set_variant(scope.game, name, None) {
                         warn!("Could not forget the selected variant of '{name}'");
                     }
-                    let reset = Self::set_auto_update(name, false);
+                    let reset = Self::set_auto_update(scope.game, name, false);
                     if reset {
                         ToastHandler::show(&ww, format!("{name} deleted."), "success");
                     } else {
@@ -652,8 +696,12 @@ impl AddonsHandler {
                 }
             };
 
-            let updated = Self::scan_local().into_iter().nth(i);
+            let addons = Self::scan_local(&scope);
+            Self::persist_enabled(&scope, &addons);
+            drop(guard);
+            let updated = addons.into_iter().nth(i);
 
+            let generation = scope.generation;
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(win) = ww.upgrade() else {
                     error!("Could not reload addons: window handle is dead");
@@ -662,7 +710,7 @@ impl AddonsHandler {
 
                 let model = win.get_addons();
                 if let Some(mut row) = model.row_data(i) {
-                    if let Some(addon) = updated {
+                    if let Some(addon) = updated.filter(|_| runtime::is_current_generation(generation)) {
                         row.installed = addon.installed;
                         row.enabled = addon.enabled;
                         row.update_available = addon.update_available;
@@ -718,25 +766,20 @@ impl AddonsHandler {
         }
     }
 
-    fn scan() -> Vec<Addon> {
-        Self::scan_impl(true)
+    fn scan(scope: &Scope) -> Vec<Addon> {
+        Self::scan_impl(scope, true)
     }
 
-    fn scan_local() -> Vec<Addon> {
-        Self::scan_impl(false)
+    fn scan_local(scope: &Scope) -> Vec<Addon> {
+        Self::scan_impl(scope, false)
     }
 
-    fn scan_impl(fetch_remote: bool) -> Vec<Addon> {
-        let addon_dir = utils::get_bin_path()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Addons");
+    fn scan_impl(scope: &Scope, fetch_remote: bool) -> Vec<Addon> {
+        let addon_dir = &scope.dir;
         let mut addons = Vec::new();
+        let shipped = scope.game.addons().map_or(&[][..], |a| a.shipped_addons());
 
-        let shipped = NTE.shipped_addons();
-        let mut unseen_keys: Vec<&str> = shipped.iter().map(|a| a.config_key).collect();
-        let mut seen_keys: Vec<(&str, bool)> = Vec::new();
-
-        let entries = match std::fs::read_dir(&addon_dir) {
+        let entries = match std::fs::read_dir(addon_dir) {
             Ok(e) => e,
             Err(e) => {
                 warn!(
@@ -780,13 +823,10 @@ impl AddonsHandler {
                 folder: folder.clone(),
                 ..Default::default()
             };
-            // Direct download URLs (FILE), used instead of the GameBanana API
             let mut file_urls: Vec<String> = Vec::new();
 
             for line in contents.lines() {
-                let Some((key, value)) = line.split_once('|') else {
-                    continue;
-                };
+                let Some((key, value)) = line.split_once('|') else {continue};
                 match key.trim() {
                     "NAME" => addon.name = value.trim().to_string(),
                     "AUTHOR" => addon.author = value.trim().to_string(),
@@ -827,7 +867,7 @@ impl AddonsHandler {
                 addon.install_data = if !addon.variants.is_empty() {
                     addon
                         .installed
-                        .then(|| Self::selected_variant(&addon))
+                        .then(|| Self::selected_variant(scope.game, &addon))
                         .flatten()
                         .map(Self::variant_files)
                         .unwrap_or_default()
@@ -845,12 +885,10 @@ impl AddonsHandler {
                     !remote_hash.is_empty() && local_hash.trim() != remote_hash;
             }
 
-            let Some(k) = config_key(&addon.name) else {
+            if config_key(scope.game, &addon.name).is_none() {
                 error!("Unknown addon name: {}", addon.name);
                 continue;
-            };
-            seen_keys.push((k, addon.enabled));
-            unseen_keys.retain(|key| *key != k);
+            }
 
             addons.push(addon);
         }
@@ -861,19 +899,25 @@ impl AddonsHandler {
                 .position(|shipped| shipped.matches(&addon.name))
         });
 
-        let persisted = config::modify(|data| {
-            for (key, enabled) in &seen_keys {
-                data.insert((*key).to_string(), (*enabled).into());
-            }
-            for key in &unseen_keys {
-                data.insert((*key).to_string(), false.into());
-            }
-        });
-        if !persisted {
-            warn!("Addons scan: could not persist the addon config keys");
-        }
-
         addons
+    }
+
+    fn persist_enabled(scope: &Scope, addons: &[Addon]) {
+        let shipped = scope.game.addons().map_or(&[][..], |a| a.shipped_addons());
+        let patch = shipped
+            .iter()
+            .filter_map(|shipped| {
+                let key = ProfileKey::from_key(shipped.config_key)?;
+                let enabled = addons
+                    .iter()
+                    .any(|addon| addon.enabled && shipped.matches(&addon.name));
+                Some((key, enabled))
+            })
+            .fold(ProfilePatch::new(), |patch, (key, enabled)| patch.set(key, enabled));
+
+        if let Err(e) = config::update_profile(scope.id(), &patch) {
+            warn!("Addons manager could not save which addons are enabled for {}: {e:#}", scope.id());
+        }
     }
 
     fn combined_md5(install_data: &[AddonData]) -> String {
@@ -1253,32 +1297,14 @@ impl AddonsHandler {
         }
     }
 
-    fn committed_installation() -> Option<InstallationFacts> {
-        let installation = runtime::get()
-            .ok()
-            .and_then(|r| r.snapshot().context)
-            .and_then(|context| context.installation().cloned());
-
-        debug!(
-            "Resolved addon against game region: {}",
-            installation
-                .as_ref()
-                .map_or("unknown", InstallationFacts::variant)
-        );
-        installation
+    fn is_unavailable(scope: &Scope, addon: &Addon) -> bool {
+        let Some(support) = scope.game.addons() else { return true };
+        config_key(scope.game, &addon.name)
+            .is_some_and(|config_key| !support.is_available(config_key, scope.installation.as_ref()))
     }
 
-    fn is_unavailable(addon: &Addon, installation: Option<&InstallationFacts>) -> bool {
-        config_key(&addon.name)
-            .is_some_and(|config_key| !NTE.is_available(config_key, installation))
-    }
-
-    fn to_slint_item(
-        addon: &Addon,
-        installation: Option<&InstallationFacts>,
-        auto_updates: &serde_json::Value,
-    ) -> AddonItem {
-        let unavailable = Self::is_unavailable(addon, installation);
+    fn to_slint_item(scope: &Scope, addon: &Addon, auto_updates: &Value) -> AddonItem {
+        let unavailable = Self::is_unavailable(scope, addon);
 
         AddonItem {
             name: addon.name.clone().into(),
@@ -1298,7 +1324,7 @@ impl AddonsHandler {
             installed: addon.installed,
             enabled: addon.enabled,
             update_available: addon.update_available,
-            auto_update: Self::auto_update_enabled(auto_updates, &addon.name),
+            auto_update: Self::auto_update_enabled(scope.game, auto_updates, &addon.name),
             installing: false,
             unavailable,
         }

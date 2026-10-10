@@ -10,15 +10,13 @@ use serde_json::Value;
 use shared::classes::games::{
     Game, InstallationFacts,
     capabilities::AddonSupport,
-    identity::GameId,
     launch::{LaunchPlatform, LaunchRequest},
     nte::version::StartMethod,
     payload::{PayloadResolutionMode, PayloadRoots, ResolvedPayloadLayout, resolve_payload},
 };
-use shared::config::{self, ProfileKey, ProfilePatch, key};
+use shared::config::{self, GameProfile, ProfileKey, ProfilePatch, key};
 use shared::utils;
 use crate::runtime::{self, Operation};
-
 pub fn session_active() -> bool {
     runtime::get().is_ok_and(runtime::GameRuntime::session_active)
 }
@@ -37,7 +35,8 @@ pub fn launch() -> Result<()> {
         .launcher()
         .ok_or_else(|| anyhow!("{name} cannot be launched"))?;
 
-    let start_method = StartMethod::decode(&config::get(key::START_METHOD));
+    let profile = config::read_profile(context.id())?;
+    let start_method = StartMethod::decode(&profile.value(ProfileKey::StartMethod, game));
     info!("Start method: {start_method}");
     let plan = launcher
         .launch_plan(&LaunchRequest {
@@ -50,11 +49,11 @@ pub fn launch() -> Result<()> {
     let input = LaunchInput {
         tag: context.tag(),
         plan,
-        deployment: deployment(game),
-        injected_plugins: records(context.id())?,
-        proton_args: text(key::PROTON_ARGS),
-        proton_version: text(key::PROTON_VERSION),
-        proton_custom_path: text(key::PROTON_CUSTOM_PATH),
+        deployment: deployment(game, &profile),
+        injected_plugins: records(&profile),
+        proton_args: text(&profile, game, ProfileKey::ProtonArgs),
+        proton_version: text(&profile, game, ProfileKey::ProtonVersion),
+        proton_custom_path: text(&profile, game, ProfileKey::ProtonCustomPath),
     };
     runtime.submit(Operation::Launch, guard, EngineCommand::Launch(input))
 }
@@ -62,9 +61,10 @@ pub fn launch() -> Result<()> {
 pub fn validate() -> Result<()> {
     let runtime = runtime::get()?;
     let guard = runtime.try_begin_mutation()?;
+    let profile = config::read_profile(guard.context().id())?;
     let input = ValidateInput {
         tag: guard.context().tag(),
-        deployment: deployment(guard.context().game()),
+        deployment: deployment(guard.context().game(), &profile),
     };
     runtime.submit(Operation::Validate, guard, EngineCommand::Validate(input))
 }
@@ -72,10 +72,11 @@ pub fn validate() -> Result<()> {
 pub fn sanitize() -> Result<()> {
     let runtime = runtime::get()?;
     let guard = runtime.try_begin_mutation()?;
+    let profile = config::read_profile(guard.context().id())?;
     let input = SanitizeInput {
         tag: guard.context().tag(),
         stop_processes: true,
-        injected_plugins: records(guard.context().id())?,
+        injected_plugins: records(&profile),
     };
     runtime.submit(Operation::Sanitize, guard, EngineCommand::Sanitize(input))
 }
@@ -93,17 +94,17 @@ pub fn engine_input(
     installation: Option<InstallationFacts>,
     payload: ResolvedPayloadLayout,
 ) -> Result<EngineInput> {
+    let profile = config::read_profile(&tag.game_id)?;
     Ok(EngineInput {
-        injected_plugins: records(&tag.game_id)?,
+        injected_plugins: records(&profile),
         tag,
         installation,
-        settings: settings()?,
+        settings: settings(&profile, game)?,
         payload,
-        deployment: deployment(game),
+        deployment: deployment(game, &profile),
     })
 }
 
-// only the runtime calls this, under the guard of the operation that reported the changes
 pub fn persist_records(tag: &CommandTag, changes: &RecordChanges) {
     let result = config::read_profile(&tag.game_id).and_then(|profile| {
         let records = changes.apply(&parse_records(profile.get(ProfileKey::InjectedPlugins)));
@@ -131,39 +132,47 @@ fn parse_records(value: Option<&Value>) -> Vec<InjectedPluginRecord> {
     })
 }
 
-fn records(game: &GameId) -> Result<Vec<InjectedPluginRecord>> {
-    let profile = config::read_profile(game)?;
-    Ok(parse_records(profile.get(ProfileKey::InjectedPlugins)))
+fn records(profile: &GameProfile) -> Vec<InjectedPluginRecord> {
+    parse_records(profile.get(ProfileKey::InjectedPlugins))
 }
 
-// TODO(lane B, b5): the inputs below still read the legacy global keys because the UI writes them. switch to read_profile once the writers move to games.<id>.
-fn text(key: &str) -> String {
-    config::get(key).as_str().unwrap_or_default().to_string()
+pub fn start_method(game: &dyn Game) -> StartMethod {
+    let raw = config::read_profile(&game.descriptor().id)
+        .map_or_else(|_| game.profile_default(ProfileKey::StartMethod), |p| p.value(ProfileKey::StartMethod, game));
+    StartMethod::decode(&raw)
 }
 
-fn settings() -> Result<EngineSettings> {
-    let raw = config::get(key::ENGINE_METHOD);
+fn text(profile: &GameProfile, game: &dyn Game, key: ProfileKey) -> String {
+    profile.value(key, game).as_str().unwrap_or_default().to_string()
+}
+
+fn settings(profile: &GameProfile, game: &dyn Game) -> Result<EngineSettings> {
+    let raw = profile.value(ProfileKey::EngineMethod, game);
     let engine_method = match raw.as_i64() {
         Some(v) => v,
         None => raw.as_str().unwrap_or("0").parse::<i64>()?,
     };
     Ok(EngineSettings {
         engine_method,
-        ignore_checksum: config::get(key::IGNORE_CHECKSUM).as_bool().unwrap_or(false),
+        ignore_checksum: profile.value(ProfileKey::IgnoreChecksum, game).as_bool().unwrap_or(false),
     })
 }
 
-fn deployment(game: &dyn Game) -> DeploymentSelection {
+fn deployment(game: &dyn Game, profile: &GameProfile) -> DeploymentSelection {
     let addons = game
         .addons()
         .map_or_default(AddonSupport::shipped_addons)
         .iter()
         .map(|addon| AddonSelection {
             config_key: addon.config_key.to_string(),
-            enabled: config::get(addon.config_key).as_bool().unwrap_or(false),
+            enabled: ProfileKey::from_key(addon.config_key)
+                .and_then(|key| profile.get(key))
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
         })
         .collect();
 
+    // TODO(lane A, a5-1): the modules page still writes these to the legacy keys
     let enabled = config::get(key::CUSTOM_ADDONS_TOGGLED)
         .as_bool()
         .unwrap_or(false);

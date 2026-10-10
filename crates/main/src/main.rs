@@ -21,6 +21,7 @@ use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 use bridge::Bridge;
+use crate::classes::pages::games::GamesHandler;
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
@@ -267,6 +268,7 @@ fn main() -> Result<()> {
     LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
 
     Bridge::setup(&window.as_weak());
+    GamesHandler::setup(&window.as_weak());
     OneClickHandler::setup(&window.as_weak());
 
     #[cfg(target_os = "linux")]

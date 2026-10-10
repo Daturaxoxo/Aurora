@@ -355,6 +355,7 @@ impl GameRuntime {
             state.selected = context.game;
             state.admission = Admission::Open;
         }
+        self.drained.notify_all();
         services::publish(&context);
         info!("Committed {}", context.tag());
 
@@ -413,6 +414,7 @@ impl GameRuntime {
             state.selected = previous.selected;
             state.current.clone_from(&restored);
         }
+        self.drained.notify_all();
         if let Some(context) = &restored
             && previous.context.as_ref().map(|c| c.generation) != Some(context.generation)
         {

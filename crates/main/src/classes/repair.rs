@@ -1,10 +1,8 @@
 use crate::bridge::engine;
-use anyhow::{Context, Result};
+use crate::runtime;
+use anyhow::{Result, anyhow};
 use log::*;
-use shared::{
-    classes::games::locate::{locate_installation_root, transitional_selected_game},
-    utils::get_cache_dir,
-};
+use shared::utils::get_cache_dir;
 
 pub struct RepairHandler;
 
@@ -13,13 +11,18 @@ impl RepairHandler {
     // commit author: alawapr (1 month ago)
     // state of implementation: nothing 💀💀💀
     pub fn repair(validate_files: bool, clean_cache: bool, remove_files: bool) -> Result<()> {
+        // held for the whole repair, the game cant be switched or reconfigured until it is done
+        let guard = runtime::get()?.try_begin_mutation()?;
         engine::kill()?;
         if validate_files {
             info!("[Repair] Validating files");
             engine::validate()?;
 
-            let game_path = locate_installation_root(transitional_selected_game())
-                .context("Repair could not find the game directory")?;
+            let game_path = guard
+                .context()
+                .installation()
+                .map(|i| i.root().to_path_buf())
+                .ok_or_else(|| anyhow!("Repair could not find the game directory"))?;
             trace!("[Repair] Game directory: {}", game_path.display());
         }
 
@@ -33,6 +36,7 @@ impl RepairHandler {
             std::fs::remove_dir_all(get_cache_dir())?;
         }
 
+        drop(guard);
         Ok(())
     }
 }

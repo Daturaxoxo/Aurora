@@ -1,15 +1,9 @@
 use crate::classes::toast::ToastHandler;
+use crate::runtime;
 use crate::{CheckboxItem, MainWindow};
 use log::*;
-use shared::{
-    classes::{
-        games::locate::{locate_installation_root, transitional_selected_game},
-        info::paths::CLIENT_PAK_DIR,
-    },
-    utils::open_folder,
-};
+use shared::utils::open_folder;
 use slint::VecModel;
-
 pub struct ButtonHandler;
 
 impl ButtonHandler {
@@ -45,16 +39,17 @@ impl ButtonHandler {
     }
 
     fn open_mods_folder(window: &slint::Weak<MainWindow>) {
-        let path = match locate_installation_root(transitional_selected_game()) {
-            Ok(path) => path,
-            Err(e) => {
-                error!("Could not find game directory: {e}");
-                ToastHandler::show(window, "Could not find the game directory.", "error");
-                return;
-            }
+        let context = runtime::get().ok().and_then(|r| r.snapshot().context);
+        let mods_path = context.as_ref().and_then(|context| {
+            let root = context.installation()?.root();
+            context.game().mod_manager()?.mod_roots(root).into_iter().next()
+        });
+        let Some(mods_path) = mods_path else {
+            error!("Could not find the mods folder of the selected game");
+            ToastHandler::show(window, "Could not find the game directory.", "error");
+            return;
         };
 
-        let mods_path = path.join(CLIENT_PAK_DIR);
         if let Err(e) = std::fs::create_dir_all(&mods_path) {
             error!("Failed to create mods folder {}: {e}", mods_path.display());
             ToastHandler::show(window, "Failed to create the mods folder.", "error");

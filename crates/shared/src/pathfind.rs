@@ -89,7 +89,7 @@ pub fn validate_game_path(game: &dyn Game, path: &Path) -> bool {
         return true;
     }
 
-    if d.binaries.resolve_under(path).is_dir() {
+    if d.binaries.as_ref().is_some_and(|binaries| binaries.resolve_under(path).is_dir()) {
         trace!("Validated {} via client tree", path.display());
         return true;
     }

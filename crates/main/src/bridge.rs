@@ -1,7 +1,14 @@
 pub mod engine;
-use std::sync::mpsc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, PoisonError, mpsc};
 use crate::classes::pages::addons::AddonsHandler;
+use crate::classes::pages::games::GamesHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modules::ModulesHandler;
+use crate::classes::pages::screenshots::ScreenshotHandler;
+use crate::classes::pages::settings::SettingsHandler;
+use crate::translations::tr;
+use shared::classes::games::identity::GameId;
 use crate::runtime::{self, GameContext, RuntimeEvent, TransitionKind, startup};
 use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
@@ -241,7 +248,7 @@ impl Bridge {
     fn committed(
         w: &slint::Weak<MainWindow>,
         kind: TransitionKind,
-        context: &GameContext,
+        context: &Arc<GameContext>,
         notice: Option<String>,
     ) {
         info!("Runtime committed {} ({kind:?})", context.tag());
@@ -265,8 +272,49 @@ impl Bridge {
             w.set_launch_disabled(!ready);
         });
 
-        if kind == TransitionKind::Startup {
-            AddonsHandler::startup_committed(w);
+        Self::context_changed(w, kind, context);
+        AddonsHandler::context_committed(w, context.id());
+    }
+
+    fn context_changed(w: &slint::Weak<MainWindow>, kind: TransitionKind, context: &Arc<GameContext>) {
+        static APPLIED: Mutex<Option<(GameId, Option<PathBuf>)>> = Mutex::new(None);
+
+        let applied = (
+            context.id().clone(),
+            context.installation().map(|i| i.root().to_path_buf()),
+        );
+        let changed = APPLIED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .replace(applied.clone())
+            .is_none_or(|previous| previous != applied);
+        let switched = kind == TransitionKind::Switch;
+
+        let ui_context = context.clone();
+        Self::invoke_current(w, context.generation(), move |w| {
+            GamesHandler::refresh(w);
+            SettingsHandler::apply_context(w, &ui_context);
+            if switched {
+                w.set_show_menu(false);
+                w.set_show_addons(false);
+                w.set_show_modules(false);
+                w.set_show_lua_scripts(false);
+                w.set_show_screenshots(false);
+                w.set_show_mod_manager(false);
+                w.set_show_gb_browser(false);
+            }
+        });
+
+        if changed {
+            debug!("Reloading the page models for {}", context.tag());
+            AddonsHandler::reload(w);
+            ModManagerHandler::reload(w);
+            ScreenshotHandler::reload(w);
+            ModulesHandler::reload(w);
+        }
+        if switched {
+            let name = context.game().descriptor().display_name;
+            Self::show_toast(w, &tr("toast.game-switched").replace("{0}", name), "success");
         }
     }
 
@@ -278,6 +326,15 @@ impl Bridge {
         context: Option<&GameContext>,
     ) {
         Self::report_configure(w, Err(anyhow!(error.to_string())));
+        slint::invoke_from_event_loop({
+            let w = w.clone();
+            move || {
+                if let Some(w) = w.upgrade() {
+                    GamesHandler::refresh(&w);
+                }
+            }
+        })
+        .ok();
         let Some(context) = context else {
             if degraded {
                 let w = w.clone();
@@ -317,7 +374,9 @@ impl Bridge {
             }
             EngineEvent::Launched(outcome) => match outcome.result {
                 Ok(()) => {
-                    let toast_key = match StartMethod::decode(&config::get(key::START_METHOD)) {
+                    let start_method = runtime::get()
+                        .map_or(StartMethod::Manual, |r| engine::start_method(r.snapshot().game));
+                    let toast_key = match start_method {
                         StartMethod::Direct => "toast.launch-direct",
                         StartMethod::Manual => "toast.launcher-opened",
                     };

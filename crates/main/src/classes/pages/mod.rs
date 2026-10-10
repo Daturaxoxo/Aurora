@@ -1,4 +1,5 @@
 pub mod addons;
+pub mod games;
 pub mod gbbrowser;
 pub mod lua;
 pub mod modmanager;

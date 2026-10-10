@@ -85,8 +85,8 @@ impl Nte {
                     .collect(),
                 markers: MARKERS.iter().copied().map(path).collect(),
                 processes: NTE_PROCESSES,
-                game_executable: path(NTE_GAME_EXE),
-                binaries: path(paths::CLIENT_WIN64),
+                game_executable: Some(path(NTE_GAME_EXE)),
+                binaries: Some(path(paths::CLIENT_WIN64)),
                 payload_dir: path("nte"),
                 payload_files: PAYLOAD_FILES.iter().copied().map(path).collect(),
                 steam: Some(SteamMetadata {

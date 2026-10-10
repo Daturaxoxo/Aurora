@@ -6,6 +6,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError, mpsc};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{CommandTag, Readiness, RecordChanges};
 use backend::handler::{EngineCommand, EngineEvent, EngineHandle};
@@ -62,6 +63,7 @@ impl GameContext {
     }
 
     pub const fn installation(&self) -> Option<&InstallationFacts> {self.installation.as_ref()}
+    pub const fn payload(&self) -> &ResolvedPayloadLayout {&self.payload}
 
     pub const fn readiness(&self) -> Readiness {self.readiness}
 }
@@ -79,8 +81,6 @@ impl fmt::Debug for GameContext {
 
 #[derive(Clone)]
 pub struct RuntimeSnapshot {
-    // TODO(lane B, b5-2): per-control capability gating reads this
-    #[allow(dead_code)]
     pub admission: Admission,
     pub game: &'static dyn Game,
     pub context: Option<Arc<GameContext>>,
@@ -220,6 +220,7 @@ pub fn is_current_generation(generation: u64) -> bool {
 pub fn shutdown() {
     let Ok(runtime) = get() else { return };
     runtime.lock_state().admission = Admission::ShuttingDown;
+    runtime.drained.notify_all();
     if let Err(e) = runtime.engine.shutdown() {
         error!("Engine shutdown failed: {e}");
     }
@@ -266,6 +267,17 @@ impl GameRuntime {
     }
 
     pub fn try_begin_mutation(&'static self) -> Result<MutationGuard> {
+        self.begin(false)
+    }
+
+    pub fn wait_for_mutation(&'static self, timeout: Duration) -> Result<MutationGuard> {
+        let (state, _) = self
+            .drained
+            .wait_timeout_while(self.lock_state(), timeout, |s| {
+                matches!(s.admission, Admission::Starting | Admission::Transitioning)
+            })
+            .unwrap_or_else(PoisonError::into_inner);
+        drop(state);
         self.begin(false)
     }
 

@@ -763,6 +763,9 @@ export component SettingsPage inherits Rectangle {
     in property <bool> show-engine-scale: false;
     in-out property <bool> ignore-checksum: false;
     in-out property <string> launch-args: "";
+    // what the current game supports, controls it cannot use are hidden
+    in property <bool> engine-settings: true;
+    in property <bool> start-method-choice: true;
 
     // LINUX
     in property <bool> is-linux: false;
@@ -1084,7 +1087,7 @@ export component SettingsPage inherits Rectangle {
                                 }
                             }
 
-                            VerticalLayout {
+                            if root.engine-settings || root.start-method-choice: VerticalLayout {
                                 spacing: 10px;
                                 Text {
                                     text: Tr.values[TrKey.settings-section-engine];
@@ -1093,7 +1096,7 @@ export component SettingsPage inherits Rectangle {
                                     font-weight: 700;
                                 }
 
-                                SettingCard {
+                                if root.engine-settings: SettingCard {
                                     title: Tr.values[TrKey.settings-engine-method-title];
                                     subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
                                     Dropdown {
@@ -1106,7 +1109,7 @@ export component SettingsPage inherits Rectangle {
                                     }
                                 }
 
-                                SettingCard {
+                                if root.start-method-choice: SettingCard {
                                     title: Tr.values[TrKey.settings-start-method-title];
                                     subtitle: Tr.values[TrKey.settings-start-method-subtitle];
                                     Dropdown {
@@ -1119,7 +1122,7 @@ export component SettingsPage inherits Rectangle {
                                     }
                                 }
 
-                                SettingCard {
+                                if root.engine-settings: SettingCard {
                                     title: Tr.values[TrKey.settings-ignore-checksum-title];
                                     subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
                                     ToggleSwitch {
@@ -1129,7 +1132,7 @@ export component SettingsPage inherits Rectangle {
                                 }
                             }
 
-                            VerticalLayout {
+                            if root.engine-settings: VerticalLayout {
                                 spacing: 10px;
                                 Text {
                                     text: Tr.values[TrKey.settings-section-launch-arguments];

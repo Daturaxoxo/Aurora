@@ -2,26 +2,26 @@ use std::io;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-
 use anyhow::{Context, Result, anyhow};
 use ipc::protocol::{self, Message};
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
-use shared::classes::gamebanana::api::NTE_GAME_ID;
+use shared::classes::gamebanana::api::registry_game;
 use shared::classes::gamebanana::types::NteModFile;
+use shared::classes::games::Game;
 use shared::config::{self, key};
 use shared::oneclick::OneClick;
 use shared::utils::format_bytes;
 use slint::ComponentHandle as _;
 use url::Url;
-
 use crate::MainWindow;
 use crate::bridge::{Bridge, PopupSpec};
 use crate::classes::pages::gbbrowser::{self, GbBrowserHandler};
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::runtime::{self, Admission};
 use crate::translations::tr;
-
 pub const POPUP_ID: &str = "gb-oneclick";
+pub const SWITCH_POPUP_ID: &str = "gb-oneclick-switch";
 
 const CONNECT_ATTEMPTS: u32 = 4;
 const CONNECT_RETRY_DELAY: Duration = Duration::from_millis(500);
@@ -33,6 +33,8 @@ static LISTENER_RUNNING: AtomicBool = AtomicBool::new(false);
 static PENDING: Lazy<Mutex<Option<PendingInstall>>> = Lazy::new(|| Mutex::new(None));
 
 struct PendingInstall {
+    game: &'static dyn Game,
+    is_nsfw: bool,
     mod_id: u32,
     author: String,
     name: String,
@@ -97,7 +99,6 @@ impl OneClickHandler {
         let window = window.clone();
         std::thread::spawn(move || Self::listen(&window));
     }
-
     pub fn shutdown() {
         LISTENER_RUNNING.store(false, Ordering::SeqCst);
     }
@@ -135,9 +136,7 @@ impl OneClickHandler {
                                 Self::handle(&window, &request);
                             })
                             .is_err()
-                            {
-                                break;
-                            }
+                            {break}
                         }
                         Ok(other) => warn!("1-Click: ignored unexpected IPC message {other:?}"),
                         Err(e) => warn!("1-Click: rejected unreadable IPC request: {e}"),
@@ -185,24 +184,9 @@ impl OneClickHandler {
             }
         };
 
-        if let Err(e) = Self::validate_game_path() {
-            Self::reject(window, &e);
-            return;
-        }
-
         let item_id = request.item_id;
         let window = window.clone();
         gbbrowser::runtime().spawn(async move {
-            let installed = tokio::task::spawn_blocking(move || {
-                ModManagerHandler::is_source_installed(item_id, file_id)
-            })
-            .await
-            .unwrap_or(false);
-            if installed {
-                Self::reject(&window, &anyhow!("This mod file is already installed"));
-                return;
-            }
-
             let profile = match gbbrowser::mod_profile(item_id).await {
                 Ok(profile) => profile,
                 Err(e) => {
@@ -218,9 +202,9 @@ impl OneClickHandler {
                 if profile.id != item_id {
                     return Err(anyhow!("GameBanana returned a different mod"));
                 }
-                if profile.game_id != NTE_GAME_ID {
-                    return Err(anyhow!("This mod is not for Neverness to Everness"));
-                }
+                let game = registry_game(profile.game_id)
+                    .filter(|game| game.descriptor().engine.is_some())
+                    .ok_or_else(|| anyhow!(tr("toast.oneclick-unsupported-game")))?;
                 let file = profile
                     .files
                     .into_iter()
@@ -228,6 +212,8 @@ impl OneClickHandler {
                     .ok_or_else(|| anyhow!("The requested file is not part of this mod"))?;
 
                 Ok(PendingInstall {
+                    game,
+                    is_nsfw: profile.is_nsfw,
                     mod_id: profile.id,
                     author: profile.author,
                     name: profile.name,
@@ -237,9 +223,80 @@ impl OneClickHandler {
             })();
 
             match result {
-                Ok(pending) => Self::show_confirmation(&window, pending, profile.is_nsfw),
+                Ok(pending) if Self::is_current_game(pending.game) => Self::prepare(&window, pending).await,
+                Ok(pending) => Self::show_switch_prompt(&window, pending),
                 Err(e) => Self::reject(&window, &e),
             }
+        });
+    }
+
+    fn is_current_game(game: &dyn Game) -> bool {
+        runtime::get().is_ok_and(|r| r.snapshot().game.descriptor().id == game.descriptor().id)
+    }
+
+    async fn prepare(window: &slint::Weak<MainWindow>, pending: PendingInstall) {
+        if let Err(e) = Self::validate_installation(pending.game) {
+            Self::reject(window, &e);
+            return;
+        }
+
+        let (mod_id, file_id) = (pending.mod_id, pending.file.id);
+        let installed = tokio::task::spawn_blocking(move || {
+            ModManagerHandler::is_source_installed(mod_id, file_id)
+        })
+        .await
+        .unwrap_or(false);
+        if installed {
+            Self::reject(window, &anyhow!("This mod file is already installed"));
+            return;
+        }
+
+        Self::show_confirmation(window, pending);
+    }
+
+    fn show_switch_prompt(window: &slint::Weak<MainWindow>, pending: PendingInstall) {
+        let window = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            let Some(w) = window.upgrade() else {
+                REQUEST_ACTIVE.store(false, Ordering::SeqCst);
+                return;
+            };
+            if w.get_popup_active() {
+                REQUEST_ACTIVE.store(false, Ordering::SeqCst);
+                Bridge::show_toast(&window, "Another action requires confirmation", "warning");
+                return;
+            }
+
+            let game_name = pending.game.descriptor().display_name;
+            let spec = PopupSpec {
+                id: SWITCH_POPUP_ID.to_owned(),
+                kind: "warning".to_owned(),
+                title: tr("popup.oneclick-switch.title"),
+                message: tr("popup.oneclick-switch.message").replace("{0}", game_name),
+                subject: pending.name.clone(),
+                confirm_label: tr("popup.oneclick-switch.confirm"),
+                ..PopupSpec::default()
+            };
+            *PENDING.lock().unwrap() = Some(pending);
+            spec.apply(&w);
+        });
+    }
+
+    pub fn confirm_switch(window: &slint::Weak<MainWindow>) {
+        let Some(pending) = PENDING.lock().unwrap().take() else {
+            REQUEST_ACTIVE.store(false, Ordering::SeqCst);
+            return;
+        };
+        let window = window.clone();
+        std::thread::spawn(move || {
+            let switched = runtime::get().and_then(|r| r.switch(&pending.game.descriptor().id));
+            if let Err(e) = switched {
+                // jeff jeffrey james HA.HA.HA. those who know xxxtentacion
+                warn!("1-Click: could not switch to {}: {e:#}", pending.game.descriptor().id);
+                REQUEST_ACTIVE.store(false, Ordering::SeqCst);
+                return;
+            }
+            gbbrowser::runtime().spawn(async move { Self::prepare(&window, pending).await });
         });
     }
 
@@ -248,8 +305,28 @@ impl OneClickHandler {
         REQUEST_ACTIVE.store(false, Ordering::SeqCst);
         let Some(pending) = pending else { return };
 
+        let guard = match runtime::get().and_then(runtime::GameRuntime::try_begin_mutation) {
+            Ok(guard) if guard.context().id() == &pending.game.descriptor().id => guard,
+            Ok(guard) => {
+                Self::reject(
+                    window,
+                    &anyhow!(
+                        "{} is selected now, this mod is for {}",
+                        guard.context().game().descriptor().display_name,
+                        pending.game.descriptor().display_name
+                    ),
+                );
+                return;
+            }
+            Err(e) => {
+                Self::reject(window, &e);
+                return;
+            }
+        };
+
         if !GbBrowserHandler::download_oneclick(
             window,
+            guard,
             pending.mod_id,
             pending.author,
             pending.name,
@@ -291,19 +368,20 @@ impl OneClickHandler {
             .context("The 1-click URL has an invalid file ID")
     }
 
-    fn validate_game_path() -> Result<()> {
-        let game_path = config::get(key::GAME_PATH);
-        let configured = game_path
-            .as_str()
-            .filter(|path| !path.trim().is_empty())
-            .map(std::path::Path::new)
-            .ok_or_else(|| anyhow!("Set the game directory before installing mods"))?;
-        shared::classes::info::version::detect_version(configured)
-            .map(|_| ())
-            .context("The configured game directory is invalid")
+    fn validate_installation(game: &dyn Game) -> Result<()> {
+        let snapshot = runtime::get()?.snapshot();
+        if !matches!(snapshot.admission, Admission::Open) {
+            return Err(anyhow!("Aurora is {}, try again shortly", snapshot.admission));
+        }
+        snapshot
+            .context
+            .filter(|context| context.id() == &game.descriptor().id)
+            .and_then(|context| context.installation().cloned())
+            .map(drop)
+            .ok_or_else(|| anyhow!("Set the game directory before installing mods"))
     }
 
-    fn show_confirmation(window: &slint::Weak<MainWindow>, pending: PendingInstall, is_nsfw: bool) {
+    fn show_confirmation(window: &slint::Weak<MainWindow>, pending: PendingInstall) {
         let window = window.clone();
         let _ = slint::invoke_from_event_loop(move || {
             let Some(w) = window.upgrade() else {
@@ -321,7 +399,7 @@ impl OneClickHandler {
                 return;
             }
 
-            let notice = if is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
+            let notice = if pending.is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
                 tr("popup.oneclick.nsfw-notice")
             } else {
                 String::new()

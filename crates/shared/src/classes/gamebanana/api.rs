@@ -3,6 +3,7 @@ use super::types::{
     ApiFile, ApiRecord, ModProfile, NteMod, NteModFile, ProfilePage, SearchResponse,
     SubfeedResponse,
 };
+use crate::classes::games::{Game, find_game, identity::GameId};
 use crate::utils::{error_chain, get_local_version};
 use anyhow::{Context, Result, anyhow};
 use futures::{StreamExt, stream};
@@ -16,6 +17,8 @@ use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
 pub const NTE_GAME_ID: u32 = 23012;
+// TODO(lane A, a5-3): move onto each registered game's remote game policy
+const REGISTRY_GAMES: &[(&str, u32)] = &[("nte", NTE_GAME_ID)];
 const FETCH_CONCURRENCY: usize = 6;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -541,4 +544,20 @@ impl GameBananaApi {
             files: Self::map_files(profile.files),
         })
     }
+}
+
+pub fn gamebanana_id(game: &GameId) -> Option<u32> {
+    REGISTRY_GAMES
+        .iter()
+        .find(|(id, _)| *id == game.as_str())
+        .map(|(_, gamebanana)| *gamebanana)
+}
+
+pub fn registry_game(gamebanana_id: u32) -> Option<&'static dyn Game> {
+    let (id, _) = REGISTRY_GAMES.iter().find(|(_, gb)| *gb == gamebanana_id)?;
+    find_game(id).filter(|game| game.descriptor().id.as_str() == *id)
+}
+
+pub fn game_page(game: &GameId) -> Option<String> {
+    gamebanana_id(game).map(|id| format!("{BASE_URL}/games/{id}"))
 }

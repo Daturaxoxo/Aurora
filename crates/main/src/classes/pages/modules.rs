@@ -138,7 +138,7 @@ impl ModulesHandler {
         }
     }
 
-    fn reload(window: &slint::Weak<MainWindow>) {
+    pub(crate) fn reload(window: &slint::Weak<MainWindow>) {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
         std::thread::spawn(move || {

@@ -1,7 +1,6 @@
 use crate::bridge::PopupSpec;
 use crate::translations::tr;
 use crate::{MainWindow, ScreenshotItem};
-
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
@@ -9,7 +8,6 @@ use shared::classes::info::paths::PICTURE_FOLDER;
 use shared::config::{self, key};
 use shared::utils::open_folder;
 use slint::{Model, VecModel};
-
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -17,15 +15,10 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
-
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
-
-/// Read size used when hashing a file's contents.
 const HASH_CHUNK: usize = 128 * 1024;
-
 const IGNORED_PLAYER_ID: &str = "66666";
-
 const MIN_COPY_FEEDBACK: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone)]
@@ -495,7 +488,6 @@ fn load_rgba(path: &Path, max_w: u32, max_h: u32) -> anyhow::Result<(Vec<u8>, u3
     Ok((rgba.into_raw(), w, h))
 }
 
-/// Encodes an image as an uncompressed BMP
 #[cfg(windows)]
 fn bmp_bytes(path: &Path) -> anyhow::Result<Vec<u8>> {
     use image::ImageEncoder as _;
@@ -595,8 +587,7 @@ impl ScreenshotHandler {
         info!("[Screenshots] setup() complete");
     }
 
-    /// Rescans the folder and rebuilds the model off the UI thread
-    fn reload(window: &slint::Weak<MainWindow>) {
+    pub(crate) fn reload(window: &slint::Weak<MainWindow>) {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
 

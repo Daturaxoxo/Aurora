@@ -2,18 +2,15 @@ use std::io::Read;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
-
 #[cfg(windows)]
 use std::{
     io,
     path::Path,
     sync::{Arc, mpsc},
 };
-
 use anyhow::{Context, Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
-
 use ipc::manifest::hash_file;
 #[cfg(windows)]
 use ipc::manifest::{LocalManifest, Manifest};
@@ -21,17 +18,15 @@ use ipc::protocol::{self, Message};
 use reqwest::blocking::Response;
 #[cfg(feature = "beta")]
 use serde::Deserialize;
-
 use crate::bridge::Bridge;
+use crate::runtime::{self, Admission, MutationGuard};
 use crate::{LaunchState, MainWindow};
-
 #[cfg(feature = "beta")]
 const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
 #[cfg(feature = "beta")]
 const BETA_PHASE_CHECK_URL: &str = "https://beta.getaurora.moe/api/v2/status";
 #[cfg(feature = "beta")]
 const CURRENT_BETA_PHASE: i32 = 1;
-
 #[cfg(feature = "beta")]
 #[allow(dead_code)]
 #[derive(Deserialize)]
@@ -41,6 +36,7 @@ struct BetaPhaseResponse {
     message: String,
 }
 
+const UPDATE_ADMISSION_WAIT: Duration = Duration::from_secs(60);
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static UI_LOCKED: AtomicBool = AtomicBool::new(false);
 static POST_UPDATE_PENDING: AtomicBool = AtomicBool::new(false);
@@ -250,13 +246,16 @@ impl UpdateHandler {
                 }
             }
             UpdateKind::Minor => {
-                if Bridge::game_busy() {
-                    info!(
-                        "minor update {} is available but the game is running; it will be applied on the next start",
-                        manifest.version
-                    );
-                    return Ok(None);
-                }
+                let _admission = match Self::admit_update() {
+                    Ok(admission) => admission,
+                    Err(e) => {
+                        info!(
+                            "minor update {} is available but {e}; it will be applied on the next start",
+                            manifest.version
+                        );
+                        return Ok(None);
+                    }
+                };
 
                 info!(
                     "minor update {} -> {} available; updating silently",
@@ -331,13 +330,16 @@ impl UpdateHandler {
                 }
             }
             UpdateKind::Minor => {
-                if Bridge::game_busy() {
-                    info!(
-                        "minor update {} is available but the game is running; it will be applied on the next start",
-                        manifest.version
-                    );
-                    return Ok(None);
-                }
+                let _admission = match Self::admit_update() {
+                    Ok(admission) => admission,
+                    Err(e) => {
+                        info!(
+                            "minor update {} is available but {e}; it will be applied on the next start",
+                            manifest.version
+                        );
+                        return Ok(None);
+                    }
+                };
                 info!(
                     "minor update {} -> {} available; updating silently",
                     local_version.trim(),
@@ -408,6 +410,14 @@ impl UpdateHandler {
         let w = window.clone();
         std::thread::spawn(move || {
             let _running = UpdateRunningGuard;
+            let _admission = match Self::admit_update() {
+                Ok(admission) => admission,
+                Err(e) => {
+                    warn!("update postponed: {e}");
+                    Bridge::show_toast(&w, &format!("Update postponed: {e}"), "warning");
+                    return;
+                }
+            };
             #[cfg(windows)]
             let result = Self::run_updater(&w, false);
             #[cfg(target_os = "linux")]
@@ -980,6 +990,23 @@ impl UpdateHandler {
             }
         })
         .ok();
+    }
+
+    fn admit_update() -> Result<Option<MutationGuard>> {
+        let Ok(runtime) = runtime::get() else {
+            return Ok(None);
+        };
+        if runtime.session_active() {
+            return Err(anyhow!("the game is running"));
+        }
+        match runtime.wait_for_mutation(UPDATE_ADMISSION_WAIT) {
+            Ok(guard) => Ok(Some(guard)),
+            Err(e) if matches!(runtime.snapshot().admission, Admission::Degraded(_)) => {
+                warn!("updating while the game runtime is degraded: {e}");
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     pub fn ui_locked() -> bool {
