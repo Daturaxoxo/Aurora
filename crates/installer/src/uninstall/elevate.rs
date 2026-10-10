@@ -1,18 +1,22 @@
 use std::path::{Path, PathBuf};
 
+use crate::logic::GameRoot;
 use crate::plan::Plan;
 use crate::run::Options;
+
 const ELEVATED_ARG: &str = "--elevated";
 const DELETE_CONFIG_ARG: &str = "--delete-config";
 const DELETE_MODS_ARG: &str = "--delete-mods";
 const PRESERVE_MODS_ARG: &str = "--preserve-mods";
 const DATA_DIR_ARG: &str = "--data-dir";
 const APP_DIR_ARG: &str = "--app-dir";
-const MODS_DIR_ARG: &str = "--mods-dir";
+const GAME_ROOT_ARG: &str = "--game-root";
 const BACKUP_DIR_ARG: &str = "--backup-dir";
+
 pub fn is_relaunch() -> bool {
     std::env::args().any(|arg| arg == ELEVATED_ARG)
 }
+
 pub fn options_from_args() -> Options {
     let args: Vec<String> = std::env::args().collect();
     let has = |flag: &str| args.iter().any(|arg| arg == flag);
@@ -23,6 +27,7 @@ pub fn options_from_args() -> Options {
         preserve_mods: has(PRESERVE_MODS_ARG),
     }
 }
+
 pub fn plan_from_args() -> Plan {
     let args: Vec<String> = std::env::args().collect();
     let value = |flag: &str| -> Option<PathBuf> {
@@ -33,19 +38,33 @@ pub fn plan_from_args() -> Plan {
             .map(PathBuf::from)
     };
 
+    let game_roots: Vec<GameRoot> = args
+        .windows(2)
+        .filter(|pair| pair[0] == GAME_ROOT_ARG)
+        .filter_map(|pair| match GameRoot::parse_arg(&pair[1]) {
+            Ok(root) => Some(root),
+            Err(e) => {
+                log::warn!("Ignoring {GAME_ROOT_ARG} {}: {e:#}", pair[1]);
+                None
+            }
+        })
+        .collect();
+
     let fallback = Plan::resolve();
     Plan::from_paths(
         value(DATA_DIR_ARG).unwrap_or(fallback.data_dir),
         value(APP_DIR_ARG).or(fallback.app_dir),
-        value(MODS_DIR_ARG).or(fallback.mods_dir),
+        if game_roots.is_empty() {
+            fallback.game_roots
+        } else {
+            game_roots
+        },
         value(BACKUP_DIR_ARG).unwrap_or(fallback.backup_dir),
     )
 }
+
 pub fn needed(plan: &Plan, options: Options) -> bool {
-    if options.delete_mods
-        && let Some(mods) = plan.mods_dir.as_deref()
-        && !can_remove(mods)
-    {
+    if options.delete_mods && plan.mods.iter().any(|mods| !can_remove(&mods.path)) {
         return true;
     }
 
@@ -57,6 +76,7 @@ pub fn needed(plan: &Plan, options: Options) -> bool {
 
     options.delete_config && !can_remove(&plan.data_dir)
 }
+
 fn can_remove(dir: &Path) -> bool {
     if !dir.exists() {
         return true;
@@ -74,6 +94,7 @@ fn is_writable(dir: &Path) -> bool {
         Err(_) => false,
     }
 }
+
 pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
@@ -88,7 +109,10 @@ pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
         let Some(path) = path else {
             return;
         };
-        let text = path.display().to_string();
+        push_value(params, flag, &path.display().to_string());
+    }
+
+    fn push_value(params: &mut String, flag: &str, text: &str) {
         let trimmed = text.trim_end_matches('\\');
         if trimmed.is_empty() {
             return;
@@ -117,7 +141,9 @@ pub fn relaunch(plan: &Plan, options: Options) -> Result<(), String> {
     }
     push_path(&mut params, DATA_DIR_ARG, Some(&plan.data_dir));
     push_path(&mut params, APP_DIR_ARG, plan.app_dir.as_deref());
-    push_path(&mut params, MODS_DIR_ARG, plan.mods_dir.as_deref());
+    for root in &plan.game_roots {
+        push_value(&mut params, GAME_ROOT_ARG, &root.to_arg());
+    }
     push_path(&mut params, BACKUP_DIR_ARG, Some(&plan.backup_dir));
 
     let operation = wide("runas".as_ref());

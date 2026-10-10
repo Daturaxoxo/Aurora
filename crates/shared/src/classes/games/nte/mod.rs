@@ -4,14 +4,17 @@ pub mod patcher;
 pub mod paths;
 pub mod version;
 
-use std::{path::Path, sync::LazyLock};
+use std::{
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 use anyhow::Result;
 use serde_json::Value;
 
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
-    capabilities::{AddonSupport, LauncherSupport},
+    capabilities::{AddonSupport, LauncherSupport, ModManagerSupport},
     identity::{GameId, SafeRelativePath},
 };
 use crate::config::{self, ProfileKey};
@@ -51,6 +54,10 @@ const MARKERS: &[&str] = &[
     "NTETWLauncher.exe",
     "Client/WindowsNoEditor/HT/Content/Paks",
 ];
+
+pub const LEGACY_BIN_SIGNATURE: &[&str] = &["cutils.dll", "Everlight.asi"];
+pub const LEGACY_BIN_FILES: &[&str] = &["AuroraEngine.dll", "Everlight.asi", "cutils.dll"];
+pub const LEGACY_BIN_DIRS: &[&str] = &["Plugins", "Wrappers", "Addons", "Lua"];
 
 pub static NTE: LazyLock<Nte> = LazyLock::new(Nte::new);
 
@@ -116,5 +123,15 @@ impl Game for Nte {
 
     fn addons(&self) -> Option<&dyn AddonSupport> {
         Some(self)
+    }
+
+    fn mod_manager(&self) -> Option<&dyn ModManagerSupport> {
+        Some(self)
+    }
+}
+
+impl ModManagerSupport for Nte {
+    fn mod_roots(&self, game_root: &Path) -> Vec<PathBuf> {
+        vec![path(paths::CLIENT_PAK_DIR).resolve_under(game_root)]
     }
 }

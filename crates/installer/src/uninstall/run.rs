@@ -1,19 +1,25 @@
 use crate::UninstallerWindow;
 use crate::logfile;
+use crate::logic::ModTarget;
 use crate::owned;
 use crate::plan::Plan;
+
 use log::{error, info, warn};
+use shared::classes::games::registry;
 use shared::utils::format_bytes;
 use slint::{Model, SharedString, VecModel, Weak};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+
 pub const CLEANUP_ARG: &str = "--cleanup";
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 const CLEANUP_RETRY_INTERVAL: Duration = Duration::from_millis(200);
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(10);
+
 static PENDING_CLEANUP: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Clone, Copy)]
@@ -70,38 +76,54 @@ fn run_inner(
         return Err("Aurora is still running. Please close it and try again.".into());
     }
 
-    let mods_dir = options
-        .delete_mods
-        .then_some(plan.mods_dir.as_deref())
-        .flatten();
-    let backup_wanted = options.preserve_mods && mods_dir.is_some();
+    let mods = if options.delete_mods {
+        plan.mods.as_slice()
+    } else {
+        &[]
+    };
+    let backup_wanted = options.preserve_mods && !mods.is_empty();
 
     let steps = 1
         + usize::from(backup_wanted)
-        + usize::from(mods_dir.is_some())
+        + usize::from(!mods.is_empty())
         + usize::from(options.delete_config);
     let mut step = 0usize;
 
     let mut backup: Option<String> = None;
-    if let Some(mods) = mods_dir {
+    if !mods.is_empty() {
         if backup_wanted {
             let archive = backup_path(&plan.backup_dir);
             log_line(ui, format!("Archiving mods to {}...", archive.display()));
             archive_mods(ui, mods, &archive, ratio(step, steps), ratio(1, steps))?;
+            log_line(ui, "Verified the mods archive.".into());
             backup = Some(archive.to_string_lossy().into_owned());
             advance(ui, &mut step, steps);
         }
 
-        log_line(ui, format!("Deleting {}...", mods.display()));
-        crate::plan::verify_mods_dir(mods)?;
-        remove_dir(mods)?;
+        for target in mods {
+            log_line(ui, format!("Deleting {}...", target.path.display()));
+            target
+                .revalidate(registry())
+                .map_err(|e| format!("refusing to delete {}: {e:#}", target.path.display()))?;
+            remove_dir(&target.path)?;
+        }
         advance(ui, &mut step, steps);
     }
 
     if options.delete_config {
         log_line(ui, format!("Deleting {}...", plan.data_dir.display()));
         crate::plan::verify_data_dir(&plan.data_dir)?;
-        remove_dir(&plan.data_dir)?;
+        let kept = crate::logic::remove_data_dir(&plan.data_dir, registry())
+            .map_err(|e| format!("{e:#}"))?;
+        for path in kept {
+            log_line(
+                ui,
+                format!(
+                    "  Keeping {} - it belongs to a game this version does not know.",
+                    path.display()
+                ),
+            );
+        }
         advance(ui, &mut step, steps);
     }
 
@@ -139,7 +161,7 @@ fn run_inner(
 
 fn archive_mods(
     ui: &Weak<UninstallerWindow>,
-    mods: &Path,
+    mods: &[ModTarget],
     archive: &Path,
     base: f32,
     span: f32,
@@ -147,7 +169,7 @@ fn archive_mods(
     let mut last_progress = Instant::now();
     let mut current = PathBuf::new();
 
-    shared::archive::zip_directory(mods, archive, |rel, done, total| {
+    crate::logic::backup_mods(mods, archive, |rel, done, total| {
         if rel != current {
             current = rel.to_path_buf();
             log_line(
@@ -172,7 +194,7 @@ fn archive_mods(
             set_progress(ui, base + span * fraction.clamp(0.0, 1.0));
         }
     })
-    .map_err(|e| format!("failed to archive {}: {e}", mods.display()))
+    .map_err(|e| format!("failed to back up the mods, nothing was deleted: {e:#}"))
 }
 
 fn advance(ui: &Weak<UninstallerWindow>, step: &mut usize, steps: usize) {

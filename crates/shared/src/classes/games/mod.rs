@@ -15,7 +15,7 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 
 use crate::config::ProfileKey;
-use capabilities::{AddonSupport, LauncherSupport};
+use capabilities::{AddonSupport, LauncherSupport, ModManagerSupport};
 use identity::{GameId, SafeRelativePath};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -91,6 +91,9 @@ pub trait Game: Send + Sync {
         None
     }
     fn addons(&self) -> Option<&dyn AddonSupport> {
+        None
+    }
+    fn mod_manager(&self) -> Option<&dyn ModManagerSupport> {
         None
     }
 }
@@ -202,6 +205,29 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
                 "overlay_addons.persist",
                 overlay.persist.iter().copied(),
             )?;
+        }
+    }
+
+    if let Some(mods) = game.mod_manager() {
+        let probe = Path::new("probe-root");
+        let roots = mods.mod_roots(probe);
+        if roots.is_empty() {
+            return Err(anyhow!("{id}: mod manager has no mod roots"));
+        }
+        
+        for root in roots {
+            let inside = root.strip_prefix(probe).is_ok_and(|rest| {
+                rest.components().next().is_some()
+                    && rest
+                        .components()
+                        .all(|c| matches!(c, std::path::Component::Normal(_)))
+            });
+            if !inside {
+                return Err(anyhow!(
+                    "{id}: mod root '{}' is not inside the game root",
+                    root.display()
+                ));
+            }
         }
     }
 

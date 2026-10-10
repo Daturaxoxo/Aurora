@@ -8,6 +8,8 @@ mod elevate;
 #[cfg(windows)]
 #[path = "../logfile.rs"]
 mod logfile;
+#[cfg(any(windows, test))]
+mod logic;
 #[cfg(windows)]
 mod owned;
 #[cfg(windows)]
@@ -70,11 +72,17 @@ fn start(ui: &UninstallerWindow, options: Options) {
         options.delete_config, options.delete_mods, options.preserve_mods
     );
     info!(
-        "App dir: {:?}, mods dir: {:?}, data dir: {}",
+        "App dir: {:?}, mods dirs: {:?}, data dir: {}",
         plan.app_dir,
-        plan.mods_dir,
+        plan.mods
+            .iter()
+            .map(|mods| format!("{}={}", mods.game_id, mods.path.display()))
+            .collect::<Vec<_>>(),
         plan.data_dir.display()
     );
+    for rejected in &plan.mods_rejected {
+        warn!("Leaving a mods folder alone: {rejected}");
+    }
 
     let Some(app_dir) = plan.app_dir.clone() else {
         ui.set_current_step(1);
@@ -138,13 +146,14 @@ fn run() -> Result<(), slint::PlatformError> {
     let plan = current_plan();
     show_app_dir(&ui, &plan);
     ui.set_mods_path(
-        plan.mods_dir
-            .as_ref()
-            .map(|p| p.display().to_string())
-            .unwrap_or_default()
+        plan.mods
+            .iter()
+            .map(|mods| mods.path.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
             .into(),
     );
-    ui.set_mods_available(plan.mods_dir.is_some());
+    ui.set_mods_available(!plan.mods.is_empty());
 
     ui.set_uninstall_log(ModelRc::from(Rc::new(VecModel::<SharedString>::default())));
 

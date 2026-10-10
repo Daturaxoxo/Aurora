@@ -414,6 +414,6 @@ mod profile;
 pub(crate) use migration::{CopyOutcome, copy_verified};
 pub use migration::{ModuleMigration, ProfileMigrationReport, legacy_modules_path, migrate_games};
 pub use profile::{
-    ConfigChange, ConfigUndo, GameProfile, GlobalKey, ProfileKey, ProfilePatch, commit_change,
-    game_modules_path, read_global, read_profile, rollback_change, update_profile,
+    ConfigChange, ConfigUndo, GAMES, GameProfile, GlobalKey, ProfileKey, ProfilePatch,
+    commit_change, game_modules_path, read_global, read_profile, rollback_change, update_profile,
 };

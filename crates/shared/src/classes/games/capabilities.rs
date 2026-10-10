@@ -4,6 +4,7 @@ use super::{
 };
 
 use anyhow::Result;
+use std::path::{Path, PathBuf};
 
 pub trait LauncherSupport: Send + Sync {
     fn start_methods(&self) -> &[StartMethodDescriptor];
@@ -36,4 +37,9 @@ pub trait AddonSupport: Send + Sync {
     fn overlay_addons(&self) -> &[OverlayAddon] {
         &[]
     }
+}
+
+// TODO(phase 5, a5-1): add extensions, disabled-name rules and validate_entry
+pub trait ModManagerSupport: Send + Sync {
+    fn mod_roots(&self, game_root: &Path) -> Vec<PathBuf>;
 }
