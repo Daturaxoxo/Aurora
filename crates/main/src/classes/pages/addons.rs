@@ -1,4 +1,5 @@
 use crate::bridge::PopupSpec;
+use crate::runtime;
 use crate::classes::pages::sanitize_download_filename;
 use crate::classes::toast::ToastHandler;
 use crate::translations::tr;
@@ -7,22 +8,31 @@ use backend::classes::addons::payload_files;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive};
 use shared::classes::gamebanana::api::GameBananaApi;
 use shared::classes::games::{
-    Game, InstallationFacts, capabilities::AddonSupport, locate, nte::NTE,
+    Game, InstallationFacts, capabilities::AddonSupport, nte::NTE,
 };
 use shared::utils::get_cache_dir;
 use shared::{config, utils};
-
 use anyhow::{Context, Result};
 use log::*;
 use once_cell::sync::Lazy;
 use slint::{Model, VecModel};
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 static PENDING_DELETE: Mutex<Option<usize>> = Mutex::new(None);
+static AUTO_UPDATE_GATE: Mutex<AutoUpdateGate> = Mutex::new(AutoUpdateGate {
+    committed: false,
+    confirmed: false,
+    started: false,
+});
+
+struct AutoUpdateGate {
+    committed: bool,
+    confirmed: bool,
+    started: bool,
+}
 
 static IMAGES_CLIENT: Lazy<reqwest::blocking::Client> = Lazy::new(|| {
     reqwest::blocking::Client::builder()
@@ -121,8 +131,80 @@ impl AddonsHandler {
     fn load(window: &slint::Weak<MainWindow>) {
         let ww = window.clone();
         std::thread::spawn(move || {
+            let addons = Self::scan();
+            let installation = Self::committed_installation();
+            let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
+            Self::show(&ww, addons, installation, auto_updates, None);
+        });
+    }
+
+    fn show(
+        window: &slint::Weak<MainWindow>,
+        addons: Vec<Addon>,
+        installation: Option<InstallationFacts>,
+        auto_updates: serde_json::Value,
+        generation: Option<u64>,
+    ) {
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if generation.is_some_and(|g| !runtime::is_current_generation(g)) {
+                debug!("Addons manager skipped a reload for a superseded game");
+                return;
+            }
+            let Some(w) = ww.upgrade() else {
+                error!("Addons manager could not load: window handle is dead");
+                return;
+            };
+
+            let slint_items: Vec<AddonItem> = addons
+                .iter()
+                .map(|addon| Self::to_slint_item(addon, installation.as_ref(), &auto_updates))
+                .collect();
+
+            w.set_addons(Rc::new(VecModel::from(slint_items)).into());
+            Self::fetch_images_async(&ww, addons);
+        });
+    }
+
+    pub fn startup_committed(window: &slint::Weak<MainWindow>) {
+        Self::admit_auto_updates(window, |gate| gate.committed = true);
+    }
+
+    pub fn startup_confirmed(window: &slint::Weak<MainWindow>) {
+        Self::admit_auto_updates(window, |gate| gate.confirmed = true);
+    }
+
+    fn admit_auto_updates(window: &slint::Weak<MainWindow>, mark: impl FnOnce(&mut AutoUpdateGate)) {
+        let admitted = {
+            let mut gate = AUTO_UPDATE_GATE.lock().unwrap_or_else(PoisonError::into_inner);
+            mark(&mut gate);
+            let admitted = gate.committed && gate.confirmed && !gate.started;
+            gate.started |= admitted;
+            admitted
+        };
+        if admitted {
+            Self::run_auto_updates(window);
+        }
+    }
+
+    fn run_auto_updates(window: &slint::Weak<MainWindow>) {
+        let ww = window.clone();
+        std::thread::spawn(move || {
+            let guard = match runtime::get().and_then(runtime::GameRuntime::try_begin_mutation) {
+                Ok(guard) => guard,
+                Err(e) => {
+                    info!("Skipping automatic addon updates: {e}");
+                    return;
+                }
+            };
+            let context = guard.context().clone();
+            if context.id() != &NTE.descriptor().id {
+                info!("Skipping automatic addon updates, {} has no addons manager yet", context.id());
+                return;
+            }
+
             let mut addons = Self::scan();
-            let installation = Self::detected_installation();
+            let installation = context.installation().cloned();
             let auto_updates = config::get(config::key::ADDON_AUTO_UPDATES);
             let mut failures = Vec::new();
 
@@ -158,6 +240,7 @@ impl AddonsHandler {
                     }
                 }
             }
+            drop(guard);
 
             if !failures.is_empty() {
                 ToastHandler::show(
@@ -166,21 +249,7 @@ impl AddonsHandler {
                     "error",
                 );
             }
-
-            let _ = slint::invoke_from_event_loop(move || {
-                let Some(w) = ww.upgrade() else {
-                    error!("Addons manager could not load: window handle is dead");
-                    return;
-                };
-
-                let slint_items: Vec<AddonItem> = addons
-                    .iter()
-                    .map(|addon| Self::to_slint_item(addon, installation.as_ref(), &auto_updates))
-                    .collect();
-
-                w.set_addons(Rc::new(VecModel::from(slint_items)).into());
-                Self::fetch_images_async(&ww, addons);
-            });
+            Self::show(&ww, addons, installation, auto_updates, Some(context.generation()));
         });
     }
 
@@ -1184,10 +1253,11 @@ impl AddonsHandler {
         }
     }
 
-    fn detected_installation() -> Option<InstallationFacts> {
-        let installation = locate::locate_installation_root(&*NTE)
+    fn committed_installation() -> Option<InstallationFacts> {
+        let installation = runtime::get()
             .ok()
-            .and_then(|path| NTE.inspect_installation(&path).ok());
+            .and_then(|r| r.snapshot().context)
+            .and_then(|context| context.installation().cloned());
 
         debug!(
             "Resolved addon against game region: {}",

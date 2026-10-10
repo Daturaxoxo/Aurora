@@ -1,16 +1,17 @@
-use crate::bridge::{Bridge, engine};
+use crate::bridge::engine;
 use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
+use crate::runtime::{self, Reconfigured};
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::launch_args;
 use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
-use shared::classes::games::locate::{store_installation_root, transitional_selected_game};
+use shared::classes::games::locate::transitional_selected_game;
 use shared::classes::info::version::StartMethod;
-use shared::config::{self, key};
+use shared::config::{self, ConfigChange, ProfileKey, ProfilePatch, key};
 use shared::pathfind::resolve_game_root;
 use shared::utils::open_folder;
 use slint::{ComponentHandle as _, Model as _};
@@ -436,7 +437,8 @@ impl SettingsHandler {
                     Some(path) => {
                         info!("game directory selected -> {:?}", path.display());
 
-                        let game = transitional_selected_game();
+                        let game = runtime::get()
+                            .map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game);
                         let path = if let Some((root, _)) = resolve_game_root(game, &path) {
                             if root != path {
                                 info!("resolved selection to install root -> {:?}", root.display());
@@ -445,33 +447,34 @@ impl SettingsHandler {
                         } else {
                             warn!(
                                 "{:?} does not look like a game install (no launcher \
-                                 or game files found); saving it anyway",
+                                 or game files found)",
                                 path.display()
                             );
                             path
                         };
 
                         let path_str: String = path.to_string_lossy().into_owned();
-                        if let Err(e) = store_installation_root(game, &path) {
-                            error!("could not save the game directory: {e:#}");
-                        } else {
-                            debug!("game_path saved to config");
+                        let change = ConfigChange::new().profile(
+                            &game.descriptor().id,
+                            ProfilePatch::new().set(ProfileKey::GamePath, path_str.clone()),
+                        );
+                        match runtime::get().and_then(|r| r.reconfigure(change)) {
+                            Ok(Reconfigured::Applied(context)) => {
+                                debug!("game_path saved, now running {}", context.tag());
+                            }
+                            Ok(Reconfigured::Deferred) => {
+                                info!("game_path will be saved once Aurora is free");
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(w) = ww.upgrade() {
+                                        w.set_game_directory(path_str.into());
+                                    }
+                                });
+                                return;
+                            }
+                            Err(e) => error!("could not change the game directory: {e:#}"),
                         }
 
-                        Bridge::report_configure(&ww, engine::configure());
-
                         ModManagerHandler::reload(&ww);
-
-                        let _ = slint::invoke_from_event_loop(move || {
-                            if let Some(w) = ww.upgrade() {
-                                w.set_game_directory(path_str.into());
-                                debug!("game_directory UI property updated");
-                            } else {
-                                error!(
-                                    "window handle dead when trying to update game_directory UI"
-                                );
-                            }
-                        });
                     }
                     None => {
                         info!("browse_game_directory cancelled shortcut no folder selected");
@@ -509,14 +512,17 @@ impl SettingsHandler {
             w.set_popup_active(true);
         });
 
-        let ww = window.clone();
         w.on_engine_method_index_changed(move |index| {
             info!("engine_method changed -> {index}");
             config::set(key::ENGINE_METHOD, index);
             debug!("engine_method saved to config");
 
-            let ww = ww.clone();
-            std::thread::spawn(move || Bridge::report_configure(&ww, engine::configure()));
+            // TODO(lane B, b5-2): commit engine_method to the profile through this change
+            std::thread::spawn(move || {
+                if let Err(e) = runtime::get().and_then(|r| r.reconfigure(ConfigChange::new())) {
+                    error!("could not reconfigure the engine: {e:#}");
+                }
+            });
         });
 
         let ww = window.clone();

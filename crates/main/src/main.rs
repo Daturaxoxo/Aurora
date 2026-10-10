@@ -4,16 +4,13 @@ slint::include_modules!();
 
 mod bridge;
 mod classes;
+mod runtime;
 mod translations;
-
 use anyhow::{Result, anyhow};
 use log::*;
-
-use backend::classes::addons;
 use shared::config::{self, key};
 use shared::display::{center_window, get_monitor_size};
 use shared::logger::Logger;
-
 use classes::buttons::ButtonHandler;
 use classes::iconpack::IconPackHandler;
 use classes::oneclick::OneClickHandler;
@@ -23,9 +20,7 @@ use classes::popup::PopupHandler;
 use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
-
 use bridge::Bridge;
-
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
@@ -40,12 +35,6 @@ fn main() -> Result<()> {
     std::panic::set_hook(Box::new(|info| {
         error!("PANIC: {info}");
     }));
-
-    config::migrate();
-    if let Err(e) = config::migrate_games() {
-        error!("Could not copy the legacy settings into their game profile: {e}");
-    }
-    addons::migrate();
 
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
@@ -85,6 +74,8 @@ fn main() -> Result<()> {
             return Err(e.into());
         }
     };
+
+    runtime::startup::migrate();
 
     let exe = std::env::current_exe()?;
     let installed = exe
@@ -290,9 +281,10 @@ fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
     UpdateHandler::on_window_shown();
-    shared::api::ccu::spawn();
+    AddonsHandler::startup_confirmed(&window.as_weak());
     slint::run_event_loop_until_quit()?;
     OneClickHandler::shutdown();
+    runtime::shutdown();
     shared::api::ccu::stop();
     Ok(())
 }

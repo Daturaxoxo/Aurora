@@ -213,7 +213,7 @@ impl<F: EngineFactory> Worker<F> {
         }
     }
 
-    // TODO(lane B, phase 4): a Configure may carry a candidate tag that runtime has not published yet. only runtime's transition completion should accept replies.
+    // the tag may be a candidate the runtime has not published yet, the runtime routes the reply to the transition waiting on it
     fn configure(&mut self, input: &EngineInput) -> OperationOutcome<Readiness> {
         let tag = input.tag.clone();
         if let Some(active) = &self.session {

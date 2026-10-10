@@ -322,6 +322,18 @@ impl ConfigChange {
         self
     }
 
+    #[must_use]
+    pub fn then(mut self, later: Self) -> Self {
+        self.entries.extend(later.entries);
+        self
+    }
+
+    pub fn touches_profile(&self, game: &GameId, key: ProfileKey) -> bool {
+        self.entries
+            .iter()
+            .any(|(field, _)| matches!(field, Field::Profile(g, k) if g == game && *k == key))
+    }
+
     pub const fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

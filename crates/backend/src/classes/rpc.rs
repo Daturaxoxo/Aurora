@@ -21,8 +21,9 @@ pub static RPC: std::sync::LazyLock<DiscordRpc> = std::sync::LazyLock::new(|| {
     DiscordRpc::new(utils::get_current_timestamp()).unwrap_or_default()
 });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum RpcCommand {
+    SetGame(String),
     SetIdle,
     SetLaunching,
     SetInGame,
@@ -60,9 +61,11 @@ impl DiscordRpc {
 
             fn apply(
                 client: &mut DiscordIpcClient,
-                state: RpcCommand,
+                state: &RpcCommand,
+                game: Option<&str>,
                 start_timestamp: i64,
             ) -> std::result::Result<(), discord_rich_presence::error::Error> {
+                let game = game.unwrap_or("the game");
                 match state {
                     RpcCommand::SetIdle => client.set_activity(
                         Activity::new()
@@ -79,7 +82,7 @@ impl DiscordRpc {
                     RpcCommand::SetLaunching => client.set_activity(
                         Activity::new()
                             .state("Launching…")
-                            .details("Starting NTE")
+                            .details(format!("Starting {game}"))
                             .assets(get_assets())
                             .timestamps(Timestamps::new().start(get_current_timestamp()))
                             .buttons(get_buttons()),
@@ -91,11 +94,11 @@ impl DiscordRpc {
                         client.set_activity(
                             Activity::new()
                                 .state("In-game")
-                                .details("Playing NTE")
+                                .details(format!("Playing {game}"))
                                 .assets(
                                     Assets::new()
                                         .large_image(format!("in-game-{elem}"))
-                                        .large_text("Playing NTE using Aurora!")
+                                        .large_text(format!("Playing {game} using Aurora!"))
                                         .small_image("version")
                                         .small_text(format!("v{}", utils::get_local_version())),
                                 )
@@ -103,7 +106,10 @@ impl DiscordRpc {
                                 .buttons(get_buttons()),
                         )
                     }
-                    RpcCommand::ClearActivity | RpcCommand::Reconnect | RpcCommand::Stop => {
+                    RpcCommand::SetGame(_)
+                    | RpcCommand::ClearActivity
+                    | RpcCommand::Reconnect
+                    | RpcCommand::Stop => {
                         unreachable!("non-activity command reached apply()")
                     }
                 }
@@ -112,6 +118,7 @@ impl DiscordRpc {
             let mut client = DiscordIpcClient::new(APPLICATION_ID);
             let mut connected = false;
             let mut desired: Option<RpcCommand> = None;
+            let mut game: Option<String> = None;
             let mut backoff = MIN_BACKOFF;
 
             loop {
@@ -148,6 +155,10 @@ impl DiscordRpc {
                             }
                             continue;
                         }
+                        RpcCommand::SetGame(name) => {
+                            game = Some(name);
+                            // Fall through so the current activity picks up the new name
+                        }
                         RpcCommand::Reconnect => {
                             if connected {
                                 let _ = client.close();
@@ -164,7 +175,7 @@ impl DiscordRpc {
                     continue;
                 }
 
-                let Some(state) = desired else {
+                let Some(state) = &desired else {
                     continue;
                 };
 
@@ -186,7 +197,7 @@ impl DiscordRpc {
                     }
                 }
 
-                if let Err(e) = apply(&mut client, state, start_timestamp) {
+                if let Err(e) = apply(&mut client, state, game.as_deref(), start_timestamp) {
                     debug!("Discord RPC error, dropping connection: {e:?}");
                     let _ = client.close();
                     connected = false;
@@ -204,6 +215,14 @@ impl DiscordRpc {
             .ok_or_else(|| anyhow!("RPC thread not started"))?
             .send(RpcCommand::Reconnect)
             .context("Failed to send Reconnect command to RPC thread")
+    }
+
+    pub fn set_game(&self, name: &str) -> Result<()> {
+        self.sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("RPC thread not started"))?
+            .send(RpcCommand::SetGame(name.to_string()))
+            .context("Failed to send SetGame command to RPC thread")
     }
 
     pub fn clear_activity(&self) -> Result<()> {

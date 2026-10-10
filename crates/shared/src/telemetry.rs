@@ -4,37 +4,69 @@ use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
     io::Write as _,
     path::{Path, PathBuf},
-    sync::mpsc::{SyncSender, sync_channel},
+    sync::{
+        PoisonError, RwLock,
+        mpsc::{SyncSender, sync_channel},
+    },
     thread,
     time::{Duration, Instant},
 };
-
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
-
 #[cfg(target_os = "linux")]
 use std::os::{linux::fs::MetadataExt as _, unix::fs::MetadataExt as _};
-
 use anyhow::{Context, Result};
 use cpu_info::CpuInfo;
 use log::*;
 use sysinfo::{Disks, RefreshKind, System};
-
 use crate::{
-    classes::info::{
-        paths::{CLIENT_PAK_DIR, get_version_paths},
-        version::{BypassMethod, detect_distribution, detect_version},
+    classes::{
+        games::identity::GameId,
+        info::{
+            paths::{CLIENT_PAK_DIR, get_version_paths},
+            version::{BypassMethod, detect_distribution, detect_version},
+        },
     },
     config::{self, get_all_configs, key},
     utils::{get_local_version, read_dir_recursive},
 };
 use crate::{logger::get_latest_logs, utils};
-
 #[cfg(any(debug_assertions, feature = "beta"))]
 const TELEMETRY_ENDPOINT: &str = "https://beta.getaurora.moe/api/v2/telemetry";
-
 #[cfg(not(any(debug_assertions, feature = "beta")))]
 const TELEMETRY_ENDPOINT: &str = "https://api.getaurora.moe/v2/telemetry";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TelemetryContext {
+    pub generation: u64,
+    pub game: GameId,
+    pub game_root: Option<PathBuf>,
+    pub region: &'static str,
+}
+
+static CONTEXT: RwLock<Option<TelemetryContext>> = RwLock::new(None);
+
+pub fn set_context(context: TelemetryContext) {
+    let mut current = CONTEXT.write().unwrap_or_else(PoisonError::into_inner);
+    if let Some(newer) = current
+        .as_ref()
+        .filter(|c| c.generation > context.generation)
+    {
+        debug!(
+            "Ignoring telemetry context #{}, #{} is newer",
+            context.generation, newer.generation
+        );
+        return;
+    }
+    *current = Some(context);
+}
+
+pub fn context() -> Option<TelemetryContext> {
+    CONTEXT
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
 
 pub fn export_telemetry() -> Result<()> {
     let Some(logs) = get_latest_logs() else {
@@ -52,7 +84,7 @@ pub fn export_telemetry() -> Result<()> {
     )))
     .with_context(|| "Couldn't create telemetry file")?;
 
-    // Write a UTF-8 BOM so text editors don't misinterpret the ASCII bytes as UTF-16LE
+    // write this as an UTF-8 BOM because otherwise text editors might interpret it as UTF-16LE (which shows ???)
     file.write_all(b"\xEF\xBB\xBF")?;
 
     writeln!(file, "Aurora V2 Telemetry Export")?;
@@ -118,10 +150,9 @@ pub fn export_telemetry() -> Result<()> {
 
     writeln!(file, "=== Game Information ===")?;
 
-    let game_path = crate::classes::games::locate::locate_installation_root(
-        crate::classes::games::locate::transitional_selected_game(),
-    )
-    .with_context(|| "Failed to get game directory")?;
+    let game_path = context()
+        .and_then(|c| c.game_root)
+        .with_context(|| "Failed to get game directory")?;
     writeln!(file, "Game Path:       {}", game_path.display())?;
 
     let version = detect_version(game_path.as_path()).unwrap_or_default();

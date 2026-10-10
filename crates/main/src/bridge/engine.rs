@@ -1,187 +1,110 @@
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{
     AddonSelection, CommandTag, DeploymentSelection, EngineInput, EngineSettings,
-    InjectedPluginRecord, LaunchInput, ModuleSelection, RecordChanges, SanitizeInput,
+    InjectedPluginRecord, LaunchInput, ModuleSelection, Readiness, RecordChanges, SanitizeInput,
     ValidateInput,
 };
-use backend::handler::{EngineCommand, EngineEvent, EngineHandle};
+use backend::handler::EngineCommand;
 use log::*;
 use serde_json::Value;
 use shared::classes::games::{
     Game, InstallationFacts,
     capabilities::AddonSupport,
+    identity::GameId,
     launch::{LaunchPlatform, LaunchRequest},
-    locate::locate_installation_root,
-    nte::{NTE, version::StartMethod},
+    nte::version::StartMethod,
     payload::{PayloadResolutionMode, PayloadRoots, ResolvedPayloadLayout, resolve_payload},
 };
 use shared::config::{self, ProfileKey, ProfilePatch, key};
 use shared::utils;
-struct Current {
-    tag: CommandTag,
-    installation: Option<InstallationFacts>,
-}
-static ENGINE: OnceLock<EngineHandle> = OnceLock::new();
-static CURRENT: Mutex<Option<Current>> = Mutex::new(None);
-static GENERATION: AtomicU64 = AtomicU64::new(0);
-static SESSION_ACTIVE: AtomicBool = AtomicBool::new(false);
-static RECONFIGURE_PENDING: AtomicBool = AtomicBool::new(false);
-static RECORDS: Mutex<()> = Mutex::new(());
-
-// TODO(lane B, phase 4): use the runtime's selected game instead of NTE.
-fn game() -> &'static dyn Game {
-    &*NTE
-}
-
-pub fn start() -> Result<mpsc::Receiver<EngineEvent>> {
-    let (handle, events) = EngineHandle::spawn();
-    ENGINE
-        .set(handle)
-        .map_err(|_| anyhow!("the engine was already started"))?;
-    Ok(events)
-}
-
-pub fn shutdown() -> Result<()> {
-    handle()?.shutdown()
-}
-
-fn handle() -> Result<&'static EngineHandle> {
-    ENGINE
-        .get()
-        .ok_or_else(|| anyhow!("Engine has not been started yet!"))
-}
-
-fn current() -> Result<(CommandTag, Option<InstallationFacts>)> {
-    CURRENT
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .as_ref()
-        .map(|c| (c.tag.clone(), c.installation.clone()))
-        .ok_or_else(|| anyhow!("Engine not initialized, set a valid game path in settings"))
-}
-
-fn current_tag() -> Result<CommandTag> {
-    current().map(|(tag, _)| tag)
-}
-
-pub fn installation_root() -> Option<PathBuf> {
-    current()
-        .ok()
-        .and_then(|(_, facts)| facts)
-        .map(|facts| facts.root().to_path_buf())
-}
+use crate::runtime::{self, Operation};
 
 pub fn session_active() -> bool {
-    SESSION_ACTIVE.load(Ordering::SeqCst)
-}
-
-pub fn session_ended() -> bool {
-    SESSION_ACTIVE.store(false, Ordering::SeqCst);
-    RECONFIGURE_PENDING.swap(false, Ordering::SeqCst)
-}
-
-pub fn configure() -> Result<()> {
-    if session_active() {
-        info!("A game session is running, the engine will be reconfigured once it closes");
-        RECONFIGURE_PENDING.store(true, Ordering::SeqCst);
-        return Ok(());
-    }
-
-    let game = game();
-    let tag = CommandTag {
-        game_id: game.descriptor().id.clone(),
-        generation: GENERATION.fetch_add(1, Ordering::SeqCst) + 1,
-    };
-
-    let (installation, problem) = match locate_installation_root(game) {
-        Ok(root) => match game.inspect_installation(&root) {
-            Ok(facts) => (Some(facts), None),
-            Err(e) => (None, Some(e)),
-        },
-        Err(e) => (None, Some(anyhow!("Game path not found: {e}"))),
-    };
-
-    let input = EngineInput {
-        tag: tag.clone(),
-        installation: installation.clone(),
-        settings: settings()?,
-        payload: payload()?,
-        deployment: deployment(),
-        injected_plugins: records()?,
-    };
-
-    *CURRENT.lock().unwrap_or_else(PoisonError::into_inner) = Some(Current { tag, installation });
-    handle()?.send(EngineCommand::Configure(input))?;
-    problem.map_or(Ok(()), Err)
+    runtime::get().is_ok_and(runtime::GameRuntime::session_active)
 }
 
 pub fn launch() -> Result<()> {
-    let (tag, installation) = current()?;
-    let installation = installation
+    let runtime = runtime::get()?;
+    let guard = runtime.try_begin_session()?;
+    let context = guard.context();
+    let game = context.game();
+    let installation = context
+        .installation()
+        .filter(|_| context.readiness() == Readiness::Ready)
         .ok_or_else(|| anyhow!("Engine not initialized, set a valid game path in settings"))?;
-    let launcher = game()
+    let name = game.descriptor().display_name;
+    let launcher = game
         .launcher()
-        .ok_or_else(|| anyhow!("{} cannot be launched", tag.game_id))?;
+        .ok_or_else(|| anyhow!("{name} cannot be launched"))?;
 
     let start_method = StartMethod::decode(&config::get(key::START_METHOD));
     info!("Start method: {start_method}");
     let plan = launcher
         .launch_plan(&LaunchRequest {
-            installation: &installation,
+            installation,
             start_method: start_method.id(),
             platform: LaunchPlatform::host(),
         })
-        .map_err(|e| anyhow!("Cannot launch NTE: {e}"))?;
+        .map_err(|e| anyhow!("Cannot launch {name}: {e}"))?;
 
     let input = LaunchInput {
-        tag,
+        tag: context.tag(),
         plan,
-        deployment: deployment(),
-        injected_plugins: records()?,
+        deployment: deployment(game),
+        injected_plugins: records(context.id())?,
         proton_args: text(key::PROTON_ARGS),
         proton_version: text(key::PROTON_VERSION),
         proton_custom_path: text(key::PROTON_CUSTOM_PATH),
     };
-
-    SESSION_ACTIVE.store(true, Ordering::SeqCst);
-    handle()?
-        .send(EngineCommand::Launch(input))
-        .inspect_err(|_| {
-            session_ended();
-        })
+    runtime.submit(Operation::Launch, guard, EngineCommand::Launch(input))
 }
 
 pub fn validate() -> Result<()> {
+    let runtime = runtime::get()?;
+    let guard = runtime.try_begin_mutation()?;
     let input = ValidateInput {
-        tag: current_tag()?,
-        deployment: deployment(),
+        tag: guard.context().tag(),
+        deployment: deployment(guard.context().game()),
     };
-    handle()?.send(EngineCommand::Validate(input))
+    runtime.submit(Operation::Validate, guard, EngineCommand::Validate(input))
 }
 
 pub fn sanitize() -> Result<()> {
+    let runtime = runtime::get()?;
+    let guard = runtime.try_begin_mutation()?;
     let input = SanitizeInput {
-        tag: current_tag()?,
+        tag: guard.context().tag(),
         stop_processes: true,
-        injected_plugins: records()?,
+        injected_plugins: records(guard.context().id())?,
     };
-    handle()?.send(EngineCommand::Sanitize(input))
+    runtime.submit(Operation::Sanitize, guard, EngineCommand::Sanitize(input))
 }
 
 pub fn kill() -> Result<()> {
-    handle()?.send(EngineCommand::KillProcesses(current_tag()?))
+    let runtime = runtime::get()?;
+    let guard = runtime.try_begin_mutation()?;
+    let tag = guard.context().tag();
+    runtime.submit(Operation::Kill, guard, EngineCommand::KillProcesses(tag))
 }
 
-// TODO(lane B, b4-7): persist under the mutex guard
-pub fn persist_records(tag: &CommandTag, changes: &RecordChanges) {
-    if changes.is_empty() {
-        return;
-    }
-    let _lock = RECORDS.lock().unwrap_or_else(PoisonError::into_inner);
+pub fn engine_input(
+    game: &dyn Game,
+    tag: CommandTag,
+    installation: Option<InstallationFacts>,
+    payload: ResolvedPayloadLayout,
+) -> Result<EngineInput> {
+    Ok(EngineInput {
+        injected_plugins: records(&tag.game_id)?,
+        tag,
+        installation,
+        settings: settings()?,
+        payload,
+        deployment: deployment(game),
+    })
+}
 
+// only the runtime calls this, under the guard of the operation that reported the changes
+pub fn persist_records(tag: &CommandTag, changes: &RecordChanges) {
     let result = config::read_profile(&tag.game_id).and_then(|profile| {
         let records = changes.apply(&parse_records(profile.get(ProfileKey::InjectedPlugins)));
         let paths: Vec<String> = records
@@ -208,8 +131,8 @@ fn parse_records(value: Option<&Value>) -> Vec<InjectedPluginRecord> {
     })
 }
 
-fn records() -> Result<Vec<InjectedPluginRecord>> {
-    let profile = config::read_profile(&game().descriptor().id)?;
+fn records(game: &GameId) -> Result<Vec<InjectedPluginRecord>> {
+    let profile = config::read_profile(game)?;
     Ok(parse_records(profile.get(ProfileKey::InjectedPlugins)))
 }
 
@@ -230,8 +153,8 @@ fn settings() -> Result<EngineSettings> {
     })
 }
 
-fn deployment() -> DeploymentSelection {
-    let addons = game()
+fn deployment(game: &dyn Game) -> DeploymentSelection {
+    let addons = game
         .addons()
         .map_or_default(AddonSupport::shipped_addons)
         .iter()
@@ -259,10 +182,10 @@ fn deployment() -> DeploymentSelection {
     DeploymentSelection { addons, modules }
 }
 
-fn payload() -> Result<ResolvedPayloadLayout> {
+pub fn payload(game: &dyn Game) -> Result<ResolvedPayloadLayout> {
     let bin = utils::get_bin_path().ok_or_else(|| anyhow!("Could not resolve bin path"))?;
     resolve_payload(
-        game(),
+        game,
         &PayloadRoots::new(bin),
         PayloadResolutionMode::LegacyFlatOnly,
     )

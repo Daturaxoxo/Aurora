@@ -1,16 +1,18 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::OnceLock;
-use std::thread;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Mutex, OnceLock, PoisonError};
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::classes::info::version::{Version, detect_version};
+use crate::classes::games::InstallationFacts;
+use crate::classes::info::version::Version;
 use crate::utils::get_local_version;
-use crate::{config, utils};
+use crate::{config, telemetry, utils};
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
@@ -20,8 +22,15 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 const REGION_UNKNOWN: &str = "unknown";
 
 static SESSION: OnceLock<String> = OnceLock::new();
-static REGION: OnceLock<&'static str> = OnceLock::new();
 static STOP_CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+static HEARTBEAT_THREAD: Mutex<Option<Heartbeat>> = Mutex::new(None);
+static STOPPED: AtomicBool = AtomicBool::new(false);
+
+struct Heartbeat {
+    stop: mpsc::Sender<()>,
+    done: mpsc::Receiver<()>,
+    thread: JoinHandle<()>,
+}
 
 #[derive(Serialize)]
 struct Beat<'a> {
@@ -60,26 +69,14 @@ const fn region_name(version: Version) -> &'static str {
     }
 }
 
+pub fn region_of(installation: Option<&InstallationFacts>) -> &'static str {
+    installation
+        .and_then(|facts| Version::from_key(facts.variant()))
+        .map_or(REGION_UNKNOWN, region_name)
+}
+
 pub fn region() -> &'static str {
-    if let Some(cached) = REGION.get() {
-        return cached;
-    }
-
-    let stored = config::get(config::key::GAME_PATH);
-    let path = stored.as_str().unwrap_or_default();
-
-    let version = if path.is_empty() {
-        Version::Unknown
-    } else {
-        detect_version(Path::new(path)).unwrap_or_default()
-    };
-
-    let name = region_name(version);
-    if name != REGION_UNKNOWN {
-        let _ = REGION.set(name);
-    }
-
-    name
+    telemetry::context().map_or(REGION_UNKNOWN, |c| c.region)
 }
 
 fn entropy(salt: u64) -> u64 {
@@ -140,9 +137,18 @@ pub fn spawn() {
         return;
     }
 
+    let mut heartbeat = HEARTBEAT_THREAD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if STOPPED.load(Ordering::SeqCst) || heartbeat.is_some() {
+        return;
+    }
+
+    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+    let (done_tx, done_rx) = mpsc::channel::<()>();
     let spawned = thread::Builder::new()
         .name("ccu-heartbeat".into())
-        .spawn(|| {
+        .spawn(move || {
             let version = get_local_version().trim().to_string();
             let period = interval();
 
@@ -153,16 +159,48 @@ pub fn spawn() {
                 }
 
                 event = "beat";
-                thread::sleep(period);
+                match stop_rx.recv_timeout(period) {
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
+                }
             }
+            done_tx.send(()).ok();
         });
 
-    if spawned.is_err() {
-        warn!("Could not spawn the ccu heartbeat thread");
+    match spawned {
+        Ok(thread) => {
+            *heartbeat = Some(Heartbeat {
+                stop: stop_tx,
+                done: done_rx,
+                thread,
+            });
+        }
+        Err(e) => warn!("Could not spawn the ccu heartbeat thread: {e}"),
     }
+    drop(heartbeat);
 }
 
 pub fn stop() {
+    STOPPED.store(true, Ordering::SeqCst);
+    let Some(heartbeat) = HEARTBEAT_THREAD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+    else {
+        return;
+    };
+
+    heartbeat.stop.send(()).ok();
+    // a beat that is still being sent can hold the thread for the whole request timeout, dont wait on that
+    match heartbeat.done.recv_timeout(SHUTDOWN_TIMEOUT) {
+        Ok(()) => {
+            if heartbeat.thread.join().is_err() {
+                warn!("The ccu heartbeat thread panicked");
+            }
+        }
+        Err(_) => debug!("The ccu heartbeat did not stop within {SHUTDOWN_TIMEOUT:?}, leaving it"),
+    }
+
     let Some(session) = SESSION.get() else {
         return;
     };

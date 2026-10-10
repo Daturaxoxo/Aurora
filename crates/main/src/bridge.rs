@@ -1,6 +1,8 @@
 pub mod engine;
-
+use std::sync::mpsc;
+use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::runtime::{self, GameContext, RuntimeEvent, TransitionKind, startup};
 use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{NotificationKind, Readiness};
@@ -86,47 +88,37 @@ impl Bridge {
         engine::session_active()
     }
 
-    // TODO(lane B, b4-3): run the shared startup preparation before launching.
     pub fn quick_start() -> Result<()> {
-        let events = engine::start()?;
-        engine::configure()
-            .map_err(|e| anyhow!("Quick start failed: engine could not initialise: {e}"))?;
-
-        let result = Self::quick_start_events(&events);
-        if let Err(e) = engine::shutdown() {
-            error!("Quick start: engine shutdown failed: {e}");
-        }
+        let events = runtime::start()?;
+        let result = Self::quick_start_session(&events);
+        runtime::shutdown();
         result
     }
 
-    fn quick_start_events(events: &std::sync::mpsc::Receiver<EngineEvent>) -> Result<()> {
+    fn quick_start_session(events: &mpsc::Receiver<RuntimeEvent>) -> Result<()> {
+        let context = startup::initialize()
+            .map_err(|e| anyhow!("Quick start failed: engine could not initialise: {e}"))?;
+        if context.readiness() != Readiness::Ready {
+            return Err(anyhow!(
+                "Quick start failed: engine could not initialise: no game installation"
+            ));
+        }
+        info!("Quick start: engine ready for {}", context.tag());
+        engine::launch()?;
+        Self::quick_start_events(events)
+    }
+
+    fn quick_start_events(events: &mpsc::Receiver<RuntimeEvent>) -> Result<()> {
         for event in events {
+            let RuntimeEvent::Engine(event) = event else {
+                continue;
+            };
             match event {
-                EngineEvent::Configured(outcome) => match outcome.result {
-                    Ok(Readiness::Ready) => {
-                        info!("Quick start: engine ready");
-                        engine::launch()?;
-                    }
-                    Ok(Readiness::Unavailable) => {
-                        return Err(anyhow!(
-                            "Quick start failed: engine could not initialise: no game installation"
-                        ));
-                    }
-                    Err(e) => {
-                        return Err(anyhow!(
-                            "Quick start failed: engine could not initialise: {e}"
-                        ));
-                    }
+                EngineEvent::Launched(outcome) => match outcome.result {
+                    Ok(()) => info!("Quick start: launcher opened, waiting for the game to exit"),
+                    Err(e) => return Err(anyhow!("Quick start launch failed: {e}")),
                 },
-                EngineEvent::Launched(outcome) => {
-                    engine::persist_records(&outcome.tag, &outcome.records);
-                    match outcome.result {
-                        Ok(()) => info!("Quick start: launcher opened, waiting for NTE to exit"),
-                        Err(e) => return Err(anyhow!("Quick start launch failed: {e}")),
-                    }
-                }
-                EngineEvent::SessionClosed(outcome) => {
-                    engine::persist_records(&outcome.tag, &outcome.records);
+                EngineEvent::SessionClosed(_) => {
                     info!("Quick start: game closed and clean-up finished, exiting");
                     return Ok(());
                 }
@@ -144,7 +136,10 @@ impl Bridge {
                          closed. Try switching engine methods in settings."
                     );
                 }
-                EngineEvent::Validated(_) | EngineEvent::Sanitized(_) | EngineEvent::Killed(_) => {}
+                EngineEvent::Configured(_)
+                | EngineEvent::Validated(_)
+                | EngineEvent::Sanitized(_)
+                | EngineEvent::Killed(_) => {}
             }
         }
         Err(anyhow!("engine event channel closed unexpectedly"))
@@ -167,10 +162,10 @@ impl Bridge {
     }
 
     pub fn setup(window: &slint::Weak<MainWindow>) {
-        let events = match engine::start() {
+        let events = match runtime::start() {
             Ok(events) => events,
             Err(e) => {
-                error!("Failed to start engine handler: {e}");
+                error!("Failed to start the game runtime: {e}");
                 return;
             }
         };
@@ -201,108 +196,172 @@ impl Bridge {
 
         let w = window.clone();
         std::thread::spawn(move || {
-            Self::report_configure(&w, engine::configure());
-            if let Some(root) = engine::installation_root() {
-                let path_str: String = root.to_string_lossy().into_owned();
+            if let Err(e) = startup::initialize() {
+                debug!("Startup preparation failed: {e:#}");
+            }
+            shared::api::ccu::spawn();
+
+            for event in events {
+                match event {
+                    RuntimeEvent::Engine(event) => Self::handle_event(&w, event),
+                    RuntimeEvent::Committed {
+                        kind,
+                        context,
+                        notice,
+                    } => Self::committed(&w, kind, &context, notice),
+                    RuntimeEvent::Failed {
+                        kind,
+                        error,
+                        degraded,
+                        context,
+                    } => Self::failed(&w, kind, &error, degraded, context.as_deref()),
+                }
+            }
+        });
+    }
+
+    fn invoke_current(
+        window: &slint::Weak<MainWindow>,
+        generation: u64,
+        f: impl FnOnce(&MainWindow) + Send + 'static,
+    ) {
+        let w = window.clone();
+        slint::invoke_from_event_loop(move || {
+            if !runtime::is_current_generation(generation) {
+                debug!("Skipped a UI update for superseded generation #{generation}");
+                return;
+            }
+            if let Some(w) = w.upgrade() {
+                f(&w);
+            }
+        })
+        .ok();
+    }
+
+    fn committed(
+        w: &slint::Weak<MainWindow>,
+        kind: TransitionKind,
+        context: &GameContext,
+        notice: Option<String>,
+    ) {
+        info!("Runtime committed {} ({kind:?})", context.tag());
+        if let Some(notice) = notice {
+            Self::report_configure(w, Err(anyhow!(notice)));
+        }
+
+        let ready = context.readiness() == Readiness::Ready;
+        let root = context
+            .installation()
+            .map(|facts| facts.root().to_string_lossy().into_owned());
+        Self::invoke_current(w, context.generation(), move |w| {
+            if let Some(root) = root {
+                w.set_game_directory(root.into());
+            }
+            if updater::UpdateHandler::ui_locked() {
+                info!("Runtime committed while an update holds the UI lock");
+                return;
+            }
+            w.set_launch_state(LaunchState::Launch);
+            w.set_launch_disabled(!ready);
+        });
+
+        if kind == TransitionKind::Startup {
+            AddonsHandler::startup_committed(w);
+        }
+    }
+
+    fn failed(
+        w: &slint::Weak<MainWindow>,
+        kind: TransitionKind,
+        error: &str,
+        degraded: bool,
+        context: Option<&GameContext>,
+    ) {
+        Self::report_configure(w, Err(anyhow!(error.to_string())));
+        let Some(context) = context else {
+            if degraded {
                 let w = w.clone();
                 slint::invoke_from_event_loop(move || {
-                    if let Some(w) = w.upgrade() {
-                        w.set_game_directory(path_str.into());
+                    if let Some(w) = w.upgrade()
+                        && !updater::UpdateHandler::ui_locked()
+                    {
+                        w.set_launch_disabled(true);
                     }
                 })
                 .ok();
             }
+            return;
+        };
 
-            // TODO(lane B, b4-5): drop events whose tag is no longer the runtime's current one.
-            for event in events {
-                Self::handle_event(&w, event);
+        info!("Runtime kept {} after a failed {kind:?}", context.tag());
+        let ready = context.readiness() == Readiness::Ready && !degraded;
+        let root = context
+            .installation()
+            .map(|facts| facts.root().to_string_lossy().into_owned());
+        Self::invoke_current(w, context.generation(), move |w| {
+            if let Some(root) = root {
+                w.set_game_directory(root.into());
+            }
+            if !updater::UpdateHandler::ui_locked() {
+                w.set_launch_disabled(!ready);
             }
         });
     }
 
     fn handle_event(w: &slint::Weak<MainWindow>, event: EngineEvent) {
+        let generation = event.tag().generation;
         let w = w.clone();
         match event {
-            EngineEvent::Configured(outcome) => match outcome.result {
-                Ok(Readiness::Ready) => {
-                    slint::invoke_from_event_loop(move || {
+            EngineEvent::Configured(outcome) => {
+                warn!("The configure reply for {} reached the bridge", outcome.tag);
+            }
+            EngineEvent::Launched(outcome) => match outcome.result {
+                Ok(()) => {
+                    let toast_key = match StartMethod::decode(&config::get(key::START_METHOD)) {
+                        StartMethod::Direct => "toast.launch-direct",
+                        StartMethod::Manual => "toast.launcher-opened",
+                    };
+                    Self::show_toast(&w, &crate::translations::tr(toast_key), "success");
+                    Self::invoke_current(&w, generation, |w| {
+                        w.set_launch_state(LaunchState::Running);
+                    });
+
+                    if config::get(key::UI_MINIMIZATION).as_bool().unwrap_or(true) {
+                        crate::classes::tray::activate(&w, true);
+                    }
+                }
+                Err(e) => {
+                    Self::show_toast(&w, &e.to_string(), "error");
+                    Self::invoke_current(&w, generation, |w| {
                         if updater::UpdateHandler::ui_locked() {
-                            info!("Engine ready while an update holds the UI lock");
+                            info!("Launch failed while an update holds the UI lock");
                             return;
                         }
-                        if let Some(w) = w.upgrade() {
-                            w.set_launch_disabled(false);
-                        }
-                    })
-                    .ok();
+                        w.set_launch_state(LaunchState::Launch);
+                        w.set_launch_disabled(false);
+                    });
                 }
-                Ok(Readiness::Unavailable) => {
-                    info!("Engine for {} is unavailable", outcome.tag);
-                }
-                Err(e) => Self::report_configure(&w, Err(e)),
             },
-            EngineEvent::Launched(outcome) => {
-                engine::persist_records(&outcome.tag, &outcome.records);
-                match outcome.result {
-                    Ok(()) => {
-                        let toast_key = match StartMethod::decode(&config::get(key::START_METHOD)) {
-                            StartMethod::Direct => "toast.launch-direct",
-                            StartMethod::Manual => "toast.launcher-opened",
-                        };
-                        Self::show_toast(&w, &crate::translations::tr(toast_key), "success");
-                        let w_ui = w.clone();
-                        slint::invoke_from_event_loop(move || {
-                            if let Some(w) = w_ui.upgrade() {
-                                w.set_launch_state(LaunchState::Running);
-                            }
-                        })
-                        .ok();
-
-                        if config::get(key::UI_MINIMIZATION).as_bool().unwrap_or(true) {
-                            crate::classes::tray::activate(&w, true);
-                        }
-                    }
-                    Err(e) => {
-                        if engine::session_ended() {
-                            Self::report_configure(&w, engine::configure());
-                        }
-                        Self::show_toast(&w, &e.to_string(), "error");
-                        slint::invoke_from_event_loop(move || {
-                            if updater::UpdateHandler::ui_locked() {
-                                info!("Launch failed while an update holds the UI lock");
-                                return;
-                            }
-                            if let Some(w) = w.upgrade() {
-                                w.set_launch_state(LaunchState::Launch);
-                                w.set_launch_disabled(false);
-                            }
-                        })
-                        .ok();
-                    }
-                }
-            }
-            EngineEvent::SessionClosed(outcome) => {
-                engine::persist_records(&outcome.tag, &outcome.records);
-                if engine::session_ended() {
-                    Self::report_configure(&w, engine::configure());
-                }
+            EngineEvent::SessionClosed(_) => {
                 crate::classes::tray::deactivate(&w);
                 let w_ui = w.clone();
                 slint::invoke_from_event_loop(move || {
-                    let Some(w) = w_ui.upgrade() else { return };
-                    ModManagerHandler::game_closed(&w);
+                    if let Some(w) = w_ui.upgrade() {
+                        ModManagerHandler::game_closed(&w);
+                    }
+                })
+                .ok();
+                Self::invoke_current(&w, generation, |w| {
                     if updater::UpdateHandler::ui_locked() {
                         info!("Game closed while an update holds the UI lock");
                         return;
                     }
                     w.set_launch_state(LaunchState::Launch);
                     w.set_launch_disabled(false);
-                })
-                .ok();
+                });
                 Self::show_toast(&w, "Game closed.", "success");
             }
             EngineEvent::Validated(outcome) => {
-                engine::persist_records(&outcome.tag, &outcome.records);
                 match outcome.result {
                     Ok(report) if report.missing.is_empty() => {
                         info!("Validation passed, all required files are present");
@@ -330,7 +389,6 @@ impl Bridge {
                 }
             }
             EngineEvent::Sanitized(outcome) => {
-                engine::persist_records(&outcome.tag, &outcome.records);
                 if let Err(e) = outcome.result {
                     error!("Sanitize failed: {e}");
                 }
