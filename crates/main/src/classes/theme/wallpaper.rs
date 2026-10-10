@@ -74,10 +74,32 @@ pub enum Wallpaper {
     },
 }
 
-pub fn builtin_bytes(stem: &str) -> Option<&'static [u8]> {
+// multi game support brings a resturctured folder structure so we should keep this active for as long as possible 
+const LEGACY_NAMES: &[(&str, &str)] = &[
+    ("background", "nte/background"),
+    ("ember", "nte/ember"),
+    ("flowers", "global/flowers"),
+    ("forest", "global/forest"),
+    ("greyskies", "global/greyskies"),
+    ("purpleskies", "global/purpleskies"),
+];
+
+pub fn builtin_name(name: &str) -> Option<&'static str> {
+    let name = LEGACY_NAMES
+        .iter()
+        .find(|(legacy, _)| *legacy == name)
+        .map_or(name, |(_, current)| *current);
     THEME_BACKGROUNDS
         .iter()
-        .find(|(name, _)| *name == stem)
+        .find(|(builtin, _)| *builtin == name)
+        .map(|(builtin, _)| *builtin)
+}
+
+pub fn builtin_bytes(name: &str) -> Option<&'static [u8]> {
+    let name = builtin_name(name)?;
+    THEME_BACKGROUNDS
+        .iter()
+        .find(|(builtin, _)| *builtin == name)
         .map(|(_, bytes)| *bytes)
 }
 

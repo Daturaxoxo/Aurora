@@ -8,7 +8,7 @@
     "shadow": "#000000aa",
     "primary_text": "#ffffff",
     "secondary_text": "#aaaaaa",
-    "image": "background",
+    "image": "nte/background",
     "icon_pack": "light"
   },
   {
@@ -25,7 +25,7 @@
     "accent_strong": "#4f7dff",
     "backdrop": "#07070e",
     "overlay": ["#00000866", "#000008b0"],
-    "image": "background",
+    "image": "nte/background",
     "icon_pack": "light"
   },
   {
@@ -42,7 +42,7 @@
     "accent_strong": "#f2683c",
     "danger": "#ff5747",
     "warning": "#f0a83a",
-    "image": "ember",
+    "image": "nte/ember",
     "icon_pack": "light"
   },
   {
@@ -63,7 +63,7 @@
     "favorite": "#ffcf7a",
     "backdrop": "#1d0c11",
     "overlay": ["#1a06096e", "#1a0609bb"],
-    "image": "flowers",
+    "image": "global/flowers",
     "icon_pack": "light"
   },
   {
@@ -84,7 +84,7 @@
     "favorite": "#f2d27a",
     "backdrop": "#09100b",
     "overlay": ["#020a0566", "#020a05b0"],
-    "image": "forest",
+    "image": "global/forest",
     "icon_pack": "light"
   },
   {
@@ -105,7 +105,7 @@
     "favorite": "#ffd47a",
     "backdrop": "#0c0812",
     "overlay": ["#0a041266", "#0a0412b4"],
-    "image": "purpleskies",
+    "image": "global/purpleskies",
     "icon_pack": "light"
   },
   {
@@ -126,7 +126,7 @@
     "favorite": "#d8a018",
     "backdrop": "#e8e8ee",
     "overlay": ["#ffffff33", "#ffffff11"],
-    "image": "greyskies",
+    "image": "global/greyskies",
     "icon_pack": "midnight"
   }
 ]

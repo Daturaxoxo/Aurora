@@ -68,9 +68,8 @@ impl Default for Theme {
             author: "Aurora Team".to_string(),
             builtin: true,
             path: None,
-            image: Some(ImageRef::Builtin("background".to_string())),
+            image: Some(ImageRef::Builtin("nte/background".to_string())),
             icon_pack: None,
-
             background,
             border: (argb(fallback::BORDER.0), argb(fallback::BORDER.1)),
             shadow,
@@ -207,13 +206,13 @@ fn resolve_image(raw: &str, folder: Option<&Path>) -> Option<ImageRef> {
     {
         return Some(ImageRef::Local(local.clone()));
     }
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(raw)
+    let name = path
+        .with_extension("")
+        .to_string_lossy()
+        .replace('\\', "/")
         .to_lowercase();
-    if path.parent() == Some(Path::new("")) && super::wallpaper::builtin_bytes(&stem).is_some() {
-        return Some(ImageRef::Builtin(stem));
+    if let Some(name) = super::wallpaper::builtin_name(&name) {
+        return Some(ImageRef::Builtin(name.to_string()));
     }
     local.map(ImageRef::Local)
 }
