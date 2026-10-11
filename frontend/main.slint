@@ -153,6 +153,7 @@ export component MainWindow inherits Window {
     in-out property <int> language-index: 0;
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
+    in-out property <bool> remember-window-size: true;
     in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;
     in-out property <int> start-method-index: 0;
@@ -192,6 +193,8 @@ export component MainWindow inherits Window {
     callback language-index-changed(int);
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
+    callback remember-window-size-changed(bool);
+    callback reset-window-size();
     callback engine-method-index-changed(int);
     callback start-method-index-changed(int);
     callback engine-scale-changed(int);
@@ -1478,6 +1481,7 @@ export component MainWindow inherits Window {
             language-index <=> root.language-index;
             interface-minimization <=> root.interface-minimization;
             discord-rpc <=> root.discord-rpc;
+            remember-window-size <=> root.remember-window-size;
             game-directory <=> root.game-directory;
             engine-method-index <=> root.engine-method-index;
             start-method-index <=> root.start-method-index;
@@ -1519,6 +1523,8 @@ export component MainWindow inherits Window {
             language-index-changed(i) => { root.language-index-changed(i); }
             interface-minimization-changed(v) => { root.interface-minimization-changed(v); }
             discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
+            remember-window-size-changed(v) => { root.remember-window-size-changed(v); }
+            reset-window-size => { root.reset-window-size(); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             start-method-index-changed(i) => { root.start-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }

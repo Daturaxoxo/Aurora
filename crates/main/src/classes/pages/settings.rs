@@ -86,6 +86,11 @@ impl SettingsHandler {
         debug!("interface_minimization: raw={raw_minimization:?} → {minimization}");
         w.set_interface_minimization(minimization);
 
+        let raw_remember = config::get(key::REMEMBER_WINDOW_SIZE);
+        let remember_window_size = raw_remember.as_bool().unwrap_or(true);
+        debug!("remember_window_size: raw={raw_remember:?} → {remember_window_size}");
+        w.set_remember_window_size(remember_window_size);
+
         let raw_rpc = config::get(key::DISCORD_RPC);
         let discord_rpc = raw_rpc.as_bool().unwrap_or(true);
         debug!("discord_rpc: raw={raw_rpc:?} → {discord_rpc}");
@@ -467,6 +472,22 @@ impl SettingsHandler {
                 }
             } else {
                 crate::classes::tray::deactivate(&ww);
+            }
+        });
+
+        w.on_remember_window_size_changed(move |enabled| {
+            info!("remember_window_size changed → {enabled}");
+            config::set(key::REMEMBER_WINDOW_SIZE, enabled);
+            debug!("remember_window_size saved to config");
+        });
+
+        let ww = window.clone();
+        w.on_reset_window_size(move || {
+            info!("reset_window_size triggered");
+            if let Some(w) = ww.upgrade() {
+                crate::classes::windowsize::reset(&w);
+            } else {
+                error!("window handle dead when resetting the window size");
             }
         });
 

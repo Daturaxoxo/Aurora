@@ -85,11 +85,13 @@ pub mod key {
     pub const ADDON_VARIANTS: &str = "addon_variants";
     pub const THEME: &str = "theme";
     pub const ICON_PACK: &str = "icon_pack";
+    pub const REMEMBER_WINDOW_SIZE: &str = "remember_window_size";
+    pub const WINDOW_SIZE: &str = "window_size";
 }
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::DISCORD_RPC | key::UI_MINIMIZATION => {
+        key::DISCORD_RPC | key::UI_MINIMIZATION | key::REMEMBER_WINDOW_SIZE => {
             json!(true)
         }
 

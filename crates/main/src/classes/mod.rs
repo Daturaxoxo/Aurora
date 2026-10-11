@@ -17,3 +17,4 @@ pub mod tray;
 pub mod updater;
 #[cfg(target_os = "linux")]
 pub mod windowdrag;
+pub mod windowsize;

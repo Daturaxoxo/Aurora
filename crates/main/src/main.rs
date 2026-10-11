@@ -9,7 +9,7 @@ mod translations;
 use anyhow::{Result, anyhow};
 use log::*;
 use shared::config::{self, key};
-use shared::display::{center_window, get_monitor_size};
+use shared::display::center_window;
 use shared::logger::Logger;
 use classes::buttons::ButtonHandler;
 use classes::iconpack::IconPackHandler;
@@ -20,6 +20,7 @@ use classes::popup::PopupHandler;
 use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
+use classes::windowsize;
 use bridge::Bridge;
 use crate::classes::pages::games::GamesHandler;
 use crate::classes::pages::gbbrowser::GbBrowserHandler;
@@ -146,35 +147,7 @@ fn main() -> Result<()> {
 
     window.set_ui_font_family("Segoe UI".into());
     translations::apply_saved_language(&window);
-
-    let monitor_size = match get_monitor_size() {
-        Ok(size) => size,
-        Err(e) => {
-            error!("Could not get monitor size: {e}");
-            return Ok(());
-        }
-    };
-
-    let scale_factor = if monitor_size.scale_factor.is_finite() && monitor_size.scale_factor > 0.0 {
-        monitor_size.scale_factor
-    } else {
-        warn!(
-            "Monitor reported an unusable scale factor ({}); assuming 1.0",
-            monitor_size.scale_factor
-        );
-        1.0
-    };
-    let logical_monitor_width = monitor_size.width as f32 / scale_factor;
-
-    let (window_width, window_height) = if logical_monitor_width < 1366.0 {
-        (960.0, 540.0)
-    } else {
-        (1280.0, 720.0)
-    };
-    info!("Setting window size to {window_width}x{window_height}");
-    window.set_initial_width(window_width);
-    window.set_initial_height(window_height);
-    slint_window.set_size(slint::LogicalSize::new(window_width, window_height));
+    windowsize::apply_startup_size(&window);
 
     match center_window(slint_window) {
         Ok(()) => {}
@@ -275,6 +248,7 @@ fn main() -> Result<()> {
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
+    windowsize::start_tracking(&window.as_weak());
 
     if let Some(request) = oneclick_request {
         OneClickHandler::handle(&window.as_weak(), &request);

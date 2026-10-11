@@ -734,6 +734,7 @@ export component SettingsPage inherits Rectangle {
     in-out property <int> language-index: 0;
     in-out property <bool> interface-minimization: false;
     in-out property <bool> discord-rpc: true;
+    in-out property <bool> remember-window-size: true;
 
     // THEMES
     in property <[ThemeChoice]> theme-choices: [];
@@ -795,6 +796,8 @@ export component SettingsPage inherits Rectangle {
     // [CALLBACKS]
     callback interface-minimization-changed(bool);
     callback discord-rpc-changed(bool);
+    callback remember-window-size-changed(bool);
+    callback reset-window-size();
     callback engine-method-index-changed(int);
     callback start-method-index-changed(int);
     callback engine-scale-changed(int);
@@ -982,6 +985,24 @@ export component SettingsPage inherits Rectangle {
                                     ToggleSwitch {
                                         checked <=> root.interface-minimization;
                                         toggled => { root.interface-minimization-changed(self.checked); }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-remember-window-size-title];
+                                    subtitle: Tr.values[TrKey.settings-remember-window-size-subtitle];
+                                    ToggleSwitch {
+                                        checked <=> root.remember-window-size;
+                                        toggled => { root.remember-window-size-changed(self.checked); }
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-reset-window-size-title];
+                                    subtitle: Tr.values[TrKey.settings-reset-window-size-subtitle];
+                                    CardButton {
+                                        text: Tr.values[TrKey.settings-reset-window-size-button];
+                                        clicked => { root.reset-window-size(); }
                                     }
                                 }
                             }
