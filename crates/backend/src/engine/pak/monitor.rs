@@ -9,7 +9,7 @@ use shared::classes::games::nte::{NTE_PROCESSES, version::Version};
 use crate::classes::rpc::RPC;
 use crate::engine::contract::{EventSink, SessionExit};
 use super::everlight;
-use super::process::{ProcessSnapshot, ProcessTargets, kill_targets};
+use super::process::{ProcessSnapshot, ProcessTargets, kill_processes, kill_targets};
 
 // This is intentionally high, because when the launcher updates and restarts it takes a while.
 const LAUNCHER_GRACE_SECS: u32 = 10;
@@ -19,6 +19,7 @@ const LAUNCHER_GRACE_SECS: u32 = 10;
 // No it's not, i had to increase it - wapr
 pub(super) const POST_EXIT_KILL_GRACE: Duration = Duration::from_secs(7);
 const THREAD_SLEEP_DURATION: Duration = Duration::from_millis(500);
+const POST_EXIT_POLL: Duration = Duration::from_millis(150);
 
 pub(super) struct Monitor {
     pub targets: ProcessTargets,
@@ -172,7 +173,21 @@ pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -
         if !snapshot.any_matching(NTE_PROCESSES) && !snapshot.any_in_dir(&targets.win64) {
             return Ok(());
         }
-        thread::sleep(THREAD_SLEEP_DURATION);
+
+        let launchers: Vec<_> = std::iter::once(&targets.launcher_process)
+            .chain(&targets.helper_processes)
+            .flat_map(|name| snapshot.matching(name))
+            .map(|(pid, process)| (*pid, process))
+            .collect();
+        if !launchers.is_empty() {
+            info!("NTE Launcher reopened after exit, closing it");
+            if let Err(e) = kill_processes(launchers) {
+                warn!("Failed to close the reopened NTE Launcher: {e}");
+            }
+            continue;
+        }
+
+        thread::sleep(POST_EXIT_POLL);
     }
 
     warn!("Processes did not close within {grace:?}. Force killing...");
