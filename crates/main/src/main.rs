@@ -248,6 +248,7 @@ fn main() -> Result<()> {
     classes::desktop::prompt_on_first_run(&window.as_weak());
 
     window.show()?;
+    windowsize::apply_startup_maximized(&window);
     windowsize::start_tracking(&window.as_weak());
 
     if let Some(request) = oneclick_request {
