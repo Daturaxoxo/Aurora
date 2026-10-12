@@ -1,3 +1,16 @@
+use crate::bridge::Bridge;
+use crate::runtime::{self, Admission, MutationGuard};
+use crate::{LaunchState, MainWindow};
+use anyhow::{Context, Result, anyhow};
+use ipc::manifest::hash_file;
+#[cfg(windows)]
+use ipc::manifest::{LocalManifest, Manifest};
+use ipc::protocol::{self, Message};
+use log::*;
+use once_cell::sync::Lazy;
+use reqwest::blocking::Response;
+#[cfg(feature = "beta")]
+use serde::Deserialize;
 use std::io::Read;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -8,19 +21,6 @@ use std::{
     path::Path,
     sync::{Arc, mpsc},
 };
-use anyhow::{Context, Result, anyhow};
-use log::*;
-use once_cell::sync::Lazy;
-use ipc::manifest::hash_file;
-#[cfg(windows)]
-use ipc::manifest::{LocalManifest, Manifest};
-use ipc::protocol::{self, Message};
-use reqwest::blocking::Response;
-#[cfg(feature = "beta")]
-use serde::Deserialize;
-use crate::bridge::Bridge;
-use crate::runtime::{self, Admission, MutationGuard};
-use crate::{LaunchState, MainWindow};
 #[cfg(feature = "beta")]
 const SKIP_BETA_PHASING_ARG: &str = "--skip-beta-phasing";
 #[cfg(feature = "beta")]

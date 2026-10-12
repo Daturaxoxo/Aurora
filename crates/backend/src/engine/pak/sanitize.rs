@@ -103,12 +103,10 @@ impl PakEngine {
             .into_iter()
             .filter(|f| f.group != FileGroup::OverlayAddon)
             .map(|f| (f.label, f.destination))
-            .chain([
-                (
-                    "Everlight signature".to_string(),
-                    self.win64.join(super::everlight::SIGNATURE_FILE_NAME),
-                ),
-            ])
+            .chain([(
+                "Everlight signature".to_string(),
+                self.win64.join(super::everlight::SIGNATURE_FILE_NAME),
+            )])
             .chain(self.lua.iter().flat_map(|lua| {
                 lua.deploy
                     .iter()

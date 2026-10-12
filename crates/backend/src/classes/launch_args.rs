@@ -10,7 +10,8 @@ const PLACEHOLDER: &str = "{}";
 type Catalog = BTreeMap<String, Argument>;
 
 fn catalog(raw: &str) -> Result<Catalog> {
-    serde_json::from_str(raw).map_err(|e| anyhow!("the launch argument catalogue is malformed: {e}"))
+    serde_json::from_str(raw)
+        .map_err(|e| anyhow!("the launch argument catalogue is malformed: {e}"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -215,7 +216,10 @@ pub fn apply(dirs: &[PathBuf], catalogue: &str, raw: &str) -> Result<()> {
     commit(dirs, &plan)
 }
 
-fn commit(dirs: &[PathBuf], plan: &BTreeMap<(IniFile, String, String), Option<String>>) -> Result<()> {
+fn commit(
+    dirs: &[PathBuf],
+    plan: &BTreeMap<(IniFile, String, String), Option<String>>,
+) -> Result<()> {
     for file in IniFile::ALL.iter().copied() {
         let mut batch = Ini::file(dirs, file);
         let mut edits = 0_usize;
@@ -252,7 +256,12 @@ mod tests {
     use shared::classes::games::{Game, nte::NTE};
 
     fn nte() -> Catalog {
-        catalog(NTE.launch_arguments().expect("NTE has launch arguments").catalogue()).unwrap()
+        catalog(
+            NTE.launch_arguments()
+                .expect("NTE has launch arguments")
+                .catalogue(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -285,7 +294,10 @@ mod tests {
     }
 
     fn names(raw: &str) -> Vec<String> {
-        parse(&nte(), raw).into_iter().map(|typed| typed.name).collect()
+        parse(&nte(), raw)
+            .into_iter()
+            .map(|typed| typed.name)
+            .collect()
     }
 
     #[test]

@@ -281,8 +281,10 @@ fn aurora_compat_data(steam: &SteamMetadata) -> Result<PathBuf> {
 fn command_as_real_user(program: &Path) -> Command {
     use std::os::unix::process::CommandExt;
     let mut cmd = Command::new(program);
-    let Some(user) = real_user() else {return cmd};
-    if unsafe { libc::geteuid() } != 0 || user.uid == 0 {return cmd}
+    let Some(user) = real_user() else { return cmd };
+    if unsafe { libc::geteuid() } != 0 || user.uid == 0 {
+        return cmd;
+    }
 
     cmd.uid(user.uid).gid(user.gid);
     cmd.env("HOME", &user.home);
@@ -345,7 +347,9 @@ fn dwproton_builds(steam_root: &Path) -> Vec<DwProtonBuild> {
         let name = entry.file_name();
         let name = name.to_string_lossy().into_owned();
         let lower = name.to_lowercase();
-        if !lower.contains("dw-proton") && !lower.contains("dwproton") {continue}
+        if !lower.contains("dw-proton") && !lower.contains("dwproton") {
+            continue;
+        }
 
         let script = entry.path().join("proton");
         if !script.is_file() {
@@ -467,7 +471,9 @@ pub fn remove_custom_proton_build(dir: &Path) {
 fn selected_custom_proton(configured: &str) -> Option<PathBuf> {
     let configured = configured.trim();
 
-    if configured.is_empty() {return None}
+    if configured.is_empty() {
+        return None;
+    }
 
     let dir = PathBuf::from(configured);
     if !is_proton_dir(&dir) {

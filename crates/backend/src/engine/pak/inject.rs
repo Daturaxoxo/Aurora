@@ -1,11 +1,11 @@
-use std::fs;
-use anyhow::{Context, Result, anyhow};
-use log::*;
+use super::PakEngine;
+use super::files::{FileGroup, ManagedFile, group_by_addon};
 use crate::classes::validate::ensure_dir;
 use crate::engine::contract::{InjectedPluginRecord, LaunchInput, ModuleSelection, RecordChanges};
 use crate::engine::lua::LuaManager;
-use super::PakEngine;
-use super::files::{FileGroup, ManagedFile, group_by_addon};
+use anyhow::{Context, Result, anyhow};
+use log::*;
+use std::fs;
 const PLUGINS: &[&str] = &["chksum.asi", "ipc.asi"];
 
 impl PakEngine {
@@ -145,7 +145,9 @@ impl PakEngine {
             .iter()
             .filter(|f| f.group == FileGroup::OverlayAddon && f.enabled)
         {
-            if !f.source.exists() {continue}
+            if !f.source.exists() {
+                continue;
+            }
 
             if f.destination.exists() {
                 let msg = format!(

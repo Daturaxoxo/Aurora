@@ -2,12 +2,12 @@ pub mod contract;
 mod lua;
 pub mod pak;
 use anyhow::{Result, anyhow};
-use shared::classes::games::{EngineKind, identity::GameId, registry};
 use contract::{
     CommandTag, EngineInput, LaunchInput, OperationOutcome, SanitizeInput, SessionExit,
     SessionHooks, ValidateInput, ValidationReport,
 };
 pub use pak::PakEngine;
+use shared::classes::games::{EngineKind, identity::GameId, registry};
 
 pub trait ModEngine: Send {
     fn reconfigure(&mut self, input: &EngineInput) -> Result<()>;

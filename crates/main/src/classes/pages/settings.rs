@@ -2,7 +2,7 @@ use crate::bridge::engine;
 use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
-use crate::runtime::{self, GameContext, Reconfigured};
+use crate::runtime::{self, GameContext, GameRuntime, Reconfigured};
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::launch_args;
@@ -139,7 +139,11 @@ impl SettingsHandler {
     }
 
     pub fn apply_context(w: &MainWindow, context: &GameContext) {
-        Self::load_game(w, context.game(), context.installation().map(InstallationFacts::root));
+        Self::load_game(
+            w,
+            context.game(),
+            context.installation().map(InstallationFacts::root),
+        );
     }
 
     fn load_game(w: &MainWindow, game: &'static dyn Game, root: Option<&std::path::Path>) {
@@ -162,7 +166,10 @@ impl SettingsHandler {
 
         let engine_settings = d.engine == Some(EngineKind::Pak);
         let start_method_choice = game.launcher().is_some_and(|l| l.start_methods().len() > 1);
-        debug!("{}: engine_settings={engine_settings} start_method_choice={start_method_choice}", d.id);
+        debug!(
+            "{}: engine_settings={engine_settings} start_method_choice={start_method_choice}",
+            d.id
+        );
         w.set_engine_settings(engine_settings);
         w.set_start_method_choice(start_method_choice);
 
@@ -209,7 +216,10 @@ impl SettingsHandler {
         }
         let unreal = game.unreal()?;
         let setting = unreal.application_scale()?;
-        Some((unreal.config_locations(&PlatformPaths::observe_host(game)), setting))
+        Some((
+            unreal.config_locations(&PlatformPaths::observe_host(game)),
+            setting,
+        ))
     }
 
     fn refuse(window: &slint::Weak<MainWindow>, action: &str, error: &anyhow::Error) {
@@ -235,7 +245,10 @@ impl SettingsHandler {
         let game = Self::current_game();
         match config::update_profile(&game.descriptor().id, patch) {
             Ok(()) => debug!("saved to the {} profile", game.descriptor().id),
-            Err(e) => error!("could not save to the {} profile: {e:#}", game.descriptor().id),
+            Err(e) => error!(
+                "could not save to the {} profile: {e:#}",
+                game.descriptor().id
+            ),
         }
     }
 
@@ -451,7 +464,9 @@ impl SettingsHandler {
         let selected = Self::profile_value(Self::current_game(), ProfileKey::ProtonCustomPath);
         if selected.as_str() == Some(&removed.to_string_lossy()) {
             debug!("it was the selected one, falling back to Automatic");
-            Self::save_profile(&ProfilePatch::new().set(ProfileKey::ProtonCustomPath, String::new()));
+            Self::save_profile(
+                &ProfilePatch::new().set(ProfileKey::ProtonCustomPath, String::new()),
+            );
         }
         linux::remove_custom_proton_build(removed);
 
@@ -584,7 +599,9 @@ impl SettingsHandler {
             info!("ignore_checksum toggled → {enabled}");
 
             if !enabled {
-                Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::IgnoreChecksum, false));
+                Self::reconfigure_profile(
+                    ProfilePatch::new().set(ProfileKey::IgnoreChecksum, false),
+                );
                 return;
             }
 
@@ -648,7 +665,7 @@ impl SettingsHandler {
                 return;
             }
 
-            let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+            let guard = match runtime::get().and_then(GameRuntime::try_begin_mutation) {
                 Ok(guard) => guard,
                 Err(e) => {
                     Self::refuse(&ww, "save the application scale", &e);
@@ -679,12 +696,13 @@ impl SettingsHandler {
         let ww = window.clone();
         w.on_launch_args_changed(move |args| {
             info!("launch_args changed -> {args:?}");
-            let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+            let guard = match runtime::get().and_then(GameRuntime::try_begin_mutation) {
                 Ok(guard) => guard,
                 Err(e) => {
                     Self::refuse(&ww, "save the launch arguments", &e);
                     if let Some(w) = ww.upgrade() {
-                        let saved = Self::profile_value(Self::current_game(), ProfileKey::LaunchArgs);
+                        let saved =
+                            Self::profile_value(Self::current_game(), ProfileKey::LaunchArgs);
                         w.set_launch_args(saved.as_str().unwrap_or("").into());
                     }
                     return;

@@ -498,7 +498,8 @@ mod tests {
     use shared::classes::games::{
         GameDescriptor, InstallationFacts,
         capabilities::{ModLayout, ModManagerSupport, ModNaming},
-        identity::SafeRelativePath, validate_registry,
+        identity::SafeRelativePath,
+        validate_registry,
     };
 
     static NEXT_TEST_DIR: AtomicUsize = AtomicUsize::new(0);

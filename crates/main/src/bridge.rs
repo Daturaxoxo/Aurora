@@ -1,22 +1,22 @@
 pub mod engine;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, PoisonError, mpsc};
 use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::games::GamesHandler;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::pages::modules::ModulesHandler;
 use crate::classes::pages::screenshots::ScreenshotHandler;
 use crate::classes::pages::settings::SettingsHandler;
-use crate::translations::tr;
-use shared::classes::games::identity::GameId;
 use crate::runtime::{self, GameContext, RuntimeEvent, TransitionKind, startup};
+use crate::translations::tr;
 use crate::{LaunchState, MainWindow, PopupDetail, classes::updater};
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{NotificationKind, Readiness};
 use backend::handler::EngineEvent;
 use log::*;
+use shared::classes::games::identity::GameId;
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, key};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, PoisonError, mpsc};
 
 const INIT_WARNINGS: &[(&str, &str)] = &[
     (
@@ -276,7 +276,11 @@ impl Bridge {
         AddonsHandler::context_committed(w, context.id());
     }
 
-    fn context_changed(w: &slint::Weak<MainWindow>, kind: TransitionKind, context: &Arc<GameContext>) {
+    fn context_changed(
+        w: &slint::Weak<MainWindow>,
+        kind: TransitionKind,
+        context: &Arc<GameContext>,
+    ) {
         static APPLIED: Mutex<Option<(GameId, Option<PathBuf>)>> = Mutex::new(None);
 
         let applied = (
@@ -319,7 +323,11 @@ impl Bridge {
         }
         if switched {
             let name = context.game().descriptor().display_name;
-            Self::show_toast(w, &tr("toast.game-switched").replace("{0}", name), "success");
+            Self::show_toast(
+                w,
+                &tr("toast.game-switched").replace("{0}", name),
+                "success",
+            );
         }
     }
 
@@ -379,8 +387,9 @@ impl Bridge {
             }
             EngineEvent::Launched(outcome) => match outcome.result {
                 Ok(()) => {
-                    let start_method = runtime::get()
-                        .map_or(StartMethod::Manual, |r| engine::start_method(r.snapshot().game));
+                    let start_method = runtime::get().map_or(StartMethod::Manual, |r| {
+                        engine::start_method(r.snapshot().game)
+                    });
                     let toast_key = match start_method {
                         StartMethod::Direct => "toast.launch-direct",
                         StartMethod::Manual => "toast.launcher-opened",
@@ -425,33 +434,31 @@ impl Bridge {
                 });
                 Self::show_toast(&w, "Game closed.", "success");
             }
-            EngineEvent::Validated(outcome) => {
-                match outcome.result {
-                    Ok(report) if report.missing.is_empty() => {
-                        info!("Validation passed, all required files are present");
-                        Self::show_toast(
-                            &w,
-                            "Validation passed! All required files are present.",
-                            "success",
-                        );
-                    }
-                    Ok(report) => {
-                        error!(
-                            "Validation found missing files: {}",
-                            report.missing.join(", ")
-                        );
-                        Self::show_toast(
-                            &w,
-                            &format!("Missing required files:\n{}", report.missing.join("\n")),
-                            "error",
-                        );
-                    }
-                    Err(e) => {
-                        error!("Validate failed: {e}");
-                        Self::show_toast(&w, &format!("Validation failed: {e}"), "error");
-                    }
+            EngineEvent::Validated(outcome) => match outcome.result {
+                Ok(report) if report.missing.is_empty() => {
+                    info!("Validation passed, all required files are present");
+                    Self::show_toast(
+                        &w,
+                        "Validation passed! All required files are present.",
+                        "success",
+                    );
                 }
-            }
+                Ok(report) => {
+                    error!(
+                        "Validation found missing files: {}",
+                        report.missing.join(", ")
+                    );
+                    Self::show_toast(
+                        &w,
+                        &format!("Missing required files:\n{}", report.missing.join("\n")),
+                        "error",
+                    );
+                }
+                Err(e) => {
+                    error!("Validate failed: {e}");
+                    Self::show_toast(&w, &format!("Validation failed: {e}"), "error");
+                }
+            },
             EngineEvent::Sanitized(outcome) => {
                 if let Err(e) = outcome.result {
                     error!("Sanitize failed: {e}");

@@ -11,13 +11,14 @@ use anyhow::{Result, anyhow};
 use archive::{ArchiveExtractor, ArchiveFormat};
 use log::*;
 use serde::{Deserialize, Serialize};
+use shared::classes::games::InstallationFacts;
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::bridge::PopupSpec;
 use crate::runtime::{self, GameContext, MutationGuard};
 use crate::translations::tr;
-use shared::classes::games::capabilities::LuaLayout;
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
+use shared::classes::games::capabilities::LuaLayout;
 
 const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
 const INVALID_NAME_CHARS: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -40,7 +41,7 @@ struct LuaScope {
 impl LuaScope {
     fn of(context: &GameContext) -> Option<Self> {
         let lua = context.game().lua()?;
-        let root = context.installation().map(|facts| facts.root());
+        let root = context.installation().map(InstallationFacts::root);
         Some(Self {
             generation: context.generation(),
             layout: lua.layout(context.payload().root(), root),
@@ -194,8 +195,7 @@ impl LuaScriptsHandler {
                             "Failed to rename script folder from '{old_name}' to '{new_name}': {e}"
                         );
                         win.global::<LuaScriptsAdapter>().set_toast_message(
-                            format!("Couldn't rename \"{old_name}\" to \"{new_name}\": {e}")
-                                .into(),
+                            format!("Couldn't rename \"{old_name}\" to \"{new_name}\": {e}").into(),
                         );
                         return;
                     }

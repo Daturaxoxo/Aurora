@@ -227,7 +227,7 @@ fn generate_character_icons() {
         .join("\n");
 
     let generated = format!(
-        "{HEADER}pub static CHARACTER_ICONS: &[(&str, &[(&str, &[u8])])] = &[\n{games}\n];\n"
+        "{HEADER}#[allow(clippy::type_complexity)]\npub static CHARACTER_ICONS: &[(&str, &[(&str, &[u8])])] = &[\n{games}\n];\n"
     );
 
     fs::write(&out_path, generated)
@@ -269,7 +269,9 @@ fn collect_backgrounds(root: &Path, current: &Path, into: &mut Vec<(String, Stri
     const SKIPPED: &[&str] = &["game"];
     for entry in fs::read_dir(current).into_iter().flatten().flatten() {
         let path = entry.path();
-        let Ok(relative) = path.strip_prefix(root) else {continue};
+        let Ok(relative) = path.strip_prefix(root) else {
+            continue;
+        };
 
         if path.is_dir() {
             let skipped = relative
@@ -281,15 +283,21 @@ fn collect_backgrounds(root: &Path, current: &Path, into: &mut Vec<(String, Stri
             continue;
         }
 
-        let Some(extension) = path.extension().and_then(|e| e.to_str()) else {continue};
+        let Some(extension) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
         if !matches!(
             extension.to_lowercase().as_str(),
             "png" | "jpg" | "jpeg" | "gif"
-        ) {continue}
+        ) {
+            continue;
+        }
         let Some(absolute) = fs::canonicalize(&path)
             .ok()
             .and_then(|p| Some(p.to_str()?.trim_start_matches(r"\\?\").to_string()))
-        else {continue};
+        else {
+            continue;
+        };
 
         let name = relative
             .with_extension("")

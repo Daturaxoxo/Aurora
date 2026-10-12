@@ -1,7 +1,9 @@
-use std::io;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use crate::MainWindow;
+use crate::bridge::{Bridge, PopupSpec};
+use crate::classes::pages::gbbrowser::{self, GbBrowserHandler};
+use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::runtime::{self, Admission};
+use crate::translations::tr;
 use anyhow::{Context, Result, anyhow};
 use ipc::protocol::{self, Message};
 use log::{error, info, warn};
@@ -13,13 +15,11 @@ use shared::config::{self, key};
 use shared::oneclick::OneClick;
 use shared::utils::format_bytes;
 use slint::ComponentHandle as _;
+use std::io;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use url::Url;
-use crate::MainWindow;
-use crate::bridge::{Bridge, PopupSpec};
-use crate::classes::pages::gbbrowser::{self, GbBrowserHandler};
-use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::runtime::{self, Admission};
-use crate::translations::tr;
 pub const POPUP_ID: &str = "gb-oneclick";
 pub const SWITCH_POPUP_ID: &str = "gb-oneclick-switch";
 
@@ -136,7 +136,9 @@ impl OneClickHandler {
                                 Self::handle(&window, &request);
                             })
                             .is_err()
-                            {break}
+                            {
+                                break;
+                            }
                         }
                         Ok(other) => warn!("1-Click: ignored unexpected IPC message {other:?}"),
                         Err(e) => warn!("1-Click: rejected unreadable IPC request: {e}"),
@@ -223,7 +225,9 @@ impl OneClickHandler {
             })();
 
             match result {
-                Ok(pending) if Self::is_current_game(pending.game) => Self::prepare(&window, pending).await,
+                Ok(pending) if Self::is_current_game(pending.game) => {
+                    Self::prepare(&window, pending).await;
+                }
                 Ok(pending) => Self::show_switch_prompt(&window, pending),
                 Err(e) => Self::reject(&window, &e),
             }
@@ -292,7 +296,10 @@ impl OneClickHandler {
             let switched = runtime::get().and_then(|r| r.switch(&pending.game.descriptor().id));
             if let Err(e) = switched {
                 // jeff jeffrey james HA.HA.HA. those who know xxxtentacion
-                warn!("1-Click: could not switch to {}: {e:#}", pending.game.descriptor().id);
+                warn!(
+                    "1-Click: could not switch to {}: {e:#}",
+                    pending.game.descriptor().id
+                );
                 REQUEST_ACTIVE.store(false, Ordering::SeqCst);
                 return;
             }
@@ -371,7 +378,10 @@ impl OneClickHandler {
     fn validate_installation(game: &dyn Game) -> Result<()> {
         let snapshot = runtime::get()?.snapshot();
         if !matches!(snapshot.admission, Admission::Open) {
-            return Err(anyhow!("Aurora is {}, try again shortly", snapshot.admission));
+            return Err(anyhow!(
+                "Aurora is {}, try again shortly",
+                snapshot.admission
+            ));
         }
         snapshot
             .context
@@ -399,7 +409,8 @@ impl OneClickHandler {
                 return;
             }
 
-            let notice = if pending.is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false) {
+            let notice = if pending.is_nsfw && !config::get(key::GB_NSFW).as_bool().unwrap_or(false)
+            {
                 tr("popup.oneclick.nsfw-notice")
             } else {
                 String::new()

@@ -74,7 +74,7 @@ pub enum Wallpaper {
     },
 }
 
-// multi game support brings a resturctured folder structure so we should keep this active for as long as possible 
+// multi game support brings a resturctured folder structure so we should keep this active for as long as possible
 const LEGACY_NAMES: &[(&str, &str)] = &[
     ("background", "nte/background"),
     ("ember", "nte/ember"),

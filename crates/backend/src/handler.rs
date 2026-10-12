@@ -1,13 +1,13 @@
-use std::sync::{Mutex, PoisonError, mpsc};
-use std::thread::{self, JoinHandle};
-use anyhow::{Result, anyhow};
-use log::*;
 use crate::engine::contract::{
     CommandTag, EngineInput, EventSink, InjectedPluginRecord, LaunchInput, NotificationKind,
     OperationOutcome, Readiness, SanitizeInput, SessionExit, SessionHooks, ValidateInput,
     ValidationReport,
 };
 use crate::engine::{EngineFactory, ModEngine, ModSession, RegistryFactory};
+use anyhow::{Result, anyhow};
+use log::*;
+use std::sync::{Mutex, PoisonError, mpsc};
+use std::thread::{self, JoinHandle};
 
 pub enum EngineCommand {
     Configure(EngineInput),
@@ -321,7 +321,9 @@ impl<F: EngineFactory> Worker<F> {
     }
 
     fn finish_session(&mut self, cleanup: bool) {
-        let Some(mut active) = self.session.take() else {return};
+        let Some(mut active) = self.session.take() else {
+            return;
+        };
         let mut outcome = active.session.join();
 
         let exited = matches!(

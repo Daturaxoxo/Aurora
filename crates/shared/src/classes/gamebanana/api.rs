@@ -1,7 +1,6 @@
 use super::cache::CacheManager;
 use super::types::{
-    ApiFile, ApiRecord, ModProfile, GbMod, GbModFile, ProfilePage, SearchResponse,
-    SubfeedResponse,
+    ApiFile, ApiRecord, GbMod, GbModFile, ModProfile, ProfilePage, SearchResponse, SubfeedResponse,
 };
 use crate::classes::games::{
     Game, capabilities::GameBananaSupport, find_game, identity::GameId, registry,
@@ -34,7 +33,7 @@ enum Attempt {
     Fatal(anyhow::Error),
 }
 
-/// a registered game's GameBanana id plus the cache namespace its requests write to (dont delete this comment or else)
+/// a registered game's `GameBanana` id plus the cache namespace its requests write to (dont delete this comment or else)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteGame {
     pub id: u32,
@@ -367,7 +366,9 @@ impl GameBananaApi {
         force_refresh: bool,
         on_mod_ready: Option<UnboundedSender<Arc<GbMod>>>,
     ) -> Result<Vec<Arc<GbMod>>> {
-        if !force_refresh && let Some(cached) = self.cache.get_feed_cache(&game.namespace, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_feed_cache(&game.namespace, page).await
+        {
             let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
             if let Some(tx) = on_mod_ready {
                 for m in &cached {
@@ -391,7 +392,9 @@ impl GameBananaApi {
         let mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
         if mods.len() == expected {
-            self.cache.save_feed_cache(&game.namespace, page, &mods).await;
+            self.cache
+                .save_feed_cache(&game.namespace, page, &mods)
+                .await;
         }
 
         Ok(mods)
@@ -410,7 +413,10 @@ impl GameBananaApi {
         }
 
         if !force_refresh
-            && let Some(cached) = self.cache.get_search_cache(&game.namespace, query, page).await
+            && let Some(cached) = self
+                .cache
+                .get_search_cache(&game.namespace, query, page)
+                .await
         {
             let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
             if let Some(tx) = on_mod_ready {

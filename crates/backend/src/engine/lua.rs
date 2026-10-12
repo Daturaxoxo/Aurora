@@ -1,9 +1,9 @@
-use std::fs;
-use std::path::Path;
+use crate::classes::validate::ensure_dir;
 use anyhow::{Context, Result};
 use log::*;
-use crate::classes::validate::ensure_dir;
 use shared::classes::games::capabilities::LuaLayout;
+use std::fs;
+use std::path::Path;
 pub struct LuaManager;
 
 impl LuaManager {

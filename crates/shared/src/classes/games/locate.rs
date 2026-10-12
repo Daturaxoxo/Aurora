@@ -1,11 +1,11 @@
-use std::path::{Path, PathBuf};
-use anyhow::{Context as _, Result, anyhow};
-use log::*;
 use super::{Game, default_game, find_game};
 use crate::{
     config::{self, GlobalKey, ProfileKey, ProfilePatch, key},
     pathfind::{DiscoveryInputs, SelectedRoot, discover, select_configured, select_root},
 };
+use anyhow::{Context as _, Result, anyhow};
+use log::*;
+use std::path::{Path, PathBuf};
 
 pub fn transitional_selected_game() -> &'static dyn Game {
     let selected = config::read_global(GlobalKey::SelectedGame)

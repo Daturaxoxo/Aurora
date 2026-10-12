@@ -6,11 +6,14 @@ mod bridge;
 mod classes;
 mod runtime;
 mod translations;
+use crate::classes::pages::games::GamesHandler;
+use crate::classes::pages::gbbrowser::GbBrowserHandler;
+use crate::classes::pages::lua::LuaScriptsHandler;
+use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modules::ModulesHandler;
+use crate::classes::pages::screenshots::ScreenshotHandler;
 use anyhow::Result;
-use log::*;
-use shared::config::{self, key};
-use shared::display::center_window;
-use shared::logger::Logger;
+use bridge::Bridge;
 use classes::buttons::ButtonHandler;
 use classes::iconpack::IconPackHandler;
 use classes::oneclick::OneClickHandler;
@@ -21,13 +24,10 @@ use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 use classes::windowsize;
-use bridge::Bridge;
-use crate::classes::pages::games::GamesHandler;
-use crate::classes::pages::gbbrowser::GbBrowserHandler;
-use crate::classes::pages::lua::LuaScriptsHandler;
-use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::classes::pages::modules::ModulesHandler;
-use crate::classes::pages::screenshots::ScreenshotHandler;
+use log::*;
+use shared::config::{self, key};
+use shared::display::center_window;
+use shared::logger::Logger;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {

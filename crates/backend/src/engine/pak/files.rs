@@ -1,3 +1,7 @@
+use super::PakEngine;
+use crate::classes::addons::CENSORSHIP_DIR;
+use crate::classes::addons::overlay;
+use crate::classes::addons::pak::PakAddon;
 use log::*;
 use shared::classes::games::capabilities::{AddonSupport, OverlayAddon};
 use shared::classes::games::nte::{NTE, addons};
@@ -5,10 +9,6 @@ use shared::classes::info::Target;
 use shared::config::key;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use crate::classes::addons::CENSORSHIP_DIR;
-use crate::classes::addons::overlay;
-use crate::classes::addons::pak::PakAddon;
-use super::PakEngine;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileGroup {

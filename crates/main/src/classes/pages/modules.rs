@@ -1,5 +1,5 @@
 use crate::classes::pages::modmanager::{profile_map, profile_map_set};
-use crate::runtime::{self, GameContext, MutationGuard};
+use crate::runtime::{self, GameContext, GameRuntime, MutationGuard};
 use crate::{MainWindow, ModItem, ModTag};
 
 use anyhow::{Result, anyhow};
@@ -31,7 +31,10 @@ impl ModuleScope {
     fn of(context: &GameContext) -> Result<Self> {
         let game = context.game();
         let modules = game.modules().ok_or_else(|| {
-            anyhow!("{} does not support modules", game.descriptor().display_name)
+            anyhow!(
+                "{} does not support modules",
+                game.descriptor().display_name
+            )
         })?;
         let layout = modules.layout(&config::game_modules_path(context.id()));
         Ok(Self {
@@ -113,7 +116,10 @@ impl ModulesHandler {
         });
     }
 
-    fn begin(window: &slint::Weak<MainWindow>, action: &str) -> Option<(MutationGuard, ModuleScope)> {
+    fn begin(
+        window: &slint::Weak<MainWindow>,
+        action: &str,
+    ) -> Option<(MutationGuard, ModuleScope)> {
         ModuleScope::guarded()
             .map_err(|e| Self::refuse(window, action, &e))
             .ok()
@@ -179,7 +185,7 @@ impl ModulesHandler {
         *synced = generation;
         drop(synced);
 
-        let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+        let guard = match runtime::get().and_then(GameRuntime::try_begin_mutation) {
             Ok(guard) if guard.context().generation() == scope.generation => guard,
             Ok(_) => return,
             Err(e) => {
@@ -219,7 +225,9 @@ impl ModulesHandler {
             if let Some(scope) = &scope {
                 Self::sync_custom_addons(generation, scope, &modules);
             }
-            let enabled = scope.as_ref().is_some_and(|s| Self::feature_enabled(s.game));
+            let enabled = scope
+                .as_ref()
+                .is_some_and(|s| Self::feature_enabled(s.game));
 
             let _ = slint::invoke_from_event_loop(move || {
                 if GENERATION.load(Ordering::SeqCst) != generation
@@ -416,8 +424,7 @@ impl ModulesHandler {
         let name = module
             .path
             .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .map_or_default(|n| n.to_string_lossy().into_owned());
         let new = naming
             .toggled(&name, !module.enabled)
             .map(|name| module.path.with_file_name(name))
@@ -670,14 +677,15 @@ impl ModulesHandler {
         let ww = window.clone();
         w.on_modules_feature_toggled(move |enabled| {
             info!("[Modules] feature toggled -> {enabled}");
-            let saved = Self::begin(&ww, "change the modules setting").is_some_and(|(_guard, scope)| {
-                config::update_profile(
-                    &scope.game.descriptor().id,
-                    &ProfilePatch::new().set(ProfileKey::CustomAddonsToggled, enabled),
-                )
-                .inspect_err(|e| error!("[Modules] could not save the modules setting: {e:#}"))
-                .is_ok()
-            });
+            let saved =
+                Self::begin(&ww, "change the modules setting").is_some_and(|(_guard, scope)| {
+                    config::update_profile(
+                        &scope.game.descriptor().id,
+                        &ProfilePatch::new().set(ProfileKey::CustomAddonsToggled, enabled),
+                    )
+                    .inspect_err(|e| error!("[Modules] could not save the modules setting: {e:#}"))
+                    .is_ok()
+                });
             if !saved && let Some(w) = ww.upgrade() {
                 w.set_modules_feature_enabled(!enabled);
             }

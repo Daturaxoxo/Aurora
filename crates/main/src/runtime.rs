@@ -2,11 +2,6 @@ mod selection;
 mod services;
 pub mod startup;
 mod transition;
-use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError, mpsc};
-use std::thread::{self, JoinHandle};
-use std::time::Duration;
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{CommandTag, Readiness, RecordChanges};
 use backend::handler::{EngineCommand, EngineEvent, EngineHandle};
@@ -15,6 +10,11 @@ use shared::classes::games::{
     Game, InstallationFacts, identity::GameId, payload::ResolvedPayloadLayout,
 };
 use shared::config::ConfigChange;
+use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError, mpsc};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use crate::bridge::engine;
 pub use transition::{Reconfigured, TransitionKind};
@@ -51,9 +51,15 @@ pub struct GameContext {
 }
 
 impl GameContext {
-    pub const fn game(&self) -> &'static dyn Game {self.game}
-    pub fn id(&self) -> &GameId {&self.game.descriptor().id}
-    pub const fn generation(&self) -> u64 {self.generation}
+    pub const fn game(&self) -> &'static dyn Game {
+        self.game
+    }
+    pub fn id(&self) -> &GameId {
+        &self.game.descriptor().id
+    }
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
 
     pub fn tag(&self) -> CommandTag {
         CommandTag {
@@ -62,10 +68,16 @@ impl GameContext {
         }
     }
 
-    pub const fn installation(&self) -> Option<&InstallationFacts> {self.installation.as_ref()}
-    pub const fn payload(&self) -> &ResolvedPayloadLayout {&self.payload}
+    pub const fn installation(&self) -> Option<&InstallationFacts> {
+        self.installation.as_ref()
+    }
+    pub const fn payload(&self) -> &ResolvedPayloadLayout {
+        &self.payload
+    }
 
-    pub const fn readiness(&self) -> Readiness {self.readiness}
+    pub const fn readiness(&self) -> Readiness {
+        self.readiness
+    }
 }
 
 impl fmt::Debug for GameContext {
@@ -151,7 +163,9 @@ impl Drop for MutationGuard {
     fn drop(&mut self) {
         let mut state = self.runtime.lock_state();
         state.mutations = state.mutations.saturating_sub(1);
-        if self.session {state.session = false;}
+        if self.session {
+            state.session = false;
+        }
         drop(state);
         self.runtime.drained.notify_all();
         if self.session {

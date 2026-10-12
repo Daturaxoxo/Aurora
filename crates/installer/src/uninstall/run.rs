@@ -126,7 +126,10 @@ fn run_inner(
         }
         let downloads = shared::utils::get_gamebanana_download_root();
         if let Err(e) = crate::logic::remove_download_dir(&downloads) {
-            warn_line(ui, format!("could not delete the GameBanana downloads: {e:#}"));
+            warn_line(
+                ui,
+                format!("could not delete the GameBanana downloads: {e:#}"),
+            );
         }
         advance(ui, &mut step, steps);
     }

@@ -1,11 +1,11 @@
-use std::cell::RefCell;
-use std::time::Duration;
+use crate::MainWindow;
 use log::*;
 use serde_json::json;
 use shared::config::{self, key};
 use shared::display::{center_window, get_monitor_size};
 use slint::{ComponentHandle as _, LogicalSize};
-use crate::MainWindow;
+use std::cell::RefCell;
+use std::time::Duration;
 
 pub const MIN_SIZE: (f32, f32) = (960.0, 540.0);
 const DEFAULT_SIZE: (f32, f32) = (1280.0, 720.0);
@@ -71,7 +71,10 @@ fn saved_window() -> Option<SavedWindow> {
     let width = value.get("width")?.as_f64()? as f32;
     #[allow(clippy::cast_possible_truncation)]
     let height = value.get("height")?.as_f64()? as f32;
-    let maximized = value.get("maximized").and_then(serde_json::Value::as_bool).unwrap_or(false);
+    let maximized = value
+        .get("maximized")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
     (width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0).then_some(
         SavedWindow {
             size: (width, height),
@@ -152,7 +155,7 @@ pub fn start_tracking(window: &slint::Weak<MainWindow>) {
     let default = default_size(monitor_logical_size());
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, TRACK_INTERVAL, move || {
-        let Some(w) = window.upgrade() else {return};
+        let Some(w) = window.upgrade() else { return };
         let slint_window = w.window();
         if !slint_window.is_visible() || slint_window.is_minimized() {
             last_seen = None;

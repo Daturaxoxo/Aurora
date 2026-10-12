@@ -12,14 +12,14 @@ use std::{
     sync::LazyLock,
 };
 
-use anyhow::{Result, anyhow};
-use serde_json::Value;
 use crate::config::ProfileKey;
+use anyhow::{Result, anyhow};
 use capabilities::{
     AddonSupport, CharacterSupport, GameBananaSupport, LaunchArgumentsSupport, LauncherSupport,
     LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport, UnrealSupport,
 };
 use identity::{GameId, SafeRelativePath};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EngineKind {
@@ -189,7 +189,11 @@ fn check_inside(game: &str, field: &str, root: &Path, path: &Path) -> Result<()>
     if inside {
         Ok(())
     } else {
-        Err(anyhow!("{game}: {field} '{}' is not inside '{}'", path.display(), root.display()))
+        Err(anyhow!(
+            "{game}: {field} '{}' is not inside '{}'",
+            path.display(),
+            root.display()
+        ))
     }
 }
 
@@ -209,7 +213,9 @@ fn check_naming(game: &str, field: &'static str, naming: &capabilities::ModNamin
         .iter()
         .find(|t| !naming.extensions.iter().any(|e| e.eq_ignore_ascii_case(t)))
     {
-        return Err(anyhow!("{game}: {field} toggles '{ext}', which is not one of its extensions"));
+        return Err(anyhow!(
+            "{game}: {field} toggles '{ext}', which is not one of its extensions"
+        ));
     }
     if naming.disabled_suffix.len() < 2 || !naming.disabled_suffix.starts_with('.') {
         return Err(anyhow!(
@@ -321,15 +327,30 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
         SafeRelativePath::parse(catalogue.assets)
             .ok()
             .filter(|path| path.components().len() == 1)
-            .ok_or_else(|| anyhow!("{id}: character assets '{}' is not a folder name", catalogue.assets))?;
-        check_list(&id, "characters.aliases", catalogue.aliases.iter().map(|(alias, _)| *alias))?;
+            .ok_or_else(|| {
+                anyhow!(
+                    "{id}: character assets '{}' is not a folder name",
+                    catalogue.assets
+                )
+            })?;
+        check_list(
+            &id,
+            "characters.aliases",
+            catalogue.aliases.iter().map(|(alias, _)| *alias),
+        )?;
         for (alias, target) in catalogue.aliases {
             if target.trim().is_empty() {
-                return Err(anyhow!("{id}: character alias '{alias}' has an empty target"));
+                return Err(anyhow!(
+                    "{id}: character alias '{alias}' has an empty target"
+                ));
             }
         }
         check_list(&id, "characters.hidden", catalogue.hidden.iter().copied())?;
-        check_list(&id, "characters.renamed", catalogue.renamed.iter().map(|(slug, _)| *slug))?;
+        check_list(
+            &id,
+            "characters.renamed",
+            catalogue.renamed.iter().map(|(slug, _)| *slug),
+        )?;
     }
 
     if let Some(gamebanana) = game.gamebanana() {
@@ -337,17 +358,30 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
             return Err(anyhow!("{id}: gamebanana remote game id is 0"));
         }
         if game.mod_manager().is_none() {
-            return Err(anyhow!("{id}: gamebanana needs a mod manager to install into"));
+            return Err(anyhow!(
+                "{id}: gamebanana needs a mod manager to install into"
+            ));
         }
         let characters = gamebanana.characters();
-        check_list(&id, "gamebanana.characters", characters.iter().map(|c| c.name))?;
+        check_list(
+            &id,
+            "gamebanana.characters",
+            characters.iter().map(|c| c.name),
+        )?;
         if let Some(c) = characters.iter().find(|c| c.category == 0) {
-            return Err(anyhow!("{id}: gamebanana character '{}' has category 0", c.name));
+            return Err(anyhow!(
+                "{id}: gamebanana character '{}' has category 0",
+                c.name
+            ));
         }
     }
 
     if let Some(screenshots) = game.screenshots() {
-        check_list(&id, "screenshots.ignored", screenshots.ignored_directories().iter().copied())?;
+        check_list(
+            &id,
+            "screenshots.ignored",
+            screenshots.ignored_directories().iter().copied(),
+        )?;
         let root = Path::new("probe-root");
         let installation = InstallationFacts::new(root.to_path_buf(), "probe", "probe");
         let platform = platform::PlatformPaths {
@@ -371,14 +405,24 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
         && let Some(scale) = unreal.application_scale()
     {
         if scale.min <= 0.0 || scale.min >= scale.max {
-            return Err(anyhow!("{id}: application scale range {}..{} is invalid", scale.min, scale.max));
+            return Err(anyhow!(
+                "{id}: application scale range {}..{} is invalid",
+                scale.min,
+                scale.max
+            ));
         }
-        check_list(&id, "application_scale", [scale.ini.file, scale.ini.section, scale.ini.key])?;
+        check_list(
+            &id,
+            "application_scale",
+            [scale.ini.file, scale.ini.section, scale.ini.key],
+        )?;
     }
 
     if let Some(arguments) = game.launch_arguments() {
         if game.unreal().is_none() {
-            return Err(anyhow!("{id}: launch arguments need unreal config locations to write to"));
+            return Err(anyhow!(
+                "{id}: launch arguments need unreal config locations to write to"
+            ));
         }
         serde_json::from_str::<serde_json::Map<String, Value>>(arguments.catalogue())
             .map_err(|e| anyhow!("{id}: launch argument catalogue is malformed: {e}"))?;
@@ -619,11 +663,26 @@ mod tests {
     fn naming_must_be_coherent() {
         let mut game = Synthetic::new();
         for naming in [
-            ModNaming { extensions: &[], ..NAMING },
-            ModNaming { toggle_extensions: &["asi"], ..NAMING },
-            ModNaming { toggle_extensions: &[], ..NAMING },
-            ModNaming { disabled_suffix: "off", ..NAMING },
-            ModNaming { extensions: &["pak", "PAK"], ..NAMING },
+            ModNaming {
+                extensions: &[],
+                ..NAMING
+            },
+            ModNaming {
+                toggle_extensions: &["asi"],
+                ..NAMING
+            },
+            ModNaming {
+                toggle_extensions: &[],
+                ..NAMING
+            },
+            ModNaming {
+                disabled_suffix: "off",
+                ..NAMING
+            },
+            ModNaming {
+                extensions: &["pak", "PAK"],
+                ..NAMING
+            },
         ] {
             game.mods = Some(("Mods", naming));
             assert!(check(&game).is_err(), "{naming:?} should be rejected");
@@ -640,9 +699,15 @@ mod tests {
         assert_eq!(mods.classify_name("a.txt.disabled"), FileState::Other);
 
         // only paks are renamed off, anything disabled comes back
-        assert_eq!(mods.toggle_name("a.pak", false).as_deref(), Some("a.pak.disabled"));
+        assert_eq!(
+            mods.toggle_name("a.pak", false).as_deref(),
+            Some("a.pak.disabled")
+        );
         assert_eq!(mods.toggle_name("a.utoc", false), None);
-        assert_eq!(mods.toggle_name("a.utoc.disabled", true).as_deref(), Some("a.utoc"));
+        assert_eq!(
+            mods.toggle_name("a.utoc.disabled", true).as_deref(),
+            Some("a.utoc")
+        );
         assert_eq!(mods.toggle_name("a.pak", true), None);
 
         assert_eq!(mods.naming().display_name("Shinku_P"), "Shinku");
@@ -680,12 +745,18 @@ mod tests {
             .iter()
             .map(|s| s.kind)
             .collect();
-        assert_eq!(kinds, vec![ScreenshotSourceKind::Game, ScreenshotSourceKind::Pictures]);
+        assert_eq!(
+            kinds,
+            vec![ScreenshotSourceKind::Game, ScreenshotSourceKind::Pictures]
+        );
         assert!(shots.ignored_directories().contains(&"66666"));
 
         // no installation still lists Pictures, no Pictures still lists the game
         assert_eq!(shots.sources(None, &platform).len(), 1);
-        assert_eq!(shots.sources(Some(&facts), &PlatformPaths::default()).len(), 1);
+        assert_eq!(
+            shots.sources(Some(&facts), &PlatformPaths::default()).len(),
+            1
+        );
     }
 
     #[test]
@@ -695,14 +766,22 @@ mod tests {
         assert!(layout.scripts.starts_with("payload"));
         assert!(layout.settings.starts_with("payload"));
         assert_eq!(layout.deploy.len(), 2);
-        assert!(layout.deploy.iter().all(|d| d.destination.starts_with("game")));
+        assert!(
+            layout
+                .deploy
+                .iter()
+                .all(|d| d.destination.starts_with("game"))
+        );
         assert_eq!(lua.layout(Path::new("payload"), None).deploy, Vec::new());
     }
 
     #[test]
     fn nte_unreal_reads_nothing_without_a_local_app_data_folder() {
         let unreal = find_game("nte").unwrap().unreal().unwrap();
-        assert_eq!(unreal.config_locations(&PlatformPaths::default()), Vec::<PathBuf>::new());
+        assert_eq!(
+            unreal.config_locations(&PlatformPaths::default()),
+            Vec::<PathBuf>::new()
+        );
         let scale = unreal.application_scale().unwrap();
         assert_eq!(scale.ini.file, "Engine.ini");
     }

@@ -69,7 +69,10 @@ impl CacheManager {
         match std::fs::remove_file(path) {
             Ok(()) => true,
             Err(e) => {
-                warn!("Could not remove {why} GameBanana cache '{}': {e}", path.display());
+                warn!(
+                    "Could not remove {why} GameBanana cache '{}': {e}",
+                    path.display()
+                );
                 false
             }
         }

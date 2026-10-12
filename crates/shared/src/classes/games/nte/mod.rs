@@ -18,9 +18,8 @@ use serde_json::Value;
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
     capabilities::{
-        AddonSupport, CharacterSupport, GameBananaSupport, LaunchArgumentsSupport,
-        LauncherSupport, LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport,
-        UnrealSupport,
+        AddonSupport, CharacterSupport, GameBananaSupport, LaunchArgumentsSupport, LauncherSupport,
+        LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport, UnrealSupport,
     },
     identity::{GameId, SafeRelativePath},
 };

@@ -12,9 +12,9 @@ use anyhow::{Context, Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Map;
 use serde_json::Value;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive_with_progress};
-use serde_json::Map;
 use shared::classes::gamebanana::types::GbModFile;
 use shared::classes::games::{
     Game,
@@ -87,7 +87,7 @@ fn is_disabled(naming: &ModNaming, name: &std::ffi::OsStr) -> bool {
 }
 
 #[derive(Clone)]
-pub(crate) struct ModScope {
+pub struct ModScope {
     game: &'static dyn Game,
     generation: u64,
     root: PathBuf,
@@ -98,9 +98,9 @@ pub(crate) struct ModScope {
 impl ModScope {
     fn of(context: &GameContext) -> Result<Self> {
         let game = context.game();
-        let mods = game.mod_manager().ok_or_else(|| {
-            anyhow!("{} does not support mods", game.descriptor().display_name)
-        })?;
+        let mods = game
+            .mod_manager()
+            .ok_or_else(|| anyhow!("{} does not support mods", game.descriptor().display_name))?;
         let installation = context
             .installation()
             .ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
@@ -241,7 +241,7 @@ impl ModManager {
             .into_owned();
 
         let files = read_dir_recursive(folder);
-        let is_enabled = !files.iter().any(|p| is_disabled(naming, &p.file_name()));
+        let is_enabled = !files.iter().any(|p| is_disabled(naming, p.file_name()));
 
         let folder_meta = std::fs::metadata(folder).ok();
         let added = folder_meta
@@ -504,7 +504,7 @@ impl ModManager {
         let files = read_dir_recursive(&folder);
         let disabled: Vec<_> = files
             .iter()
-            .filter(|p| is_disabled(naming, &p.file_name()))
+            .filter(|p| is_disabled(naming, p.file_name()))
             .collect();
 
         if disabled.is_empty() {
@@ -704,7 +704,11 @@ pub fn profile_map(game: &dyn Game, key: ProfileKey) -> Map<String, Value> {
     }
 }
 
-fn update_profile_map(game: &dyn Game, key: ProfileKey, change: impl FnOnce(&mut Map<String, Value>) -> bool) {
+fn update_profile_map(
+    game: &dyn Game,
+    key: ProfileKey,
+    change: impl FnOnce(&mut Map<String, Value>) -> bool,
+) {
     let mut map = profile_map(game, key);
     if !change(&mut map) {
         return;
@@ -719,7 +723,9 @@ fn update_profile_map(game: &dyn Game, key: ProfileKey, change: impl FnOnce(&mut
 
 pub fn profile_map_set(game: &dyn Game, key: ProfileKey, entry: &str, value: Option<&str>) {
     update_profile_map(game, key, |map| match value {
-        Some(v) => map.insert(entry.to_string(), Value::from(v)).is_none_or(|old| old != v),
+        Some(v) => map
+            .insert(entry.to_string(), Value::from(v))
+            .is_none_or(|old| old != v),
         None => map.remove(entry).is_some(),
     });
 }
@@ -1350,7 +1356,11 @@ impl ModManagerHandler {
 
         let target = mods_path.join(&name);
 
-        if scope.game.mod_manager().is_some_and(|mods| mods.validate_entry(path).is_ok()) {
+        if scope
+            .game
+            .mod_manager()
+            .is_some_and(|mods| mods.validate_entry(path).is_ok())
+        {
             Self::install_into(&target, |staging| {
                 for file in unit {
                     std::fs::copy(
@@ -1400,7 +1410,10 @@ impl ModManagerHandler {
             if folder.starts_with(&scope.root) {
                 Ok((guard, scope))
             } else {
-                Err(anyhow!("'{}' is not one of the current game's mods", folder.display()))
+                Err(anyhow!(
+                    "'{}' is not one of the current game's mods",
+                    folder.display()
+                ))
             }
         });
         let (guard, scope) = match scoped {
@@ -1430,7 +1443,7 @@ impl ModManagerHandler {
 
             let was_enabled = !read_dir_recursive(&folder)
                 .iter()
-                .any(|p| is_disabled(&scope.naming, &p.file_name()));
+                .any(|p| is_disabled(&scope.naming, p.file_name()));
 
             let outcome = Self::replace_folder(&folder, &downloaded, &scope.naming, &mut |frac| {
                 Self::set_progress(&ww, frac, format!("Updating {name}..."));
@@ -2302,7 +2315,10 @@ impl ModManagerHandler {
                 PathBuf::from(&group_id)
             };
             if !target_dir.starts_with(&scope.root) {
-                error!("not moving mods into '{}': outside the mods folder", target_dir.display());
+                error!(
+                    "not moving mods into '{}': outside the mods folder",
+                    target_dir.display()
+                );
                 return;
             }
 
@@ -2444,7 +2460,10 @@ impl ModManagerHandler {
     fn delete_group_folder(scope: &ModScope, group_path: &Path) {
         let mods_path = &scope.root;
         if group_path.parent() != Some(mods_path.as_path()) {
-            error!("not deleting '{}': not a group folder", group_path.display());
+            error!(
+                "not deleting '{}': not a group folder",
+                group_path.display()
+            );
             return;
         }
 

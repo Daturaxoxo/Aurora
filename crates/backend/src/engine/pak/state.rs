@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
 use log::*;
+use shared::classes::games::capabilities::LuaLayout;
+use shared::classes::games::find_game;
 use shared::classes::games::nte::{
     paths::{VersionPaths, get_version_paths},
     version::{BypassMethod, Distribution, Version},
 };
-use shared::classes::games::capabilities::LuaLayout;
-use shared::classes::games::find_game;
 use shared::classes::games::payload::ResolvedPayloadLayout;
 use shared::classes::info::Target;
 

@@ -1,7 +1,7 @@
 use crate::classes::characters;
 use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
-use crate::runtime::{self, MutationGuard};
+use crate::runtime::{self, GameRuntime, MutationGuard};
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 use anyhow::{Result, anyhow};
 use log::*;
@@ -562,10 +562,12 @@ impl GbBrowserHandler {
                 match api_mode {
                     Mode::Feed => API.get_mods(&remote, page, false, Some(tx)).await,
                     Mode::Search(query) => {
-                        API.search_mods(&remote, &query, page, false, Some(tx)).await
+                        API.search_mods(&remote, &query, page, false, Some(tx))
+                            .await
                     }
                     Mode::Category(id) => {
-                        API.get_category_mods(&remote, id, page, false, Some(tx)).await
+                        API.get_category_mods(&remote, id, page, false, Some(tx))
+                            .await
                     }
                     Mode::Partial(_) => Ok(Vec::new()),
                 }
@@ -759,12 +761,20 @@ impl GbBrowserHandler {
 
     fn finish_install() {
         INSTALL_STATE.store(INSTALL_IDLE, Ordering::SeqCst);
-        INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        INSTALL_GUARD
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
     }
 
     fn browse_guard() -> Result<MutationGuard> {
         let guard = runtime::get()?.try_begin_mutation()?;
-        let browsed = STATE.lock().unwrap().scope.as_ref().map(|s| s.game.descriptor().id.clone());
+        let browsed = STATE
+            .lock()
+            .unwrap()
+            .scope
+            .as_ref()
+            .map(|s| s.game.descriptor().id.clone());
         if browsed.as_ref() != Some(guard.context().id()) {
             return Err(anyhow!("the selected game changed, reopen the browser"));
         }
@@ -828,7 +838,7 @@ impl GbBrowserHandler {
             name: source.name,
             thumb: None,
         };
-        let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+        let guard = match runtime::get().and_then(GameRuntime::try_begin_mutation) {
             Ok(guard) => guard,
             Err(e) => {
                 if let Some(w) = window.upgrade() {

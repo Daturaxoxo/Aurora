@@ -1,13 +1,13 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use log::*;
-use shared::classes::games::{identity::GameId, registry};
-use slint::VecModel;
 use crate::bridge::Bridge;
 use crate::runtime::{self, Admission};
 use crate::translations::tr;
 use crate::{GameChoice, MainWindow};
+use log::*;
+use shared::classes::games::{identity::GameId, registry};
+use slint::VecModel;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 include!(concat!(env!("OUT_DIR"), "/game_tiles.rs"));
 
@@ -55,7 +55,7 @@ impl GamesHandler {
             error!("The game selector sent an invalid id '{id}'");
             return;
         };
-        let Ok(runtime) = runtime::get() else {return};
+        let Ok(runtime) = runtime::get() else { return };
 
         if runtime.snapshot().game.descriptor().id == id {
             w.set_show_games(false);
@@ -95,7 +95,9 @@ impl GamesHandler {
             .into_rgba8();
 
         let (width, height) = decoded.dimensions();
-        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&decoded, width, height);
+        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+            &decoded, width, height,
+        );
         Some(slint::Image::from_rgba8(buffer))
     }
 }
