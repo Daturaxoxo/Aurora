@@ -1,13 +1,13 @@
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use super::PakEngine;
+use super::files::FileGroup;
+use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
+use crate::classes::validate::validate_files;
 use anyhow::Result;
 use log::*;
 use shared::{classes::games::nte::Target, config::key};
-use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
-use crate::classes::validate::validate_files;
-use super::PakEngine;
-use super::files::FileGroup;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 static ATTEMPTED: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
 
 fn first_attempt(path: &Path) -> bool {
@@ -65,7 +65,9 @@ impl PakEngine {
     }
 
     pub(super) fn repair_censorship_files(&self) {
-        if !self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {return}
+        if !self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {
+            return;
+        }
 
         let folder = self.payload.addons().join(CENSORSHIP_DIR);
         for (target, _) in self
@@ -74,7 +76,9 @@ impl PakEngine {
             .filter(|(t, _)| matches!(t, Target::AuroraTf | Target::CNAuroraTF))
         {
             let source = self.asi_source(*target);
-            if source.exists() || !first_attempt(&source) {continue}
+            if source.exists() || !first_attempt(&source) {
+                continue;
+            }
 
             match repair_file(&folder, target.as_file()) {
                 Ok(()) => info!("Addon repair: restored '{}'", source.display()),

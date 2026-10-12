@@ -7,34 +7,68 @@ struct MenuItem {
     name: string,
     icon: image,
     disabled: bool,
+    hidden: bool,
 }
 
 export component MenuPage inherits Rectangle {
     callback close-menu();
     callback menu-item-clicked(int);
 
+    in property <bool> screenshots-supported: true;
+    in property <bool> lua-supported: true;
+    in property <bool> modules-supported: true;
+    in property <bool> addons-supported: true;
+
     in property <[MenuItem]> items: [
         {
             id: 0,
             name: Tr.values[TrKey.menu-item-screenshots],
-            icon: Icons.menu-camera
+            icon: Icons.menu-camera,
+            hidden: !root.screenshots-supported
         },
         {
             id: 2,
             name: Tr.values[TrKey.menu-item-lua],
-            icon: Icons.menu-lua
+            icon: Icons.menu-lua,
+            hidden: !root.lua-supported
         },
         {
             id: 3,
             name: Tr.values[TrKey.menu-item-modules],
-            icon: Icons.menu-modules
+            icon: Icons.menu-modules,
+            hidden: !root.modules-supported
         },
         {
             id: 4,
             name: Tr.values[TrKey.menu-item-addons],
-            icon: Icons.menu-addons
+            icon: Icons.menu-addons,
+            hidden: !root.addons-supported
         },
     ];
+
+    property <[int]> slot-item: [
+        root.item-in-slot(0),
+        root.item-in-slot(1),
+        root.item-in-slot(2),
+        root.item-in-slot(3),
+    ];
+
+    pure function item-in-slot(slot: int) -> int {
+        if (root.shown-before(4) <= slot) {
+            return -1;
+        }
+        if (!root.items[0].hidden && root.shown-before(0) == slot) { return 0; }
+        if (!root.items[1].hidden && root.shown-before(1) == slot) { return 1; }
+        if (!root.items[2].hidden && root.shown-before(2) == slot) { return 2; }
+        return 3;
+    }
+
+    pure function shown-before(index: int) -> int {
+        (index > 0 && !root.items[0].hidden ? 1 : 0)
+            + (index > 1 && !root.items[1].hidden ? 1 : 0)
+            + (index > 2 && !root.items[2].hidden ? 1 : 0)
+            + (index > 3 && !root.items[3].hidden ? 1 : 0)
+    }
     background: Palette.shade-66;
 
     TouchArea {
@@ -120,19 +154,20 @@ export component MenuPage inherits Rectangle {
                     preferred-width: 0px;
                     horizontal-stretch: 1;
                     spacing: 12px;
-                    for i in [0, 2]: Rectangle {
-                        height: 100px;
-                        visible: i < root.items.length;
-                        background: root.items[i].disabled ? Palette.fg-05 : (ta-left.has-hover ? Palette.fg-12 : Palette.fg-08);
+                    for slot in [0, 2]: left-tile := Rectangle {
+                        property <int> k: root.slot-item[slot];
+                        height: self.k >= 0 ? 100px : 0px;
+                        visible: self.k >= 0;
+                        background: root.items[left-tile.k].disabled ? Palette.fg-05 : (ta-left.has-hover ? Palette.fg-12 : Palette.fg-08);
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: !root.items[i].disabled && ta-left.has-hover ? Palette.fg-28 : Palette.glass-border;
+                        border-color: !root.items[left-tile.k].disabled && ta-left.has-hover ? Palette.fg-28 : Palette.glass-border;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
                         ta-left := TouchArea {
-                            enabled: i < root.items.length && !root.items[i].disabled;
-                            clicked => { root.menu-item-clicked(root.items[i].id); }
+                            enabled: left-tile.k >= 0 && !root.items[left-tile.k].disabled;
+                            clicked => { root.menu-item-clicked(root.items[left-tile.k].id); }
                         }
 
                         VerticalLayout {
@@ -143,25 +178,25 @@ export component MenuPage inherits Rectangle {
                             HorizontalLayout {
                                 alignment: center;
                                 Image {
-                                    source: root.items[i].icon;
+                                    source: root.items[left-tile.k].icon;
                                     width: 32px;
                                     height: 32px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    opacity: root.items[i].disabled ? 0.35 : (ta-left.has-hover ? 1.0 : 0.8);
+                                    opacity: root.items[left-tile.k].disabled ? 0.35 : (ta-left.has-hover ? 1.0 : 0.8);
                                     animate opacity { duration: 120ms; }
                                 }
                             }
 
                             Text {
-                                text: root.items[i].name;
-                                color: root.items[i].disabled ? Palette.fg-66 : Palette.fg-dd;
+                                text: root.items[left-tile.k].name;
+                                color: root.items[left-tile.k].disabled ? Palette.fg-66 : Palette.fg-dd;
                                 font-size: 13px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
                             }
 
-                            if root.items[i].disabled: Text {
+                            if root.items[left-tile.k].disabled: Text {
                                 text: "Coming Soon";
                                 color: Palette.fg-55;
                                 font-size: 10px;
@@ -178,19 +213,20 @@ export component MenuPage inherits Rectangle {
                     preferred-width: 0px;
                     horizontal-stretch: 1;
                     spacing: 12px;
-                    for i in [1, 3]: Rectangle {
-                        height: 100px;
-                        visible: i < root.items.length;
-                        background: root.items[i].disabled ? Palette.fg-05 : (ta-right.has-hover ? Palette.fg-12 : Palette.fg-08);
+                    for slot in [1, 3]: right-tile := Rectangle {
+                        property <int> k: root.slot-item[slot];
+                        height: self.k >= 0 ? 100px : 0px;
+                        visible: self.k >= 0;
+                        background: root.items[right-tile.k].disabled ? Palette.fg-05 : (ta-right.has-hover ? Palette.fg-12 : Palette.fg-08);
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: !root.items[i].disabled && ta-right.has-hover ? Palette.fg-28 : Palette.glass-border;
+                        border-color: !root.items[right-tile.k].disabled && ta-right.has-hover ? Palette.fg-28 : Palette.glass-border;
                         animate background { duration: 120ms; }
                         animate border-color { duration: 120ms; }
 
                         ta-right := TouchArea {
-                            enabled: i < root.items.length && !root.items[i].disabled;
-                            clicked => { root.menu-item-clicked(root.items[i].id); }
+                            enabled: right-tile.k >= 0 && !root.items[right-tile.k].disabled;
+                            clicked => { root.menu-item-clicked(root.items[right-tile.k].id); }
                         }
 
                         VerticalLayout {
@@ -201,25 +237,25 @@ export component MenuPage inherits Rectangle {
                             HorizontalLayout {
                                 alignment: center;
                                 Image {
-                                    source: root.items[i].icon;
+                                    source: root.items[right-tile.k].icon;
                                     width: 32px;
                                     height: 32px;
                                     image-rendering: smooth;
                                     image-fit: contain;
-                                    opacity: root.items[i].disabled ? 0.35 : (ta-right.has-hover ? 1.0 : 0.8);
+                                    opacity: root.items[right-tile.k].disabled ? 0.35 : (ta-right.has-hover ? 1.0 : 0.8);
                                     animate opacity { duration: 120ms; }
                                 }
                             }
 
                             Text {
-                                text: root.items[i].name;
-                                color: root.items[i].disabled ? Palette.fg-66 : Palette.fg-dd;
+                                text: root.items[right-tile.k].name;
+                                color: root.items[right-tile.k].disabled ? Palette.fg-66 : Palette.fg-dd;
                                 font-size: 13px;
                                 font-weight: 600;
                                 horizontal-alignment: center;
                             }
 
-                            if root.items[i].disabled: Text {
+                            if root.items[right-tile.k].disabled: Text {
                                 text: "Coming Soon";
                                 color: Palette.fg-55;
                                 font-size: 10px;

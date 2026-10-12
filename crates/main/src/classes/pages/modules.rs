@@ -1,11 +1,16 @@
-use crate::classes::pages::modmanager::{config_map, config_map_set};
+use crate::classes::pages::modmanager::{profile_map, profile_map_set};
+use crate::runtime::{self, GameContext, GameRuntime, MutationGuard};
 use crate::{MainWindow, ModItem, ModTag};
 
 use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use shared::config::{self, key};
+use shared::classes::games::{
+    Game,
+    capabilities::{FileState, ModNaming},
+};
+use shared::config::{self, ProfileKey, ProfilePatch};
 use slint::{Model, VecModel};
 
 use std::collections::HashSet;
@@ -14,8 +19,50 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const DISABLED_SUFFIX: &str = ".disabled";
-const MODULE_EXTENSIONS: [&str; 1] = ["asi"];
+#[derive(Clone)]
+struct ModuleScope {
+    game: &'static dyn Game,
+    generation: u64,
+    storage: PathBuf,
+    naming: ModNaming,
+}
+
+impl ModuleScope {
+    fn of(context: &GameContext) -> Result<Self> {
+        let game = context.game();
+        let modules = game.modules().ok_or_else(|| {
+            anyhow!(
+                "{} does not support modules",
+                game.descriptor().display_name
+            )
+        })?;
+        let layout = modules.layout(&config::game_modules_path(context.id()));
+        Ok(Self {
+            game,
+            generation: context.generation(),
+            storage: layout.storage,
+            naming: layout.naming,
+        })
+    }
+
+    fn current() -> Result<Self> {
+        let context = runtime::get()?
+            .snapshot()
+            .context
+            .ok_or_else(|| anyhow!("no game is loaded yet"))?;
+        Self::of(&context)
+    }
+
+    fn guarded() -> Result<(MutationGuard, Self)> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let scope = Self::of(guard.context())?;
+        let shown = STATE.lock().unwrap().scope.as_ref().map(|s| s.generation);
+        if shown != Some(scope.generation) {
+            return Err(anyhow!("the selected game changed, try again"));
+        }
+        Ok((guard, scope))
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Module {
@@ -30,6 +77,7 @@ struct State {
     displayed: Vec<String>,
     selected: HashSet<String>,
     search: String,
+    scope: Option<ModuleScope>,
 }
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
@@ -44,22 +92,37 @@ impl ModulesHandler {
     pub fn setup(window: &slint::Weak<MainWindow>) {
         info!("[Modules] setup() called");
 
-        let w = window.unwrap();
-        w.set_modules_feature_enabled(
-            config::get(key::CUSTOM_ADDONS_TOGGLED)
-                .as_bool()
-                .unwrap_or(false),
-        );
-
         Self::bind(window);
         Self::reload(window);
         info!("[Modules] setup() complete");
     }
 
-    fn modules_path() -> PathBuf {
-        config::get_userdata_path()
-            .join("ThirdParty")
-            .join("Modules")
+    fn feature_enabled(game: &dyn Game) -> bool {
+        config::read_profile(&game.descriptor().id)
+            .map(|profile| profile.value(ProfileKey::CustomAddonsToggled, game))
+            .ok()
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    fn refuse(window: &slint::Weak<MainWindow>, action: &str, error: &anyhow::Error) {
+        warn!("[Modules] refused to {action}: {error:#}");
+        let text = format!("Could not {action} - {error:#}");
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(win) = ww.upgrade() {
+                Self::show_toast(&win, "error", text);
+            }
+        });
+    }
+
+    fn begin(
+        window: &slint::Weak<MainWindow>,
+        action: &str,
+    ) -> Option<(MutationGuard, ModuleScope)> {
+        ModuleScope::guarded()
+            .map_err(|e| Self::refuse(window, action, &e))
+            .ok()
     }
 
     fn default_name(id: &str) -> String {
@@ -78,11 +141,11 @@ impl ModulesHandler {
             .cloned()
     }
 
-    fn scan() -> Vec<Module> {
-        let dir = Self::modules_path();
+    fn scan(scope: &ModuleScope) -> Vec<Module> {
+        let dir = &scope.storage;
         let mut modules = Vec::new();
 
-        let Ok(entries) = std::fs::read_dir(&dir) else {
+        let Ok(entries) = std::fs::read_dir(dir) else {
             return modules;
         };
 
@@ -95,20 +158,17 @@ impl ModulesHandler {
                 continue;
             };
 
-            let (id, enabled) = name.strip_suffix(DISABLED_SUFFIX).map_or_else(
-                || (name.to_string(), true),
-                |base| (base.to_string(), false),
-            );
-
-            let ext = Path::new(&id)
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_lowercase();
-            if !MODULE_EXTENSIONS.contains(&ext.as_str()) {
-                warn!("[Modules] scan: skipping unknown file '{name}'");
-                continue;
-            }
+            let (id, enabled) = match scope.naming.classify(name) {
+                FileState::Enabled => (name.to_string(), true),
+                FileState::Disabled => match scope.naming.toggled(name, true) {
+                    Some(base) => (base, false),
+                    None => continue,
+                },
+                FileState::Other => {
+                    warn!("[Modules] scan: skipping unknown file '{name}'");
+                    continue;
+                }
+            };
 
             modules.push(Module { id, path, enabled });
         }
@@ -117,7 +177,7 @@ impl ModulesHandler {
         modules
     }
 
-    fn sync_custom_addons(generation: u64, modules: &[Module]) {
+    fn sync_custom_addons(generation: u64, scope: &ModuleScope, modules: &[Module]) {
         let mut synced = ADDONS_SYNC.lock().unwrap();
         if generation < *synced {
             return;
@@ -125,28 +185,56 @@ impl ModulesHandler {
         *synced = generation;
         drop(synced);
 
+        let guard = match runtime::get().and_then(GameRuntime::try_begin_mutation) {
+            Ok(guard) if guard.context().generation() == scope.generation => guard,
+            Ok(_) => return,
+            Err(e) => {
+                debug!("[Modules] not saving the module list now: {e}");
+                return;
+            }
+        };
+
         let paths: Vec<Value> = modules
             .iter()
             .filter(|m| m.enabled)
             .map(|m| Value::from(m.path.to_string_lossy().into_owned()))
             .collect();
 
-        if !config::modify(|data| {
-            data.insert(key::CUSTOM_ADDONS.to_string(), Value::Array(paths));
-        }) {
-            error!("[Modules] could not save the custom addon list");
+        let current = config::read_profile(&scope.game.descriptor().id)
+            .ok()
+            .and_then(|profile| profile.get(ProfileKey::CustomAddons).cloned());
+        if current.as_ref() != Some(&Value::Array(paths.clone()))
+            && let Err(e) = config::update_profile(
+                &scope.game.descriptor().id,
+                &ProfilePatch::new().set(ProfileKey::CustomAddons, Value::Array(paths)),
+            )
+        {
+            error!("[Modules] could not save the custom addon list: {e:#}");
         }
+        drop(guard);
     }
 
     pub(crate) fn reload(window: &slint::Weak<MainWindow>) {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
         std::thread::spawn(move || {
-            let modules = Self::scan();
-            Self::sync_custom_addons(generation, &modules);
+            let scope = ModuleScope::current()
+                .inspect_err(|e| debug!("[Modules] nothing to scan: {e}"))
+                .ok();
+            let modules = scope.as_ref().map_or_default(Self::scan);
+            if let Some(scope) = &scope {
+                Self::sync_custom_addons(generation, scope, &modules);
+            }
+            let enabled = scope
+                .as_ref()
+                .is_some_and(|s| Self::feature_enabled(s.game));
 
             let _ = slint::invoke_from_event_loop(move || {
-                if GENERATION.load(Ordering::SeqCst) != generation {
+                if GENERATION.load(Ordering::SeqCst) != generation
+                    || scope
+                        .as_ref()
+                        .is_some_and(|s| !runtime::is_current_generation(s.generation))
+                {
                     return;
                 }
                 let Some(w) = ww.upgrade() else {
@@ -154,15 +242,26 @@ impl ModulesHandler {
                     return;
                 };
 
-                STATE.lock().unwrap().scanned = modules;
+                {
+                    let mut state = STATE.lock().unwrap();
+                    let previous = state.scope.as_ref().map(|s| s.game.descriptor().id.clone());
+                    if previous != scope.as_ref().map(|s| s.game.descriptor().id.clone()) {
+                        state.selected.clear();
+                        state.search.clear();
+                    }
+                    state.scope = scope;
+                    state.scanned = modules;
+                }
+                w.set_modules_feature_enabled(enabled);
                 Self::rebuild(&w);
             });
         });
     }
 
     fn rebuild(w: &MainWindow) {
-        let display_names = config_map(key::MOD_DISPLAY_NAMES);
-        let notes = config_map(key::MOD_NOTES);
+        let game = STATE.lock().unwrap().scope.as_ref().map(|s| s.game);
+        let display_names = game.map_or_default(|g| profile_map(g, ProfileKey::ModDisplayNames));
+        let notes = game.map_or_default(|g| profile_map(g, ProfileKey::ModNotes));
 
         let shown_name = |m: &Module| -> String {
             display_names
@@ -244,9 +343,9 @@ impl ModulesHandler {
         w.set_toast_active(true);
     }
 
-    fn install_path(path: &Path) -> Result<String> {
-        let dir = Self::modules_path();
-        std::fs::create_dir_all(&dir)?;
+    fn install_path(path: &Path, scope: &ModuleScope) -> Result<String> {
+        let dir = &scope.storage;
+        std::fs::create_dir_all(dir)?;
 
         let file_name = path
             .file_name()
@@ -254,17 +353,19 @@ impl ModulesHandler {
             .filter(|n| !n.is_empty())
             .ok_or_else(|| anyhow!("invalid file name"))?;
 
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        if !MODULE_EXTENSIONS.contains(&ext.as_str()) {
-            return Err(anyhow!("unsupported file type '.{ext}'"));
+        if scope.naming.classify(file_name) != FileState::Enabled {
+            return Err(anyhow!(
+                "unsupported file type, expected .{}",
+                scope.naming.extensions.join(", .")
+            ));
         }
 
         let target = dir.join(file_name);
-        if target.exists() || dir.join(format!("{file_name}{DISABLED_SUFFIX}")).exists() {
+        let disabled = scope
+            .naming
+            .toggled(file_name, false)
+            .map(|name| dir.join(name));
+        if target.exists() || disabled.is_some_and(|d| d.exists()) {
             return Err(anyhow!("a module with this name already exists"));
         }
 
@@ -273,13 +374,16 @@ impl ModulesHandler {
     }
 
     pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
+        let Some((guard, scope)) = Self::begin(window, "install the modules") else {
+            return;
+        };
         let ww = window.clone();
         std::thread::spawn(move || {
             let mut installed: Vec<String> = Vec::new();
             let mut failed: Vec<String> = Vec::new();
 
             for path in &paths {
-                match Self::install_path(path) {
+                match Self::install_path(path, &scope) {
                     Ok(name) => {
                         info!("[Modules] installed '{name}' from '{}'", path.display());
                         installed.push(name);
@@ -311,18 +415,20 @@ impl ModulesHandler {
                 }
             });
 
+            drop(guard);
             Self::reload(&ww);
         });
     }
 
-    fn toggle_module(module: &Module) -> Result<()> {
-        let new = if module.enabled {
-            module
-                .path
-                .with_file_name(format!("{}{DISABLED_SUFFIX}", module.id))
-        } else {
-            module.path.with_file_name(module.id.clone())
-        };
+    fn toggle_module(module: &Module, naming: &ModNaming) -> Result<()> {
+        let name = module
+            .path
+            .file_name()
+            .map_or_default(|n| n.to_string_lossy().into_owned());
+        let new = naming
+            .toggled(&name, !module.enabled)
+            .map(|name| module.path.with_file_name(name))
+            .ok_or_else(|| anyhow!("'{name}' cannot be toggled"))?;
         std::fs::rename(&module.path, &new)?;
         trace!(
             "[Modules] renamed '{}' → '{}'",
@@ -339,11 +445,20 @@ impl ModulesHandler {
 
         let ww = window.clone();
         w.on_module_choose(move || {
+            let Some(extensions) = STATE
+                .lock()
+                .unwrap()
+                .scope
+                .as_ref()
+                .map(|s| s.naming.extensions)
+            else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
                 let picked = rfd::FileDialog::new()
                     .set_title("Select Modules")
-                    .add_filter("Modules", &MODULE_EXTENSIONS)
+                    .add_filter("Modules", extensions)
                     .pick_files();
 
                 if let Some(files) = picked {
@@ -363,10 +478,14 @@ impl ModulesHandler {
             let Some(m) = Self::module_by_id(&id) else {
                 return;
             };
+            let Some((_guard, scope)) = Self::begin(&ww, "rename the module") else {
+                return;
+            };
             let name = new_name.trim();
 
-            config_map_set(
-                key::MOD_DISPLAY_NAMES,
+            profile_map_set(
+                scope.game,
+                ProfileKey::ModDisplayNames,
                 &m.id,
                 (!name.is_empty()).then_some(name),
             );
@@ -385,25 +504,37 @@ impl ModulesHandler {
             let Some(m) = Self::module_by_id(&id) else {
                 return;
             };
+            let Some((_guard, scope)) = Self::begin(&ww, "save the notes") else {
+                return;
+            };
             let notes = notes.trim().to_string();
 
-            config_map_set(key::MOD_NOTES, &m.id, (!notes.is_empty()).then_some(&notes));
+            profile_map_set(
+                scope.game,
+                ProfileKey::ModNotes,
+                &m.id,
+                (!notes.is_empty()).then_some(&notes),
+            );
             Self::update_row(&win, &id, |row| row.notes = notes.as_str().into());
         });
 
         let ww = window.clone();
         w.on_module_delete(move |id, name| {
+            let Some((guard, scope)) = Self::begin(&ww, "delete the module") else {
+                return;
+            };
             let ww = ww.clone();
             let name = name.to_string();
             let id = id.to_string();
             std::thread::spawn(move || {
+                let _guard = guard;
                 if let Some(m) = Self::module_by_id(&id) {
                     match std::fs::remove_file(&m.path) {
                         Ok(()) => {
                             info!("[Modules] deleted '{}'", m.path.display());
                             // Drop leftover per-module config entries
-                            config_map_set(key::MOD_NOTES, &m.id, None);
-                            config_map_set(key::MOD_DISPLAY_NAMES, &m.id, None);
+                            profile_map_set(scope.game, ProfileKey::ModNotes, &m.id, None);
+                            profile_map_set(scope.game, ProfileKey::ModDisplayNames, &m.id, None);
 
                             let ww2 = ww.clone();
                             let _ = slint::invoke_from_event_loop(move || {
@@ -424,10 +555,14 @@ impl ModulesHandler {
         let ww = window.clone();
         w.on_module_toggle(move |id| {
             let id = id.to_string();
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the module") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 if let Some(m) = Self::module_by_id(&id)
-                    && let Err(e) = Self::toggle_module(&m)
+                    && let Err(e) = Self::toggle_module(&m, &scope.naming)
                 {
                     error!("[Modules] could not toggle '{}': {e}", m.id);
                 }
@@ -474,8 +609,12 @@ impl ModulesHandler {
 
         let ww = window.clone();
         w.on_modules_toggle_selected(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the modules") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let modules: Vec<Module> = {
                     let state = STATE.lock().unwrap();
                     state
@@ -486,7 +625,7 @@ impl ModulesHandler {
                         .collect()
                 };
                 for m in &modules {
-                    if let Err(e) = Self::toggle_module(m) {
+                    if let Err(e) = Self::toggle_module(m, &scope.naming) {
                         error!("[Modules] could not toggle '{}': {e}", m.id);
                     }
                 }
@@ -496,8 +635,12 @@ impl ModulesHandler {
 
         let ww = window.clone();
         w.on_modules_delete_selected(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "delete the modules") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let modules: Vec<Module> = {
                     let state = STATE.lock().unwrap();
                     state
@@ -511,8 +654,8 @@ impl ModulesHandler {
                     match std::fs::remove_file(&m.path) {
                         Ok(()) => {
                             info!("[Modules] deleted '{}'", m.path.display());
-                            config_map_set(key::MOD_NOTES, &m.id, None);
-                            config_map_set(key::MOD_DISPLAY_NAMES, &m.id, None);
+                            profile_map_set(scope.game, ProfileKey::ModNotes, &m.id, None);
+                            profile_map_set(scope.game, ProfileKey::ModDisplayNames, &m.id, None);
                         }
                         Err(e) => {
                             error!("[Modules] could not delete '{}': {e}", m.path.display());
@@ -531,9 +674,21 @@ impl ModulesHandler {
             Self::rebuild(&win);
         });
 
+        let ww = window.clone();
         w.on_modules_feature_toggled(move |enabled| {
             info!("[Modules] feature toggled -> {enabled}");
-            config::set(key::CUSTOM_ADDONS_TOGGLED, enabled);
+            let saved =
+                Self::begin(&ww, "change the modules setting").is_some_and(|(_guard, scope)| {
+                    config::update_profile(
+                        &scope.game.descriptor().id,
+                        &ProfilePatch::new().set(ProfileKey::CustomAddonsToggled, enabled),
+                    )
+                    .inspect_err(|e| error!("[Modules] could not save the modules setting: {e:#}"))
+                    .is_ok()
+                });
+            if !saved && let Some(w) = ww.upgrade() {
+                w.set_modules_feature_enabled(!enabled);
+            }
         });
 
         info!("[Modules] bind() complete");

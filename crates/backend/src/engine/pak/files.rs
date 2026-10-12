@@ -1,13 +1,13 @@
+use super::PakEngine;
+use crate::classes::addons::CENSORSHIP_DIR;
+use crate::classes::addons::overlay;
+use crate::classes::addons::pak::PakAddon;
 use log::*;
 use shared::classes::games::capabilities::OverlayAddon;
 use shared::classes::games::nte::{Target, addons};
 use shared::config::key;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use crate::classes::addons::CENSORSHIP_DIR;
-use crate::classes::addons::overlay;
-use crate::classes::addons::pak::PakAddon;
-use super::PakEngine;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileGroup {
@@ -38,7 +38,9 @@ impl PakEngine {
     }
 
     pub(super) fn overlay_addons(&self) -> &'static [OverlayAddon] {
-        self.game.addons().map_or(&[], |addons| addons.overlay_addons())
+        self.game
+            .addons()
+            .map_or(&[], |addons| addons.overlay_addons())
     }
 
     fn overlay_addon_files(&self) -> Vec<ManagedFile> {

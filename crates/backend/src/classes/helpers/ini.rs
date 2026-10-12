@@ -41,80 +41,18 @@ impl std::fmt::Display for IniFile {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn saved_config_dirs() -> Vec<PathBuf> {
-    let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    let ht = PathBuf::from(local_app_data).join("HT");
-
-    let Ok(entries) = ht.read_dir() else {
-        debug!("ini: {} does not exist", ht.display());
+pub fn paths(dirs: &[PathBuf], file: IniFile) -> Vec<PathBuf> {
+    if !SUPPORTED {
         return Vec::new();
-    };
-
-    entries
-        .flatten()
-        .filter(|dir| dir.file_name().to_string_lossy().contains("Saved"))
-        .map(|dir| dir.path().join("Config").join("Windows"))
-        .collect()
-}
-
-#[cfg(unix)]
-fn saved_config_dirs() -> Vec<PathBuf> {
-    use shared::classes::{games::default_game, steam};
-    let Some(prefix) = default_game()
-        .descriptor()
-        .steam
-        .and_then(|metadata| steam::compat_prefix(&metadata))
-    else {
-        debug!("ini: no Proton prefix yet");
-        return Vec::new();
-    };
-
-    let ht = prefix
-        .join("drive_c")
-        .join("users")
-        .join("steamuser")
-        .join("AppData")
-        .join("Local")
-        .join("HT");
-
-    let Ok(entries) = ht.read_dir() else {
-        debug!("ini: {} does not exist", ht.display());
-        return Vec::new();
-    };
-
-    entries
-        .flatten()
-        .filter(|dir| dir.file_name().to_string_lossy().contains("Saved_Global"))
-        .map(|dir| dir.path().join("Config").join("Windows"))
-        .collect()
-}
-
-#[cfg(not(any(target_os = "windows", unix)))]
-const fn saved_config_dirs() -> Vec<PathBuf> {
-    Vec::new()
-}
-
-pub fn config_dirs() -> Vec<PathBuf> {
-    if SUPPORTED {
-        saved_config_dirs()
-    } else {
-        Vec::new()
     }
+    dirs.iter().map(|dir| dir.join(file.file_name())).collect()
 }
 
-pub fn paths(file: IniFile) -> Vec<PathBuf> {
-    config_dirs()
-        .into_iter()
-        .map(|dir| dir.join(file.file_name()))
-        .collect()
-}
-
-pub fn value(file: IniFile, section: &str, key: &str) -> Option<String> {
+pub fn value(dirs: &[PathBuf], file: IniFile, section: &str, key: &str) -> Option<String> {
     let _guard = lock();
     let section = normalize_section(section);
 
-    paths(file).iter().find_map(|path| {
+    paths(dirs, file).iter().find_map(|path| {
         let text = fs::read_to_string(path).ok()?;
         value_in(&text, &section, key)
     })
@@ -129,6 +67,7 @@ struct Edit {
 
 #[derive(Clone, Debug)]
 pub struct Ini {
+    dirs: Vec<PathBuf>,
     file: IniFile,
     edits: Vec<Edit>,
     read_only: bool,
@@ -141,8 +80,9 @@ pub struct Report {
 }
 
 impl Ini {
-    pub const fn file(file: IniFile) -> Self {
+    pub fn file(dirs: &[PathBuf], file: IniFile) -> Self {
         Self {
+            dirs: dirs.to_vec(),
             file,
             edits: Vec::new(),
             read_only: true,
@@ -182,7 +122,7 @@ impl Ini {
 
         let _guard = lock();
 
-        let paths = paths(self.file);
+        let paths = paths(&self.dirs, self.file);
         let mut report = Report {
             found: paths.len(),
             written: 0,
@@ -202,7 +142,6 @@ impl Ini {
         Ok(report)
     }
 
-    /// Returns whether the file needed changing at all.
     fn write(&self, path: &Path) -> Result<bool> {
         let original = fs::read_to_string(path).ok();
         let updated = edited(original.as_deref().unwrap_or_default(), &self.edits);

@@ -1,8 +1,8 @@
+use super::GameContext;
 use backend::classes::rpc::RPC;
 use log::*;
 use shared::api::ccu;
 use shared::telemetry::{self, TelemetryContext};
-use super::GameContext;
 
 pub(super) fn publish(context: &GameContext) {
     let d = context.game().descriptor();

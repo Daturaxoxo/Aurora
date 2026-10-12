@@ -1,3 +1,22 @@
+use crate::{
+    classes::games::{
+        identity::GameId,
+        nte::{
+            paths::{CLIENT_PAK_DIR, get_version_paths},
+            version::{BypassMethod, detect_distribution, detect_version},
+        },
+    },
+    config::{self, get_all_configs, key},
+    utils::{get_local_version, read_dir_recursive},
+};
+use crate::{logger::get_latest_logs, utils};
+use anyhow::{Context, Result};
+use cpu_info::CpuInfo;
+use log::*;
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+#[cfg(target_os = "linux")]
+use std::os::{linux::fs::MetadataExt as _, unix::fs::MetadataExt as _};
 use std::{
     cell::Cell,
     collections::{HashSet, VecDeque},
@@ -11,28 +30,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-#[cfg(target_os = "windows")]
-use std::os::windows::fs::MetadataExt;
-#[cfg(target_os = "linux")]
-use std::os::{linux::fs::MetadataExt as _, unix::fs::MetadataExt as _};
-use anyhow::{Context, Result};
-use cpu_info::CpuInfo;
-use log::*;
 use sysinfo::{Disks, RefreshKind, System};
-use crate::{
-    classes::{
-        games::{
-            identity::GameId,
-            nte::{
-                paths::{CLIENT_PAK_DIR, get_version_paths},
-                version::{BypassMethod, detect_distribution, detect_version},
-            },
-        },
-    },
-    config::{self, get_all_configs, key},
-    utils::{get_local_version, read_dir_recursive},
-};
-use crate::{logger::get_latest_logs, utils};
 #[cfg(any(debug_assertions, feature = "beta"))]
 const TELEMETRY_ENDPOINT: &str = "https://beta.getaurora.moe/api/v2/telemetry";
 #[cfg(not(any(debug_assertions, feature = "beta")))]

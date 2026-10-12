@@ -4,16 +4,15 @@ use log::*;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
-const HARDCODE_GAME: &str = "NTE"; // when we add more games, remove this and actually implement game-based configs; even though there pretty much already is implementation for it
+use std::path::PathBuf;
 const PLACEHOLDER: &str = "{}";
 
-static CATALOG: LazyLock<BTreeMap<String, Argument>> = LazyLock::new(|| {
-    serde_json::from_str(include_str!(
-        "../../../../production/engine/NTE/launch_arguments.json"
-    ))
-    .expect("launch_arguments.json is missing or malformed!")
-});
+type Catalog = BTreeMap<String, Argument>;
+
+fn catalog(raw: &str) -> Result<Catalog> {
+    serde_json::from_str(raw)
+        .map_err(|e| anyhow!("the launch argument catalogue is malformed: {e}"))
+}
 
 #[derive(Debug, Deserialize)]
 struct Argument {
@@ -120,7 +119,7 @@ fn render(value: &Value) -> Option<String> {
     }
 }
 
-fn parse(raw: &str) -> Vec<Active> {
+fn parse(catalog: &Catalog, raw: &str) -> Vec<Active> {
     let mut found: Vec<Active> = Vec::new();
 
     for token in raw.split_whitespace() {
@@ -130,7 +129,7 @@ fn parse(raw: &str) -> Vec<Active> {
 
         let name = format!("-{}", name.trim_start_matches('-').to_ascii_lowercase());
 
-        let Some(argument) = CATALOG.get(&name) else {
+        let Some(argument) = catalog.get(&name) else {
             debug!("launch args: ignoring unsupported argument {token:?}");
             continue;
         };
@@ -152,28 +151,29 @@ fn parse(raw: &str) -> Vec<Active> {
     found
 }
 
-pub fn apply(raw: &str) -> Result<()> {
+pub fn apply(dirs: &[PathBuf], catalogue: &str, raw: &str) -> Result<()> {
     if !ini::SUPPORTED {
         debug!("launch args: unsupported platform, nothing to do");
         return Ok(());
     }
 
-    if ini::config_dirs().is_empty() {
+    if dirs.is_empty() {
         return Err(anyhow!(
             "the game's configuration folder was not found, start the game once first"
         ));
     }
 
-    let active = parse(raw);
+    let catalog = catalog(catalogue)?;
+    let active = parse(&catalog, raw);
     info!(
-        "launch args: applying {raw:?} for {HARDCODE_GAME}, {} of {} arguments recognised",
+        "launch args: applying {raw:?}, {} of {} arguments recognised",
         active.len(),
         raw.split_whitespace().count()
     );
 
     // "None" will delete the key
     let mut plan: BTreeMap<(IniFile, String, String), Option<String>> = BTreeMap::new();
-    for (name, argument) in &*CATALOG {
+    for (name, argument) in &catalog {
         if active.iter().any(|typed| typed.name == *name) {
             continue;
         }
@@ -185,7 +185,7 @@ pub fn apply(raw: &str) -> Result<()> {
 
     for typed in &active {
         let name = &typed.name;
-        let Some(argument) = CATALOG.get(name) else {
+        let Some(argument) = catalog.get(name) else {
             continue;
         };
 
@@ -213,12 +213,15 @@ pub fn apply(raw: &str) -> Result<()> {
         }
     }
 
-    commit(&plan)
+    commit(dirs, &plan)
 }
 
-fn commit(plan: &BTreeMap<(IniFile, String, String), Option<String>>) -> Result<()> {
+fn commit(
+    dirs: &[PathBuf],
+    plan: &BTreeMap<(IniFile, String, String), Option<String>>,
+) -> Result<()> {
     for file in IniFile::ALL.iter().copied() {
-        let mut batch = Ini::file(file);
+        let mut batch = Ini::file(dirs, file);
         let mut edits = 0_usize;
 
         for ((target, section, key), value) in plan {
@@ -250,10 +253,20 @@ fn commit(plan: &BTreeMap<(IniFile, String, String), Option<String>>) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::classes::games::{Game, nte::NTE};
+
+    fn nte() -> Catalog {
+        catalog(
+            NTE.launch_arguments()
+                .expect("NTE has launch arguments")
+                .catalogue(),
+        )
+        .unwrap()
+    }
 
     #[test]
     fn the_catalog_is_valid() {
-        for (name, argument) in &*CATALOG {
+        for (name, argument) in &nte() {
             assert!(name.starts_with('-'), "{name} should start with a dash");
             assert_eq!(
                 *name,
@@ -281,7 +294,10 @@ mod tests {
     }
 
     fn names(raw: &str) -> Vec<String> {
-        parse(raw).into_iter().map(|typed| typed.name).collect()
+        parse(&nte(), raw)
+            .into_iter()
+            .map(|typed| typed.name)
+            .collect()
     }
 
     #[test]
@@ -303,7 +319,7 @@ mod tests {
 
     #[test]
     fn a_typed_value_is_kept() {
-        let typed = parse("-sharpen=1.5");
+        let typed = parse(&nte(), "-sharpen=1.5");
         assert_eq!(typed[0].value.as_deref(), Some("1.5"));
     }
 
@@ -315,9 +331,26 @@ mod tests {
 
     #[test]
     fn a_bare_parameterised_argument_falls_back() {
-        let argument = &CATALOG["-sharpen"];
+        let catalog = nte();
+        let argument = &catalog["-sharpen"];
         assert!(argument.is_parameterised());
         assert_eq!(argument.substitution(None), render(&argument.fallback));
         assert_eq!(argument.substitution(Some("3")), Some("3".to_string()));
+    }
+
+    #[test]
+    fn nothing_is_written_without_config_dirs() {
+        let catalogue = NTE.launch_arguments().unwrap().catalogue();
+        if ini::SUPPORTED {
+            assert!(apply(&[], catalogue, "-dx11").is_err());
+        }
+    }
+
+    #[test]
+    fn a_malformed_catalogue_is_an_error() {
+        let dir = std::env::temp_dir();
+        if ini::SUPPORTED {
+            assert!(apply(&[dir], "not json", "-dx11").is_err());
+        }
     }
 }

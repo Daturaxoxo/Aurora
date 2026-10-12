@@ -594,6 +594,7 @@ export component ModManagerPage inherits Rectangle {
     in property <int> selected-group-count: 0;
     in property <bool> file-hover: false;
     in property <[GroupOption]> groups: [];
+    in property <bool> gamebanana-supported: true;
 
     // [CALLBACKS]
     callback close-mod-manager();
@@ -840,7 +841,7 @@ export component ModManagerPage inherits Rectangle {
                                         }
                                     }
 
-                                    Rectangle {
+                                    if root.gamebanana-supported: Rectangle {
                                         height: 36px;
                                         border-radius: 6px;
                                         background: gb-ta.has-hover ? Palette.fg-10 : transparent;

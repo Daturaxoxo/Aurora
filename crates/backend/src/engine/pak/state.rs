@@ -2,13 +2,15 @@ use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
 use log::*;
-use shared::classes::games::nte::{
-    paths::{VersionPaths, get_version_paths},
-    version::{BypassMethod, Distribution, Version},
-};
 use shared::classes::games::{
-    Game, find_game,
-    nte::Target,
+    Game,
+    capabilities::LuaLayout,
+    find_game,
+    nte::{
+        Target,
+        paths::{VersionPaths, get_version_paths},
+        version::{BypassMethod, Distribution, Version},
+    },
     payload::ResolvedPayloadLayout,
 };
 
@@ -21,6 +23,7 @@ pub struct PakEngine {
     pub game_path: PathBuf,
     pub engine_method: BypassMethod,
     pub payload: ResolvedPayloadLayout,
+    pub lua: Option<LuaLayout>,
     pub version: Version,
     pub gpaths: VersionPaths,
     pub win64: PathBuf,
@@ -80,12 +83,17 @@ impl PakEngine {
             (Target::Cutils, win64.join(Target::Cutils.as_file())),
         ];
 
+        let lua = game
+            .lua()
+            .map(|lua| lua.layout(input.payload.root(), Some(&game_path)));
+
         info!("Game Path: {}", game_path.display());
         Ok(Self {
             game,
             game_path,
             engine_method,
             payload: input.payload.clone(),
+            lua,
             version,
             gpaths,
             win64,

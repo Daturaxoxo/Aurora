@@ -6,11 +6,14 @@ mod bridge;
 mod classes;
 mod runtime;
 mod translations;
-use anyhow::{Result, anyhow};
-use log::*;
-use shared::config::{self, key};
-use shared::display::center_window;
-use shared::logger::Logger;
+use crate::classes::pages::games::GamesHandler;
+use crate::classes::pages::gbbrowser::GbBrowserHandler;
+use crate::classes::pages::lua::LuaScriptsHandler;
+use crate::classes::pages::modmanager::ModManagerHandler;
+use crate::classes::pages::modules::ModulesHandler;
+use crate::classes::pages::screenshots::ScreenshotHandler;
+use anyhow::Result;
+use bridge::Bridge;
 use classes::buttons::ButtonHandler;
 use classes::iconpack::IconPackHandler;
 use classes::oneclick::OneClickHandler;
@@ -21,13 +24,10 @@ use classes::theme::ThemeHandler;
 use classes::toast::ToastHandler;
 use classes::updater::UpdateHandler;
 use classes::windowsize;
-use bridge::Bridge;
-use crate::classes::pages::games::GamesHandler;
-use crate::classes::pages::gbbrowser::GbBrowserHandler;
-use crate::classes::pages::lua::LuaScriptsHandler;
-use crate::classes::pages::modmanager::ModManagerHandler;
-use crate::classes::pages::modules::ModulesHandler;
-use crate::classes::pages::screenshots::ScreenshotHandler;
+use log::*;
+use shared::config::{self, key};
+use shared::display::center_window;
+use shared::logger::Logger;
 
 fn main() -> Result<()> {
     Logger::init().unwrap_or_else(|e| {
@@ -235,10 +235,11 @@ fn main() -> Result<()> {
     ModManagerHandler::setup(&window.as_weak());
     ModulesHandler::setup(&window.as_weak());
     GbBrowserHandler::setup(&window.as_weak());
+    if let Ok(runtime) = runtime::get() {
+        classes::pages::apply_capabilities(&window, runtime.snapshot().game);
+    }
 
-    let bin_dir = shared::utils::get_bin_path()
-        .ok_or_else(|| anyhow!("could not determine the Bin directory"))?;
-    LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
+    LuaScriptsHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());
     GamesHandler::setup(&window.as_weak());

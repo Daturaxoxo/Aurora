@@ -1,14 +1,8 @@
+use crate::classes::games::identity::GameId;
 use anyhow::{Result, anyhow};
+use jwalk::DirEntry;
 use log::*;
 use std::path::{Path, PathBuf};
-
-use jwalk::DirEntry;
-
-use crate::{
-    classes::games::nte::paths::CLIENT_PAK_DIR,
-    config::{self, key},
-};
-
 const VERSION: &[u8] = include_bytes!("../../../production/VERSION");
 
 pub fn get_local_version() -> String {
@@ -49,13 +43,6 @@ pub fn get_current_timestamp() -> i64 {
         .unwrap_or_default()
         .as_secs()
         .cast_signed()
-}
-
-pub fn get_mods_path() -> Option<PathBuf> {
-    config::get(key::GAME_PATH)
-        .as_str()
-        .map(PathBuf::from)
-        .map(|p| p.join(CLIENT_PAK_DIR))
 }
 
 pub fn get_bin_path() -> Option<PathBuf> {
@@ -106,8 +93,12 @@ pub fn get_cache_dir() -> PathBuf {
         .join("Cache")
 }
 
-pub fn get_gamebanana_download_dir() -> PathBuf {
+pub fn get_gamebanana_download_root() -> PathBuf {
     std::env::temp_dir().join("Aurora").join("GameBanana")
+}
+
+pub fn get_gamebanana_download_dir(game: &GameId) -> PathBuf {
+    get_gamebanana_download_root().join(game.as_str())
 }
 
 pub fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {

@@ -7,8 +7,8 @@ use crate::classes::pages::settings::SettingsHandler;
 use crate::classes::repair::RepairHandler;
 use crate::classes::updater::UpdateHandler;
 use crate::runtime;
-use shared::classes::gamebanana::api::game_page;
 use crate::{CheckboxItem, MainWindow};
+use shared::classes::gamebanana::api::game_page;
 use slint::Model as _;
 pub struct PopupHandler;
 

@@ -1,6 +1,8 @@
-use std::{path::Path, sync::LazyLock};
+use super::{
+    Game, GameDescriptor, InstallationFacts, identity::GameId, identity::SafeRelativePath,
+};
 use anyhow::{Result, anyhow};
-use super::{Game, GameDescriptor, InstallationFacts, identity::GameId, identity::SafeRelativePath};
+use std::{path::Path, sync::LazyLock};
 pub static SP: LazyLock<SilverPalace> = LazyLock::new(SilverPalace::new);
 
 pub struct SilverPalace {
@@ -19,7 +21,8 @@ impl SilverPalace {
                 processes: &[],
                 game_executable: None,
                 binaries: None,
-                payload_dir: SafeRelativePath::parse("sp").expect("Silver Palace payload dir is valid"),
+                payload_dir: SafeRelativePath::parse("sp")
+                    .expect("Silver Palace payload dir is valid"),
                 payload_files: Vec::new(),
                 steam: None,
                 engine: None,

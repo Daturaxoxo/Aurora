@@ -113,6 +113,15 @@ export component MainWindow inherits Window {
     in-out property <bool> show-mod-manager: false;
     in-out property <bool> show-screenshots: false;
 
+    // What the selected game supports, entry points for anything else are hidden
+    in property <bool> mods-supported: true;
+    in property <bool> modules-supported: true;
+    in property <bool> lua-supported: true;
+    in property <bool> screenshots-supported: true;
+    in property <bool> addons-supported: true;
+    in property <bool> gamebanana-supported: true;
+    property <bool> menu-has-items: root.screenshots-supported || root.lua-supported || root.modules-supported || root.addons-supported;
+
     // App Version Property
     in-out property <string> app-version: "";
 
@@ -581,7 +590,7 @@ export component MainWindow inherits Window {
                     spacing: 4px;
                     alignment: start;
 
-                    VerticalLayout {
+                    if root.menu-has-items: VerticalLayout {
                         alignment: center;
                         IconButton {
                             source: Icons.menu;
@@ -618,7 +627,7 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    VerticalLayout {
+                    if root.gamebanana-supported: VerticalLayout {
                         alignment: center;
                         IconButton {
                             source: Icons.gamebanana;
@@ -634,7 +643,7 @@ export component MainWindow inherits Window {
                 }
             }
 
-            Rectangle {
+            if root.mods-supported: Rectangle {
                 height: 60px;
                 width: mod-manager-inner.preferred-width + 20px * 2;
                 background: mod-manager-ta.has-hover ? Palette.surface.with-alpha(0.867) : Palette.glass-background;
@@ -986,7 +995,8 @@ export component MainWindow inherits Window {
                     }
 
                     Rectangle {
-                        height: 40px;
+                        height: root.mods-supported ? 40px : 0px;
+                        visible: root.mods-supported;
                         width: parent.width;
                         border-radius: 6px;
                         background: ri4.has-hover ? Palette.fg-12 : transparent;
@@ -1229,6 +1239,10 @@ export component MainWindow inherits Window {
             y: Palette.topbar-height;
             width: parent.width;
             height: parent.height - Palette.topbar-height;
+            screenshots-supported: root.screenshots-supported;
+            lua-supported: root.lua-supported;
+            modules-supported: root.modules-supported;
+            addons-supported: root.addons-supported;
             close-menu => { root.show-menu = false; }
             menu-item-clicked(i) => {
                 root.show-menu = false;
@@ -1338,6 +1352,7 @@ export component MainWindow inherits Window {
             file-hover: root.mods-file-hover;
             install-from-archive => { root.mods-install-archive(); }
             install-from-folder => { root.mods-install-folder(); }
+            gamebanana-supported: root.gamebanana-supported;
             install-from-gamebanana => {
                 root.show-gb-browser = true;
                 root.gb-opened();

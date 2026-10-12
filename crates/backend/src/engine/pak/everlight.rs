@@ -1,12 +1,12 @@
+use crate::engine::contract::{EventSink, NotificationKind};
+use anyhow::{Context, Result};
+use log::*;
+use shared::classes::games::nte::{patcher, version::Version};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use anyhow::{Context, Result};
-use log::*;
-use shared::classes::games::nte::{patcher, version::Version};
-use crate::engine::contract::{EventSink, NotificationKind};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const CHKSUM_MARKER: &str = "CHKSUM";

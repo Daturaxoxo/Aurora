@@ -171,7 +171,9 @@ pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<
     let mut remaining = Vec::new();
 
     for (pid, process) in processes {
-        if !seen.insert(pid) {continue}
+        if !seen.insert(pid) {
+            continue;
+        }
 
         let exe = process.exe().map_or_default(|e| e.display().to_string());
         trace!("Killing process {exe} (pid {pid})");

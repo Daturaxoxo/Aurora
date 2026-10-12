@@ -1,11 +1,11 @@
-use std::fs;
-use anyhow::{Context, Result, anyhow};
-use log::*;
+use super::PakEngine;
+use super::files::{FileGroup, ManagedFile, group_by_addon};
 use crate::classes::validate::ensure_dir;
 use crate::engine::contract::{InjectedPluginRecord, LaunchInput, ModuleSelection, RecordChanges};
 use crate::engine::lua::LuaManager;
-use super::PakEngine;
-use super::files::{FileGroup, ManagedFile, group_by_addon};
+use anyhow::{Context, Result, anyhow};
+use log::*;
+use std::fs;
 const PLUGINS: &[&str] = &["chksum.asi", "ipc.asi"];
 
 impl PakEngine {
@@ -31,13 +31,12 @@ impl PakEngine {
         self.copy_pak_addons(&files)?;
         self.copy_overlay_addons(&files, records);
 
-        if let Some(lua) = self.payload.lua() {
+        if let Some(lua) = self.lua.as_ref().filter(|lua| lua.installed()) {
             info!(
-                "UE4SS Lua runtime detected in {}, copying into {}",
-                lua.display(),
-                self.win64.display()
+                "UE4SS Lua runtime detected in {}, copying into the game",
+                lua.runtime.display()
             );
-            LuaManager::setup(lua, &self.win64)?;
+            LuaManager::setup(lua)?;
         }
 
         self.copy_custom_files(&request.deployment.modules, records)?;
@@ -146,7 +145,9 @@ impl PakEngine {
             .iter()
             .filter(|f| f.group == FileGroup::OverlayAddon && f.enabled)
         {
-            if !f.source.exists() {continue}
+            if !f.source.exists() {
+                continue;
+            }
 
             if f.destination.exists() {
                 let msg = format!(

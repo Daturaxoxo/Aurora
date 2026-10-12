@@ -1,3 +1,4 @@
+use crate::runtime::{self, Operation};
 use anyhow::{Result, anyhow};
 use backend::engine::contract::{
     AddonSelection, CommandTag, DeploymentSelection, EngineInput, EngineSettings,
@@ -14,9 +15,9 @@ use shared::classes::games::{
     nte::version::StartMethod,
     payload::{PayloadResolutionMode, PayloadRoots, ResolvedPayloadLayout, resolve_payload},
 };
-use shared::config::{self, GameProfile, ProfileKey, ProfilePatch, key};
+use shared::config::{self, GameProfile, ProfileKey, ProfilePatch};
 use shared::utils;
-use crate::runtime::{self, Operation};
+use std::path::PathBuf;
 pub fn session_active() -> bool {
     runtime::get().is_ok_and(runtime::GameRuntime::session_active)
 }
@@ -137,13 +138,19 @@ fn records(profile: &GameProfile) -> Vec<InjectedPluginRecord> {
 }
 
 pub fn start_method(game: &dyn Game) -> StartMethod {
-    let raw = config::read_profile(&game.descriptor().id)
-        .map_or_else(|_| game.profile_default(ProfileKey::StartMethod), |p| p.value(ProfileKey::StartMethod, game));
+    let raw = config::read_profile(&game.descriptor().id).map_or_else(
+        |_| game.profile_default(ProfileKey::StartMethod),
+        |p| p.value(ProfileKey::StartMethod, game),
+    );
     StartMethod::decode(&raw)
 }
 
 fn text(profile: &GameProfile, game: &dyn Game, key: ProfileKey) -> String {
-    profile.value(key, game).as_str().unwrap_or_default().to_string()
+    profile
+        .value(key, game)
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn settings(profile: &GameProfile, game: &dyn Game) -> Result<EngineSettings> {
@@ -154,7 +161,10 @@ fn settings(profile: &GameProfile, game: &dyn Game) -> Result<EngineSettings> {
     };
     Ok(EngineSettings {
         engine_method,
-        ignore_checksum: profile.value(ProfileKey::IgnoreChecksum, game).as_bool().unwrap_or(false),
+        ignore_checksum: profile
+            .value(ProfileKey::IgnoreChecksum, game)
+            .as_bool()
+            .unwrap_or(false),
     })
 }
 
@@ -172,21 +182,25 @@ fn deployment(game: &dyn Game, profile: &GameProfile) -> DeploymentSelection {
         })
         .collect();
 
-    // TODO(lane A, a5-1): the modules page still writes these to the legacy keys
-    let enabled = config::get(key::CUSTOM_ADDONS_TOGGLED)
+    let enabled = profile
+        .value(ProfileKey::CustomAddonsToggled, game)
         .as_bool()
         .unwrap_or(false);
-    let modules = config::get(key::CUSTOM_ADDONS)
+    let selected: Vec<PathBuf> = profile
+        .value(ProfileKey::CustomAddons, game)
         .as_array()
         .map_or_default(|list| {
             list.iter()
                 .filter_map(Value::as_str)
-                .map(|p| ModuleSelection {
-                    path: p.into(),
-                    enabled,
-                })
+                .map(PathBuf::from)
                 .collect()
         });
+    let modules = game
+        .modules()
+        .map_or_default(|support| support.validate_selection(&selected))
+        .into_iter()
+        .map(|path| ModuleSelection { path, enabled })
+        .collect();
 
     DeploymentSelection { addons, modules }
 }

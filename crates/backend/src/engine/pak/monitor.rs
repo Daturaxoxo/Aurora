@@ -1,15 +1,15 @@
+use super::everlight;
+use super::process::{ProcessSnapshot, ProcessTargets, kill_processes, kill_targets};
+use crate::classes::rpc::RPC;
+use crate::engine::contract::{EventSink, SessionExit};
+use anyhow::{Result, anyhow};
+use log::*;
+use shared::classes::games::nte::version::Version;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
-use anyhow::{Result, anyhow};
-use log::*;
-use shared::classes::games::nte::version::Version;
-use crate::classes::rpc::RPC;
-use crate::engine::contract::{EventSink, SessionExit};
-use super::everlight;
-use super::process::{ProcessSnapshot, ProcessTargets, kill_processes, kill_targets};
 
 // This is intentionally high, because when the launcher updates and restarts it takes a while.
 const LAUNCHER_GRACE_SECS: u32 = 10;
@@ -69,7 +69,10 @@ impl Monitor {
         if !exited? {
             return Ok(SessionExit::Stopped);
         }
-        info!("{} was closed, initializing clean-up process...", self.targets.game_name);
+        info!(
+            "{} was closed, initializing clean-up process...",
+            self.targets.game_name
+        );
         Ok(self.finish(SessionExit::GameExited))
     }
 
@@ -79,7 +82,10 @@ impl Monitor {
 
     fn finish(&self, exit: SessionExit) -> SessionExit {
         if let Err(e) = ensure_processes_gone(&self.targets, POST_EXIT_KILL_GRACE) {
-            warn!("Could not confirm every {} process exited: {e}", self.targets.game_name);
+            warn!(
+                "Could not confirm every {} process exited: {e}",
+                self.targets.game_name
+            );
         }
         exit
     }
@@ -134,7 +140,9 @@ impl Monitor {
                 continue;
             }
 
-            if !launcher_seen {continue}
+            if !launcher_seen {
+                continue;
+            }
 
             missing_ticks += 1;
             if missing_ticks == 1 {
@@ -187,9 +195,15 @@ pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -
             .map(|(pid, process)| (*pid, process))
             .collect();
         if !launchers.is_empty() {
-            info!("{} Launcher reopened after exit, closing it", targets.game_name);
+            info!(
+                "{} Launcher reopened after exit, closing it",
+                targets.game_name
+            );
             if let Err(e) = kill_processes(launchers) {
-                warn!("Failed to close the reopened {} Launcher: {e}", targets.game_name);
+                warn!(
+                    "Failed to close the reopened {} Launcher: {e}",
+                    targets.game_name
+                );
             }
             continue;
         }

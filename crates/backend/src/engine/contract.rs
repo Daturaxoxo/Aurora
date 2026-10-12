@@ -1,11 +1,11 @@
-use std::fmt;
-use std::path::PathBuf;
-use std::sync::mpsc;
+use crate::handler::EngineEvent;
 use anyhow::Result;
 use shared::classes::games::{
     InstallationFacts, identity::GameId, launch::LaunchPlan, payload::ResolvedPayloadLayout,
 };
-use crate::handler::EngineEvent;
+use std::fmt;
+use std::path::PathBuf;
+use std::sync::mpsc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CommandTag {

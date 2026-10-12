@@ -1,16 +1,17 @@
 use crate::bridge::PopupSpec;
-use crate::runtime;
+use crate::runtime::{self, GameContext, MutationGuard};
 use crate::translations::tr;
 use crate::{MainWindow, ScreenshotItem};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
 use shared::classes::games::{
     Game,
-    locate::{stored_installation_root, transitional_selected_game},
-    nte::paths::{CLIENT_SELFIE, PICTURE_FOLDER},
+    capabilities::{ScreenshotMutation, ScreenshotNesting, ScreenshotSource},
+    platform::PlatformPaths,
 };
-use shared::config::{self, key};
+use shared::config::{self, ProfileKey, ProfilePatch};
 use shared::utils::open_folder;
 use slint::{Model, VecModel};
 use std::cell::RefCell;
@@ -23,7 +24,6 @@ use std::time::{Duration, Instant, SystemTime};
 const THUMB_MAX_W: u32 = 512;
 const THUMB_MAX_H: u32 = 512;
 const HASH_CHUNK: usize = 128 * 1024;
-const IGNORED_PLAYER_ID: &str = "66666";
 const MIN_COPY_FEEDBACK: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone)]
@@ -51,7 +51,58 @@ struct State {
     sort_mode: SortMode,
     favorites_only: bool,
     selected: HashSet<PathBuf>,
-    pending_delete: Vec<PathBuf>,
+    pending_delete: Option<(u64, Vec<PathBuf>)>,
+    scope: Option<ShotScope>,
+}
+
+#[derive(Clone)]
+struct ShotScope {
+    game: &'static dyn Game,
+    generation: u64,
+    sources: Vec<ScreenshotSource>,
+    ignored: &'static [&'static str],
+}
+
+impl ShotScope {
+    fn of(context: &GameContext) -> Option<Self> {
+        let game = context.game();
+        let screenshots = game.screenshots()?;
+        let platform = PlatformPaths::observe_host(game);
+        Some(Self {
+            game,
+            generation: context.generation(),
+            sources: screenshots.sources(context.installation(), &platform),
+            ignored: screenshots.ignored_directories(),
+        })
+    }
+
+    fn current() -> Option<Self> {
+        let context = runtime::get().ok()?.snapshot().context?;
+        Self::of(&context)
+    }
+
+    fn shown() -> Option<Self> {
+        STATE.lock().unwrap().scope.clone()
+    }
+
+    fn guarded(mutation: Option<ScreenshotMutation>) -> Result<(MutationGuard, Self)> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let name = guard.context().game().descriptor().display_name;
+        let scope =
+            Self::of(guard.context()).ok_or_else(|| anyhow!("{name} has no screenshots"))?;
+        if Self::shown().map(|s| s.generation) != Some(scope.generation) {
+            return Err(anyhow!("the selected game changed, try again"));
+        }
+        if let Some(mutation) = mutation
+            && !scope
+                .game
+                .screenshots()
+                .is_some_and(|support| support.permits(mutation))
+        {
+            return Err(anyhow!("{name} does not allow that"));
+        }
+        Ok((guard, scope))
+    }
 }
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
@@ -105,40 +156,6 @@ mod copy_state {
     pub const FAILED: i32 = 3;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Source {
-    Selfie,
-    Pictures,
-}
-
-fn current_game() -> &'static dyn Game {
-    runtime::get().map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game)
-}
-
-fn selfie_folder() -> Option<PathBuf> {
-    let game_path = stored_installation_root(current_game()).ok().flatten()?;
-    let selfie_folder = game_path.join(CLIENT_SELFIE);
-
-    selfie_folder.is_dir().then_some(selfie_folder)
-}
-
-fn pictures_folder() -> Option<PathBuf> {
-    #[cfg(target_os = "linux")]
-    let base = current_game()
-        .descriptor()
-        .steam
-        .and_then(|metadata| shared::classes::steam::compat_prefix(&metadata))?
-        .join("drive_c")
-        .join("users")
-        .join("steamuser")
-        .join("Pictures");
-    #[cfg(not(target_os = "linux"))]
-    let base = dirs::picture_dir()?;
-
-    let folder = base.join(PICTURE_FOLDER);
-    folder.is_dir().then_some(folder)
-}
-
 fn pngs_in(dir: &Path) -> Vec<PathBuf> {
     let mut entries = vec![];
 
@@ -161,47 +178,48 @@ fn pngs_in(dir: &Path) -> Vec<PathBuf> {
     entries
 }
 
-fn selfie_screenshot_dirs() -> Vec<PathBuf> {
-    let mut dirs = vec![];
-
-    let Some(selfie_folder) = selfie_folder() else {
-        return dirs;
-    };
-    let Ok(players) = selfie_folder.read_dir() else {
-        warn!("Could not read {}", selfie_folder.display());
-        return dirs;
-    };
-
-    for player in players.flatten() {
-        if !player.file_type().is_ok_and(|t| t.is_dir())
-            || player.file_name().eq_ignore_ascii_case(IGNORED_PLAYER_ID)
-        {
-            continue;
+fn source_dirs(source: &ScreenshotSource, ignored: &[&str]) -> Vec<PathBuf> {
+    match source.nesting {
+        ScreenshotNesting::Flat => {
+            if source.dir.is_dir() {
+                vec![source.dir.clone()]
+            } else {
+                Vec::new()
+            }
         }
+        ScreenshotNesting::PerPlayer { subdir } => {
+            let mut dirs = vec![];
+            if !source.dir.is_dir() {
+                return dirs;
+            }
+            let Ok(players) = source.dir.read_dir() else {
+                warn!("Could not read {}", source.dir.display());
+                return dirs;
+            };
 
-        let screenshots_folder = player.path().join("ScreenShots");
-        if screenshots_folder.is_dir() {
-            dirs.push(screenshots_folder);
-        } else {
-            warn!(
-                "Screenshots folder not found: {}",
-                screenshots_folder.display()
-            );
+            for player in players.flatten() {
+                if !player.file_type().is_ok_and(|t| t.is_dir())
+                    || ignored
+                        .iter()
+                        .any(|name| player.file_name().eq_ignore_ascii_case(name))
+                {
+                    continue;
+                }
+
+                let screenshots_folder = player.path().join(subdir);
+                if screenshots_folder.is_dir() {
+                    dirs.push(screenshots_folder);
+                } else {
+                    warn!(
+                        "Screenshots folder not found: {}",
+                        screenshots_folder.display()
+                    );
+                }
+            }
+
+            dirs
         }
     }
-
-    dirs
-}
-
-fn selfie_screenshots() -> Vec<PathBuf> {
-    selfie_screenshot_dirs()
-        .iter()
-        .flat_map(|dir| pngs_in(dir))
-        .collect()
-}
-
-fn picture_screenshots() -> Vec<PathBuf> {
-    pictures_folder().as_deref().map_or_default(pngs_in)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -223,7 +241,7 @@ impl FileId {
 #[derive(Debug, Clone)]
 struct Candidate {
     path: PathBuf,
-    source: Source,
+    source: usize,
     id: FileId,
 }
 
@@ -318,15 +336,17 @@ fn unique(candidates: Vec<Candidate>) -> Vec<(PathBuf, Vec<PathBuf>)> {
         .collect()
 }
 
-fn collect() -> Vec<(PathBuf, Vec<PathBuf>)> {
-    let candidates: Vec<Candidate> = selfie_screenshots()
-        .into_iter()
-        .map(|path| (path, Source::Selfie))
-        .chain(
-            picture_screenshots()
+fn collect(scope: &ShotScope) -> Vec<(PathBuf, Vec<PathBuf>)> {
+    let candidates: Vec<Candidate> = scope
+        .sources
+        .iter()
+        .enumerate()
+        .flat_map(|(source, dir)| {
+            source_dirs(dir, scope.ignored)
                 .into_iter()
-                .map(|path| (path, Source::Pictures)),
-        )
+                .flat_map(|dir| pngs_in(&dir))
+                .map(move |path| (path, source))
+        })
         .filter_map(|(path, source)| {
             let id = FileId::of(&path)?;
             Some(Candidate { path, source, id })
@@ -342,34 +362,41 @@ fn collect() -> Vec<(PathBuf, Vec<PathBuf>)> {
     unique(candidates)
 }
 
-fn browsable_folder() -> Option<PathBuf> {
-    let mut dirs: Vec<(usize, PathBuf)> = selfie_screenshot_dirs()
-        .into_iter()
-        .map(|dir| (pngs_in(&dir).len(), dir))
-        .filter(|(count, _)| *count > 0)
-        .collect();
+fn browsable_folder(scope: &ShotScope) -> Option<PathBuf> {
+    scope
+        .sources
+        .iter()
+        .find_map(|source| match source.nesting {
+            ScreenshotNesting::Flat => source.dir.is_dir().then(|| source.dir.clone()),
+            ScreenshotNesting::PerPlayer { .. } => {
+                let mut dirs: Vec<(usize, PathBuf)> = source_dirs(source, scope.ignored)
+                    .into_iter()
+                    .map(|dir| (pngs_in(&dir).len(), dir))
+                    .filter(|(count, _)| *count > 0)
+                    .collect();
 
-    dirs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    if dirs.len() > 1 {
-        info!(
-            "{} player folders hold screenshots; opening the fullest",
-            dirs.len()
-        );
-    }
-
-    match dirs.into_iter().next() {
-        Some((_, dir)) => Some(dir),
-        None => pictures_folder(),
-    }
+                dirs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                if dirs.len() > 1 {
+                    info!(
+                        "{} player folders hold screenshots; opening the fullest",
+                        dirs.len()
+                    );
+                }
+                dirs.into_iter().next().map(|(_, dir)| dir)
+            }
+        })
 }
 
 fn favorite_key(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn favorites() -> HashSet<String> {
-    config::get(key::SCREENSHOT_FAVORITES)
-        .as_array()
+fn favorites(game: &dyn Game) -> HashSet<String> {
+    config::read_profile(&game.descriptor().id)
+        .map(|profile| profile.value(ProfileKey::ScreenshotFavorites, game))
+        .inspect_err(|e| error!("Could not read the screenshot favorites: {e:#}"))
+        .ok()
+        .and_then(|value| value.as_array().cloned())
         .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str().map(String::from))
@@ -377,26 +404,21 @@ fn favorites() -> HashSet<String> {
         })
 }
 
-fn update_favorites(f: impl FnOnce(&mut HashSet<String>)) {
-    config::modify(|data| {
-        let mut favs: HashSet<String> = data
-            .get(key::SCREENSHOT_FAVORITES)
-            .and_then(serde_json::Value::as_array)
-            .map_or_default(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            });
+fn update_favorites(game: &dyn Game, f: impl FnOnce(&mut HashSet<String>)) {
+    let mut favs = favorites(game);
+    f(&mut favs);
 
-        f(&mut favs);
-
-        let mut list: Vec<String> = favs.into_iter().collect();
-        list.sort();
-        data.insert(
-            key::SCREENSHOT_FAVORITES.to_string(),
+    let mut list: Vec<String> = favs.into_iter().collect();
+    list.sort();
+    if let Err(e) = config::update_profile(
+        &game.descriptor().id,
+        &ProfilePatch::new().set(
+            ProfileKey::ScreenshotFavorites,
             serde_json::Value::from(list),
-        );
-    });
+        ),
+    ) {
+        error!("Could not save the screenshot favorites: {e:#}");
+    }
 }
 
 fn same_file(a: &Path, b: &Path) -> bool {
@@ -424,14 +446,14 @@ fn created_timestamp(path: &Path) -> Option<NaiveDateTime> {
     Some(DateTime::<Local>::from(created).naive_local())
 }
 
-fn scan() -> Vec<Screenshot> {
-    let screenshots = collect();
+fn scan(scope: &ShotScope) -> Vec<Screenshot> {
+    let screenshots = collect(scope);
     if screenshots.is_empty() {
         warn!("Couldn't get screenshots");
         return Vec::new();
     }
 
-    let favs = favorites();
+    let favs = favorites(scope.game);
     let mut shots = Vec::new();
 
     for (path, duplicates) in screenshots {
@@ -602,12 +624,17 @@ impl ScreenshotHandler {
                 let state = STATE.lock().unwrap();
                 (state.sort_mode, state.favorites_only)
             };
-            let all = scan();
+            let scope = ShotScope::current();
+            let all = scope.as_ref().map_or_default(scan);
             let all_paths: HashSet<PathBuf> = all.iter().map(|s| s.path.clone()).collect();
             let shots = ordered(all, sort_mode, favorites_only);
 
             let _ = slint::invoke_from_event_loop(move || {
-                if GENERATION.load(Ordering::SeqCst) != generation {
+                if GENERATION.load(Ordering::SeqCst) != generation
+                    || scope
+                        .as_ref()
+                        .is_some_and(|s| !runtime::is_current_generation(s.generation))
+                {
                     return;
                 }
                 let Some(w) = ww.upgrade() else {
@@ -617,6 +644,14 @@ impl ScreenshotHandler {
 
                 let (items, jobs, selected_count) = {
                     let mut state = STATE.lock().unwrap();
+                    let previous = state.scope.as_ref().map(|s| s.game.descriptor().id.clone());
+                    if previous != scope.as_ref().map(|s| s.game.descriptor().id.clone()) {
+                        state.selected.clear();
+                        state.pending_delete = None;
+                        PREVIEW_GENERATION.fetch_add(1, Ordering::SeqCst);
+                        w.set_screenshot_preview_image(slint::Image::default());
+                    }
+                    state.scope = scope;
 
                     state.displayed = shots.iter().map(|s| s.path.clone()).collect();
                     state.duplicates = shots
@@ -747,17 +782,47 @@ impl ScreenshotHandler {
     }
 
     pub fn cancel_delete() {
-        STATE.lock().unwrap().pending_delete.clear();
+        STATE.lock().unwrap().pending_delete = None;
+    }
+
+    fn begin(
+        window: &slint::Weak<MainWindow>,
+        action: &str,
+        mutation: Option<ScreenshotMutation>,
+    ) -> Option<(MutationGuard, ShotScope)> {
+        ShotScope::guarded(mutation)
+            .map_err(|e| {
+                warn!("Refused to {action}: {e:#}");
+                if let Some(w) = window.upgrade() {
+                    w.set_toast_text(format!("Could not {action} - {e:#}").into());
+                    w.set_toast_kind("error".into());
+                    w.set_toast_active(true);
+                }
+            })
+            .ok()
     }
 
     pub fn confirm_delete(window: &slint::Weak<MainWindow>) {
-        let pending = std::mem::take(&mut STATE.lock().unwrap().pending_delete);
+        let Some((generation, pending)) = STATE.lock().unwrap().pending_delete.take() else {
+            return;
+        };
         if pending.is_empty() {
+            return;
+        }
+        let Some((guard, scope)) = Self::begin(
+            window,
+            "delete screenshots",
+            Some(ScreenshotMutation::Delete),
+        ) else {
+            return;
+        };
+        if scope.generation != generation {
             return;
         }
 
         let ww = window.clone();
         std::thread::spawn(move || {
+            let _guard = guard;
             for path in &pending {
                 for copy in Self::copies(path) {
                     if let Err(e) = std::fs::remove_file(&copy) {
@@ -768,14 +833,14 @@ impl ScreenshotHandler {
                 }
             }
 
-            let favs = favorites();
+            let favs = favorites(scope.game);
             let stale: Vec<String> = pending
                 .iter()
                 .map(|path| favorite_key(path))
                 .filter(|key| favs.contains(key))
                 .collect();
             if !stale.is_empty() {
-                update_favorites(|favs| {
+                update_favorites(scope.game, |favs| {
                     for key in &stale {
                         favs.remove(key);
                     }
@@ -796,8 +861,11 @@ impl ScreenshotHandler {
     }
 
     fn show_delete_popup(w: &MainWindow, paths: Vec<PathBuf>) {
+        let Some(generation) = ShotScope::shown().map(|s| s.generation) else {
+            return;
+        };
         if paths.is_empty() {
-            STATE.lock().unwrap().pending_delete.clear();
+            STATE.lock().unwrap().pending_delete = None;
             return;
         }
 
@@ -821,7 +889,7 @@ impl ScreenshotHandler {
             )
         };
 
-        STATE.lock().unwrap().pending_delete = paths;
+        STATE.lock().unwrap().pending_delete = Some((generation, paths));
 
         PopupSpec {
             id: "screenshot-delete".to_owned(),
@@ -844,8 +912,11 @@ impl ScreenshotHandler {
             let Some(path) = Self::path_at(index) else {
                 return;
             };
+            let Some((_guard, scope)) = Self::begin(&ww, "change the favorite", None) else {
+                return;
+            };
             let key = favorite_key(&path);
-            update_favorites(move |favs| {
+            update_favorites(scope.game, move |favs| {
                 if !favs.remove(&key) {
                     favs.insert(key);
                 }
@@ -892,7 +963,7 @@ impl ScreenshotHandler {
         });
 
         w.on_open_screenshots_folder(move || {
-            let Some(folder) = browsable_folder() else {
+            let Some(folder) = ShotScope::shown().and_then(|scope| browsable_folder(&scope)) else {
                 warn!("No screenshot folder to open");
                 return;
             };
@@ -940,6 +1011,13 @@ impl ScreenshotHandler {
             if path.with_file_name(&name) == path {
                 return;
             }
+            let Some((_guard, scope)) = Self::begin(
+                &ww,
+                "rename the screenshot",
+                Some(ScreenshotMutation::Rename),
+            ) else {
+                return;
+            };
 
             let mut renamed = false;
             for copy in Self::copies(&path) {
@@ -967,8 +1045,8 @@ impl ScreenshotHandler {
             if renamed {
                 let old_key = favorite_key(&path);
                 let new_key = favorite_key(&path.with_file_name(&name));
-                if favorites().contains(&old_key) {
-                    update_favorites(move |favs| {
+                if favorites(scope.game).contains(&old_key) {
+                    update_favorites(scope.game, move |favs| {
                         favs.remove(&old_key);
                         favs.insert(new_key);
                     });

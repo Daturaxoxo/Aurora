@@ -7,7 +7,19 @@ pub mod modules;
 pub mod screenshots;
 pub mod settings;
 
+use crate::MainWindow;
+use shared::classes::games::Game;
 use std::path::{Component, Path};
+
+// hides the entry points of features the game has no capability for (dont delete this comment or else)
+pub fn apply_capabilities(w: &MainWindow, game: &dyn Game) {
+    w.set_mods_supported(game.mod_manager().is_some());
+    w.set_modules_supported(game.modules().is_some());
+    w.set_lua_supported(game.lua().is_some());
+    w.set_screenshots_supported(game.screenshots().is_some());
+    w.set_addons_supported(game.addons().is_some());
+    w.set_gamebanana_supported(game.gamebanana().is_some());
+}
 
 const MAX_FILENAME_LEN: usize = 128;
 

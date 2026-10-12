@@ -73,7 +73,9 @@ fn has_launcher(game: &dyn Game, path: &Path) -> bool {
 }
 
 pub fn validate_game_path(game: &dyn Game, path: &Path) -> bool {
-    if !path.is_dir() {return false}
+    if !path.is_dir() {
+        return false;
+    }
 
     let d = game.descriptor();
     if let Some(launcher) = d
@@ -89,7 +91,10 @@ pub fn validate_game_path(game: &dyn Game, path: &Path) -> bool {
         return true;
     }
 
-    if d.binaries.as_ref().is_some_and(|binaries| binaries.resolve_under(path).is_dir()) {
+    if d.binaries
+        .as_ref()
+        .is_some_and(|binaries| binaries.resolve_under(path).is_dir())
+    {
         trace!("Validated {} via client tree", path.display());
         return true;
     }
@@ -111,8 +116,12 @@ pub fn validate_game_path(game: &dyn Game, path: &Path) -> bool {
 }
 
 pub fn resolve_game_root(game: &dyn Game, path: &Path) -> Option<(PathBuf, Provenance)> {
-    if path.as_os_str().is_empty() {return None}
-    if validate_game_path(game, path) {return Some((path.to_path_buf(), Provenance::Configured))}
+    if path.as_os_str().is_empty() {
+        return None;
+    }
+    if validate_game_path(game, path) {
+        return Some((path.to_path_buf(), Provenance::Configured));
+    }
 
     for ancestor in path.ancestors().skip(1).take(MAX_ANCESTOR_HOPS) {
         if validate_game_path(game, ancestor) {
@@ -276,7 +285,9 @@ fn compat_data_candidates(game: &dyn Game, prefixes: &[PathBuf]) -> Vec<PathBuf>
                 .into_iter()
                 .filter_map(|dir_entry_result| {
                     let entry = dir_entry_result.ok()?;
-                    if !folder_name_matches(game, &entry.file_name().to_string_lossy()) {return None}
+                    if !folder_name_matches(game, &entry.file_name().to_string_lossy()) {
+                        return None;
+                    }
 
                     let path = entry.path();
                     trace!("Prefix {} contains {}", prefix.display(), path.display());
@@ -323,7 +334,9 @@ fn scan_candidate(game: &dyn Game, roots: &[PathBuf]) -> Option<PathBuf> {
                     .file_name()
                     .is_some_and(|parent| is_library_folder(&parent.to_string_lossy()));
 
-                if !matches_name && !in_library {return None}
+                if !matches_name && !in_library {
+                    return None;
+                }
 
                 let path = entry.path();
                 let valid = if matches_name {
@@ -349,7 +362,9 @@ fn scan_candidate(game: &dyn Game, roots: &[PathBuf]) -> Option<PathBuf> {
 }
 
 fn same_location(a: &Path, b: &Path) -> bool {
-    if a == b {return true}
+    if a == b {
+        return true;
+    }
     matches!((a.canonicalize(), b.canonicalize()), (Ok(a), Ok(b)) if a == b)
 }
 

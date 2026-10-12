@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context as _, Result, anyhow};
 use super::{Game, identity::SafeRelativePath};
 use crate::config::{CopyOutcome, copy_verified};
+use anyhow::{Context as _, Result, anyhow};
 const WRAPPERS: &str = "Wrappers";
 const PLUGINS: &str = "Plugins";
 const ADDONS: &str = "Addons";
