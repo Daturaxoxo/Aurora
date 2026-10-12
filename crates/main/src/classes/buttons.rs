@@ -42,7 +42,7 @@ impl ButtonHandler {
         let context = runtime::get().ok().and_then(|r| r.snapshot().context);
         let mods_path = context.as_ref().and_then(|context| {
             let root = context.installation()?.root();
-            context.game().mod_manager()?.mod_roots(root).into_iter().next()
+            context.game().mod_manager()?.layout(root).roots.into_iter().next()
         });
         let Some(mods_path) = mods_path else {
             error!("Could not find the mods folder of the selected game");

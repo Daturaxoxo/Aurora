@@ -6,6 +6,8 @@ use shared::classes::games::nte::{
     paths::{VersionPaths, get_version_paths},
     version::{BypassMethod, Distribution, Version},
 };
+use shared::classes::games::capabilities::LuaLayout;
+use shared::classes::games::find_game;
 use shared::classes::games::payload::ResolvedPayloadLayout;
 use shared::classes::info::Target;
 
@@ -17,6 +19,7 @@ pub struct PakEngine {
     pub game_path: PathBuf,
     pub engine_method: BypassMethod,
     pub payload: ResolvedPayloadLayout,
+    pub lua: Option<LuaLayout>,
     pub version: Version,
     pub gpaths: VersionPaths,
     pub win64: PathBuf,
@@ -74,11 +77,16 @@ impl PakEngine {
             (Target::Cutils, win64.join(Target::Cutils.as_file())),
         ];
 
+        let lua = find_game(input.tag.game_id.as_str())
+            .and_then(|game| game.lua())
+            .map(|lua| lua.layout(input.payload.root(), Some(&game_path)));
+
         info!("Game Path: {}", game_path.display());
         Ok(Self {
             game_path,
             engine_method,
             payload: input.payload.clone(),
+            lua,
             version,
             gpaths,
             win64,

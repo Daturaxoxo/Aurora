@@ -10,7 +10,10 @@ use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use shared::classes::games::{EngineKind, Game, InstallationFacts, locate::transitional_selected_game};
+use shared::classes::games::{
+    EngineKind, Game, InstallationFacts, capabilities::ScaleSetting,
+    locate::transitional_selected_game, platform::PlatformPaths,
+};
 use shared::classes::info::version::StartMethod;
 use shared::config::{self, ConfigChange, ProfileKey, ProfilePatch, key};
 use shared::pathfind::resolve_game_root;
@@ -178,9 +181,10 @@ impl SettingsHandler {
         debug!("start_method: raw={raw_start:?} → {start_method}");
         w.set_start_method_index(start_method.as_index());
 
-        w.set_show_engine_scale(scale::SUPPORTED && engine_settings);
-        if scale::SUPPORTED && engine_settings {
-            let current_scale = scale::get_current_scale();
+        let scale_target = Self::scale_target(game).filter(|_| engine_settings);
+        w.set_show_engine_scale(scale_target.is_some());
+        if let Some((dirs, setting)) = scale_target {
+            let current_scale = scale::get_current_scale(&dirs, &setting);
             let engine_scale = Self::scale_to_percent(current_scale);
             debug!("engine_scale: Engine.ini={current_scale} → {engine_scale}%");
             w.set_engine_scale(engine_scale);
@@ -197,6 +201,20 @@ impl SettingsHandler {
             w.set_proton_launch_args(raw_proton.as_str().unwrap_or("").into());
             Self::load_proton_versions(w);
         }
+    }
+
+    fn scale_target(game: &dyn Game) -> Option<(Vec<std::path::PathBuf>, ScaleSetting)> {
+        if !scale::SUPPORTED {
+            return None;
+        }
+        let unreal = game.unreal()?;
+        let setting = unreal.application_scale()?;
+        Some((unreal.config_locations(&PlatformPaths::observe_host(game)), setting))
+    }
+
+    fn refuse(window: &slint::Weak<MainWindow>, action: &str, error: &anyhow::Error) {
+        warn!("refused to {action}: {error:#}");
+        ToastHandler::show(window, format!("Could not {action}: {error:#}"), "error");
     }
 
     fn current_game() -> &'static dyn Game {
@@ -630,15 +648,27 @@ impl SettingsHandler {
                 return;
             }
 
-            if scale::apply_scale(f64::from(percent) / 100.0) {
-                debug!("engine_scale written to Engine.ini");
+            let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+                Ok(guard) => guard,
+                Err(e) => {
+                    Self::refuse(&ww, "save the application scale", &e);
+                    return;
+                }
+            };
+            let Some((dirs, setting)) = Self::scale_target(guard.context().game()) else {
+                warn!("the current game has no application scale, ignoring");
+                return;
+            };
+
+            if scale::apply_scale(&dirs, &setting, f64::from(percent) / 100.0) {
+                debug!("engine_scale written to {}", setting.ini.file);
                 return;
             }
 
-            error!("engine_scale could not be written to Engine.ini");
+            error!("engine_scale could not be written to {}", setting.ini.file);
             ToastHandler::show(&ww, "Failed to save the application scale.", "error");
 
-            let actual = Self::scale_to_percent(scale::get_current_scale());
+            let actual = Self::scale_to_percent(scale::get_current_scale(&dirs, &setting));
             if let Some(w) = ww.upgrade() {
                 w.set_engine_scale(actual);
             } else {
@@ -649,9 +679,26 @@ impl SettingsHandler {
         let ww = window.clone();
         w.on_launch_args_changed(move |args| {
             info!("launch_args changed -> {args:?}");
+            let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+                Ok(guard) => guard,
+                Err(e) => {
+                    Self::refuse(&ww, "save the launch arguments", &e);
+                    if let Some(w) = ww.upgrade() {
+                        let saved = Self::profile_value(Self::current_game(), ProfileKey::LaunchArgs);
+                        w.set_launch_args(saved.as_str().unwrap_or("").into());
+                    }
+                    return;
+                }
+            };
             Self::save_profile(&ProfilePatch::new().set(ProfileKey::LaunchArgs, args.as_str()));
 
-            match launch_args::apply(args.as_str()) {
+            let game = guard.context().game();
+            let (Some(unreal), Some(arguments)) = (game.unreal(), game.launch_arguments()) else {
+                debug!("{} has no launch arguments to write", game.descriptor().id);
+                return;
+            };
+            let dirs = unreal.config_locations(&PlatformPaths::observe_host(game));
+            match launch_args::apply(&dirs, arguments.catalogue(), args.as_str()) {
                 Ok(()) => debug!("launch_args written to the game's config files"),
                 Err(e) => {
                     error!("launch_args could not be applied: {e}");

@@ -1,9 +1,11 @@
 use super::cache::CacheManager;
 use super::types::{
-    ApiFile, ApiRecord, ModProfile, NteMod, NteModFile, ProfilePage, SearchResponse,
+    ApiFile, ApiRecord, ModProfile, GbMod, GbModFile, ProfilePage, SearchResponse,
     SubfeedResponse,
 };
-use crate::classes::games::{Game, find_game, identity::GameId};
+use crate::classes::games::{
+    Game, capabilities::GameBananaSupport, find_game, identity::GameId, registry,
+};
 use crate::utils::{error_chain, get_local_version};
 use anyhow::{Context, Result, anyhow};
 use futures::{StreamExt, stream};
@@ -16,9 +18,6 @@ use std::time::Duration;
 use log::*;
 
 const BASE_URL: &str = "https://gamebanana.com";
-pub const NTE_GAME_ID: u32 = 23012;
-// TODO(lane A, a5-3): move onto each registered game's remote game policy
-const REGISTRY_GAMES: &[(&str, u32)] = &[("nte", NTE_GAME_ID)];
 const FETCH_CONCURRENCY: usize = 6;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -33,6 +32,22 @@ enum Attempt {
     Done(Vec<u8>),
     Retry(anyhow::Error, Option<Duration>),
     Fatal(anyhow::Error),
+}
+
+/// a registered game's GameBanana id plus the cache namespace its requests write to (dont delete this comment or else)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteGame {
+    pub id: u32,
+    pub namespace: GameId,
+}
+
+impl RemoteGame {
+    pub fn of(game: &dyn Game) -> Option<Self> {
+        Some(Self {
+            id: game.gamebanana()?.remote_game_id(),
+            namespace: game.descriptor().id.clone(),
+        })
+    }
 }
 
 pub struct GameBananaApi {
@@ -216,11 +231,11 @@ impl GameBananaApi {
         root.contains("nsfw") || sub.contains("nsfw")
     }
 
-    fn map_files(files: Option<Vec<ApiFile>>) -> Vec<NteModFile> {
+    fn map_files(files: Option<Vec<ApiFile>>) -> Vec<GbModFile> {
         files
             .unwrap_or_default()
             .into_iter()
-            .map(|file| NteModFile {
+            .map(|file| GbModFile {
                 id: file.id,
                 name: file.file_name,
                 size: file.file_size,
@@ -244,7 +259,7 @@ impl GameBananaApi {
             })
     }
 
-    async fn fetch_one(client: &Client, record: ApiRecord) -> NteMod {
+    async fn fetch_one(client: &Client, record: ApiRecord) -> GbMod {
         let thumb_url = record
             .preview_media
             .as_ref()
@@ -288,7 +303,7 @@ impl GameBananaApi {
                     .collect()
             });
 
-        NteMod {
+        GbMod {
             id: record.id,
             name: record.name,
             thumbnail: thumbnail_bytes,
@@ -307,8 +322,8 @@ impl GameBananaApi {
     async fn collect_mods(
         &self,
         records: Vec<ApiRecord>,
-        on_mod_ready: Option<&UnboundedSender<Arc<NteMod>>>,
-    ) -> Vec<Arc<NteMod>> {
+        on_mod_ready: Option<&UnboundedSender<Arc<GbMod>>>,
+    ) -> Vec<Arc<GbMod>> {
         let mut stream = stream::iter(records)
             .map(|record| Self::fetch_one(&self.client, record))
             .buffered(FETCH_CONCURRENCY);
@@ -324,7 +339,7 @@ impl GameBananaApi {
         mods
     }
 
-    async fn fetch_profile_mod(&self, record: &ApiRecord) -> Option<NteMod> {
+    async fn fetch_profile_mod(&self, record: &ApiRecord) -> Option<GbMod> {
         let url = format!("{}/apiv11/Mod/{}/ProfilePage", BASE_URL, record.id);
         let request = self.client.get(&url);
         let what = format!("the profile of mod {}", record.id);
@@ -345,13 +360,14 @@ impl GameBananaApi {
             .collect()
     }
 
-    pub async fn get_nte_mods(
+    pub async fn get_mods(
         &self,
+        game: &RemoteGame,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
-    ) -> Result<Vec<Arc<NteMod>>> {
-        if !force_refresh && let Some(cached) = self.cache.get_feed_cache(page).await {
+        on_mod_ready: Option<UnboundedSender<Arc<GbMod>>>,
+    ) -> Result<Vec<Arc<GbMod>>> {
+        if !force_refresh && let Some(cached) = self.cache.get_feed_cache(&game.namespace, page).await {
             let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
             if let Some(tx) = on_mod_ready {
                 for m in &cached {
@@ -361,7 +377,7 @@ impl GameBananaApi {
             return Ok(cached);
         }
 
-        let url = format!("{BASE_URL}/apiv11/Game/{NTE_GAME_ID}/Subfeed");
+        let url = format!("{BASE_URL}/apiv11/Game/{}/Subfeed", game.id);
         let request = self.client.get(&url).query(&[("_nPage", page)]);
         let subfeed: SubfeedResponse =
             Self::fetch_json(request, &format!("the feed (page {page})")).await?;
@@ -372,27 +388,30 @@ impl GameBananaApi {
         }
 
         let expected = only_mods.len();
-        let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
+        let mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
-        if nte_mods.len() == expected {
-            self.cache.save_feed_cache(page, &nte_mods).await;
+        if mods.len() == expected {
+            self.cache.save_feed_cache(&game.namespace, page, &mods).await;
         }
 
-        Ok(nte_mods)
+        Ok(mods)
     }
 
-    pub async fn search_nte_mods(
+    pub async fn search_mods(
         &self,
+        game: &RemoteGame,
         query: &str,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
-    ) -> Result<Vec<Arc<NteMod>>> {
+        on_mod_ready: Option<UnboundedSender<Arc<GbMod>>>,
+    ) -> Result<Vec<Arc<GbMod>>> {
         if query.len() < 3 {
             return Ok(Vec::new());
         }
 
-        if !force_refresh && let Some(cached) = self.cache.get_search_cache(query, page).await {
+        if !force_refresh
+            && let Some(cached) = self.cache.get_search_cache(&game.namespace, query, page).await
+        {
             let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
             if let Some(tx) = on_mod_ready {
                 for m in &cached {
@@ -406,7 +425,7 @@ impl GameBananaApi {
         let request = self.client.get(&url).query(&[
             ("_sSearchString", query),
             ("_sModelName", "Mod"),
-            ("_idGameRow", &NTE_GAME_ID.to_string()),
+            ("_idGameRow", &game.id.to_string()),
             ("_nPage", &page.to_string()),
             ("_nPerpage", "15"),
         ]);
@@ -423,33 +442,39 @@ impl GameBananaApi {
             .map(|record| async move { self.fetch_profile_mod(&record).await })
             .buffered(FETCH_CONCURRENCY);
 
-        let mut nte_mods = Vec::new();
+        let mut mods = Vec::new();
         while let Some(m) = stream.next().await {
             if let Some(m) = m {
                 let m = Arc::new(m);
                 if let Some(tx) = &on_mod_ready {
                     let _ = tx.send(Arc::clone(&m));
                 }
-                nte_mods.push(m);
+                mods.push(m);
             }
         }
 
-        if nte_mods.len() == expected {
-            self.cache.save_search_cache(query, page, &nte_mods).await;
+        if mods.len() == expected {
+            self.cache
+                .save_search_cache(&game.namespace, query, page, &mods)
+                .await;
         }
 
-        Ok(nte_mods)
+        Ok(mods)
     }
 
     pub async fn get_category_mods(
         &self,
+        game: &RemoteGame,
         category_id: u32,
         page: u32,
         force_refresh: bool,
-        on_mod_ready: Option<UnboundedSender<Arc<NteMod>>>,
-    ) -> Result<Vec<Arc<NteMod>>> {
+        on_mod_ready: Option<UnboundedSender<Arc<GbMod>>>,
+    ) -> Result<Vec<Arc<GbMod>>> {
         if !force_refresh
-            && let Some(cached) = self.cache.get_category_cache(category_id, page).await
+            && let Some(cached) = self
+                .cache
+                .get_category_cache(&game.namespace, category_id, page)
+                .await
         {
             let cached: Vec<_> = cached.into_iter().map(Arc::new).collect();
             if let Some(tx) = on_mod_ready {
@@ -478,18 +503,18 @@ impl GameBananaApi {
         }
 
         let expected = only_mods.len();
-        let nte_mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
+        let mods = self.collect_mods(only_mods, on_mod_ready.as_ref()).await;
 
-        if nte_mods.len() == expected {
+        if mods.len() == expected {
             self.cache
-                .save_category_cache(category_id, page, &nte_mods)
+                .save_category_cache(&game.namespace, category_id, page, &mods)
                 .await;
         }
 
-        Ok(nte_mods)
+        Ok(mods)
     }
 
-    pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<NteModFile>> {
+    pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<GbModFile>> {
         let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
         let request = self.client.get(&url);
         let what = format!("the files of mod {mod_id}");
@@ -547,15 +572,17 @@ impl GameBananaApi {
 }
 
 pub fn gamebanana_id(game: &GameId) -> Option<u32> {
-    REGISTRY_GAMES
-        .iter()
-        .find(|(id, _)| *id == game.as_str())
-        .map(|(_, gamebanana)| *gamebanana)
+    find_game(game.as_str())
+        .filter(|found| found.descriptor().id == *game)?
+        .gamebanana()
+        .map(GameBananaSupport::remote_game_id)
 }
 
 pub fn registry_game(gamebanana_id: u32) -> Option<&'static dyn Game> {
-    let (id, _) = REGISTRY_GAMES.iter().find(|(_, gb)| *gb == gamebanana_id)?;
-    find_game(id).filter(|game| game.descriptor().id.as_str() == *id)
+    registry().iter().copied().find(|game| {
+        game.gamebanana()
+            .is_some_and(|support| support.remote_game_id() == gamebanana_id)
+    })
 }
 
 pub fn game_page(game: &GameId) -> Option<String> {

@@ -1,6 +1,8 @@
 use super::INVALID_FILENAME_CHARS;
 use super::gbbrowser;
-use crate::classes::{characters, modicons};
+use crate::classes::characters::{self, Characters};
+use crate::classes::modicons;
+use crate::runtime::{self, GameContext, MutationGuard};
 use crate::{
     FilterOption, GroupOption, IconChoice, MainWindow, ModFilters, ModItem, ModStatusFilter, ModTag,
 };
@@ -12,9 +14,14 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use shared::archive::{ARCHIVE_EXTENSIONS, extract_archive_with_progress};
-use shared::classes::gamebanana::types::NteModFile;
-use shared::config::{self, key};
-use shared::utils::{get_cache_dir, get_mods_path, open_folder, read_dir_recursive};
+use serde_json::Map;
+use shared::classes::gamebanana::types::GbModFile;
+use shared::classes::games::{
+    Game,
+    capabilities::{FileState, ModNaming},
+};
+use shared::config::{self, ProfileKey, ProfilePatch, key};
+use shared::utils::{get_cache_dir, open_folder, read_dir_recursive};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use std::cell::RefCell;
@@ -27,13 +34,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::SystemTime;
 
-// prefixes & shit, done so we have an easy job later on when adding new game support (even tho we will probably have to change these to arrays later on...) -datura
 const GROUP_PREFIX: &str = "AU GRP - ";
-const MOD_EXTENSIONS: [&str; 3] = ["pak", "utoc", "ucas"];
-const TOGGLE_EXTENSION: &str = "pak";
 
 static TOGGLE_LOCK: Mutex<()> = Mutex::new(());
-const DISABLED_SUFFIX: &str = ".disabled";
 const STAGING_PREFIX: &str = ".aurora-installing-";
 const ALREADY_INSTALLED: &str = "a mod with this name already exists";
 const SOURCE_FILE: &str = ".aurora-source.json";
@@ -79,20 +82,66 @@ impl ModSource {
     }
 }
 
-fn is_mod_file(name: &str) -> bool {
-    Path::new(name)
-        .extension()
-        .is_some_and(|ext| MOD_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+fn is_disabled(naming: &ModNaming, name: &std::ffi::OsStr) -> bool {
+    naming.classify(&name.to_string_lossy()) == FileState::Disabled
 }
 
-fn is_disabled_mod_file(name: &str) -> bool {
-    name.strip_suffix(DISABLED_SUFFIX).is_some_and(is_mod_file)
+#[derive(Clone)]
+pub(crate) struct ModScope {
+    game: &'static dyn Game,
+    generation: u64,
+    root: PathBuf,
+    naming: ModNaming,
+    characters: Option<Characters>,
 }
 
-fn is_pak_file(name: &str) -> bool {
-    Path::new(name)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case(TOGGLE_EXTENSION))
+impl ModScope {
+    fn of(context: &GameContext) -> Result<Self> {
+        let game = context.game();
+        let mods = game.mod_manager().ok_or_else(|| {
+            anyhow!("{} does not support mods", game.descriptor().display_name)
+        })?;
+        let installation = context
+            .installation()
+            .ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
+        let layout = mods.layout(installation.root());
+        let root = layout
+            .roots
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("the mods folder could not be resolved"))?;
+
+        Ok(Self {
+            game,
+            generation: context.generation(),
+            root,
+            naming: layout.naming,
+            characters: characters::of(game),
+        })
+    }
+
+    fn current() -> Result<Self> {
+        let context = runtime::get()?
+            .snapshot()
+            .context
+            .ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
+        Self::of(&context)
+    }
+
+    fn guarded() -> Result<(MutationGuard, Self)> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let scope = Self::of(guard.context())?;
+        Ok((guard, scope))
+    }
+
+    fn guarded_shown() -> Result<(MutationGuard, Self)> {
+        let (guard, scope) = Self::guarded()?;
+        let shown = STATE.lock().unwrap().scope.as_ref().map(|s| s.generation);
+        if shown != Some(scope.generation) {
+            return Err(anyhow!("the selected game changed, try again"));
+        }
+        Ok((guard, scope))
+    }
 }
 
 pub type InstallDoneCallback = Box<dyn FnOnce(&MainWindow) + Send>;
@@ -184,7 +233,7 @@ impl ModManager {
         None
     }
 
-    fn get_mod_data(folder: &PathBuf) -> Mod {
+    fn get_mod_data(folder: &PathBuf, naming: &ModNaming) -> Mod {
         let mod_name = folder
             .file_name()
             .unwrap_or(folder.as_os_str())
@@ -192,9 +241,7 @@ impl ModManager {
             .into_owned();
 
         let files = read_dir_recursive(folder);
-        let is_enabled = !files
-            .iter()
-            .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
+        let is_enabled = !files.iter().any(|p| is_disabled(naming, &p.file_name()));
 
         let folder_meta = std::fs::metadata(folder).ok();
         let added = folder_meta
@@ -209,7 +256,7 @@ impl ModManager {
 
         let mut mod_data = Mod {
             folder_name: mod_name.clone(),
-            display_name: mod_name.strip_suffix("_P").unwrap_or(&mod_name).to_string(),
+            display_name: naming.display_name(&mod_name).to_string(),
             path: folder.clone(),
             is_enabled,
             has_icon_png: folder.join("icon.png").is_file(),
@@ -319,16 +366,15 @@ impl ModManager {
         }
     }
 
-    fn contains_pak(folder: &PathBuf) -> bool {
-        read_dir_recursive(folder).iter().any(|item| {
-            let name = item.file_name().to_string_lossy().into_owned();
-            is_mod_file(&name) || is_disabled_mod_file(&name)
-        })
+    fn contains_pak(folder: &PathBuf, naming: &ModNaming) -> bool {
+        read_dir_recursive(folder)
+            .iter()
+            .any(|item| naming.classify(&item.file_name().to_string_lossy()) != FileState::Other)
     }
 
-    pub fn scan_mods() -> Result<Vec<Group>> {
-        let mods_path =
-            get_mods_path().ok_or_else(|| anyhow!("the game folder is not set in the settings"))?;
+    fn scan_mods(scope: &ModScope) -> Result<Vec<Group>> {
+        let mods_path = &scope.root;
+        let naming = &scope.naming;
 
         if !mods_path.exists() {
             info!("mods folder '{}' does not exist yet", mods_path.display());
@@ -390,9 +436,9 @@ impl ModManager {
                                     .file_name()
                                     .to_string_lossy()
                                     .starts_with(STAGING_PREFIX)
-                                && Self::contains_pak(&sub.path())
+                                && Self::contains_pak(&sub.path(), naming)
                             {
-                                group.add_mod(Self::get_mod_data(&sub.path()));
+                                group.add_mod(Self::get_mod_data(&sub.path(), naming));
                             }
                         }
                     }
@@ -402,8 +448,8 @@ impl ModManager {
                     group.mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name));
                 }
                 groups.push(group);
-            } else if Self::contains_pak(&entry.path()) {
-                root_group.add_mod(Self::get_mod_data(&entry.path()));
+            } else if Self::contains_pak(&entry.path(), naming) {
+                root_group.add_mod(Self::get_mod_data(&entry.path(), naming));
             } else {
                 debug!("skipping '{name}': no mod files inside");
             }
@@ -445,7 +491,7 @@ impl ModManager {
         Ok(())
     }
 
-    pub fn toggle_mod(mod_: &Mod) -> Result<()> {
+    fn toggle_mod(mod_: &Mod, naming: &ModNaming) -> Result<()> {
         let _guard = TOGGLE_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
 
         let folder = mod_.path.clone();
@@ -458,27 +504,24 @@ impl ModManager {
         let files = read_dir_recursive(&folder);
         let disabled: Vec<_> = files
             .iter()
-            .filter(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()))
+            .filter(|p| is_disabled(naming, &p.file_name()))
             .collect();
 
         if disabled.is_empty() {
             let targets = files
                 .iter()
-                .filter(|p| is_pak_file(&p.file_name().to_string_lossy()))
-                .map(|pak| {
-                    let old = pak.path();
-                    let new = old.with_file_name(format!(
-                        "{}{DISABLED_SUFFIX}",
-                        pak.file_name().to_string_lossy()
-                    ));
-                    (old, new)
+                .filter_map(|file| {
+                    let new = naming.toggled(&file.file_name().to_string_lossy(), false)?;
+                    let old = file.path();
+                    Some((old.clone(), old.with_file_name(new)))
                 })
                 .collect::<Vec<_>>();
 
             if targets.is_empty() {
                 return Err(anyhow!(
-                    "Cannot toggle mod: {} has no .pak file to disable",
-                    mod_.folder_name
+                    "Cannot toggle mod: {} has no .{} file to disable",
+                    mod_.folder_name,
+                    naming.toggle_extensions.join(", .")
                 ));
             }
 
@@ -491,12 +534,10 @@ impl ModManager {
         } else {
             let targets = disabled
                 .iter()
-                .map(|pak| {
-                    let old = pak.path();
-                    let name = pak.file_name().to_string_lossy().into_owned();
-                    let new =
-                        old.with_file_name(name.strip_suffix(DISABLED_SUFFIX).unwrap_or(&name));
-                    (old, new)
+                .filter_map(|file| {
+                    let new = naming.toggled(&file.file_name().to_string_lossy(), true)?;
+                    let old = file.path();
+                    Some((old.clone(), old.with_file_name(new)))
                 })
                 .collect::<Vec<_>>();
 
@@ -522,7 +563,7 @@ struct ScannedGroup {
 }
 
 const UNGROUPED: &str = "\u{1}ungrouped";
-type UpdateCheck = Option<NteModFile>;
+type UpdateCheck = Option<GbModFile>;
 
 struct AddExistingEntry {
     id: String,
@@ -549,7 +590,12 @@ enum ModSort {
 }
 
 impl ModSort {
-    fn apply(self, mods: &mut Vec<&Mod>, shown_name: &dyn Fn(&Mod) -> String) {
+    fn apply(
+        self,
+        mods: &mut Vec<&Mod>,
+        shown_name: &dyn Fn(&Mod) -> String,
+        characters: Option<&Characters>,
+    ) {
         match self {
             Self::Folder => mods.sort_by(|a, b| a.folder_name.cmp(&b.folder_name)),
             Self::DateAdded | Self::DateModified => mods.sort_by_cached_key(|m| {
@@ -577,7 +623,7 @@ impl ModSort {
                 let name = shown_name(m);
                 let primary = match self {
                     Self::Author => mod_author(m).map(str::to_lowercase),
-                    Self::Character => mod_character(m, &name)
+                    Self::Character => mod_character(m, &name, characters)
                         .map(|slug| characters::display_name(slug).to_lowercase()),
                     _ => unreachable!(),
                 };
@@ -611,6 +657,7 @@ struct State {
     /// A group id, [`UNGROUPED`], or empty for every group
     filter_group: String,
     add_existing: Option<AddExisting>,
+    scope: Option<ModScope>,
 }
 
 impl State {
@@ -630,30 +677,50 @@ impl State {
 
 static STATE: Lazy<Mutex<State>> = Lazy::new(|| Mutex::new(State::default()));
 
-static GENERATION: AtomicU64 = AtomicU64::new(0);
-
-pub fn config_map(key: &str) -> serde_json::Map<String, Value> {
-    config::get(key).as_object().cloned().unwrap_or_default()
+impl ModManagerHandler {
+    // a different game's mods share no selections, filters or update checks
+    fn reset_for_switch(state: &mut State) {
+        let sort = state.sort;
+        *state = State {
+            sort,
+            ..State::default()
+        };
+    }
 }
 
-pub fn config_map_set(key: &str, entry: &str, value: Option<&str>) {
-    config::modify(|data| {
-        let mut map = data
-            .get(key)
-            .and_then(Value::as_object)
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+pub fn profile_map(game: &dyn Game, key: ProfileKey) -> Map<String, Value> {
+    match config::read_profile(&game.descriptor().id) {
+        Ok(profile) => profile
+            .value(key, game)
+            .as_object()
             .cloned()
-            .unwrap_or_default();
-
-        match value {
-            Some(v) => {
-                map.insert(entry.to_string(), Value::from(v));
-            }
-            None => {
-                map.remove(entry);
-            }
+            .unwrap_or_default(),
+        Err(e) => {
+            error!("could not read the {} profile: {e:#}", game.descriptor().id);
+            Map::new()
         }
+    }
+}
 
-        data.insert(key.to_string(), Value::Object(map));
+fn update_profile_map(game: &dyn Game, key: ProfileKey, change: impl FnOnce(&mut Map<String, Value>) -> bool) {
+    let mut map = profile_map(game, key);
+    if !change(&mut map) {
+        return;
+    }
+    if let Err(e) = config::update_profile(
+        &game.descriptor().id,
+        &ProfilePatch::new().set(key, Value::Object(map)),
+    ) {
+        error!("could not save {}: {e:#}", key.as_str());
+    }
+}
+
+pub fn profile_map_set(game: &dyn Game, key: ProfileKey, entry: &str, value: Option<&str>) {
+    update_profile_map(game, key, |map| match value {
+        Some(v) => map.insert(entry.to_string(), Value::from(v)).is_none_or(|old| old != v),
+        None => map.remove(entry).is_some(),
     });
 }
 
@@ -683,17 +750,13 @@ fn expected_install_failure(error: &anyhow::Error) -> Option<&'static str> {
     None
 }
 
-fn rekey_mod_config(old: &str, new: &str) {
+fn rekey_mod_config(game: &dyn Game, old: &str, new: &str) {
     if old == new {
         return;
     }
 
-    for map_key in [key::MODMNG_NOTES, key::MODMNG_DISPLAY_NAMES] {
-        config::modify(|data| {
-            let Some(mut map) = data.get(map_key).and_then(Value::as_object).cloned() else {
-                return;
-            };
-
+    for map_key in [ProfileKey::ModmngNotes, ProfileKey::ModmngDisplayNames] {
+        update_profile_map(game, map_key, |map| {
             let moved: Vec<String> = map
                 .keys()
                 .filter(|k| {
@@ -704,19 +767,20 @@ fn rekey_mod_config(old: &str, new: &str) {
                 .cloned()
                 .collect();
 
-            if moved.is_empty() {
-                return;
-            }
-
-            for k in moved {
-                let Some(value) = map.remove(&k) else {
+            for k in &moved {
+                let Some(value) = map.remove(k) else {
                     continue;
                 };
                 map.insert(format!("{new}{}", &k[old.len()..]), value);
             }
-
-            data.insert(map_key.to_string(), Value::Object(map));
+            !moved.is_empty()
         });
+    }
+}
+
+fn forget_mod_config(game: &dyn Game, id: &str) {
+    for map_key in [ProfileKey::ModmngNotes, ProfileKey::ModmngDisplayNames] {
+        profile_map_set(game, map_key, id, None);
     }
 }
 
@@ -753,7 +817,7 @@ fn local_icon(path: &Path) -> Option<slint::Image> {
     Some(image)
 }
 
-fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
+fn mod_icon(mod_: &Mod, shown_name: &str, characters: Option<&Characters>) -> slint::Image {
     if mod_.has_icon_png
         && let Some(image) = local_icon(&mod_.path.join("icon.png"))
     {
@@ -763,18 +827,28 @@ fn mod_icon(mod_: &Mod, shown_name: &str) -> slint::Image {
     mod_.image_url
         .as_deref()
         .and_then(modicons::cached)
-        .or_else(|| mod_.icon.as_deref().and_then(characters::icon_for))
-        .or_else(|| characters::icon_for(shown_name))
-        .or_else(|| characters::icon_for(&mod_.folder_name))
+        .or_else(|| {
+            let characters = characters?;
+            mod_.icon
+                .as_deref()
+                .and_then(|icon| characters.icon_for(icon))
+                .or_else(|| characters.icon_for(shown_name))
+                .or_else(|| characters.icon_for(&mod_.folder_name))
+        })
         .unwrap_or_default()
 }
 
-fn mod_character(mod_: &Mod, shown_name: &str) -> Option<&'static str> {
+fn mod_character(
+    mod_: &Mod,
+    shown_name: &str,
+    characters: Option<&Characters>,
+) -> Option<&'static str> {
+    let characters = characters?;
     mod_.icon
         .as_deref()
-        .and_then(characters::character_for)
-        .or_else(|| characters::character_for(shown_name))
-        .or_else(|| characters::character_for(&mod_.folder_name))
+        .and_then(|icon| characters.character_for(icon))
+        .or_else(|| characters.character_for(shown_name))
+        .or_else(|| characters.character_for(&mod_.folder_name))
 }
 
 fn mod_author(mod_: &Mod) -> Option<&str> {
@@ -893,7 +967,10 @@ pub struct ModManagerHandler;
 
 impl ModManagerHandler {
     pub(crate) fn is_source_installed(mod_id: u32, file_id: u32) -> bool {
-        ModManager::scan_mods().is_ok_and(|groups| {
+        let Ok(scope) = ModScope::current() else {
+            return false;
+        };
+        ModManager::scan_mods(&scope).is_ok_and(|groups| {
             groups.into_iter().flat_map(|group| group.mods).any(|mod_| {
                 mod_.source
                     .is_some_and(|source| source.mod_id == mod_id && source.file_id == file_id)
@@ -905,38 +982,24 @@ impl ModManagerHandler {
         info!("setup() called");
         Self::bind(window);
         Self::setup_file_drop(window);
-        Self::setup_icon_choices(window);
         Self::reload(window);
         info!("setup() complete");
     }
 
-    fn setup_icon_choices(window: &slint::Weak<MainWindow>) {
-        // zero.png and mc.png are the same art
-        const HIDDEN: &[&str] = &["zero"];
-        const RENAMED: &[(&str, &str)] = &[("mc", "Zero")];
-
-        let choices: Vec<IconChoice> = characters::slugs()
-            .filter(|slug| !HIDDEN.contains(slug))
-            .map(|slug| {
-                let name = RENAMED
-                    .iter()
-                    .find(|(candidate, _)| *candidate == slug)
-                    .map_or_else(
-                        || characters::display_name(slug),
-                        |(_, name)| (*name).to_string(),
-                    );
-
-                IconChoice {
+    fn set_icon_choices(w: &MainWindow, characters: Option<&Characters>) {
+        let choices: Vec<IconChoice> = characters.map_or_default(|characters| {
+            characters
+                .choices()
+                .into_iter()
+                .map(|(slug, name)| IconChoice {
                     slug: slug.into(),
                     name: name.as_str().into(),
-                    icon: characters::icon(slug).unwrap_or_default(),
-                }
-            })
-            .collect();
+                    icon: characters.icon(slug).unwrap_or_default(),
+                })
+                .collect()
+        });
 
-        window
-            .unwrap()
-            .set_mods_icon_choices(Rc::new(VecModel::from(choices)).into());
+        w.set_mods_icon_choices(Rc::new(VecModel::from(choices)).into());
     }
 
     #[cfg(target_os = "windows")]
@@ -1008,6 +1071,23 @@ impl ModManagerHandler {
         w.set_toast_active(true);
     }
 
+    fn refuse(window: &slint::Weak<MainWindow>, action: &str, error: &anyhow::Error) {
+        warn!("refused to {action}: {error:#}");
+        let text = format!("Could not {action} - {error:#}");
+        let ww = window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(win) = ww.upgrade() {
+                Self::show_toast(&win, "error", text);
+            }
+        });
+    }
+
+    fn begin(window: &slint::Weak<MainWindow>, action: &str) -> Option<(MutationGuard, ModScope)> {
+        ModScope::guarded_shown()
+            .map_err(|e| Self::refuse(window, action, &e))
+            .ok()
+    }
+
     pub(crate) fn install_paths(window: &slint::Weak<MainWindow>, paths: Vec<PathBuf>) {
         Self::install_paths_with_done(window, paths, None, None, None);
     }
@@ -1029,9 +1109,26 @@ impl ModManagerHandler {
         on_done: Option<InstallDoneCallback>,
         icon_png: Option<Vec<u8>>,
     ) {
+        let (guard, scope) = match ModScope::guarded() {
+            Ok(pair) => pair,
+            Err(e) => {
+                Self::refuse(window, "install", &e);
+                if let Some(on_done) = on_done {
+                    let ww = window.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = ww.upgrade() {
+                            on_done(&win);
+                        }
+                    });
+                }
+                return;
+            }
+        };
+
         let ww = window.clone();
         std::thread::spawn(move || {
-            let units = Self::group_siblings(paths);
+            let _guard = guard;
+            let units = Self::group_siblings(paths, &scope.naming);
             let mut installed: Vec<String> = Vec::new();
             let mut failed: Vec<String> = Vec::new();
 
@@ -1084,25 +1181,25 @@ impl ModManagerHandler {
                     }
                 };
 
-                match Self::install_path(unit, &mut on_progress) {
+                match Self::install_path(unit, &scope, &mut on_progress) {
                     Ok(name) => {
                         info!("installed '{name}' from '{}'", path.display());
-                        if let Some(folder) = get_mods_path().map(|mods| mods.join(&name)) {
-                            if let Some(source) = &source {
-                                source.write(&folder);
-                                if !source.name.is_empty() {
-                                    config_map_set(
-                                        key::MODMNG_NOTES,
-                                        &folder.to_string_lossy(),
-                                        Some(&source.name),
-                                    );
-                                }
+                        let folder = scope.root.join(&name);
+                        if let Some(source) = &source {
+                            source.write(&folder);
+                            if !source.name.is_empty() {
+                                profile_map_set(
+                                    scope.game,
+                                    ProfileKey::ModmngNotes,
+                                    &folder.to_string_lossy(),
+                                    Some(&source.name),
+                                );
                             }
-                            if let Some(png) = &icon_png
-                                && let Err(e) = std::fs::write(folder.join("icon.png"), png)
-                            {
-                                warn!("could not write the icon of '{}': {e}", folder.display());
-                            }
+                        }
+                        if let Some(png) = &icon_png
+                            && let Err(e) = std::fs::write(folder.join("icon.png"), png)
+                        {
+                            warn!("could not write the icon of '{}': {e}", folder.display());
                         }
                         installed.push(name);
                     }
@@ -1155,18 +1252,12 @@ impl ModManagerHandler {
         });
     }
 
-    fn group_siblings(paths: Vec<PathBuf>) -> Vec<Vec<PathBuf>> {
+    fn group_siblings(paths: Vec<PathBuf>, naming: &ModNaming) -> Vec<Vec<PathBuf>> {
         let mut units: Vec<Vec<PathBuf>> = Vec::new();
         let mut index: HashMap<(PathBuf, String), usize> = HashMap::new();
 
         for path in paths {
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_lowercase();
-
-            if MOD_EXTENSIONS.contains(&ext.as_str()) && path.is_file() {
+            if naming.validate(&path).is_ok() && path.is_file() {
                 let key = (
                     path.parent().map_or_default(Path::to_path_buf),
                     path.file_stem()
@@ -1227,11 +1318,14 @@ impl ModManagerHandler {
         }
     }
 
-    fn install_path(unit: &[PathBuf], progress: &mut dyn FnMut(f32)) -> Result<String> {
+    fn install_path(
+        unit: &[PathBuf],
+        scope: &ModScope,
+        progress: &mut dyn FnMut(f32),
+    ) -> Result<String> {
         let path = unit.first().ok_or_else(|| anyhow!("nothing to install"))?;
-        let mods_path =
-            get_mods_path().ok_or_else(|| anyhow!("mods folder could not be resolved"))?;
-        std::fs::create_dir_all(&mods_path)?;
+        let mods_path = &scope.root;
+        std::fs::create_dir_all(mods_path)?;
 
         let name = path
             .file_stem()
@@ -1256,7 +1350,7 @@ impl ModManagerHandler {
 
         let target = mods_path.join(&name);
 
-        if MOD_EXTENSIONS.contains(&ext.as_str()) {
+        if scope.game.mod_manager().is_some_and(|mods| mods.validate_entry(path).is_ok()) {
             Self::install_into(&target, |staging| {
                 for file in unit {
                     std::fs::copy(
@@ -1274,9 +1368,16 @@ impl ModManagerHandler {
                         progress((done as f64 / total as f64).min(1.0) as f32);
                     }
                 })?;
-                if !ModManager::contains_pak(&staging.to_path_buf()) {
+                if !ModManager::contains_pak(&staging.to_path_buf(), &scope.naming) {
                     return Err(anyhow!(
-                        "archive contains no .pak, .utoc, or .ucas mod files"
+                        "archive contains no {} mod files",
+                        scope
+                            .naming
+                            .extensions
+                            .iter()
+                            .map(|e| format!(".{e}"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     ));
                 }
                 Ok(())
@@ -1295,8 +1396,32 @@ impl ModManagerHandler {
         source: ModSource,
         on_done: Option<InstallDoneCallback>,
     ) {
+        let scoped = ModScope::guarded().and_then(|(guard, scope)| {
+            if folder.starts_with(&scope.root) {
+                Ok((guard, scope))
+            } else {
+                Err(anyhow!("'{}' is not one of the current game's mods", folder.display()))
+            }
+        });
+        let (guard, scope) = match scoped {
+            Ok(pair) => pair,
+            Err(e) => {
+                Self::refuse(window, "update", &e);
+                if let Some(on_done) = on_done {
+                    let ww = window.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = ww.upgrade() {
+                            on_done(&win);
+                        }
+                    });
+                }
+                return;
+            }
+        };
+
         let ww = window.clone();
         std::thread::spawn(move || {
+            let _guard = guard;
             let name = folder
                 .file_name()
                 .unwrap_or(folder.as_os_str())
@@ -1305,9 +1430,9 @@ impl ModManagerHandler {
 
             let was_enabled = !read_dir_recursive(&folder)
                 .iter()
-                .any(|p| is_disabled_mod_file(&p.file_name().to_string_lossy()));
+                .any(|p| is_disabled(&scope.naming, &p.file_name()));
 
-            let outcome = Self::replace_folder(&folder, &downloaded, &mut |frac| {
+            let outcome = Self::replace_folder(&folder, &downloaded, &scope.naming, &mut |frac| {
                 Self::set_progress(&ww, frac, format!("Updating {name}..."));
             });
 
@@ -1322,7 +1447,7 @@ impl ModManagerHandler {
                             path: folder.clone(),
                             ..Default::default()
                         };
-                        if let Err(e) = ModManager::toggle_mod(&updated) {
+                        if let Err(e) = ModManager::toggle_mod(&updated, &scope.naming) {
                             warn!("could not disable '{name}' again after updating: {e}");
                         }
                     }
@@ -1362,6 +1487,7 @@ impl ModManagerHandler {
     fn replace_folder(
         folder: &Path,
         downloaded: &Path,
+        naming: &ModNaming,
         progress: &mut dyn FnMut(f32),
     ) -> Result<()> {
         let parent = folder
@@ -1395,7 +1521,7 @@ impl ModManagerHandler {
                     progress((done as f64 / total as f64).min(1.0) as f32);
                 }
             })
-        } else if MOD_EXTENSIONS.contains(&ext.as_str()) {
+        } else if naming.validate(downloaded).is_ok() {
             downloaded
                 .file_name()
                 .ok_or_else(|| anyhow!("invalid file name"))
@@ -1453,13 +1579,20 @@ impl ModManagerHandler {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ww = window.clone();
         std::thread::spawn(move || {
-            let (groups, error) = match ModManager::scan_mods() {
+            let supported = runtime::get().is_ok_and(|r| r.snapshot().game.mod_manager().is_some());
+            let scope = ModScope::current();
+            let scanned = scope
+                .as_ref()
+                .map_err(|e| anyhow!("{e:#}"))
+                .and_then(ModManager::scan_mods);
+            let (groups, error) = match scanned {
                 Ok(groups) => (groups, None),
                 Err(e) => {
                     error!("could not scan the mods folder: {e}");
-                    (vec![], Some(format!("{e}")))
+                    (vec![], supported.then(|| format!("{e}")))
                 }
             };
+            let scope = scope.ok();
 
             let scanned: Vec<ScannedGroup> = groups
                 .into_iter()
@@ -1477,12 +1610,40 @@ impl ModManagerHandler {
                 if GENERATION.load(Ordering::SeqCst) != generation {
                     return;
                 }
+                if scope
+                    .as_ref()
+                    .is_some_and(|s| !runtime::is_current_generation(s.generation))
+                {
+                    debug!("dropped a mod scan for a superseded game");
+                    return;
+                }
                 let Some(w) = ww.upgrade() else {
                     error!("could not load: window handle is dead");
                     return;
                 };
 
-                STATE.lock().unwrap().scanned = scanned;
+                let switched = {
+                    let mut state = STATE.lock().unwrap();
+                    let previous = state.scope.as_ref().map(|s| s.game.descriptor().id.clone());
+                    let current = scope.as_ref().map(|s| s.game.descriptor().id.clone());
+                    let switched = previous != current;
+                    if switched {
+                        Self::reset_for_switch(&mut state);
+                    }
+                    state.scope = scope;
+                    state.scanned = scanned;
+                    switched
+                };
+                if switched {
+                    let characters = Self::shown_scope().and_then(|s| s.characters);
+                    Self::set_icon_choices(&w, characters.as_ref());
+                    w.set_mods_add_existing_open(false);
+                    w.set_mods_drag_target("".into());
+                    w.set_mods_filters(ModFilters {
+                        status: ModStatusFilter::All,
+                        group_id: "".into(),
+                    });
+                }
                 Self::rebuild(&w);
                 Self::check_updates(&ww);
 
@@ -1524,7 +1685,7 @@ impl ModManagerHandler {
         let ww = window.clone();
         gbbrowser::runtime().spawn(async move {
             let mod_ids: HashSet<u32> = pending.iter().map(|(_, s)| s.mod_id).collect();
-            let mut fetched: HashMap<u32, Vec<NteModFile>> = HashMap::new();
+            let mut fetched: HashMap<u32, Vec<GbModFile>> = HashMap::new();
             for mod_id in mod_ids {
                 match gbbrowser::mod_files(mod_id).await {
                     Some(files) => {
@@ -1562,9 +1723,20 @@ impl ModManagerHandler {
         });
     }
 
+    fn shown_scope() -> Option<ModScope> {
+        STATE.lock().unwrap().scope.clone()
+    }
+
+    fn shown_map(scope: Option<&ModScope>, key: ProfileKey) -> Map<String, Value> {
+        scope.map_or_default(|scope| profile_map(scope.game, key))
+    }
+
     fn rebuild(w: &MainWindow) {
-        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
-        let notes = config_map(key::MODMNG_NOTES);
+        let scope = Self::shown_scope();
+        let chars = scope.as_ref().and_then(|s| s.characters);
+        let chars = chars.as_ref();
+        let display_names = Self::shown_map(scope.as_ref(), ProfileKey::ModmngDisplayNames);
+        let notes = Self::shown_map(scope.as_ref(), ProfileKey::ModmngNotes);
 
         let shown_name = |m: &Mod| -> String {
             display_names
@@ -1643,7 +1815,7 @@ impl ModManagerHandler {
                         }
 
                         if !state.filter_characters.is_empty()
-                            && !mod_character(m, &shown_name(m))
+                            && !mod_character(m, &shown_name(m), chars)
                                 .is_some_and(|slug| state.filter_characters.contains(slug))
                         {
                             return false;
@@ -1653,7 +1825,7 @@ impl ModManagerHandler {
                     })
                     .collect();
 
-                state.sort.apply(&mut visible, &shown_name);
+                state.sort.apply(&mut visible, &shown_name, chars);
 
                 let collapsed = !is_root && state.collapsed.contains(&group.id);
                 let mut section: Vec<ModItem> = Vec::new();
@@ -1705,7 +1877,7 @@ impl ModManagerHandler {
                         }
                         let item = ModItem {
                             id: mod_id(m).into(),
-                            icon: mod_icon(m, &name),
+                            icon: mod_icon(m, &name, chars),
                             name: name.into(),
                             author: m.author.clone().unwrap_or_default().into(),
                             version: version.into(),
@@ -1797,12 +1969,16 @@ impl ModManagerHandler {
         let pending_edit = STATE.lock().unwrap().pending_edit_group.take();
         w.set_mods_editing_group_id(pending_edit.unwrap_or_default().into());
 
-        Self::refresh_filter_options(w, &shown_name);
+        Self::refresh_filter_options(w, &shown_name, chars);
 
         modicons::load(w.as_weak(), wanted_images, Self::apply_icon);
     }
 
-    fn refresh_filter_options(w: &MainWindow, shown_name: &dyn Fn(&Mod) -> String) {
+    fn refresh_filter_options(
+        w: &MainWindow,
+        shown_name: &dyn Fn(&Mod) -> String,
+        chars: Option<&Characters>,
+    ) {
         let state = STATE.lock().unwrap();
 
         let mut characters: BTreeMap<&'static str, i32> = BTreeMap::new();
@@ -1828,7 +2004,7 @@ impl ModManagerHandler {
             }
 
             for m in &group.mods {
-                if let Some(slug) = mod_character(m, &shown_name(m)) {
+                if let Some(slug) = mod_character(m, &shown_name(m), chars) {
                     *characters.entry(slug).or_default() += 1;
                 }
                 if let Some(author) = mod_author(m) {
@@ -1842,7 +2018,7 @@ impl ModManagerHandler {
             .map(|(slug, count)| FilterOption {
                 id: slug.into(),
                 name: characters::display_name(slug).as_str().into(),
-                icon: characters::icon(slug).unwrap_or_default(),
+                icon: chars.and_then(|c| c.icon(slug)).unwrap_or_default(),
                 count,
                 selected: state.filter_characters.contains(slug),
             })
@@ -1910,8 +2086,8 @@ impl ModManagerHandler {
         w.set_mods_all_selected(all);
     }
 
-    fn group_path(name: &str) -> Option<PathBuf> {
-        get_mods_path().map(|p| p.join(format!("{GROUP_PREFIX}{name}")))
+    fn group_path(scope: &ModScope, name: &str) -> PathBuf {
+        scope.root.join(format!("{GROUP_PREFIX}{name}"))
     }
 
     // [ADD EXISTING MODS]
@@ -1937,29 +2113,25 @@ impl ModManagerHandler {
         Ok(())
     }
 
-    fn copy_mod_config(old: &str, new: &str) {
+    fn copy_mod_config(game: &dyn Game, old: &str, new: &str) {
         if old == new {
             return;
         }
 
-        for map_key in [key::MODMNG_NOTES, key::MODMNG_DISPLAY_NAMES] {
-            config::modify(|data| {
-                let Some(mut map) = data.get(map_key).and_then(Value::as_object).cloned() else {
-                    return;
-                };
-
+        for map_key in [ProfileKey::ModmngNotes, ProfileKey::ModmngDisplayNames] {
+            update_profile_map(game, map_key, |map| {
                 let Some(value) = map.get(old).cloned() else {
-                    return;
+                    return false;
                 };
-
                 map.insert(new.to_string(), value);
-                data.insert(map_key.to_string(), Value::Object(map));
+                true
             });
         }
     }
 
     fn open_add_existing(w: &MainWindow, group_id: &str) {
-        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+        let display_names =
+            Self::shown_map(Self::shown_scope().as_ref(), ProfileKey::ModmngDisplayNames);
         let shown_name = |m: &Mod| -> String {
             display_names
                 .get(&mod_id(m))
@@ -2006,7 +2178,9 @@ impl ModManagerHandler {
     }
 
     fn rebuild_add_existing_model(w: &MainWindow) {
-        let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+        let scope = Self::shown_scope();
+        let chars = scope.as_ref().and_then(|s| s.characters);
+        let display_names = Self::shown_map(scope.as_ref(), ProfileKey::ModmngDisplayNames);
 
         let options: Vec<FilterOption> = {
             let state = STATE.lock().unwrap();
@@ -2033,7 +2207,7 @@ impl ModManagerHandler {
                     Some(FilterOption {
                         id: entry.id.as_str().into(),
                         name: entry.name.as_str().into(),
-                        icon: mod_icon(m, shown),
+                        icon: mod_icon(m, shown, chars.as_ref()),
                         count: 0,
                         selected: picker.selected.contains(&entry.id),
                     })
@@ -2080,8 +2254,9 @@ impl ModManagerHandler {
     }
 
     fn drop_mods_on_zone(window: &slint::Weak<MainWindow>, id: String, zone: String) {
+        let root = Self::shown_scope().map(|s| s.root);
         let zone = if !zone.is_empty()
-            && Self::mod_by_id(&id).is_some_and(|m| Self::current_zone(&m) == zone)
+            && Self::mod_by_id(&id).is_some_and(|m| Self::current_zone(&m, root.as_deref()) == zone)
         {
             String::new()
         } else {
@@ -2105,9 +2280,9 @@ impl ModManagerHandler {
         Self::move_mods_to_zone(window, ids, zone);
     }
 
-    fn current_zone(m: &Mod) -> String {
+    fn current_zone(m: &Mod, root: Option<&Path>) -> String {
         let parent = m.path.parent().map_or_default(Path::to_path_buf);
-        if get_mods_path().is_some_and(|mp| mp == parent) {
+        if root.is_some_and(|mp| mp == parent) {
             String::new()
         } else {
             parent.to_string_lossy().into_owned()
@@ -2115,20 +2290,27 @@ impl ModManagerHandler {
     }
 
     fn move_mods_to_zone(window: &slint::Weak<MainWindow>, ids: Vec<String>, group_id: String) {
+        let Some((guard, scope)) = Self::begin(window, "move mods") else {
+            return;
+        };
         let ww = window.clone();
         std::thread::spawn(move || {
+            let _guard = guard;
             let target_dir = if group_id.is_empty() {
-                get_mods_path()
+                scope.root.clone()
             } else {
-                Some(PathBuf::from(&group_id))
+                PathBuf::from(&group_id)
             };
-            let Some(target_dir) = target_dir else { return };
+            if !target_dir.starts_with(&scope.root) {
+                error!("not moving mods into '{}': outside the mods folder", target_dir.display());
+                return;
+            }
 
             for id in &ids {
                 let Some(m) = Self::mod_by_id(id) else {
                     continue;
                 };
-                if Self::current_zone(&m) == group_id {
+                if Self::current_zone(&m, Some(&scope.root)) == group_id {
                     continue;
                 }
 
@@ -2161,7 +2343,7 @@ impl ModManagerHandler {
                         }
                     });
                 } else {
-                    rekey_mod_config(id, &target.to_string_lossy());
+                    rekey_mod_config(scope.game, id, &target.to_string_lossy());
                     rekey_icon_backup(&m.path, &target);
                     let mut state = STATE.lock().unwrap();
                     if state.selected.remove(id) {
@@ -2176,10 +2358,14 @@ impl ModManagerHandler {
     }
 
     fn add_existing_mods(window: &slint::Weak<MainWindow>, group_id: String, ids: Vec<String>) {
+        let Some((guard, scope)) = Self::begin(window, "add mods to the group") else {
+            return;
+        };
         let ww = window.clone();
         std::thread::spawn(move || {
+            let _guard = guard;
             let group_dir = PathBuf::from(&group_id);
-            if !group_dir.is_dir() {
+            if !group_dir.is_dir() || !group_dir.starts_with(&scope.root) {
                 error!(
                     "cannot add mods: '{}' is not a group folder",
                     group_dir.display()
@@ -2212,7 +2398,7 @@ impl ModManagerHandler {
                 match Self::hard_link_dir(&m.path, &target) {
                     Ok(()) => {
                         let new_id = target.to_string_lossy().into_owned();
-                        Self::copy_mod_config(id, &new_id);
+                        Self::copy_mod_config(scope.game, id, &new_id);
                         added.push(name);
                         info!("linked '{}' into '{}'", m.path.display(), target.display());
                     }
@@ -2255,10 +2441,12 @@ impl ModManagerHandler {
         });
     }
 
-    fn delete_group_folder(group_path: &Path) {
-        let Some(mods_path) = get_mods_path() else {
+    fn delete_group_folder(scope: &ModScope, group_path: &Path) {
+        let mods_path = &scope.root;
+        if group_path.parent() != Some(mods_path.as_path()) {
+            error!("not deleting '{}': not a group folder", group_path.display());
             return;
-        };
+        }
 
         if let Ok(entries) = group_path.read_dir() {
             for entry in entries.flatten() {
@@ -2276,7 +2464,11 @@ impl ModManagerHandler {
                         entry.path().display()
                     );
                 } else {
-                    rekey_mod_config(&entry.path().to_string_lossy(), &target.to_string_lossy());
+                    rekey_mod_config(
+                        scope.game,
+                        &entry.path().to_string_lossy(),
+                        &target.to_string_lossy(),
+                    );
                     rekey_icon_backup(&entry.path(), &target);
                 }
             }
@@ -2349,10 +2541,14 @@ impl ModManagerHandler {
         let ww = window.clone();
         w.on_mod_toggle(move |id| {
             let id = id.to_string();
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the mod") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 if let Some(m) = Self::mod_by_id(&id) {
-                    match ModManager::toggle_mod(&m) {
+                    match ModManager::toggle_mod(&m, &scope.naming) {
                         Ok(()) => Self::note_toggle(&id),
                         Err(e) => {
                             if m.path.exists() {
@@ -2392,11 +2588,15 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mods_toggle_all(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the mods") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let mods = STATE.lock().unwrap().displayed.clone();
                 for m in &mods {
-                    match ModManager::toggle_mod(m) {
+                    match ModManager::toggle_mod(m, &scope.naming) {
                         Ok(()) => Self::note_toggle(&mod_id(m)),
                         Err(e) => {
                             if m.path.exists() {
@@ -2414,20 +2614,22 @@ impl ModManagerHandler {
         let ww = window.clone();
         w.on_mod_delete(move |id| {
             let id = id.to_string();
+            let Some((guard, scope)) = Self::begin(&ww, "delete the mod") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 if let Some(m) = Self::mod_by_id(&id) {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("deleted '{}'", m.path.display());
-                            config_map_set(key::MODMNG_NOTES, &id, None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &id, None);
+                            forget_mod_config(scope.game, &id);
                             purge_icon_backup(&m.path);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                             note_missing("could not delete", &m);
-                            config_map_set(key::MODMNG_NOTES, &mod_id(&m), None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(&m), None);
+                            forget_mod_config(scope.game, &mod_id(&m));
                             purge_icon_backup(&m.path);
                         }
                         Err(e) => {
@@ -2445,10 +2647,14 @@ impl ModManagerHandler {
             let Some(m) = Self::mod_by_id(&id) else {
                 return;
             };
+            let Some((_guard, scope)) = Self::begin(&ww, "rename the mod") else {
+                return;
+            };
             let name = new_name.trim();
 
-            config_map_set(
-                key::MODMNG_DISPLAY_NAMES,
+            profile_map_set(
+                scope.game,
+                ProfileKey::ModmngDisplayNames,
                 &id,
                 (!name.is_empty()).then_some(name),
             );
@@ -2459,13 +2665,13 @@ impl ModManagerHandler {
                 name
             };
 
-            let icon = mod_icon(&m, shown);
+            let icon = mod_icon(&m, shown, scope.characters.as_ref());
             Self::update_row(&win, &id, |row| {
                 row.name = shown.into();
                 row.icon = icon.clone();
             });
 
-            let display_names = config_map(key::MODMNG_DISPLAY_NAMES);
+            let display_names = profile_map(scope.game, ProfileKey::ModmngDisplayNames);
             let shown_name = |m: &Mod| -> String {
                 display_names
                     .get(&mod_id(m))
@@ -2473,7 +2679,7 @@ impl ModManagerHandler {
                     .unwrap_or(&m.display_name)
                     .to_string()
             };
-            Self::refresh_filter_options(&win, &shown_name);
+            Self::refresh_filter_options(&win, &shown_name, scope.characters.as_ref());
         });
 
         let ww = window.clone();
@@ -2482,10 +2688,14 @@ impl ModManagerHandler {
             if Self::mod_by_id(&id).is_none() {
                 return;
             }
+            let Some((_guard, scope)) = Self::begin(&ww, "save the notes") else {
+                return;
+            };
             let notes = notes.trim().to_string();
 
-            config_map_set(
-                key::MODMNG_NOTES,
+            profile_map_set(
+                scope.game,
+                ProfileKey::ModmngNotes,
                 &id,
                 (!notes.is_empty()).then_some(&notes),
             );
@@ -2510,13 +2720,14 @@ impl ModManagerHandler {
                     .displayed
                     .iter()
                     .find(|m| mod_id(m) == id)
-                    .map(Self::current_zone)
+                    .map(|m| Self::current_zone(m, state.scope.as_ref().map(|s| s.root.as_path())))
                     .filter(|zone| !zone.is_empty())
                     .map(|zone| {
+                        let root = state.scope.as_ref().map(|s| s.root.as_path());
                         let all = state
                             .displayed
                             .iter()
-                            .filter(|m| Self::current_zone(m) == zone)
+                            .filter(|m| Self::current_zone(m, root) == zone)
                             .all(|m| state.selected.contains(&mod_id(m)));
                         (zone, all)
                     });
@@ -2551,8 +2762,12 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mods_toggle_selected(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the mods") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let mods: Vec<Mod> = {
                     let state = STATE.lock().unwrap();
                     state
@@ -2563,7 +2778,7 @@ impl ModManagerHandler {
                         .collect()
                 };
                 for m in &mods {
-                    match ModManager::toggle_mod(m) {
+                    match ModManager::toggle_mod(m, &scope.naming) {
                         Ok(()) => Self::note_toggle(&mod_id(m)),
                         Err(e) => {
                             if m.path.exists() {
@@ -2580,8 +2795,12 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mods_delete_selected(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "delete the mods") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let mods: Vec<Mod> = {
                     let state = STATE.lock().unwrap();
                     state
@@ -2595,14 +2814,12 @@ impl ModManagerHandler {
                     match std::fs::remove_dir_all(&m.path) {
                         Ok(()) => {
                             info!("deleted '{}'", m.path.display());
-                            config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
+                            forget_mod_config(scope.game, &mod_id(m));
                             purge_icon_backup(&m.path);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                             note_missing("could not delete", m);
-                            config_map_set(key::MODMNG_NOTES, &mod_id(m), None);
-                            config_map_set(key::MODMNG_DISPLAY_NAMES, &mod_id(m), None);
+                            forget_mod_config(scope.game, &mod_id(m));
                             purge_icon_backup(&m.path);
                         }
                         Err(e) => {
@@ -2661,26 +2878,26 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mod_group_create(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "create a group") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let mut name = "New Group".to_string();
                 let mut counter = 1;
-                while Self::group_path(&name).is_some_and(|p| p.exists()) {
+                while Self::group_path(&scope, &name).exists() {
                     counter += 1;
                     name = format!("New Group {counter}");
                 }
 
-                match Self::group_path(&name) {
-                    Some(path) => {
-                        if let Err(e) = std::fs::create_dir_all(&path) {
-                            error!("could not create group '{name}': {e}");
-                        } else {
-                            info!("created group '{name}'");
-                            STATE.lock().unwrap().pending_edit_group =
-                                Some(path.to_string_lossy().into_owned());
-                        }
-                    }
-                    None => error!("could not create group: no mods path"),
+                let path = Self::group_path(&scope, &name);
+                if let Err(e) = std::fs::create_dir_all(&path) {
+                    error!("could not create group '{name}': {e}");
+                } else {
+                    info!("created group '{name}'");
+                    STATE.lock().unwrap().pending_edit_group =
+                        Some(path.to_string_lossy().into_owned());
                 }
                 Self::reload(&ww);
             });
@@ -2697,11 +2914,13 @@ impl ModManagerHandler {
                 return;
             }
 
+            let Some((guard, scope)) = Self::begin(&ww, "rename the group") else {
+                return;
+            };
             std::thread::spawn(move || {
-                let Some(new_path) = Self::group_path(&name) else {
-                    return;
-                };
-                if new_path == old_path {
+                let _guard = guard;
+                let new_path = Self::group_path(&scope, &name);
+                if new_path == old_path || old_path.parent() != Some(scope.root.as_path()) {
                     return;
                 }
                 if new_path.exists() {
@@ -2709,7 +2928,11 @@ impl ModManagerHandler {
                 } else if let Err(e) = std::fs::rename(&old_path, &new_path) {
                     error!("could not rename group '{}': {e}", old_path.display());
                 } else {
-                    rekey_mod_config(&old_path.to_string_lossy(), &new_path.to_string_lossy());
+                    rekey_mod_config(
+                        scope.game,
+                        &old_path.to_string_lossy(),
+                        &new_path.to_string_lossy(),
+                    );
 
                     if let Ok(entries) = new_path.read_dir() {
                         for entry in entries.flatten() {
@@ -2735,22 +2958,30 @@ impl ModManagerHandler {
         w.on_mod_group_delete(move |id| {
             let ww = ww.clone();
             let group_path = PathBuf::from(id.to_string());
+            let Some((guard, scope)) = Self::begin(&ww, "delete the group") else {
+                return;
+            };
             std::thread::spawn(move || {
-                Self::delete_group_folder(&group_path);
+                let _guard = guard;
+                Self::delete_group_folder(&scope, &group_path);
                 Self::reload(&ww);
             });
         });
 
         let ww = window.clone();
         w.on_mods_delete_selected_groups(move || {
+            let Some((guard, scope)) = Self::begin(&ww, "delete the groups") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let ids: Vec<String> = {
                     let mut state = STATE.lock().unwrap();
                     state.selected_groups.drain().collect()
                 };
                 for id in &ids {
-                    Self::delete_group_folder(Path::new(id));
+                    Self::delete_group_folder(&scope, Path::new(id));
                 }
                 Self::reload(&ww);
             });
@@ -2758,9 +2989,13 @@ impl ModManagerHandler {
 
         let ww = window.clone();
         w.on_mod_group_toggle(move |id| {
+            let Some((guard, scope)) = Self::begin(&ww, "toggle the group") else {
+                return;
+            };
             let ww = ww.clone();
             let id = id.to_string();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let mods: Vec<Mod> = {
                     let state = STATE.lock().unwrap();
                     state
@@ -2773,7 +3008,7 @@ impl ModManagerHandler {
                 let all_enabled = !mods.is_empty() && mods.iter().all(|m| m.is_enabled);
                 for m in &mods {
                     if m.is_enabled == all_enabled {
-                        match ModManager::toggle_mod(m) {
+                        match ModManager::toggle_mod(m, &scope.naming) {
                             Ok(()) => Self::note_toggle(&mod_id(m)),
                             Err(e) => {
                                 if m.path.exists() {
@@ -2813,7 +3048,9 @@ impl ModManagerHandler {
                 let group_ids: Vec<String> = state
                     .displayed
                     .iter()
-                    .filter(|m| Self::current_zone(m) == id)
+                    .filter(|m| {
+                        Self::current_zone(m, state.scope.as_ref().map(|s| s.root.as_path())) == id
+                    })
                     .map(mod_id)
                     .collect();
                 if group_ids.is_empty() {
@@ -2870,14 +3107,10 @@ impl ModManagerHandler {
                 return;
             }
 
-            let Some(path) = Self::group_path(&name) else {
-                Self::show_toast(
-                    &win,
-                    "error",
-                    "Could not create group - no mods folder".into(),
-                );
+            let Some((guard, scope)) = Self::begin(&ww, "create the group") else {
                 return;
             };
+            let path = Self::group_path(&scope, &name);
             if path.exists() {
                 Self::show_toast(
                     &win,
@@ -2902,6 +3135,7 @@ impl ModManagerHandler {
                 return;
             }
             info!("created group '{name}'");
+            drop(guard);
 
             Self::move_mods_to_zone(&ww, ids, path.to_string_lossy().into_owned());
         });
@@ -2957,7 +3191,9 @@ impl ModManagerHandler {
             let Some(win) = ww.upgrade() else { return };
 
             let target = Self::zone_at(content_y).map_or_else(String::new, |zone| {
-                let source = Self::mod_by_id(&id).map_or_default(|m| Self::current_zone(&m));
+                let root = Self::shown_scope().map(|s| s.root);
+                let source = Self::mod_by_id(&id)
+                    .map_or_default(|m| Self::current_zone(&m, root.as_deref()));
                 if zone == source { String::new() } else { zone }
             });
 
@@ -3011,13 +3247,19 @@ impl ModManagerHandler {
         w.on_mods_pick_icon_character(move |id, slug| {
             let id = id.to_string();
             let slug = slug.to_string();
+            let Some((guard, scope)) = Self::begin(&ww, "change the icon") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let Some(m) = Self::mod_by_id(&id) else {
                     return;
                 };
 
-                let outcome = characters::icon_bytes(&slug)
+                let outcome = scope
+                    .characters
+                    .and_then(|characters| characters.icon_bytes(&slug))
                     .ok_or_else(|| anyhow!("no character icon matches '{slug}'"))
                     .and_then(|bytes| write_icon(&m, bytes));
 
@@ -3048,6 +3290,10 @@ impl ModManagerHandler {
                     return;
                 };
 
+                let Some((_guard, _)) = Self::begin(&ww, "change the icon") else {
+                    return;
+                };
+
                 let outcome = std::fs::read(&picked)
                     .with_context(|| format!("could not read '{}'", picked.display()))
                     .and_then(|bytes| encode_icon_png(&bytes))
@@ -3070,8 +3316,12 @@ impl ModManagerHandler {
         let ww = window.clone();
         w.on_mods_remove_icon(move |id| {
             let id = id.to_string();
+            let Some((guard, _)) = Self::begin(&ww, "remove the icon") else {
+                return;
+            };
             let ww = ww.clone();
             std::thread::spawn(move || {
+                let _guard = guard;
                 let Some(m) = Self::mod_by_id(&id) else {
                     return;
                 };
@@ -3103,7 +3353,7 @@ impl ModManagerHandler {
         });
 
         w.on_open_mods_folder(move || {
-            let Some(folder) = get_mods_path() else {
+            let Some(folder) = Self::shown_scope().map(|s| s.root) else {
                 return;
             };
             let _ = std::fs::create_dir_all(&folder);

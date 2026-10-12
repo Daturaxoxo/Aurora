@@ -1,10 +1,11 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use anyhow::{Result, anyhow};
 use archive::{ArchiveExtractor, ArchiveFormat};
@@ -13,10 +14,11 @@ use serde::{Deserialize, Serialize};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::bridge::PopupSpec;
+use crate::runtime::{self, GameContext, MutationGuard};
 use crate::translations::tr;
+use shared::classes::games::capabilities::LuaLayout;
 use crate::{LuaScriptItem, LuaScriptsAdapter, MainWindow};
 
-const UE4SS_DOWNLOAD_URL: &str = "https://host.getaurora.moe/files/addons/lua/core.zip";
 const BLOCKLISTED_NAMES: &[&str] = &["shared", "keybinds"];
 const INVALID_NAME_CHARS: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 const RESERVED_DEVICE_NAMES: &[&str] = &[
@@ -24,35 +26,69 @@ const RESERVED_DEVICE_NAMES: &[&str] = &[
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-static PENDING_DELETE: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
-static MODS_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+static PENDING_DELETE: Mutex<Option<(u64, usize)>> = Mutex::new(None);
+static SCOPE: Mutex<Option<LuaScope>> = Mutex::new(None);
+static NEXT_ID: AtomicU32 = AtomicU32::new(1);
+
+#[derive(Clone)]
+struct LuaScope {
+    generation: u64,
+    layout: LuaLayout,
+    url: String,
+}
+
+impl LuaScope {
+    fn of(context: &GameContext) -> Option<Self> {
+        let lua = context.game().lua()?;
+        let root = context.installation().map(|facts| facts.root());
+        Some(Self {
+            generation: context.generation(),
+            layout: lua.layout(context.payload().root(), root),
+            url: lua.runtime_url().to_string(),
+        })
+    }
+
+    fn shown() -> Option<Self> {
+        SCOPE.lock().unwrap().clone()
+    }
+
+    fn guarded() -> Result<(MutationGuard, Self)> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let scope = Self::of(guard.context()).ok_or_else(|| {
+            anyhow!(
+                "{} has no Lua scripts",
+                guard.context().game().descriptor().display_name
+            )
+        })?;
+        if Self::shown().map(|s| s.generation) != Some(scope.generation) {
+            return Err(anyhow!("the selected game changed, try again"));
+        }
+        Ok((guard, scope))
+    }
+}
 
 pub struct LuaScriptsHandler;
 
 impl LuaScriptsHandler {
-    pub fn setup(window: &Weak<MainWindow>, bin_dir: &Path) {
+    pub fn setup(window: &Weak<MainWindow>) {
         let win = window.unwrap();
         let adapter = win.global::<LuaScriptsAdapter>();
+        let model: Rc<VecModel<LuaScriptItem>> = Rc::new(VecModel::default());
+        adapter.set_scripts(ModelRc::from(model.clone()));
 
-        // [A]/[B] branch switch
-        let ue4ss_marker = bin_dir.join("Lua").join("ue4ss").join("UE4SS.dll");
-        let already_installed = ue4ss_marker.exists();
-        info!(
-            "UE4SS marker {} -> ue4ss_installed = {already_installed}",
-            ue4ss_marker.display()
-        );
-        adapter.set_ue4ss_installed(already_installed);
-        adapter.set_debug_enabled(read_debug_enabled(bin_dir));
         {
             let window = window.clone();
-            let bin_dir = bin_dir.to_path_buf();
             adapter.on_toggle_debug(move || {
                 let Some(win) = window.upgrade() else {
                     return;
                 };
                 let adapter = win.global::<LuaScriptsAdapter>();
+                let Some((_guard, scope)) = Self::begin(&win, "change the debugging setting")
+                else {
+                    return;
+                };
                 let enabled = !adapter.get_debug_enabled();
-                if let Err(e) = set_debug_enabled(&bin_dir, enabled) {
+                if let Err(e) = set_debug_enabled(&scope.layout.settings, enabled) {
                     adapter.set_toast_message(
                         format!("Couldn't change the debugging setting: {e}").into(),
                     );
@@ -62,78 +98,50 @@ impl LuaScriptsHandler {
             });
         }
 
-        // Load scripts from disk
-        let mods_dir = Self::mods_dir(bin_dir);
-        *MODS_DIR.lock().unwrap() = Some(mods_dir.clone());
-        let model: Rc<VecModel<LuaScriptItem>> =
-            Rc::new(VecModel::from(scan_existing_scripts(&mods_dir)));
-        adapter.set_scripts(ModelRc::from(model.clone()));
-
-        let next_id = Rc::new(RefCell::new(
-            model
-                .iter()
-                .filter_map(|i| i.id.parse::<u32>().ok())
-                .max()
-                .unwrap_or(0)
-                + 1,
-        ));
-
         // Refresh
         {
-            let model = model.clone();
-            let mods_dir = mods_dir.clone();
-            let next_id = next_id.clone();
+            let window = window.clone();
             adapter.on_refresh(move || {
                 info!("Refreshing Lua scripts list from disk");
-                let fresh = scan_existing_scripts(&mods_dir);
-
-                *next_id.borrow_mut() = fresh
-                    .iter()
-                    .filter_map(|i| i.id.parse::<u32>().ok())
-                    .max()
-                    .unwrap_or(0)
-                    + 1;
-
-                model.set_vec(fresh);
+                if let Some(win) = window.upgrade() {
+                    Self::reload(&win);
+                }
             });
         }
 
         // Install Handler
         {
             let window = window.clone();
-            let bin_dir = bin_dir.to_path_buf();
             adapter.on_install_ue4ss(move || {
-                Self::start_install(window.clone(), bin_dir.clone());
+                let Some(win) = window.upgrade() else { return };
+                if let Some((guard, scope)) = Self::begin(&win, "install UE4SS") {
+                    Self::start_install(window.clone(), guard, scope);
+                }
             });
         }
 
         // Create Script
         {
             let model = model.clone();
-            let mods_dir = mods_dir.clone();
             let window = window.clone();
             adapter.on_create_script(move || {
-                let name = next_available_script_name(&mods_dir);
+                let Some(win) = window.upgrade() else { return };
+                let Some((_guard, scope)) = Self::begin(&win, "create a script") else {
+                    return;
+                };
+                let mods_dir = &scope.layout.scripts;
+                let name = next_available_script_name(mods_dir);
                 let code = "-- Aurora uses UE4SS' LUA API to load scripts, for more information see their documentation.\n".to_string();
 
-                if let Err(e) = create_script(&mods_dir, &name, &code) {
+                if let Err(e) = create_script(mods_dir, &name, &code) {
                     error!("Failed to write new script '{name}' to disk: {e}");
-                    if let Some(win) = window.upgrade() {
-                        win.global::<LuaScriptsAdapter>().set_toast_message(
-                            format!("Couldn't create \"{name}\": {e}").into(),
-                        );
-                    }
+                    win.global::<LuaScriptsAdapter>()
+                        .set_toast_message(format!("Couldn't create \"{name}\": {e}").into());
                     return;
                 }
-                register_mod_in_config(&mods_dir, &name, false);
+                register_mod_in_config(mods_dir, &name, false);
 
-                let id = {
-                    let mut id_ref = next_id.borrow_mut();
-                    let id = id_ref.to_string();
-                    *id_ref += 1;
-                    id
-                };
-
+                let id = NEXT_ID.fetch_add(1, Ordering::SeqCst).to_string();
                 model.push(LuaScriptItem {
                     id: id.into(),
                     name: name.into(),
@@ -147,11 +155,15 @@ impl LuaScriptsHandler {
         // Toggle
         {
             let model = model.clone();
-            let mods_dir = mods_dir.clone();
+            let window = window.clone();
             adapter.on_toggle_script(move |id| {
+                let Some(win) = window.upgrade() else { return };
+                let Some((_guard, scope)) = Self::begin(&win, "toggle the script") else {
+                    return;
+                };
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
                     item.enabled = !item.enabled;
-                    set_mod_enabled_in_config(&mods_dir, &item.name, item.enabled);
+                    set_mod_enabled_in_config(&scope.layout.scripts, &item.name, item.enabled);
                     model.set_row_data(idx, item);
                 }
             });
@@ -160,35 +172,35 @@ impl LuaScriptsHandler {
         // -Rename
         {
             let model = model.clone();
-            let mods_dir = mods_dir.clone();
             let window = window.clone();
             adapter.on_rename_script(move |id, new_name| {
+                let Some(win) = window.upgrade() else { return };
                 if let Err(message) = validate_script_name(&new_name) {
                     warn!("Rejected rename to invalid name '{new_name}': {message}");
-                    if let Some(win) = window.upgrade() {
-                        win.global::<LuaScriptsAdapter>()
-                            .set_toast_message(message.into());
-                    }
+                    win.global::<LuaScriptsAdapter>()
+                        .set_toast_message(message.into());
                     return;
                 }
+                let Some((_guard, scope)) = Self::begin(&win, "rename the script") else {
+                    return;
+                };
+                let mods_dir = &scope.layout.scripts;
 
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
                     let old_name = item.name.to_string();
 
-                    if let Err(e) = rename_script_folder(&mods_dir, &old_name, &new_name) {
+                    if let Err(e) = rename_script_folder(mods_dir, &old_name, &new_name) {
                         error!(
                             "Failed to rename script folder from '{old_name}' to '{new_name}': {e}"
                         );
-                        if let Some(win) = window.upgrade() {
-                            win.global::<LuaScriptsAdapter>().set_toast_message(
-                                format!("Couldn't rename \"{old_name}\" to \"{new_name}\": {e}")
-                                    .into(),
-                            );
-                        }
+                        win.global::<LuaScriptsAdapter>().set_toast_message(
+                            format!("Couldn't rename \"{old_name}\" to \"{new_name}\": {e}")
+                                .into(),
+                        );
                         return;
                     }
 
-                    rename_mod_in_config(&mods_dir, &old_name, &new_name);
+                    rename_mod_in_config(mods_dir, &old_name, &new_name);
 
                     item.name = new_name;
                     model.set_row_data(idx, item);
@@ -202,9 +214,12 @@ impl LuaScriptsHandler {
             let model = model.clone();
             adapter.on_delete_script(move |id| {
                 let Some(win) = window.upgrade() else { return };
+                let Some(scope) = LuaScope::shown() else {
+                    return;
+                };
 
                 if let Some((idx, item)) = find_by_id(&model, &id) {
-                    *PENDING_DELETE.lock().unwrap() = Some(idx);
+                    *PENDING_DELETE.lock().unwrap() = Some((scope.generation, idx));
 
                     PopupSpec {
                         id: "lua-delete".to_owned(),
@@ -221,9 +236,14 @@ impl LuaScriptsHandler {
 
         // Save Code
         {
+            let window = window.clone();
             adapter.on_save_script_code(move |id, code| {
+                let Some(win) = window.upgrade() else { return };
+                let Some((_guard, scope)) = Self::begin(&win, "save the script") else {
+                    return;
+                };
                 if let Some((idx, mut item)) = find_by_id(&model, &id) {
-                    if let Err(e) = write_script(&mods_dir, &item.name, &code) {
+                    if let Err(e) = write_script(&scope.layout.scripts, &item.name, &code) {
                         error!("Failed to save script '{}' to disk: {e}", item.name);
                     }
 
@@ -232,16 +252,67 @@ impl LuaScriptsHandler {
                 }
             });
         }
+
+        Self::reload(&win);
     }
 
-    fn mods_dir(bin_dir: &Path) -> PathBuf {
-        bin_dir.join("Lua").join("ue4ss").join("Mods")
+    fn begin(win: &MainWindow, action: &str) -> Option<(MutationGuard, LuaScope)> {
+        LuaScope::guarded()
+            .map_err(|e| {
+                warn!("Refused to {action}: {e:#}");
+                win.global::<LuaScriptsAdapter>()
+                    .set_toast_message(format!("Couldn't {action}: {e:#}").into());
+            })
+            .ok()
+    }
+
+    pub(crate) fn reload(win: &MainWindow) {
+        let scope = runtime::get()
+            .ok()
+            .and_then(|r| r.snapshot().context)
+            .and_then(|context| LuaScope::of(&context));
+        let adapter = win.global::<LuaScriptsAdapter>();
+
+        let (installed, debug, scripts) = scope.as_ref().map_or_default(|scope| {
+            let layout = &scope.layout;
+            let installed = layout.installed();
+            info!(
+                "UE4SS marker {} -> ue4ss_installed = {installed}",
+                layout.marker.display()
+            );
+            (
+                installed,
+                read_debug_enabled(&layout.settings),
+                scan_existing_scripts(&layout.scripts),
+            )
+        });
+
+        NEXT_ID.store(
+            scripts
+                .iter()
+                .filter_map(|i| i.id.parse::<u32>().ok())
+                .max()
+                .unwrap_or(0)
+                + 1,
+            Ordering::SeqCst,
+        );
+        *SCOPE.lock().unwrap() = scope;
+        PENDING_DELETE.lock().unwrap().take();
+
+        adapter.set_ue4ss_installed(installed);
+        adapter.set_debug_enabled(debug);
+        let model = adapter.get_scripts();
+        if let Some(model) = model.as_any().downcast_ref::<VecModel<LuaScriptItem>>() {
+            model.set_vec(scripts);
+        }
     }
 
     /// UE4SS Install Main
-    fn start_install(window: Weak<MainWindow>, bin_dir: PathBuf) {
+    fn start_install(window: Weak<MainWindow>, guard: MutationGuard, scope: LuaScope) {
         crate::classes::pages::gbbrowser::runtime().spawn(async move {
-            let result = Self::download_and_extract(&bin_dir, &window).await;
+            let result =
+                Self::download_and_extract(&scope.url, &scope.layout.runtime, &window).await;
+            drop(guard);
 
             let window = window.clone();
             let _ = slint::invoke_from_event_loop(move || {
@@ -249,17 +320,18 @@ impl LuaScriptsHandler {
                     return;
                 };
                 let adapter = win.global::<LuaScriptsAdapter>();
+                adapter.set_installing(false);
 
                 match result {
                     Ok(()) => {
-                        adapter.set_installing(false);
                         adapter.set_install_progress(100);
                         adapter.set_install_error("".into());
-                        adapter.set_ue4ss_installed(true);
+                        if runtime::is_current_generation(scope.generation) {
+                            Self::reload(&win);
+                        }
                     }
                     Err(e) => {
                         error!("UE4SS install failed: {e}");
-                        adapter.set_installing(false);
                         adapter.set_install_error(e.to_string().into());
                     }
                 }
@@ -268,16 +340,18 @@ impl LuaScriptsHandler {
     }
 
     pub fn confirm_delete(window: &Weak<MainWindow>) {
-        let Some(i) = PENDING_DELETE.lock().unwrap().take() else {
+        let Some((generation, i)) = PENDING_DELETE.lock().unwrap().take() else {
             return;
         };
-
-        let mods_dir_guard = MODS_DIR.lock().unwrap();
-        let Some(mods_dir) = mods_dir_guard.as_ref() else {
-            return;
-        };
-
         let Some(win) = window.upgrade() else { return };
+        let Some((_guard, scope)) = Self::begin(&win, "delete the script") else {
+            return;
+        };
+        if scope.generation != generation {
+            return;
+        }
+        let mods_dir = &scope.layout.scripts;
+
         let adapter = win.global::<LuaScriptsAdapter>();
         let model = adapter.get_scripts();
 
@@ -297,23 +371,25 @@ impl LuaScriptsHandler {
         }
 
         unregister_mod_from_config(mods_dir, &item.name);
-        drop(mods_dir_guard);
 
         if let Some(vec_model) = model.as_any().downcast_ref::<VecModel<LuaScriptItem>>() {
             vec_model.remove(i);
         }
     }
 
-    async fn download_and_extract(bin_dir: &Path, window: &Weak<MainWindow>) -> Result<()> {
+    async fn download_and_extract(
+        url: &str,
+        lua_dir: &Path,
+        window: &Weak<MainWindow>,
+    ) -> Result<()> {
         Self::report(window, true, 0, "Downloading UE4SS…");
 
-        let resp = reqwest::get(UE4SS_DOWNLOAD_URL).await?.error_for_status()?;
+        let resp = reqwest::get(url).await?.error_for_status()?;
         let bytes = resp.bytes().await?;
 
         Self::report(window, true, 50, "Extracting UE4SS…");
 
-        let lua_dir = bin_dir.join("Lua");
-        tokio::fs::create_dir_all(&lua_dir).await?;
+        tokio::fs::create_dir_all(lua_dir).await?;
 
         let extractor = ArchiveExtractor::new();
         let files = extractor.extract(&bytes, ArchiveFormat::Zip)?;
@@ -504,13 +580,8 @@ fn mods_txt_path(mods_dir: &Path) -> PathBuf {
     mods_dir.join("mods.txt")
 }
 
-fn settings_ini_path(bin_dir: &Path) -> PathBuf {
-    bin_dir.join("Lua").join("ue4ss").join("UE4SS-settings.ini")
-}
-
-fn read_debug_enabled(bin_dir: &Path) -> bool {
-    let path = settings_ini_path(bin_dir);
-    let Ok(contents) = fs::read_to_string(&path) else {
+fn read_debug_enabled(path: &Path) -> bool {
+    let Ok(contents) = fs::read_to_string(path) else {
         return false;
     };
 
@@ -534,9 +605,8 @@ fn read_debug_enabled(bin_dir: &Path) -> bool {
     false
 }
 
-fn set_debug_enabled(bin_dir: &Path, enabled: bool) -> Result<()> {
-    let path = settings_ini_path(bin_dir);
-    let contents = match fs::read_to_string(&path) {
+fn set_debug_enabled(path: &Path, enabled: bool) -> Result<()> {
+    let contents = match fs::read_to_string(path) {
         Ok(contents) => contents,
         Err(e) => {
             error!("Could not read {} to toggle debugging: {e}", path.display());
@@ -579,7 +649,7 @@ fn set_debug_enabled(bin_dir: &Path, enabled: bool) -> Result<()> {
         updated.push_str(line_ending);
     }
 
-    if let Err(e) = fs::write(&path, updated) {
+    if let Err(e) = fs::write(path, updated) {
         error!("Failed to write {}: {e}", path.display());
         return Err(anyhow!(e));
     }

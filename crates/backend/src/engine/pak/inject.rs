@@ -31,13 +31,12 @@ impl PakEngine {
         self.copy_pak_addons(&files)?;
         self.copy_overlay_addons(&files, records);
 
-        if let Some(lua) = self.payload.lua() {
+        if let Some(lua) = self.lua.as_ref().filter(|lua| lua.installed()) {
             info!(
-                "UE4SS Lua runtime detected in {}, copying into {}",
-                lua.display(),
-                self.win64.display()
+                "UE4SS Lua runtime detected in {}, copying into the game",
+                lua.runtime.display()
             );
-            LuaManager::setup(lua, &self.win64)?;
+            LuaManager::setup(lua)?;
         }
 
         self.copy_custom_files(&request.deployment.modules, records)?;

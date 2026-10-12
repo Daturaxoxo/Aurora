@@ -138,7 +138,7 @@ pub fn mod_targets(games: &[&dyn Game], roots: &[GameRoot]) -> ModScope {
             continue;
         };
 
-        for lexical in mods.mod_roots(&root.root) {
+        for lexical in mods.layout(&root.root).roots {
             match mod_folder(&canonical_root, &lexical) {
                 Ok(Some(path)) => {
                     if !scope.targets.iter().any(|target| target.path == path) {
@@ -330,7 +330,15 @@ pub fn bin_scope(app_dir: &Path, games: &[&dyn Game], listed: &[PathBuf]) -> Bin
     scope
 }
 
-// TODO(phase 5): add game-namespaced caches and temp folders here when they exist
+pub fn remove_download_dir(dir: &Path) -> Result<()> {
+    match fs::remove_dir_all(dir) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            Err(e).with_context(|| format!("failed to delete {}", dir.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
 pub fn remove_data_dir(data_dir: &Path, games: &[&dyn Game]) -> Result<Vec<PathBuf>> {
     if !data_dir.exists() {
         return Ok(Vec::new());
@@ -488,7 +496,8 @@ mod tests {
 
     use super::*;
     use shared::classes::games::{
-        GameDescriptor, InstallationFacts, capabilities::ModManagerSupport,
+        GameDescriptor, InstallationFacts,
+        capabilities::{ModLayout, ModManagerSupport, ModNaming},
         identity::SafeRelativePath, validate_registry,
     };
 
@@ -576,9 +585,23 @@ mod tests {
         }
     }
 
+    const NAMING: ModNaming = ModNaming {
+        extensions: &["pak"],
+        toggle_extensions: &["pak"],
+        disabled_suffix: ".disabled",
+        display_suffixes: &[],
+    };
+
     impl ModManagerSupport for Synthetic {
-        fn mod_roots(&self, game_root: &Path) -> Vec<PathBuf> {
-            vec![game_root.join(self.mod_root.unwrap())]
+        fn layout(&self, game_root: &Path) -> ModLayout {
+            ModLayout {
+                roots: vec![game_root.join(self.mod_root.unwrap())],
+                naming: NAMING,
+            }
+        }
+
+        fn naming(&self) -> &ModNaming {
+            &NAMING
         }
     }
 
@@ -591,6 +614,17 @@ mod tests {
             game_id: id(game),
             root: path.to_path_buf(),
         }
+    }
+
+    #[test]
+    fn download_dir_removal_covers_every_game_and_tolerates_absence() {
+        let dir = TestDir::new();
+        dir.file("GameBanana/nte/mod.zip", b"zip");
+        dir.file("GameBanana/unknown/mod.zip", b"zip");
+
+        remove_download_dir(&dir.path("GameBanana")).unwrap();
+        assert!(!dir.path("GameBanana").exists());
+        remove_download_dir(&dir.path("GameBanana")).unwrap();
     }
 
     #[test]

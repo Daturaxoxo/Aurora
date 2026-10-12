@@ -294,6 +294,7 @@ impl Bridge {
         Self::invoke_current(w, context.generation(), move |w| {
             GamesHandler::refresh(w);
             SettingsHandler::apply_context(w, &ui_context);
+            crate::classes::pages::apply_capabilities(w, ui_context.game());
             if switched {
                 w.set_show_menu(false);
                 w.set_show_addons(false);
@@ -302,6 +303,7 @@ impl Bridge {
                 w.set_show_screenshots(false);
                 w.set_show_mod_manager(false);
                 w.set_show_gb_browser(false);
+                crate::classes::pages::gbbrowser::GbBrowserHandler::reset(w);
             }
         });
 
@@ -311,6 +313,9 @@ impl Bridge {
             ModManagerHandler::reload(w);
             ScreenshotHandler::reload(w);
             ModulesHandler::reload(w);
+            Self::invoke_current(w, context.generation(), |w| {
+                crate::classes::pages::lua::LuaScriptsHandler::reload(w);
+            });
         }
         if switched {
             let name = context.game().descriptor().display_name;

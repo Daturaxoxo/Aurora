@@ -3,50 +3,40 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use log::*;
 use crate::classes::validate::ensure_dir;
+use shared::classes::games::capabilities::LuaLayout;
 pub struct LuaManager;
 
 impl LuaManager {
-    pub fn setup(lua_dir: &Path, win64_path: &Path) -> Result<()> {
-        ensure_dir(&win64_path.to_path_buf())?;
-
-        let dwmapi_src = lua_dir.join("dwmapi.dll");
-        let dwmapi_dst = win64_path.join("dwmapi.dll");
-        if dwmapi_src.exists() {
-            fs::copy(&dwmapi_src, &dwmapi_dst).with_context(|| {
-                format!(
-                    "Failed to copy {} to {}",
-                    dwmapi_src.display(),
-                    dwmapi_dst.display()
-                )
-            })?;
-            trace!(
-                "Copied {} to {}",
-                dwmapi_src.display(),
-                dwmapi_dst.display()
-            );
-        } else {
-            warn!(
-                "Expected {} to exist but it's missing; skipping",
-                dwmapi_src.display()
-            );
-        }
-
-        let ue4ss_src = lua_dir.join("ue4ss");
-        let ue4ss_dst = win64_path.join("ue4ss");
-        if ue4ss_src.exists() {
-            copy_dir_all(&ue4ss_src, &ue4ss_dst).with_context(|| {
-                format!(
-                    "Failed to copy {} to {}",
-                    ue4ss_src.display(),
-                    ue4ss_dst.display()
-                )
-            })?;
-            info!("Copied {} to {}", ue4ss_src.display(), ue4ss_dst.display());
-        } else {
-            warn!(
-                "Expected {} to exist but it's missing; skipping",
-                ue4ss_src.display()
-            );
+    pub fn setup(layout: &LuaLayout) -> Result<()> {
+        for deploy in &layout.deploy {
+            let (source, destination) = (&deploy.source, &deploy.destination);
+            if source.is_dir() {
+                copy_dir_all(source, destination).with_context(|| {
+                    format!(
+                        "Failed to copy {} to {}",
+                        source.display(),
+                        destination.display()
+                    )
+                })?;
+                info!("Copied {} to {}", source.display(), destination.display());
+            } else if source.is_file() {
+                if let Some(parent) = destination.parent() {
+                    ensure_dir(&parent.to_path_buf())?;
+                }
+                fs::copy(source, destination).with_context(|| {
+                    format!(
+                        "Failed to copy {} to {}",
+                        source.display(),
+                        destination.display()
+                    )
+                })?;
+                trace!("Copied {} to {}", source.display(), destination.display());
+            } else {
+                warn!(
+                    "Expected {} to exist but it's missing; skipping",
+                    source.display()
+                );
+            }
         }
 
         Ok(())

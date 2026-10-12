@@ -7,7 +7,7 @@ use ipc::protocol::{self, Message};
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use shared::classes::gamebanana::api::registry_game;
-use shared::classes::gamebanana::types::NteModFile;
+use shared::classes::gamebanana::types::GbModFile;
 use shared::classes::games::Game;
 use shared::config::{self, key};
 use shared::oneclick::OneClick;
@@ -39,7 +39,7 @@ struct PendingInstall {
     author: String,
     name: String,
     thumbnail: Vec<u8>,
-    file: NteModFile,
+    file: GbModFile,
 }
 
 pub struct OneClickHandler;

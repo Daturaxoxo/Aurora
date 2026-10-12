@@ -6,7 +6,7 @@ mod bridge;
 mod classes;
 mod runtime;
 mod translations;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use log::*;
 use shared::config::{self, key};
 use shared::display::center_window;
@@ -235,10 +235,11 @@ fn main() -> Result<()> {
     ModManagerHandler::setup(&window.as_weak());
     ModulesHandler::setup(&window.as_weak());
     GbBrowserHandler::setup(&window.as_weak());
+    if let Ok(runtime) = runtime::get() {
+        classes::pages::apply_capabilities(&window, runtime.snapshot().game);
+    }
 
-    let bin_dir = shared::utils::get_bin_path()
-        .ok_or_else(|| anyhow!("could not determine the Bin directory"))?;
-    LuaScriptsHandler::setup(&window.as_weak(), &bin_dir);
+    LuaScriptsHandler::setup(&window.as_weak());
 
     Bridge::setup(&window.as_weak());
     GamesHandler::setup(&window.as_weak());

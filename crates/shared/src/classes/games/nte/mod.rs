@@ -1,20 +1,27 @@
 pub mod addons;
+mod characters;
+mod gamebanana;
 mod launcher;
+mod lua;
+mod mods;
 pub mod patcher;
 pub mod paths;
+mod screenshots;
+mod unreal;
 pub mod version;
 
-use std::{
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
+use std::{path::Path, sync::LazyLock};
 
 use anyhow::Result;
 use serde_json::Value;
 
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
-    capabilities::{AddonSupport, LauncherSupport, ModManagerSupport},
+    capabilities::{
+        AddonSupport, CharacterSupport, GameBananaSupport, LaunchArgumentsSupport,
+        LauncherSupport, LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport,
+        UnrealSupport,
+    },
     identity::{GameId, SafeRelativePath},
 };
 use crate::config::{self, ProfileKey};
@@ -128,10 +135,32 @@ impl Game for Nte {
     fn mod_manager(&self) -> Option<&dyn ModManagerSupport> {
         Some(self)
     }
-}
 
-impl ModManagerSupport for Nte {
-    fn mod_roots(&self, game_root: &Path) -> Vec<PathBuf> {
-        vec![path(paths::CLIENT_PAK_DIR).resolve_under(game_root)]
+    fn modules(&self) -> Option<&dyn ModuleSupport> {
+        Some(self)
+    }
+
+    fn lua(&self) -> Option<&dyn LuaSupport> {
+        Some(self)
+    }
+
+    fn characters(&self) -> Option<&dyn CharacterSupport> {
+        Some(self)
+    }
+
+    fn gamebanana(&self) -> Option<&dyn GameBananaSupport> {
+        Some(self)
+    }
+
+    fn screenshots(&self) -> Option<&dyn ScreenshotSupport> {
+        Some(self)
+    }
+
+    fn unreal(&self) -> Option<&dyn UnrealSupport> {
+        Some(self)
+    }
+
+    fn launch_arguments(&self) -> Option<&dyn LaunchArgumentsSupport> {
+        Some(self)
     }
 }

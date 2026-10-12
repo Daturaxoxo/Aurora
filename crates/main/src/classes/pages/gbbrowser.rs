@@ -1,15 +1,18 @@
 use crate::classes::characters;
 use crate::classes::pages::modmanager::{ModManagerHandler, ModSource};
 use crate::classes::pages::sanitize_download_filename;
-use crate::runtime::MutationGuard;
+use crate::runtime::{self, MutationGuard};
 use crate::{GbCharacter, GbFileItem, GbModItem, MainWindow};
 use anyhow::{Result, anyhow};
 use log::*;
 use once_cell::sync::Lazy;
-use shared::classes::gamebanana::api::GameBananaApi;
-use shared::classes::gamebanana::types::{ModProfile, NteMod, NteModFile};
+use shared::classes::gamebanana::api::{GameBananaApi, RemoteGame};
+use shared::classes::gamebanana::types::{GbMod, GbModFile, ModProfile};
+use shared::classes::games::{Game, capabilities::RemoteCharacter, identity::GameId};
 use shared::config::{self, key};
-use shared::utils::{format_bytes, get_gamebanana_download_dir, get_local_version};
+use shared::utils::{
+    format_bytes, get_gamebanana_download_dir, get_gamebanana_download_root, get_local_version,
+};
 use slint::{Model, ModelRc, VecModel};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -33,32 +36,37 @@ const INSTALL_RUNNING: u8 = 1;
 const INSTALL_CANCELLED: u8 = 2;
 const INSTALL_COMMITTED: u8 = 3;
 
-// must be in the same order as gbbrowser.slint
-pub const CHARACTERS: &[(&str, u32)] = &[
-    ("Adler", 43034),
-    ("Aurelia", 46387),
-    ("Baicang", 43035),
-    ("Chaos", 46559),
-    ("Chiz", 45472),
-    ("Daffodill", 45474),
-    ("Edgar", 45475),
-    ("Fadia", 43036),
-    ("Haniel", 45473),
-    ("Hathor", 43037),
-    ("Hotori", 43038),
-    ("Iroi", 46560),
-    ("Jiuyuan", 45476),
-    ("Lacrimosa", 43039),
-    ("Linko", 48013),
-    ("Mint", 43040),
-    ("Nanally", 43041),
-    ("Sakiri", 43042),
-    ("Shinku", 46561),
-    ("Skia", 43043),
-    ("Zankou", 48011),
-    ("Zero (F)", 43032),
-    ("Zero (M)", 43033),
-];
+#[derive(Clone)]
+struct GbScope {
+    game: &'static dyn Game,
+    generation: Option<u64>,
+    remote: RemoteGame,
+}
+
+impl GbScope {
+    fn current() -> Option<Self> {
+        let snapshot = runtime::get().ok()?.snapshot();
+        let game = snapshot
+            .context
+            .as_ref()
+            .map_or(snapshot.game, |context| context.game());
+        Some(Self {
+            game,
+            generation: snapshot.context.map(|context| context.generation()),
+            remote: RemoteGame::of(game)?,
+        })
+    }
+
+    fn characters(&self) -> &'static [RemoteCharacter] {
+        self.game
+            .gamebanana()
+            .map_or(&[][..], |support| support.characters())
+    }
+
+    fn is_current(&self) -> bool {
+        self.generation.is_none_or(runtime::is_current_generation)
+    }
+}
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("could not create tokio runtime"));
@@ -91,7 +99,7 @@ enum Mode {
 }
 
 #[derive(Debug, Clone, Default)]
-struct GbMod {
+struct PickedMod {
     id: u32,
     author: String,
     name: String,
@@ -126,9 +134,10 @@ struct GbState {
     end_reached: bool,
     mods: Vec<GbEntry>,
     seen: HashSet<u32>,
-    files: Vec<NteModFile>,
-    files_mod: GbMod,
+    files: Vec<GbModFile>,
+    files_mod: PickedMod,
     preview: Option<PreviewState>,
+    scope: Option<GbScope>,
 }
 
 impl Default for GbState {
@@ -142,8 +151,9 @@ impl Default for GbState {
             mods: Vec::new(),
             seen: HashSet::new(),
             files: Vec::new(),
-            files_mod: GbMod::default(),
+            files_mod: PickedMod::default(),
             preview: None,
+            scope: None,
         }
     }
 }
@@ -159,7 +169,7 @@ pub fn runtime() -> &'static tokio::runtime::Runtime {
     &RUNTIME
 }
 
-pub async fn mod_files(mod_id: u32) -> Option<Vec<NteModFile>> {
+pub async fn mod_files(mod_id: u32) -> Option<Vec<GbModFile>> {
     API.get_mod_files(mod_id).await
 }
 
@@ -240,16 +250,23 @@ impl GbBrowserHandler {
         info!("GameBanana Browser Backend: setup() complete");
     }
 
-    fn character_model() -> ModelRc<GbCharacter> {
-        let characters: Vec<GbCharacter> = CHARACTERS
+    fn character_model(scope: Option<&GbScope>) -> ModelRc<GbCharacter> {
+        let icons = scope.and_then(|scope| characters::of(scope.game));
+        let characters: Vec<GbCharacter> = scope
+            .map_or(&[][..], GbScope::characters)
             .iter()
-            .map(|(name, _)| {
-                let icon = characters::icon_for(name).unwrap_or_else(|| {
-                    warn!("GameBanana Browser Backend: no character icon matches '{name}'");
-                    slint::Image::default()
-                });
+            .map(|character| {
+                let icon = icons
+                    .and_then(|icons| icons.icon_for(character.name))
+                    .unwrap_or_else(|| {
+                        warn!(
+                            "GameBanana Browser Backend: no character icon matches '{}'",
+                            character.name
+                        );
+                        slint::Image::default()
+                    });
                 GbCharacter {
-                    name: (*name).into(),
+                    name: character.name.into(),
                     icon,
                 }
             })
@@ -502,8 +519,11 @@ impl GbBrowserHandler {
     }
 
     fn load(window: &slint::Weak<MainWindow>, reset: bool) {
-        let (generation, mode, page) = {
+        let (generation, mode, page, scope) = {
             let mut state = STATE.lock().unwrap();
+            let Some(scope) = state.scope.clone() else {
+                return;
+            };
             if state.loading {
                 if !reset {
                     return;
@@ -522,7 +542,7 @@ impl GbBrowserHandler {
                 state.page += 1;
             }
             state.loading = true;
-            (state.generation, state.mode.clone(), state.page)
+            (state.generation, state.mode.clone(), state.page, scope)
         };
 
         if let Some(w) = window.upgrade() {
@@ -534,14 +554,19 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         RUNTIME.spawn(async move {
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Arc<NteMod>>();
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Arc<GbMod>>();
 
             let api_mode = mode.clone();
+            let remote = scope.remote.clone();
             let fetch = tokio::spawn(async move {
                 match api_mode {
-                    Mode::Feed => API.get_nte_mods(page, false, Some(tx)).await,
-                    Mode::Search(query) => API.search_nte_mods(&query, page, false, Some(tx)).await,
-                    Mode::Category(id) => API.get_category_mods(id, page, false, Some(tx)).await,
+                    Mode::Feed => API.get_mods(&remote, page, false, Some(tx)).await,
+                    Mode::Search(query) => {
+                        API.search_mods(&remote, &query, page, false, Some(tx)).await
+                    }
+                    Mode::Category(id) => {
+                        API.get_category_mods(&remote, id, page, false, Some(tx)).await
+                    }
                     Mode::Partial(_) => Ok(Vec::new()),
                 }
             });
@@ -559,7 +584,10 @@ impl GbBrowserHandler {
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(w) = ww2.upgrade() else { return };
                     let mut state = STATE.lock().unwrap();
-                    if state.generation != generation || !state.seen.insert(m.id) {
+                    if state.generation != generation
+                        || !state.scope.as_ref().is_some_and(GbScope::is_current)
+                        || !state.seen.insert(m.id)
+                    {
                         return;
                     }
                     let visible = show_nsfw() || !m.is_nsfw;
@@ -734,8 +762,26 @@ impl GbBrowserHandler {
         INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
     }
 
-    fn download_and_install(window: &slint::Weak<MainWindow>, mod_: GbMod, file: NteModFile) {
-        if !Self::start_download(window, mod_, file, None)
+    fn browse_guard() -> Result<MutationGuard> {
+        let guard = runtime::get()?.try_begin_mutation()?;
+        let browsed = STATE.lock().unwrap().scope.as_ref().map(|s| s.game.descriptor().id.clone());
+        if browsed.as_ref() != Some(guard.context().id()) {
+            return Err(anyhow!("the selected game changed, reopen the browser"));
+        }
+        Ok(guard)
+    }
+
+    fn download_and_install(window: &slint::Weak<MainWindow>, mod_: PickedMod, file: GbModFile) {
+        let guard = match Self::browse_guard() {
+            Ok(guard) => guard,
+            Err(e) => {
+                if let Some(w) = window.upgrade() {
+                    show_toast(&w, "error", format!("Could not install - {e:#}"));
+                }
+                return;
+            }
+        };
+        if !Self::start_download(window, guard, mod_, file, None)
             && let Some(w) = window.upgrade()
         {
             show_toast(&w, "warning", "Another install is in progress".into());
@@ -750,16 +796,16 @@ impl GbBrowserHandler {
         author: String,
         name: String,
         thumbnail: &[u8],
-        file: NteModFile,
+        file: GbModFile,
     ) -> bool {
         let thumb = decode_thumb(thumbnail).map(|(rgba, width, height)| Thumb {
             buf: slint::SharedPixelBuffer::clone_from_slice(&rgba, width, height),
         });
 
-        *INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(guard);
-        let started = Self::start_download(
+        Self::start_download(
             window,
-            GbMod {
+            guard,
+            PickedMod {
                 id: mod_id,
                 author,
                 name,
@@ -767,26 +813,31 @@ impl GbBrowserHandler {
             },
             file,
             None,
-        );
-        if !started {
-            INSTALL_GUARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
-        }
-        started
+        )
     }
 
     pub(crate) fn download_update(
         window: &slint::Weak<MainWindow>,
         source: ModSource,
-        file: NteModFile,
+        file: GbModFile,
         folder: std::path::PathBuf,
     ) {
-        let mod_ = GbMod {
+        let mod_ = PickedMod {
             id: source.mod_id,
             author: source.author,
             name: source.name,
             thumb: None,
         };
-        if !Self::start_download(window, mod_, file, Some(folder))
+        let guard = match runtime::get().and_then(|r| r.try_begin_mutation()) {
+            Ok(guard) => guard,
+            Err(e) => {
+                if let Some(w) = window.upgrade() {
+                    show_toast(&w, "error", format!("Could not update - {e:#}"));
+                }
+                return;
+            }
+        };
+        if !Self::start_download(window, guard, mod_, file, Some(folder))
             && let Some(w) = window.upgrade()
         {
             show_toast(&w, "warning", "Another install is in progress".into());
@@ -795,8 +846,9 @@ impl GbBrowserHandler {
 
     fn start_download(
         window: &slint::Weak<MainWindow>,
-        mod_: GbMod,
-        file: NteModFile,
+        guard: MutationGuard,
+        mod_: PickedMod,
+        file: GbModFile,
         update_folder: Option<std::path::PathBuf>,
     ) -> bool {
         if Self::install_in_progress(window)
@@ -812,6 +864,10 @@ impl GbBrowserHandler {
             return false;
         }
         let updating = update_folder.is_some();
+        let namespace: GameId = guard.context().id().clone();
+        *INSTALL_GUARD
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(guard);
 
         let icon_png = if updating {
             None
@@ -850,7 +906,7 @@ impl GbBrowserHandler {
                     return Err(anyhow!("unsafe file name '{}'", file.name));
                 };
 
-                let dir = get_gamebanana_download_dir();
+                let dir = get_gamebanana_download_dir(&namespace);
                 tokio::fs::create_dir_all(&dir).await?;
                 let path = dir.join(&safe_name);
 
@@ -1098,7 +1154,11 @@ impl GbBrowserHandler {
         w.on_gb_opened(move || {
             crate::ensure_cjk_fallback();
             let Some(win) = ww.upgrade() else { return };
-            win.set_gb_characters(Self::character_model());
+            let scope = GbScope::current();
+            if scope.is_none() {
+                warn!("GameBanana Browser Backend: the selected game has no GameBanana page");
+            }
+            win.set_gb_characters(Self::character_model(scope.as_ref()));
             win.set_gb_show_nsfw(show_nsfw());
             win.set_gb_search_text("".into());
             win.set_gb_selected_character(-1);
@@ -1108,6 +1168,7 @@ impl GbBrowserHandler {
                 let mut state = STATE.lock().unwrap();
                 state.mode = Mode::Feed;
                 state.preview = None;
+                state.scope = scope;
             }
             Self::load(&ww, true);
         });
@@ -1127,12 +1188,21 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         w.on_gb_character_selected(move |index| {
+            let characters = STATE
+                .lock()
+                .unwrap()
+                .scope
+                .as_ref()
+                .map_or(&[][..], GbScope::characters);
             let mode = usize::try_from(index)
                 .ok()
-                .and_then(|i| CHARACTERS.get(i))
-                .map_or(Mode::Feed, |(name, id)| {
-                    trace!("GameBanana Browser Backend: filtering by character '{name}'");
-                    Mode::Category(*id)
+                .and_then(|i| characters.get(i))
+                .map_or(Mode::Feed, |character| {
+                    trace!(
+                        "GameBanana Browser Backend: filtering by character '{}'",
+                        character.name
+                    );
+                    Mode::Category(character.category)
                 });
             if let Some(win) = ww.upgrade() {
                 win.set_gb_search_text("".into());
@@ -1169,7 +1239,7 @@ impl GbBrowserHandler {
                     }
                 };
 
-                let dir = get_gamebanana_download_dir();
+                let dir = get_gamebanana_download_root();
                 match tokio::fs::remove_dir_all(&dir).await {
                     Ok(()) => {}
                     // Nothing has been downloaded yet, so there is nothing to clear
@@ -1208,7 +1278,7 @@ impl GbBrowserHandler {
                 .mods
                 .iter()
                 .find(|e| e.id == mod_id)
-                .map_or_default(|e| GbMod {
+                .map_or_default(|e| PickedMod {
                     id: e.id,
                     author: e.author.clone(),
                     name: e.name.clone(),
@@ -1392,20 +1462,27 @@ impl GbBrowserHandler {
 
         let ww = window.clone();
         w.on_gb_closed(move || {
-            let Some(win) = ww.upgrade() else { return };
+            if let Some(win) = ww.upgrade() {
+                Self::reset(&win);
+            }
+        });
+    }
+
+    // forgets the browsed game, the next open captures the current one
+    pub(crate) fn reset(win: &MainWindow) {
+        {
             let mut state = STATE.lock().unwrap();
             let generation = state.generation + 1;
             *state = GbState::default();
             state.generation = generation;
-            drop(state);
-            RESTORING.lock().unwrap().clear();
-            RESTORE_FAILED.lock().unwrap().clear();
-            win.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
-            win.set_gb_files(Rc::new(VecModel::<GbFileItem>::default()).into());
-            win.set_gb_files_visible(false);
-            win.set_gb_preview_visible(false);
-            win.set_gb_preview_image(slint::Image::default());
-            win.set_gb_loading(false);
-        });
+        }
+        RESTORING.lock().unwrap().clear();
+        RESTORE_FAILED.lock().unwrap().clear();
+        win.set_gb_mods(Rc::new(VecModel::<GbModItem>::default()).into());
+        win.set_gb_files(Rc::new(VecModel::<GbFileItem>::default()).into());
+        win.set_gb_files_visible(false);
+        win.set_gb_preview_visible(false);
+        win.set_gb_preview_image(slint::Image::default());
+        win.set_gb_loading(false);
     }
 }

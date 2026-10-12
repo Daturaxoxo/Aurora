@@ -108,9 +108,12 @@ impl PakEngine {
                     "Everlight signature".to_string(),
                     self.win64.join(super::everlight::SIGNATURE_FILE_NAME),
                 ),
-                ("Lua dwmapi.dll".to_string(), self.win64.join("dwmapi.dll")),
-                ("Lua ue4ss folder".to_string(), self.win64.join("ue4ss")),
             ])
+            .chain(self.lua.iter().flat_map(|lua| {
+                lua.deploy
+                    .iter()
+                    .map(|deploy| (deploy.label.to_string(), deploy.destination.clone()))
+            }))
             .chain(BypassMethod::ALL_DLL_NAMES.iter().flat_map(|dll| {
                 [
                     (format!("Wrapper {dll} (root)"), self.game_path.join(dll)),
