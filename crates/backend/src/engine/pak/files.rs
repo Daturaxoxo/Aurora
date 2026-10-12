@@ -1,7 +1,6 @@
 use log::*;
-use shared::classes::games::capabilities::{AddonSupport, OverlayAddon};
-use shared::classes::games::nte::{NTE, addons};
-use shared::classes::info::Target;
+use shared::classes::games::capabilities::OverlayAddon;
+use shared::classes::games::nte::{Target, addons};
 use shared::config::key;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -38,13 +37,12 @@ impl PakEngine {
         files
     }
 
-    // TODO: take this from the engine's game once it stops being NTE-only
-    pub(super) fn overlay_addons() -> &'static [OverlayAddon] {
-        NTE.overlay_addons()
+    pub(super) fn overlay_addons(&self) -> &'static [OverlayAddon] {
+        self.game.addons().map_or(&[], |addons| addons.overlay_addons())
     }
 
     fn overlay_addon_files(&self) -> Vec<ManagedFile> {
-        Self::overlay_addons()
+        self.overlay_addons()
             .iter()
             .flat_map(|addon| {
                 let enabled = self.deployment.addon_enabled(addon.config_key)

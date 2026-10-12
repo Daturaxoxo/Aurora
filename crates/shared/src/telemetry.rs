@@ -21,10 +21,12 @@ use log::*;
 use sysinfo::{Disks, RefreshKind, System};
 use crate::{
     classes::{
-        games::identity::GameId,
-        info::{
-            paths::{CLIENT_PAK_DIR, get_version_paths},
-            version::{BypassMethod, detect_distribution, detect_version},
+        games::{
+            identity::GameId,
+            nte::{
+                paths::{CLIENT_PAK_DIR, get_version_paths},
+                version::{BypassMethod, detect_distribution, detect_version},
+            },
         },
     },
     config::{self, get_all_configs, key},

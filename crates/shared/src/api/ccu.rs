@@ -10,7 +10,7 @@ use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::classes::games::InstallationFacts;
-use crate::classes::info::version::Version;
+use crate::classes::games::nte::version::Version;
 use crate::utils::get_local_version;
 use crate::{config, telemetry, utils};
 

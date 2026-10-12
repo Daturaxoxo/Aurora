@@ -5,7 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use log::*;
-use shared::classes::games::nte::{NTE_PROCESSES, version::Version};
+use shared::classes::games::nte::version::Version;
 use crate::classes::rpc::RPC;
 use crate::engine::contract::{EventSink, SessionExit};
 use super::everlight;
@@ -36,7 +36,10 @@ impl Monitor {
             "Helper processes: {}",
             self.targets.helper_processes.join(", ")
         );
-        info!("Monitoring for NTE, you must press \"Play\" in the launcher!");
+        info!(
+            "Monitoring for {}, you must press \"Play\" in the launcher!",
+            self.targets.game_name
+        );
 
         match self.wait_for_launcher(LAUNCHER_GRACE_SECS) {
             Some(SessionExit::GameExited) => {}
@@ -66,7 +69,7 @@ impl Monitor {
         if !exited? {
             return Ok(SessionExit::Stopped);
         }
-        info!("NTE was closed, initializing clean-up process...");
+        info!("{} was closed, initializing clean-up process...", self.targets.game_name);
         Ok(self.finish(SessionExit::GameExited))
     }
 
@@ -76,7 +79,7 @@ impl Monitor {
 
     fn finish(&self, exit: SessionExit) -> SessionExit {
         if let Err(e) = ensure_processes_gone(&self.targets, POST_EXIT_KILL_GRACE) {
-            warn!("Could not confirm every NTE process exited: {e}");
+            warn!("Could not confirm every {} process exited: {e}", self.targets.game_name);
         }
         exit
     }
@@ -109,7 +112,10 @@ impl Monitor {
             snapshot.rerefresh();
 
             if !snapshot.matching(game_process).is_empty() {
-                info!("NTE process ({game_process}) was detected, game is running.");
+                info!(
+                    "{} process ({game_process}) was detected, game is running.",
+                    self.targets.game_name
+                );
                 if let Err(e) = RPC.set_ingame() {
                     warn!("Failed to update Discord RPC: {e}");
                 }
@@ -119,7 +125,7 @@ impl Monitor {
             if snapshot.any_matching(&watch_names) {
                 missing_ticks = 0;
                 if !launcher_seen {
-                    info!("NTE Launcher activity detected.");
+                    info!("{} Launcher activity detected.", self.targets.game_name);
                     launcher_seen = true;
                     if let Err(e) = RPC.set_launching() {
                         warn!("Failed to update Discord RPC: {e}");
@@ -132,11 +138,12 @@ impl Monitor {
 
             missing_ticks += 1;
             if missing_ticks == 1 {
-                warn!("NTE Launcher process not detected");
+                warn!("{} Launcher process not detected", self.targets.game_name);
             }
             if missing_ticks >= grace_ticks {
                 warn!(
-                    "NTE Launcher failed to resolve within {grace_secs}s of continuous absence. Aborting monitor."
+                    "{} Launcher failed to resolve within {grace_secs}s of continuous absence. Aborting monitor.",
+                    self.targets.game_name
                 );
                 return Some(SessionExit::LauncherAbandoned);
             }
@@ -170,7 +177,7 @@ pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -
 
     while Instant::now() < deadline {
         snapshot.rerefresh();
-        if !snapshot.any_matching(NTE_PROCESSES) && !snapshot.any_in_dir(&targets.win64) {
+        if !snapshot.any_matching(targets.processes) && !snapshot.any_in_dir(&targets.win64) {
             return Ok(());
         }
 
@@ -180,9 +187,9 @@ pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -
             .map(|(pid, process)| (*pid, process))
             .collect();
         if !launchers.is_empty() {
-            info!("NTE Launcher reopened after exit, closing it");
+            info!("{} Launcher reopened after exit, closing it", targets.game_name);
             if let Err(e) = kill_processes(launchers) {
-                warn!("Failed to close the reopened NTE Launcher: {e}");
+                warn!("Failed to close the reopened {} Launcher: {e}", targets.game_name);
             }
             continue;
         }
@@ -191,5 +198,6 @@ pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -
     }
 
     warn!("Processes did not close within {grace:?}. Force killing...");
-    kill_targets(targets).map_err(|e| anyhow!("Failed to kill NTE processes: {e}"))
+    kill_targets(targets)
+        .map_err(|e| anyhow!("Failed to kill {} processes: {e}", targets.game_name))
 }

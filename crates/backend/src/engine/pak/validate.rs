@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 use anyhow::Result;
 use log::*;
-use shared::{classes::info::Target, config::key};
+use shared::{classes::games::nte::Target, config::key};
 use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
 use crate::classes::validate::validate_files;
 use super::PakEngine;

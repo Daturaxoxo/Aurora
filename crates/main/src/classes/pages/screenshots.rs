@@ -1,10 +1,15 @@
 use crate::bridge::PopupSpec;
+use crate::runtime;
 use crate::translations::tr;
 use crate::{MainWindow, ScreenshotItem};
 use chrono::{DateTime, Local, NaiveDateTime};
 use log::*;
 use once_cell::sync::Lazy;
-use shared::classes::info::paths::PICTURE_FOLDER;
+use shared::classes::games::{
+    Game,
+    locate::{stored_installation_root, transitional_selected_game},
+    nte::paths::{CLIENT_SELFIE, PICTURE_FOLDER},
+};
 use shared::config::{self, key};
 use shared::utils::open_folder;
 use slint::{Model, VecModel};
@@ -106,19 +111,20 @@ enum Source {
     Pictures,
 }
 
+fn current_game() -> &'static dyn Game {
+    runtime::get().map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game)
+}
+
 fn selfie_folder() -> Option<PathBuf> {
-    let game_path = PathBuf::from(config::get(key::GAME_PATH).as_str()?);
-    let selfie_folder = game_path
-        .join("Client")
-        .join("WindowsNoEditor")
-        .join("Selfie");
+    let game_path = stored_installation_root(current_game()).ok().flatten()?;
+    let selfie_folder = game_path.join(CLIENT_SELFIE);
 
     selfie_folder.is_dir().then_some(selfie_folder)
 }
 
 fn pictures_folder() -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
-    let base = shared::classes::games::default_game()
+    let base = current_game()
         .descriptor()
         .steam
         .and_then(|metadata| shared::classes::steam::compat_prefix(&metadata))?

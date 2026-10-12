@@ -15,7 +15,7 @@ use anyhow::{Result, anyhow};
 use backend::engine::contract::{NotificationKind, Readiness};
 use backend::handler::EngineEvent;
 use log::*;
-use shared::classes::info::version::StartMethod;
+use shared::classes::games::nte::version::StartMethod;
 use shared::config::{self, key};
 
 const INIT_WARNINGS: &[(&str, &str)] = &[

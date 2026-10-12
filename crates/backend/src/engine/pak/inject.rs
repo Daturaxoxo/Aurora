@@ -10,7 +10,7 @@ const PLUGINS: &[&str] = &["chksum.asi", "ipc.asi"];
 
 impl PakEngine {
     pub fn inject(&mut self, request: &LaunchInput, records: &mut RecordChanges) -> Result<()> {
-        info!("Injecting into NTE...");
+        info!("Injecting into {}...", self.game.descriptor().display_name);
         info!("Game path:  {}", self.game_path.display());
         info!("Payload:    {}", self.payload.root().display());
         info!("Mods path:  {}", self.pak_base.display());
@@ -43,7 +43,7 @@ impl PakEngine {
         self.copy_custom_files(&request.deployment.modules, records)?;
         self.copy_plugins(records)?;
 
-        Self::launch_game(request)
+        self.launch_game(request)
     }
 
     fn check_required(files: &[ManagedFile]) -> Result<()> {
@@ -256,15 +256,15 @@ impl PakEngine {
         Ok(())
     }
 
-    fn launch_game(request: &LaunchInput) -> Result<()> {
+    fn launch_game(&self, request: &LaunchInput) -> Result<()> {
         let plan = &request.plan;
-        info!("Launching NTE: {}", plan.executable.display());
+        let game_name = self.game.descriptor().display_name;
+        info!("Launching {game_name}: {}", plan.executable.display());
         debug!("Launch arguments: {:?}", plan.arguments);
 
         #[cfg(target_os = "linux")]
         {
-            let steam = shared::classes::games::find_game(request.tag.game_id.as_str())
-                .and_then(|game| game.descriptor().steam);
+            let steam = self.game.descriptor().steam;
             crate::classes::linux::launch_via_proton(request, steam.as_ref())?;
             Ok(())
         }
@@ -276,7 +276,7 @@ impl PakEngine {
                 .current_dir(&plan.working_directory)
                 .envs(plan.environment.iter().map(|(k, v)| (k, v)))
                 .spawn()
-                .map_err(|e| anyhow!("Failed to launch NTE: {e}"))?;
+                .map_err(|e| anyhow!("Failed to launch {game_name}: {e}"))?;
             Ok(())
         }
     }

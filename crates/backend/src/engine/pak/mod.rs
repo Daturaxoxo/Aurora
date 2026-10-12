@@ -23,7 +23,10 @@ impl PakEngine {
         if let Err(e) =
             monitor::ensure_processes_gone(&self.process_targets(), monitor::POST_EXIT_KILL_GRACE)
         {
-            warn!("Could not confirm every NTE process exited: {e}");
+            warn!(
+                "Could not confirm every {} process exited: {e}",
+                self.game.descriptor().display_name
+            );
         }
 
         self.sanitize_files(false, injected)

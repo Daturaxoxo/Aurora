@@ -91,7 +91,7 @@ impl PakEngine {
 
         let injected_paths: Vec<PathBuf> = injected.iter().map(|r| r.path.clone()).collect();
         overlay::persist_settings(
-            Self::overlay_addons(),
+            self.overlay_addons(),
             self.payload.addons(),
             &self.win64,
             &injected_paths,

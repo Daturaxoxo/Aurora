@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use jwalk::DirEntry;
 
 use crate::{
-    classes::info::paths::CLIENT_PAK_DIR,
+    classes::games::nte::paths::CLIENT_PAK_DIR,
     config::{self, key},
 };
 
@@ -15,14 +15,6 @@ pub fn get_local_version() -> String {
     String::from_utf8_lossy(VERSION).trim().to_string()
 }
 
-/// When the running executable was put in place.
-///
-/// Read straight off the exe's own modification time. Archive extraction and
-/// the installer both keep the original stamp, so for a release build this is
-/// when the exe was built.
-///
-/// Formatted as `YYYY-MM-DD HH:MM` in local time so it reads the same in every
-/// language Aurora ships with. Returns `None` if the exe cannot be stat'd.
 pub fn get_build_timestamp() -> Option<String> {
     let exe = std::env::current_exe()
         .inspect_err(|e| warn!("Could not locate the running executable: {e}"))
@@ -40,7 +32,6 @@ pub fn get_build_timestamp() -> Option<String> {
     )
 }
 
-/// Flattens an error and every one of its sources into a single line.
 pub fn error_chain(error: &dyn std::error::Error) -> String {
     let mut out = error.to_string();
     let mut source = error.source();
@@ -67,11 +58,6 @@ pub fn get_mods_path() -> Option<PathBuf> {
         .map(|p| p.join(CLIENT_PAK_DIR))
 }
 
-/// Returns the path to the bin folder:
-/// - In debug mode, it returns the path to the Bin folder in the project directory.
-/// - In release mode, it returns the path to the Bin folder inside the state
-///   root: the executable's directory on Windows, and the XDG data directory
-///   on Linux, where an `AppImage` cannot write next to itself.
 pub fn get_bin_path() -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     {

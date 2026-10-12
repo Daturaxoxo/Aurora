@@ -18,7 +18,6 @@ const PACKAGED_FILES: [(&str, PackagedCheck); 2] = [
     ("manifest.json", is_aurora_manifest),
     ("steam_appid.txt", is_aurora_appid),
 ];
-const STEAM_APP_ID: &str = "4508340";
 const SIDECAR_SUFFIXES: [&str; 2] = ["tmp", "bak"];
 const LOGS_DIR: &str = "Logs";
 
@@ -164,7 +163,11 @@ fn is_aurora_manifest(contents: &str) -> bool {
 }
 
 fn is_aurora_appid(contents: &str) -> bool {
-    contents.trim() == STEAM_APP_ID
+    let contents = contents.trim();
+    registry()
+        .iter()
+        .filter_map(|game| game.descriptor().steam)
+        .any(|steam| steam.app_id == contents)
 }
 
 fn parents_below(app_dir: &Path, path: &Path) -> Vec<PathBuf> {

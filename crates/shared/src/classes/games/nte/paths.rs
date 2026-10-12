@@ -1,22 +1,19 @@
 use std::path::{Path, PathBuf};
-
-use super::{NTE_GAME_EXE, version::Distribution};
-use crate::classes::info::Target;
-
+use super::{NTE_GAME_EXE, Target, version::Distribution};
 use super::version::{BypassMethod, Version};
-
 pub const GAME_FOLDER_NAME: &str = "Neverness To Everness";
-
 pub const PICTURE_FOLDER: &str = "NevernessToEverness";
 
 cfg_select! {
     windows => {
         pub const CLIENT_WIN64: &str = "Client\\WindowsNoEditor\\HT\\Binaries\\Win64";
         pub const CLIENT_PAK_DIR: &str = "Client\\WindowsNoEditor\\HT\\Content\\Paks\\AuroraMods";
+        pub const CLIENT_SELFIE: &str = "Client\\WindowsNoEditor\\Selfie";
     }
     unix => {
         pub const CLIENT_WIN64: &str = "Client/WindowsNoEditor/HT/Binaries/Win64";
         pub const CLIENT_PAK_DIR: &str = "Client/WindowsNoEditor/HT/Content/Paks/AuroraMods";
+        pub const CLIENT_SELFIE: &str = "Client/WindowsNoEditor/Selfie";
     }
 }
 

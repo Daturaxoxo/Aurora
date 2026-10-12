@@ -6,14 +6,18 @@ use shared::classes::games::nte::{
     paths::{VersionPaths, get_version_paths},
     version::{BypassMethod, Distribution, Version},
 };
-use shared::classes::games::payload::ResolvedPayloadLayout;
-use shared::classes::info::Target;
+use shared::classes::games::{
+    Game, find_game,
+    nte::Target,
+    payload::ResolvedPayloadLayout,
+};
 
 use super::files::FileGroup;
 use super::process::ProcessTargets;
 use crate::engine::contract::{DeploymentSelection, EngineInput, EngineSettings};
 
 pub struct PakEngine {
+    pub game: &'static dyn Game,
     pub game_path: PathBuf,
     pub engine_method: BypassMethod,
     pub payload: ResolvedPayloadLayout,
@@ -36,6 +40,8 @@ impl PakEngine {
             .as_ref()
             .ok_or_else(|| anyhow!("{} has no game installation", input.tag))?;
         let game_path = installation.root().to_path_buf();
+        let game = find_game(input.tag.game_id.as_str())
+            .ok_or_else(|| anyhow!("{} is not a registered game", input.tag.game_id))?;
 
         let version = Version::from_key(installation.variant())
             .ok_or_else(|| anyhow!("unknown game version '{}'", installation.variant()))?;
@@ -76,6 +82,7 @@ impl PakEngine {
 
         info!("Game Path: {}", game_path.display());
         Ok(Self {
+            game,
             game_path,
             engine_method,
             payload: input.payload.clone(),
@@ -100,7 +107,10 @@ impl PakEngine {
             .map(|f| (f.label, f.destination))
             .collect();
 
+        let descriptor = self.game.descriptor();
         ProcessTargets {
+            game_name: descriptor.display_name,
+            processes: descriptor.processes,
             launcher_process: self.gpaths.launcher_process,
             game_process: self.gpaths.game_process,
             helper_processes: self.gpaths.helper_processes.clone(),

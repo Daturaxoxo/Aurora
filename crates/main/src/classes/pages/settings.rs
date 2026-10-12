@@ -11,7 +11,7 @@ use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use shared::classes::games::{EngineKind, Game, InstallationFacts, locate::transitional_selected_game};
-use shared::classes::info::version::StartMethod;
+use shared::classes::games::nte::version::StartMethod;
 use shared::config::{self, ConfigChange, ProfileKey, ProfilePatch, key};
 use shared::pathfind::resolve_game_root;
 use shared::utils::open_folder;

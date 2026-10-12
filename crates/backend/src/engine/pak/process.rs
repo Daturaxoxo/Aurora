@@ -253,6 +253,8 @@ pub(super) fn kill_processes(processes: Vec<(Pid, &Process)>) -> Result<HashSet<
 
 #[derive(Debug, Clone)]
 pub struct ProcessTargets {
+    pub game_name: &'static str,
+    pub processes: &'static [&'static str],
     pub launcher_process: &'static str,
     pub game_process: &'static str,
     pub helper_processes: Vec<&'static str>,
