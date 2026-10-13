@@ -1,7 +1,7 @@
 use super::{Nte, version::Version};
 use crate::classes::games::{
     InstallationFacts,
-    capabilities::{AddonSupport, OverlayAddon, ShippedAddon},
+    capabilities::{AddonSupport, OverlayAddon, PakAddon, ShippedAddon},
 };
 
 const UNAVAILABLE: &[(&str, &[Version])] = &[];
@@ -16,6 +16,34 @@ const OVERLAYS: &[OverlayAddon] = &[
         config_key: "optsc",
         folder: "OptiScaler",
         persist: &["OptiScaler.ini", "fakenvapi.ini"],
+    },
+];
+
+const PAKS: &[PakAddon] = &[
+    PakAddon {
+        config_key: "drv_lin",
+        folder: "NoDriveLine",
+        base_names: &["DisableDrivingLine_P"],
+    },
+    PakAddon {
+        config_key: "uid_rem",
+        folder: "HideUID",
+        base_names: &["HideUI_UserID_P"],
+    },
+    PakAddon {
+        config_key: "nor_rem",
+        folder: "HideRedDots",
+        base_names: &["Disable_RedDot_P"],
+    },
+    PakAddon {
+        config_key: "ui_pack",
+        folder: "UIModPack",
+        base_names: &["ModPack_P", "ModPack_Launcher_P"],
+    },
+    PakAddon {
+        config_key: "util_pack",
+        folder: "UtilityModPack",
+        base_names: &["UtilityPack_P"],
     },
 ];
 
@@ -82,5 +110,9 @@ impl AddonSupport for Nte {
 
     fn overlay_addons(&self) -> &[OverlayAddon] {
         OVERLAYS
+    }
+
+    fn pak_addons(&self) -> &[PakAddon] {
+        PAKS
     }
 }

@@ -106,21 +106,6 @@ pub fn validate_mods(mod_folder: impl Into<PathBuf>) -> Result<Vec<Issue>> {
     Ok(issues)
 }
 
-pub fn validate_files(
-    bin_dir: impl Into<PathBuf>,
-    required_names: Vec<String>,
-) -> Result<Vec<String>> {
-    let bin_dir = bin_dir.into();
-    let mut res = vec![];
-    for name in required_names {
-        if bin_dir.join(&name).exists() {
-            continue;
-        }
-        res.push(name);
-    }
-    Ok(res)
-}
-
 pub fn ensure_dir(path: &PathBuf) -> Result<()> {
     if path.exists() && !path.is_dir() {
         fs::remove_file(path)?;

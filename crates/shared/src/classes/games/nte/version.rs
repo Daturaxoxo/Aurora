@@ -83,20 +83,6 @@ impl StartMethod {
         }
     }
 
-    pub const fn from_num(i: i64) -> Self {
-        match i {
-            0 => Self::Direct,
-            _ => Self::Manual,
-        }
-    }
-
-    pub const fn as_index(self) -> i32 {
-        match self {
-            Self::Direct => 0,
-            Self::Manual => 1,
-        }
-    }
-
     pub const fn id(self) -> &'static str {
         match self {
             Self::Direct => "direct",
@@ -108,18 +94,6 @@ impl StartMethod {
         [Self::Direct, Self::Manual]
             .into_iter()
             .find(|method| method.id() == id)
-    }
-
-    pub fn decode(raw: &serde_json::Value) -> Self {
-        raw.as_i64()
-            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
-            .map_or_else(
-                || {
-                    debug!("Unreadable start_method {raw:?}, leaving the launcher on screen");
-                    Self::default()
-                },
-                Self::from_num,
-            )
     }
 }
 
@@ -237,12 +211,10 @@ impl fmt::Display for BypassMethod {
 }
 
 impl BypassMethod {
-    pub const ALL_DLL_NAMES: &'static [&'static str] = &["version.dll", "dsound.dll"];
-
-    pub fn to_dll_names(&self) -> Vec<&'static str> {
+    pub const fn dll_name(self) -> &'static str {
         match self {
-            Self::Version => vec!["version.dll"],
-            Self::DSound => vec!["dsound.dll"],
+            Self::Version => "version.dll",
+            Self::DSound => "dsound.dll",
         }
     }
 

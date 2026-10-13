@@ -7,8 +7,6 @@ pub mod overlay;
 pub mod pak;
 pub mod scale;
 
-pub const CENSORSHIP_DIR: &str = "Censorship";
-
 const REMOVED_ADDONS: [&str; 2] = ["Collectibles", "CooldownTimers"];
 
 pub fn migrate() {

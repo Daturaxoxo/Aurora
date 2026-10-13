@@ -13,7 +13,6 @@ use backend::engine::contract::{NotificationKind, Readiness};
 use backend::handler::EngineEvent;
 use log::*;
 use shared::classes::games::identity::GameId;
-use shared::classes::games::nte::version::StartMethod;
 use shared::config::{self, key};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
@@ -387,14 +386,18 @@ impl Bridge {
             }
             EngineEvent::Launched(outcome) => match outcome.result {
                 Ok(()) => {
-                    let start_method = runtime::get().map_or(StartMethod::Manual, |r| {
-                        engine::start_method(r.snapshot().game)
-                    });
-                    let toast_key = match start_method {
-                        StartMethod::Direct => "toast.launch-direct",
-                        StartMethod::Manual => "toast.launcher-opened",
+                    let game = runtime::get().ok().map(|r| r.snapshot().game);
+                    let opens_launcher = game
+                        .and_then(engine::start_method)
+                        .is_none_or(|method| method.opens_launcher);
+                    let toast_key = if opens_launcher {
+                        "toast.launcher-opened"
+                    } else {
+                        "toast.launch-direct"
                     };
-                    Self::show_toast(&w, &crate::translations::tr(toast_key), "success");
+                    let name = game.map_or("", |game| game.descriptor().display_name);
+                    let toast = crate::translations::tr(toast_key).replace("{0}", name);
+                    Self::show_toast(&w, &toast, "success");
                     Self::invoke_current(&w, generation, |w| {
                         w.set_launch_state(LaunchState::Running);
                     });

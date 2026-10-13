@@ -10,7 +10,7 @@ pub(super) fn publish(context: &GameContext) {
         generation: context.generation(),
         game: d.id.clone(),
         game_root: context.installation().map(|i| i.root().to_path_buf()),
-        region: ccu::region_of(context.installation()),
+        region: ccu::region_of(context.game(), context.installation()),
     });
 
     if let Err(e) = RPC.set_game(d.display_name) {

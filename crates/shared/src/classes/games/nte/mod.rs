@@ -4,15 +4,20 @@ mod gamebanana;
 mod launcher;
 mod lua;
 mod mods;
+mod pak;
 pub mod patcher;
 pub mod paths;
 mod screenshots;
 mod unreal;
 pub mod version;
 
-use std::{path::Path, sync::LazyLock};
+use std::{
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 use anyhow::Result;
+use log::*;
 use serde_json::Value;
 
 use super::{
@@ -22,6 +27,7 @@ use super::{
         LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport, UnrealSupport,
     },
     identity::{GameId, SafeRelativePath},
+    pak::PakSupport,
 };
 use crate::config::{self, ProfileKey};
 
@@ -64,25 +70,6 @@ const MARKERS: &[&str] = &[
 pub const LEGACY_BIN_SIGNATURE: &[&str] = &["cutils.dll", "Everlight.asi"];
 pub const LEGACY_BIN_FILES: &[&str] = &["AuroraEngine.dll", "Everlight.asi", "cutils.dll"];
 pub const LEGACY_BIN_DIRS: &[&str] = &["Plugins", "Wrappers", "Addons", "Lua"];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Target {
-    AsiPlugin,
-    AuroraTf,
-    CNAuroraTF,
-    Cutils,
-}
-
-impl Target {
-    pub const fn as_file(&self) -> &'static str {
-        match self {
-            Self::AsiPlugin => "Everlight.asi",
-            Self::AuroraTf => "AuroraTF.asi",
-            Self::CNAuroraTF => "CNAuroraTF.asi",
-            Self::Cutils => "cutils.dll",
-        }
-    }
-}
 
 pub static NTE: LazyLock<Nte> = LazyLock::new(Nte::new);
 
@@ -142,6 +129,42 @@ impl Game for Nte {
         config::default_value(key.as_str())
     }
 
+    fn region(&self, installation: &InstallationFacts) -> Option<&'static str> {
+        match version::Version::from_key(installation.variant())? {
+            version::Version::Global => Some("global"),
+            version::Version::CN => Some("china"),
+            version::Version::TW => Some("taiwan"),
+            version::Version::Unknown => None,
+        }
+    }
+
+    fn diagnostic_files(&self, installation: &InstallationFacts) -> Vec<(String, PathBuf)> {
+        let raw = config::read_profile(&self.descriptor.id).map_or_else(
+            |_| self.profile_default(ProfileKey::EngineMethod),
+            |profile| profile.value(ProfileKey::EngineMethod, self),
+        );
+        let raw = raw
+            .as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse().ok()))
+            .unwrap_or(0);
+        match self.loader(installation, raw) {
+            Ok(loader) => {
+                let root = installation.root();
+                vec![
+                    (format!("{loader}:root"), root.join(loader)),
+                    (
+                        format!("{loader}:bin"),
+                        root.join(paths::CLIENT_WIN64).join(loader),
+                    ),
+                ]
+            }
+            Err(e) => {
+                warn!("Could not resolve the engine loader for diagnostics: {e}");
+                Vec::new()
+            }
+        }
+    }
+
     fn launcher(&self) -> Option<&dyn LauncherSupport> {
         Some(self)
     }
@@ -159,6 +182,10 @@ impl Game for Nte {
     }
 
     fn lua(&self) -> Option<&dyn LuaSupport> {
+        Some(self)
+    }
+
+    fn pak(&self) -> Option<&dyn PakSupport> {
         Some(self)
     }
 

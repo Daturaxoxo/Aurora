@@ -50,8 +50,8 @@ impl PopupHandler {
                     crate::classes::pages::settings::IGNORE_CHECKSUM_POPUP_ID => {
                         SettingsHandler::confirm_ignore_checksum();
                     }
-                    crate::classes::pages::settings::DIRECT_MODE_POPUP_ID => {
-                        SettingsHandler::confirm_direct_mode();
+                    crate::classes::pages::settings::START_METHOD_POPUP_ID => {
+                        SettingsHandler::confirm_start_method(&ww);
                     }
                     #[cfg(target_os = "linux")]
                     crate::classes::desktop::POPUP_ID => {
@@ -101,8 +101,8 @@ impl PopupHandler {
                     SettingsHandler::cancel_ignore_checksum(&w);
                 }
 
-                if id.as_str() == crate::classes::pages::settings::DIRECT_MODE_POPUP_ID {
-                    SettingsHandler::cancel_direct_mode(&w);
+                if id.as_str() == crate::classes::pages::settings::START_METHOD_POPUP_ID {
+                    SettingsHandler::cancel_start_method(&w);
                 }
 
                 if id.as_str() == crate::classes::oneclick::POPUP_ID

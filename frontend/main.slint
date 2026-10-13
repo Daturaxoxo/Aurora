@@ -170,6 +170,8 @@ export component MainWindow inherits Window {
     in-out property <bool> show-engine-scale: false;
     in property <bool> engine-settings: true;
     in property <bool> start-method-choice: true;
+    in property <[string]> engine-method-options: [];
+    in property <[string]> start-method-options: [];
     in-out property <bool> ignore-checksum: false;
     in-out property <string> launch-args: "";
     in-out property <bool> developer-mode: false;
@@ -1504,6 +1506,8 @@ export component MainWindow inherits Window {
             show-engine-scale: root.show-engine-scale;
             engine-settings: root.engine-settings;
             start-method-choice: root.start-method-choice;
+            engine-method-options: root.engine-method-options;
+            start-method-options: root.start-method-options;
             ignore-checksum <=> root.ignore-checksum;
             launch-args <=> root.launch-args;
             developer-mode <=> root.developer-mode;

@@ -3,6 +3,7 @@ pub mod identity;
 pub mod launch;
 pub mod locate;
 pub mod nte;
+pub mod pak;
 pub mod payload;
 pub mod platform;
 pub mod sp;
@@ -19,6 +20,7 @@ use capabilities::{
     LuaSupport, ModManagerSupport, ModuleSupport, ScreenshotSupport, UnrealSupport,
 };
 use identity::{GameId, SafeRelativePath};
+use pak::{Activation, PakSupport};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,6 +91,16 @@ pub trait Game: Send + Sync {
         let _ = key;
         Value::Null
     }
+    // the server region an installation plays on, reported with the CCU heartbeat
+    fn region(&self, installation: &InstallationFacts) -> Option<&'static str> {
+        let _ = installation;
+        None
+    }
+    // extra labelled files listed in the telemetry report's file status
+    fn diagnostic_files(&self, installation: &InstallationFacts) -> Vec<(String, PathBuf)> {
+        let _ = installation;
+        Vec::new()
+    }
 
     fn launcher(&self) -> Option<&dyn LauncherSupport> {
         None
@@ -118,6 +130,9 @@ pub trait Game: Send + Sync {
         None
     }
     fn launch_arguments(&self) -> Option<&dyn LaunchArgumentsSupport> {
+        None
+    }
+    fn pak(&self) -> Option<&dyn PakSupport> {
         None
     }
 }
@@ -226,6 +241,82 @@ fn check_naming(game: &str, field: &'static str, naming: &capabilities::ModNamin
     Ok(())
 }
 
+fn check_pak(game: &dyn Game) -> Result<()> {
+    let d = game.descriptor();
+    let id = d.id.to_string();
+    let Some(pak) = game.pak() else {
+        if d.engine == Some(EngineKind::Pak) {
+            return Err(anyhow!("{id}: uses the pak engine but has no pak support"));
+        }
+        return Ok(());
+    };
+    if d.engine != Some(EngineKind::Pak) {
+        return Err(anyhow!(
+            "{id}: has pak support but does not use the pak engine"
+        ));
+    }
+
+    if pak.signature().is_empty() {
+        return Err(anyhow!("{id}: pak signature is empty"));
+    }
+    if pak.loaders().is_empty() {
+        return Err(anyhow!("{id}: pak engine has no loaders"));
+    }
+    check_list(&id, "pak.loaders", pak.loaders().iter().map(|l| l.dll))?;
+    for loader in pak.loaders().iter().map(|l| l.dll) {
+        SafeRelativePath::parse(loader)
+            .ok()
+            .filter(|path| path.components().len() == 1)
+            .ok_or_else(|| anyhow!("{id}: pak loader '{loader}' is not a file name"))?;
+    }
+
+    let components = pak.components();
+    check_list(&id, "pak.components", components.iter().map(|c| c.source))?;
+    let shipped = game
+        .addons()
+        .map_or(&[][..], |addons| addons.shipped_addons());
+    for component in components {
+        SafeRelativePath::parse(component.source)
+            .map_err(|e| anyhow!("{id}: pak component '{}': {e}", component.source))?;
+        if let Activation::Addon(key) = component.activation
+            && !shipped.iter().any(|a| a.config_key == key)
+        {
+            return Err(anyhow!(
+                "{id}: pak component '{}' needs addon '{key}', which is not shipped",
+                component.source
+            ));
+        }
+        if let Some(variant) = component
+            .variants
+            .iter()
+            .find(|v| !d.launchers.iter().any(|l| l.variant == **v))
+        {
+            return Err(anyhow!(
+                "{id}: pak component '{}' names unknown variant '{variant}'",
+                component.source
+            ));
+        }
+    }
+
+    let probe = Path::new("probe-root");
+    let mut variants: Vec<&'static str> = d.launchers.iter().map(|l| l.variant).collect();
+    if variants.is_empty() {
+        variants.push("");
+    }
+    for variant in variants {
+        let layout = pak.layout(&InstallationFacts::new(probe.to_path_buf(), variant, ""));
+        for (field, path) in [
+            ("pak binaries", &layout.binaries),
+            ("pak paks", &layout.paks),
+            ("pak mods", &layout.mods),
+        ] {
+            check_inside(&id, field, probe, path)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn check_capabilities(game: &dyn Game) -> Result<()> {
     let id = game.descriptor().id.to_string();
 
@@ -277,7 +368,29 @@ fn check_capabilities(game: &dyn Game) -> Result<()> {
                 overlay.persist.iter().copied(),
             )?;
         }
+
+        let paks = addons.pak_addons();
+        check_list(&id, "pak_addons.folder", paks.iter().map(|p| p.folder))?;
+        check_list(
+            &id,
+            "pak_addons.base_names",
+            paks.iter().flat_map(|p| p.base_names.iter().copied()),
+        )?;
+        for pak in paks {
+            if pak.base_names.is_empty() {
+                return Err(anyhow!("{id}: pak addon '{}' has no files", pak.folder));
+            }
+            if !shipped.iter().any(|a| a.config_key == pak.config_key) {
+                return Err(anyhow!(
+                    "{id}: pak addon '{}' has config key '{}', which no shipped addon uses",
+                    pak.folder,
+                    pak.config_key
+                ));
+            }
+        }
     }
+
+    check_pak(game)?;
 
     if let Some(mods) = game.mod_manager() {
         let probe = Path::new("probe-root");

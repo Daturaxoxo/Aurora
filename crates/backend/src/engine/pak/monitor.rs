@@ -4,8 +4,7 @@ use crate::classes::rpc::RPC;
 use crate::engine::contract::{EventSink, SessionExit};
 use anyhow::{Result, anyhow};
 use log::*;
-use shared::classes::games::nte::version::Version;
-use std::path::PathBuf;
+use shared::classes::games::{InstallationFacts, pak::PakSupport};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -23,8 +22,8 @@ const POST_EXIT_POLL: Duration = Duration::from_millis(150);
 
 pub(super) struct Monitor {
     pub targets: ProcessTargets,
-    pub game_path: PathBuf,
-    pub version: Version,
+    pub pak: &'static dyn PakSupport,
+    pub installation: InstallationFacts,
     pub ignore_checksum: bool,
     pub events: EventSink,
     pub stop: Arc<AtomicBool>,
@@ -50,13 +49,14 @@ impl Monitor {
         let watcher_stop = Arc::new(AtomicBool::new(false));
         let watcher = {
             let win64 = self.targets.win64.clone();
-            let game_path = self.game_path.clone();
-            let version = self.version;
+            let pak = self.pak;
+            let installation = self.installation.clone();
             let events = self.events.clone();
             let ignore_checksum = self.ignore_checksum;
             let stop = watcher_stop.clone();
             thread::spawn(move || {
-                everlight::watch(&win64, &game_path, version, ignore_checksum, &events, &stop);
+                let content_version = || pak.content_version(&installation);
+                everlight::watch(&win64, &content_version, ignore_checksum, &events, &stop);
             })
         };
 

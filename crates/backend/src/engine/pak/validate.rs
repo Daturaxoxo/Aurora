@@ -1,10 +1,9 @@
 use super::PakEngine;
 use super::files::FileGroup;
-use crate::classes::addons::{CENSORSHIP_DIR, repair_file};
-use crate::classes::validate::validate_files;
+use crate::classes::addons::{manifest_path, repair_file};
 use anyhow::Result;
 use log::*;
-use shared::{classes::games::nte::Target, config::key};
+use shared::classes::games::pak::Activation;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -29,10 +28,25 @@ impl PakEngine {
     }
 
     pub fn validate_builtins(&self) -> Result<Vec<String>> {
-        let mut missing = validate_files(
-            self.payload.root().to_path_buf(),
-            vec![Target::AsiPlugin.as_file().to_string()],
-        )?;
+        self.repair_addon_components();
+
+        let mut missing: Vec<String> = Vec::new();
+        let mut report = |name: String| {
+            if !missing.contains(&name) {
+                missing.push(name);
+            }
+        };
+
+        for component in self.applicable_components() {
+            let needed = match component.activation {
+                Activation::Required => true,
+                Activation::Addon(key) => self.addon_active(key),
+                Activation::Optional | Activation::ChecksumGuard => false,
+            };
+            if needed && !self.component_source(component).exists() {
+                report(component.file_name().to_string());
+            }
+        }
 
         for file in self
             .managed_files()
@@ -40,47 +54,34 @@ impl PakEngine {
             .filter(|f| f.group == FileGroup::LoaderDll)
             .filter(|f| !f.source.exists())
         {
-            let name = file
-                .source
-                .file_name()
-                .map_or_else(|| file.label.clone(), |n| n.to_string_lossy().to_string());
-            if !missing.contains(&name) {
-                missing.push(name);
-            }
-        }
-
-        self.repair_censorship_files();
-
-        if self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {
-            missing.extend(
-                self.targets
-                    .iter()
-                    .filter(|(t, _)| *t != Target::AsiPlugin)
-                    .filter(|(t, _)| !self.asi_source(*t).exists())
-                    .map(|(t, _)| t.as_file().to_string()),
+            report(
+                file.source
+                    .file_name()
+                    .map_or_else(|| file.label.clone(), |n| n.to_string_lossy().to_string()),
             );
         }
 
         Ok(missing)
     }
 
-    pub(super) fn repair_censorship_files(&self) {
-        if !self.deployment.addon_enabled(key::CENSORSHIP_REMOVE) {
-            return;
-        }
+    pub(super) fn repair_addon_components(&self) {
+        for component in self.applicable_components() {
+            let Activation::Addon(key) = component.activation else {
+                continue;
+            };
+            if !self.addon_active(key) {
+                continue;
+            }
 
-        let folder = self.payload.addons().join(CENSORSHIP_DIR);
-        for (target, _) in self
-            .targets
-            .iter()
-            .filter(|(t, _)| matches!(t, Target::AuroraTf | Target::CNAuroraTF))
-        {
-            let source = self.asi_source(*target);
+            let source = self.component_source(component);
+            let Some(folder) = source.parent().filter(|f| manifest_path(f).is_some()) else {
+                continue;
+            };
             if source.exists() || !first_attempt(&source) {
                 continue;
             }
 
-            match repair_file(&folder, target.as_file()) {
+            match repair_file(folder, component.file_name()) {
                 Ok(()) => info!("Addon repair: restored '{}'", source.display()),
                 Err(e) => warn!(
                     "Addon repair: could not restore '{}': {e}",

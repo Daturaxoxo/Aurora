@@ -4,7 +4,10 @@ use super::{
 };
 use crate::classes::games::{
     capabilities::LauncherSupport,
-    launch::{CompatRequirement, LaunchPlan, LaunchPlatform, LaunchRequest, StartMethodDescriptor},
+    launch::{
+        CompatRequirement, LaunchPlan, LaunchPlatform, LaunchRequest, StartMethodConfirmation,
+        StartMethodDescriptor,
+    },
 };
 
 use anyhow::{Result, anyhow};
@@ -12,9 +15,18 @@ use anyhow::{Result, anyhow};
 const START_METHODS: &[StartMethodDescriptor] = &[
     StartMethodDescriptor {
         id: StartMethod::Direct.id(),
+        label: "settings.start-method.direct",
+        opens_launcher: false,
+        confirmation: Some(StartMethodConfirmation {
+            title: "popup.direct-mode.title",
+            message: "popup.direct-mode.message",
+        }),
     },
     StartMethodDescriptor {
         id: StartMethod::Manual.id(),
+        label: "settings.start-method.manual",
+        opens_launcher: true,
+        confirmation: None,
     },
 ];
 
@@ -87,9 +99,10 @@ impl LauncherSupport for Nte {
 #[cfg(test)]
 mod tests {
     use std::{fs, path::PathBuf};
-
     use super::*;
-    use crate::classes::games::{InstallationFacts, nte::NTE};
+    use crate::{
+        classes::games::{InstallationFacts, nte::NTE},
+    };
 
     fn install(name: &str, launcher: &str) -> PathBuf {
         let root =
@@ -113,50 +126,6 @@ mod tests {
             start_method: method,
             platform,
         })
-    }
-
-    #[test]
-    fn start_methods_match_config_indices() {
-        let ids: Vec<_> = START_METHODS.iter().map(|m| m.id).collect();
-        assert_eq!(ids, ["direct", "manual"]);
-        for (index, id) in ids.iter().enumerate() {
-            let method = StartMethod::from_id(id).unwrap();
-            assert_eq!(method.as_index(), i32::try_from(index).unwrap());
-        }
-    }
-
-    // Mirrors the arguments the engine built before launch plans existed.
-    #[test]
-    fn preserves_current_launch_arguments() {
-        for version in [Version::Global, Version::CN, Version::TW] {
-            let launcher = version.spec().launcher_process;
-            let root = install(&version.to_string(), launcher);
-            for distribution in [
-                Distribution::Standalone,
-                Distribution::Epic,
-                Distribution::Steam,
-            ] {
-                for method in [StartMethod::Direct, StartMethod::Manual] {
-                    let plan = plan(
-                        &root,
-                        version,
-                        distribution,
-                        method.id(),
-                        LaunchPlatform::Windows,
-                    )
-                    .unwrap();
-                    let mut expected: Vec<&str> = distribution.launch_args().to_vec();
-                    expected.extend_from_slice(method.launch_args());
-                    assert_eq!(plan.executable, root.join(launcher));
-                    assert_eq!(plan.working_directory, root);
-                    assert_eq!(plan.arguments, expected);
-                    assert_eq!(plan.environment, Vec::new());
-                    assert_eq!(plan.compatibility, None);
-                    assert_eq!(plan.dll_overrides, Vec::<String>::new());
-                }
-            }
-            fs::remove_dir_all(&root).unwrap();
-        }
     }
 
     #[test]

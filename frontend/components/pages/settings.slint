@@ -757,7 +757,7 @@ export component SettingsPage inherits Rectangle {
 
     // LAUNCHER
     callback browse-game-directory();
-    in-out property <string> game-directory: "C:\\Program Files\\Neverness To Everness";
+    in-out property <string> game-directory: "";
     in-out property <int> engine-method-index: 0;      // 0=Default 1=Alternate
     in-out property <int> start-method-index: 1;       // 0=Direct (/autoplay) 1=Manual
     in-out property <int> engine-scale: 100;           // ApplicationScale, in percent
@@ -767,6 +767,8 @@ export component SettingsPage inherits Rectangle {
     // what the current game supports, controls it cannot use are hidden
     in property <bool> engine-settings: true;
     in property <bool> start-method-choice: true;
+    in property <[string]> engine-method-options: [];
+    in property <[string]> start-method-options: [];
 
     // LINUX
     in property <bool> is-linux: false;
@@ -1121,10 +1123,7 @@ export component SettingsPage inherits Rectangle {
                                     title: Tr.values[TrKey.settings-engine-method-title];
                                     subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
                                     Dropdown {
-                                        options: [
-                                            Tr.values[TrKey.settings-engine-method-default],
-                                            Tr.values[TrKey.settings-engine-method-alternate]
-                                        ];
+                                        options: root.engine-method-options;
                                         selected-index <=> root.engine-method-index;
                                         selection-changed(idx) => { root.engine-method-index-changed(idx); }
                                     }
@@ -1134,10 +1133,7 @@ export component SettingsPage inherits Rectangle {
                                     title: Tr.values[TrKey.settings-start-method-title];
                                     subtitle: Tr.values[TrKey.settings-start-method-subtitle];
                                     Dropdown {
-                                        options: [
-                                            Tr.values[TrKey.settings-start-method-direct],
-                                            Tr.values[TrKey.settings-start-method-manual]
-                                        ];
+                                        options: root.start-method-options;
                                         selected-index <=> root.start-method-index;
                                         selection-changed(idx) => { root.start-method-index-changed(idx); }
                                     }

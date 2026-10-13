@@ -366,7 +366,7 @@ fn clear_readonly(path: &Path) -> bool {
 }
 
 impl PakEngine {
-    pub fn kill_nte_processes(&self) -> Result<()> {
+    pub fn kill_game_processes(&self) -> Result<()> {
         kill_targets(&self.process_targets())
     }
 }

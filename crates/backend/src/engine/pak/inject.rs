@@ -5,19 +5,19 @@ use crate::engine::contract::{InjectedPluginRecord, LaunchInput, ModuleSelection
 use crate::engine::lua::LuaManager;
 use anyhow::{Context, Result, anyhow};
 use log::*;
+use shared::classes::games::pak::Activation;
 use std::fs;
-const PLUGINS: &[&str] = &["chksum.asi", "ipc.asi"];
 
 impl PakEngine {
     pub fn inject(&mut self, request: &LaunchInput, records: &mut RecordChanges) -> Result<()> {
         info!("Injecting into {}...", self.game.descriptor().display_name);
         info!("Game path:  {}", self.game_path.display());
         info!("Payload:    {}", self.payload.root().display());
-        info!("Mods path:  {}", self.pak_base.display());
-        info!("Distribution: {}", self.distribution);
+        info!("Mods path:  {}", self.layout.mods.display());
+        info!("Distribution: {}", self.installation.distribution());
 
         self.deployment = request.deployment.clone();
-        self.repair_censorship_files();
+        self.repair_addon_components();
 
         let files = self.managed_files();
         Self::check_required(&files)?;
@@ -26,8 +26,9 @@ impl PakEngine {
         records.extend(removed);
         cleaned?;
 
-        Self::copy_non_addon_files(&files)?;
-        super::everlight::install_signature(&self.win64)?;
+        self.report_skipped_components();
+        Self::copy_non_addon_files(&files, records)?;
+        super::everlight::install_signature(&self.layout.binaries, self.pak.signature())?;
         self.copy_pak_addons(&files)?;
         self.copy_overlay_addons(&files, records);
 
@@ -40,7 +41,6 @@ impl PakEngine {
         }
 
         self.copy_custom_files(&request.deployment.modules, records)?;
-        self.copy_plugins(records)?;
 
         self.launch_game(request)
     }
@@ -58,7 +58,32 @@ impl PakEngine {
         Ok(())
     }
 
-    fn copy_non_addon_files(files: &[ManagedFile]) -> Result<()> {
+    fn report_skipped_components(&self) {
+        for component in self.applicable_components() {
+            let name = component.file_name();
+            match component.activation {
+                Activation::ChecksumGuard if self.settings.ignore_checksum => {
+                    info!("'Ignore Checksum Matching' is enabled, skipping {name}");
+                }
+                Activation::Optional | Activation::ChecksumGuard
+                    if !self.component_source(component).exists() =>
+                {
+                    warn!(
+                        "{name} is missing from {}, launching without it",
+                        self.payload.root().display()
+                    );
+                }
+                Activation::Addon(key)
+                    if self.addon_active(key) && !self.component_source(component).exists() =>
+                {
+                    debug!("Addon '{key}' is enabled but {name} is not installed; skipping.");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn copy_non_addon_files(files: &[ManagedFile], records: &mut RecordChanges) -> Result<()> {
         let to_copy: Vec<&ManagedFile> = files
             .iter()
             .filter(|f| {
@@ -88,6 +113,11 @@ impl PakEngine {
                 f.source.display(),
                 f.destination.display()
             );
+            if f.group == FileGroup::Component {
+                records.add(InjectedPluginRecord {
+                    path: f.destination.clone(),
+                });
+            }
             Ok(())
         })
     }
@@ -207,12 +237,12 @@ impl PakEngine {
             info!(
                 "Copying custom file {} to {}",
                 file.display(),
-                self.win64.display()
+                self.layout.binaries.display()
             );
             let file_name = file
                 .file_name()
                 .ok_or_else(|| anyhow!("Failed to get file name"))?;
-            let destination = self.win64.join(file_name);
+            let destination = self.layout.binaries.join(file_name);
             if let Err(e) = fs::copy(file, &destination) {
                 error!("Failed to copy custom file {}: {e}", file.display());
                 return Err(anyhow!(
@@ -222,38 +252,6 @@ impl PakEngine {
             }
             records.add(InjectedPluginRecord { path: destination });
         }
-        Ok(())
-    }
-
-    fn copy_plugins(&self, records: &mut RecordChanges) -> Result<()> {
-        for &plugin in PLUGINS {
-            if plugin == "chksum.asi" && self.settings.ignore_checksum {
-                info!("'Ignore Checksum Matching' is enabled, skipping {plugin}");
-                continue;
-            }
-
-            let source = self.payload.plugins().join(plugin);
-            if !source.exists() {
-                warn!(
-                    "{plugin} is missing from {}, launching without it",
-                    source.display()
-                );
-                continue;
-            }
-
-            let destination = self.win64.join(plugin);
-            fs::copy(&source, &destination).map_err(|e| {
-                error!(
-                    "Failed to copy {} to {}: {e}",
-                    source.display(),
-                    destination.display()
-                );
-                anyhow!("Failed to copy {plugin}: {e}")
-            })?;
-            trace!("Copied {} to {}", source.display(), destination.display());
-            records.add(InjectedPluginRecord { path: destination });
-        }
-
         Ok(())
     }
 

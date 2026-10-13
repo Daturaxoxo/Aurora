@@ -9,8 +9,7 @@ use anyhow::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::classes::games::InstallationFacts;
-use crate::classes::games::nte::version::Version;
+use crate::classes::games::{Game, InstallationFacts};
 use crate::utils::get_local_version;
 use crate::{config, telemetry, utils};
 
@@ -60,19 +59,10 @@ pub fn enabled() -> bool {
     config::get(TELEMETRY_KEY).as_bool().unwrap_or(true)
 }
 
-const fn region_name(version: Version) -> &'static str {
-    match version {
-        Version::Global => "global",
-        Version::CN => "china",
-        Version::TW => "taiwan",
-        Version::Unknown => REGION_UNKNOWN,
-    }
-}
-
-pub fn region_of(installation: Option<&InstallationFacts>) -> &'static str {
+pub fn region_of(game: &dyn Game, installation: Option<&InstallationFacts>) -> &'static str {
     installation
-        .and_then(|facts| Version::from_key(facts.variant()))
-        .map_or(REGION_UNKNOWN, region_name)
+        .and_then(|facts| game.region(facts))
+        .unwrap_or(REGION_UNKNOWN)
 }
 
 pub fn region() -> &'static str {

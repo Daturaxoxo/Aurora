@@ -69,7 +69,7 @@ impl ModEngine for PakEngine {
     fn kill_processes(&mut self, tag: &CommandTag) -> OperationOutcome<()> {
         OperationOutcome::from_result(
             tag.clone(),
-            self.kill_nte_processes(),
+            self.kill_game_processes(),
             RecordChanges::default(),
         )
     }

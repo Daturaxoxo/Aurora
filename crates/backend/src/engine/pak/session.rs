@@ -23,8 +23,8 @@ impl PakSession {
         let tag = hooks.events.tag().clone();
         let monitor = Monitor {
             targets: engine.process_targets(),
-            game_path: engine.game_path.clone(),
-            version: engine.version,
+            pak: engine.pak,
+            installation: engine.installation.clone(),
             ignore_checksum: engine.settings.ignore_checksum,
             events: hooks.events,
             stop: stop.clone(),

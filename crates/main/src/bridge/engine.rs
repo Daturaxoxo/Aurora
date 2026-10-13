@@ -11,8 +11,7 @@ use serde_json::Value;
 use shared::classes::games::{
     Game, InstallationFacts,
     capabilities::AddonSupport,
-    launch::{LaunchPlatform, LaunchRequest},
-    nte::version::StartMethod,
+    launch::{LaunchPlatform, LaunchRequest, StartMethodDescriptor, select_start_method},
     payload::{PayloadResolutionMode, PayloadRoots, ResolvedPayloadLayout, resolve_payload},
 };
 use shared::config::{self, GameProfile, ProfileKey, ProfilePatch};
@@ -37,12 +36,14 @@ pub fn launch() -> Result<()> {
         .ok_or_else(|| anyhow!("{name} cannot be launched"))?;
 
     let profile = config::read_profile(context.id())?;
-    let start_method = StartMethod::decode(&profile.value(ProfileKey::StartMethod, game));
-    info!("Start method: {start_method}");
+    let (_, start_method) =
+        selected_start_method(game, &profile.value(ProfileKey::StartMethod, game))
+            .ok_or_else(|| anyhow!("{name} has no start methods"))?;
+    info!("Start method: {}", start_method.id);
     let plan = launcher
         .launch_plan(&LaunchRequest {
             installation,
-            start_method: start_method.id(),
+            start_method: start_method.id,
             platform: LaunchPlatform::host(),
         })
         .map_err(|e| anyhow!("Cannot launch {name}: {e}"))?;
@@ -137,12 +138,20 @@ fn records(profile: &GameProfile) -> Vec<InjectedPluginRecord> {
     parse_records(profile.get(ProfileKey::InjectedPlugins))
 }
 
-pub fn start_method(game: &dyn Game) -> StartMethod {
+pub fn selected_start_method(
+    game: &dyn Game,
+    raw: &Value,
+) -> Option<(usize, StartMethodDescriptor)> {
+    let methods = game.launcher()?.start_methods();
+    select_start_method(methods, raw, &game.profile_default(ProfileKey::StartMethod))
+}
+
+pub fn start_method(game: &dyn Game) -> Option<StartMethodDescriptor> {
     let raw = config::read_profile(&game.descriptor().id).map_or_else(
         |_| game.profile_default(ProfileKey::StartMethod),
         |p| p.value(ProfileKey::StartMethod, game),
     );
-    StartMethod::decode(&raw)
+    selected_start_method(game, &raw).map(|(_, method)| method)
 }
 
 fn text(profile: &GameProfile, game: &dyn Game, key: ProfileKey) -> String {

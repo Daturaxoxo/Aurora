@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use shared::classes::games::nte::version::BypassMethod;
 use shared::utils::read_dir_recursive;
 
 use super::PakEngine;
@@ -13,10 +12,7 @@ use super::files::FileGroup;
 use crate::classes::addons::overlay;
 use crate::engine::contract::{InjectedPluginRecord, RecordChanges};
 
-const INCOMPATIBLE: &[&str] = &["anticensor"];
-const FLAGGED_PREFIXES: &[&str] = &["gctip_p", "uidrm_p"];
-
-fn flagged_files(pak_dir: &Path) -> Vec<(String, PathBuf)> {
+fn flagged_files(pak_dir: &Path, prefixes: &[&str]) -> Vec<(String, PathBuf)> {
     read_dir_recursive(&pak_dir.to_path_buf())
         .iter()
         .filter(|e| e.file_type().is_file())
@@ -24,13 +20,13 @@ fn flagged_files(pak_dir: &Path) -> Vec<(String, PathBuf)> {
         .filter(|(name, _)| {
             let lower = name.to_lowercase();
             // debug!("Checking flag for {name}");
-            FLAGGED_PREFIXES.iter().any(|p| lower.starts_with(p))
+            prefixes.iter().any(|p| lower.starts_with(p))
         })
         .map(|(name, path)| (format!("Flagged {name}"), path))
         .collect()
 }
 
-fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
+fn remove_incompatible(win64: &Path, incompatible: &[&str]) -> Vec<(String, PathBuf)> {
     fs::read_dir(win64)
         .into_iter()
         .flatten()
@@ -45,7 +41,7 @@ fn remove_incompatible(win64: &Path) -> Vec<(String, PathBuf)> {
             }
 
             let name = e.file_name().to_string_lossy().to_lowercase();
-            INCOMPATIBLE
+            incompatible
                 .iter()
                 .any(|frag| name.contains(frag))
                 .then(|| {
@@ -84,7 +80,7 @@ impl PakEngine {
         info!("Starting system sanitization");
         if stop_processes {
             trace!("Killing processes");
-            if let Err(e) = self.kill_nte_processes() {
+            if let Err(e) = self.kill_game_processes() {
                 return (Err(e), RecordChanges::default());
             }
         }
@@ -93,7 +89,7 @@ impl PakEngine {
         overlay::persist_settings(
             self.overlay_addons(),
             self.payload.addons(),
-            &self.win64,
+            &self.layout.binaries,
             &injected_paths,
         );
 
@@ -105,26 +101,31 @@ impl PakEngine {
             .map(|f| (f.label, f.destination))
             .chain([(
                 "Everlight signature".to_string(),
-                self.win64.join(super::everlight::SIGNATURE_FILE_NAME),
+                self.layout
+                    .binaries
+                    .join(super::everlight::SIGNATURE_FILE_NAME),
             )])
             .chain(self.lua.iter().flat_map(|lua| {
                 lua.deploy
                     .iter()
                     .map(|deploy| (deploy.label.to_string(), deploy.destination.clone()))
             }))
-            .chain(BypassMethod::ALL_DLL_NAMES.iter().flat_map(|dll| {
-                [
-                    (format!("Wrapper {dll} (root)"), self.game_path.join(dll)),
-                    (format!("Wrapper {dll} (bin)"), self.win64.join(dll)),
-                ]
-            }))
+            .chain(
+                self.pak
+                    .loaders()
+                    .iter()
+                    .flat_map(|loader| self.loader_targets(loader.dll)),
+            )
             .chain(
                 injected
                     .iter()
                     .map(|r| ("Injected plugin".to_string(), r.path.clone())),
             )
-            .chain(remove_incompatible(&self.win64))
-            .chain(flagged_files(&self.pak_dir))
+            .chain(remove_incompatible(
+                &self.layout.binaries,
+                self.pak.incompatible_files(),
+            ))
+            .chain(flagged_files(&self.layout.paks, self.pak.flagged_paks()))
             .collect();
         targets.sort_by(|a, b| a.1.cmp(&b.1));
         targets.dedup_by(|a, b| a.1 == b.1);

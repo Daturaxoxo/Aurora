@@ -3,6 +3,7 @@ use crate::classes::logwindow;
 use crate::classes::pages::modmanager::ModManagerHandler;
 use crate::classes::toast::ToastHandler;
 use crate::runtime::{self, GameContext, GameRuntime, Reconfigured};
+use crate::translations::tr;
 use crate::{MainWindow, Tr, TrKey};
 use backend::classes::addons::scale;
 use backend::classes::launch_args;
@@ -10,7 +11,6 @@ use backend::classes::rpc::RPC;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use shared::classes::games::nte::version::StartMethod;
 use shared::classes::games::{
     EngineKind, Game, InstallationFacts, capabilities::ScaleSetting,
     locate::transitional_selected_game, platform::PlatformPaths,
@@ -35,7 +35,7 @@ static LANGUAGES: Lazy<Vec<LangEntry>> = Lazy::new(|| {
 });
 
 pub const IGNORE_CHECKSUM_POPUP_ID: &str = "ignore-checksum";
-pub const DIRECT_MODE_POPUP_ID: &str = "direct-mode";
+pub const START_METHOD_POPUP_ID: &str = "start-method";
 
 const ABOUT_LINKS: &[(&str, &str)] = &[
     ("website", "https://getaurora.moe/"),
@@ -172,6 +172,7 @@ impl SettingsHandler {
         );
         w.set_engine_settings(engine_settings);
         w.set_start_method_choice(start_method_choice);
+        Self::load_method_options(w, game);
 
         let raw_engine = Self::profile_value(game, ProfileKey::EngineMethod);
         let engine_method = raw_engine
@@ -184,9 +185,10 @@ impl SettingsHandler {
         w.set_engine_method_index(engine_method);
 
         let raw_start = Self::profile_value(game, ProfileKey::StartMethod);
-        let start_method = StartMethod::decode(&raw_start);
-        debug!("start_method: raw={raw_start:?} → {start_method}");
-        w.set_start_method_index(start_method.as_index());
+        if let Some((index, method)) = engine::selected_start_method(game, &raw_start) {
+            debug!("start_method: raw={raw_start:?} → {}", method.id);
+            w.set_start_method_index(index.try_into().unwrap_or(0));
+        }
 
         let scale_target = Self::scale_target(game).filter(|_| engine_settings);
         w.set_show_engine_scale(scale_target.is_some());
@@ -229,6 +231,24 @@ impl SettingsHandler {
 
     fn current_game() -> &'static dyn Game {
         runtime::get().map_or_else(|_| transitional_selected_game(), |r| r.snapshot().game)
+    }
+
+    fn load_method_options(w: &MainWindow, game: &dyn Game) {
+        let options = |labels: Vec<&str>| -> slint::ModelRc<slint::SharedString> {
+            let labels: Vec<slint::SharedString> =
+                labels.into_iter().map(|key| tr(key).into()).collect();
+            slint::ModelRc::new(slint::VecModel::from(labels))
+        };
+        let loaders = game
+            .pak()
+            .map(|pak| pak.loaders().iter().map(|l| l.label).collect())
+            .unwrap_or_default();
+        let starts = game
+            .launcher()
+            .map(|l| l.start_methods().iter().map(|m| m.label).collect())
+            .unwrap_or_default();
+        w.set_engine_method_options(options(loaders));
+        w.set_start_method_options(options(starts));
     }
 
     fn profile_value(game: &dyn Game, key: ProfileKey) -> Value {
@@ -488,6 +508,7 @@ impl SettingsHandler {
             if let Some(w) = ww.upgrade() {
                 crate::translations::apply_language(&w, code);
                 Self::load_proton_versions(&w);
+                Self::load_method_options(&w, Self::current_game());
             } else {
                 error!("window handle dead when applying language change");
             }
@@ -631,22 +652,25 @@ impl SettingsHandler {
 
         let ww = window.clone();
         w.on_start_method_index_changed(move |index| {
-            if StartMethod::from_num(i64::from(index)) == StartMethod::Manual {
+            let confirmation = Self::current_game()
+                .launcher()
+                .and_then(|l| l.start_methods().get(usize::try_from(index).ok()?).copied())
+                .and_then(|method| method.confirmation);
+            let Some(confirmation) = confirmation else {
                 info!("start_method changed -> {index}");
                 Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::StartMethod, index));
                 return;
-            }
+            };
 
             let Some(w) = ww.upgrade() else {
-                error!("window handle dead when opening the direct mode warning");
+                error!("window handle dead when opening the start method warning");
                 return;
             };
 
-            let keys = w.global::<TrKey>();
-            let title = Self::translation(&w, keys.get_popup_direct_mode_title());
-            let message = Self::translation(&w, keys.get_popup_direct_mode_message());
+            let title = tr(confirmation.title).into();
+            let message = tr(confirmation.message).into();
 
-            w.set_popup_id(DIRECT_MODE_POPUP_ID.into());
+            w.set_popup_id(START_METHOD_POPUP_ID.into());
             w.set_popup_kind("warning".into());
             w.set_popup_title(title);
             w.set_popup_message(message);
@@ -891,17 +915,20 @@ impl SettingsHandler {
         Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::IgnoreChecksum, true));
     }
 
-    pub fn confirm_direct_mode() {
-        info!("direct mode warning confirmed");
-        Self::reconfigure_profile(
-            ProfilePatch::new().set(ProfileKey::StartMethod, StartMethod::Direct.as_index()),
-        );
+    pub fn confirm_start_method(w: &MainWindow) {
+        let index = w.get_start_method_index();
+        info!("start method warning confirmed, start_method -> {index}");
+        Self::reconfigure_profile(ProfilePatch::new().set(ProfileKey::StartMethod, index));
     }
 
-    pub fn cancel_direct_mode(window: &slint::Weak<MainWindow>) {
-        info!("direct mode warning cancelled, staying on manual");
+    pub fn cancel_start_method(window: &slint::Weak<MainWindow>) {
+        info!("start method warning cancelled, keeping the saved start method");
         if let Some(w) = window.upgrade() {
-            w.set_start_method_index(StartMethod::Manual.as_index());
+            let game = Self::current_game();
+            let raw = Self::profile_value(game, ProfileKey::StartMethod);
+            if let Some((index, _)) = engine::selected_start_method(game, &raw) {
+                w.set_start_method_index(index.try_into().unwrap_or(0));
+            }
         } else {
             error!("window handle dead when reverting start_method");
         }

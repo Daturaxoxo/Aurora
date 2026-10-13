@@ -1,12 +1,6 @@
 use crate::{
-    classes::games::{
-        identity::GameId,
-        nte::{
-            paths::{CLIENT_PAK_DIR, get_version_paths},
-            version::{BypassMethod, detect_distribution, detect_version},
-        },
-    },
-    config::{self, get_all_configs, key},
+    classes::games::{find_game, identity::GameId},
+    config::{self, get_all_configs},
     utils::{get_local_version, read_dir_recursive},
 };
 use crate::{logger::get_latest_logs, utils};
@@ -150,16 +144,28 @@ pub fn export_telemetry() -> Result<()> {
 
     writeln!(file, "=== Game Information ===")?;
 
-    let game_path = context()
+    let context = context();
+    let game = context
+        .as_ref()
+        .and_then(|c| find_game(c.game.as_str()))
+        .with_context(|| "Failed to get the current game")?;
+    let game_path = context
         .and_then(|c| c.game_root)
         .with_context(|| "Failed to get game directory")?;
+    writeln!(file, "Game:            {}", game.descriptor().display_name)?;
     writeln!(file, "Game Path:       {}", game_path.display())?;
 
-    let version = detect_version(game_path.as_path()).unwrap_or_default();
-    writeln!(file, "Version:         {version}")?;
-
-    let distro = detect_distribution(game_path.as_path());
-    writeln!(file, "Distribution:    {distro:?}")?;
+    let installation = match game.inspect_installation(&game_path) {
+        Ok(facts) => {
+            writeln!(file, "Version:         {}", facts.variant())?;
+            writeln!(file, "Distribution:    {}", facts.distribution())?;
+            Some(facts)
+        }
+        Err(e) => {
+            writeln!(file, "Installation:    unreadable ({e})")?;
+            None
+        }
+    };
 
     let write_access = probe_write_access(game_path.as_path());
     writeln!(file, "Write Access:    {write_access}")?;
@@ -175,11 +181,13 @@ pub fn export_telemetry() -> Result<()> {
         )?;
     }
 
-    let mods_path = game_path.join(CLIENT_PAK_DIR);
-    let scan = read_dir_recursive(&mods_path);
+    let mod_roots = game
+        .mod_manager()
+        .map(|mods| mods.layout(&game_path).roots)
+        .unwrap_or_default();
     let mut file_count = 0;
     let mut total_size = 0u64;
-    for entry in scan {
+    for entry in mod_roots.iter().flat_map(read_dir_recursive) {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -243,25 +251,15 @@ pub fn export_telemetry() -> Result<()> {
         Ok(())
     };
 
-    let raw_engine_method = context()
-        .and_then(|c| crate::classes::games::find_game(c.game.as_str()))
-        .and_then(|game| {
-            config::read_profile(&game.descriptor().id)
-                .ok()
-                .map(|profile| profile.value(config::ProfileKey::EngineMethod, game))
-        })
-        .unwrap_or_else(|| config::default_value(key::ENGINE_METHOD));
-    let engine_method_raw = match raw_engine_method.as_i64() {
-        Some(v) => v,
-        None => raw_engine_method.as_str().unwrap_or("0").parse::<i64>()?,
-    };
-    let engine_method = BypassMethod::resolve(engine_method_raw, version)?;
-    let vpaths = get_version_paths(game_path.as_path(), version, distro, engine_method);
-    for (name, path) in vpaths.all_dll_targets() {
-        print_entry(&name, path.as_path())?;
+    if let Some(facts) = &installation {
+        for (name, path) in game.diagnostic_files(facts) {
+            print_entry(&name, path.as_path())?;
+        }
     }
 
-    print_entry("Mod folder", mods_path.as_path())?;
+    for root in &mod_roots {
+        print_entry("Mod folder", root.as_path())?;
+    }
 
     let config_path = config::config_file_path();
     print_entry("Config file", config_path.as_path())?;

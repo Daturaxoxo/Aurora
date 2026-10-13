@@ -1,7 +1,6 @@
 use crate::engine::contract::{EventSink, NotificationKind};
 use anyhow::{Context, Result};
 use log::*;
-use shared::classes::games::nte::{patcher, version::Version};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,11 +10,10 @@ use std::time::Duration;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const CHKSUM_MARKER: &str = "CHKSUM";
 pub(super) const SIGNATURE_FILE_NAME: &str = "everlight.sig";
-const NTE_SIGNATURE: &[u8] = include_bytes!("../../../../../production/engine/NTE/everlight.sig");
 
-pub(super) fn install_signature(win64: &Path) -> Result<()> {
+pub(super) fn install_signature(win64: &Path, signature: &[u8]) -> Result<()> {
     let destination = win64.join(SIGNATURE_FILE_NAME);
-    fs::write(&destination, NTE_SIGNATURE)
+    fs::write(&destination, signature)
         .with_context(|| format!("Failed to write {}", destination.display()))?;
     trace!("Wrote {}", destination.display());
     Ok(())
@@ -23,23 +21,21 @@ pub(super) fn install_signature(win64: &Path) -> Result<()> {
 
 pub(super) fn watch(
     win64: &Path,
-    game_path: &Path,
-    version: Version,
+    content_version: &(dyn Fn() -> Option<String> + Sync),
     ignore_checksum: bool,
     events: &EventSink,
     stop: &AtomicBool,
 ) {
     thread::scope(|scope| {
         scope.spawn(move || {
-            watch_checksum(win64, game_path, version, ignore_checksum, events, stop);
+            watch_checksum(win64, content_version, ignore_checksum, events, stop);
         });
     });
 }
 
 fn watch_checksum(
     win64: &Path,
-    game_path: &Path,
-    version: Version,
+    content_version: &(dyn Fn() -> Option<String> + Sync),
     ignore_checksum: bool,
     events: &EventSink,
     stop: &AtomicBool,
@@ -63,7 +59,7 @@ fn watch_checksum(
 
             if !warned {
                 warned = true;
-                let res_version = patcher::res_version(game_path, version);
+                let res_version = content_version();
                 error!(
                     "Game version mismatch on ResVersion {}, CHKSUM marker found in {}",
                     res_version.as_deref().unwrap_or("<unknown>"),

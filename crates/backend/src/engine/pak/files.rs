@@ -1,18 +1,17 @@
 use super::PakEngine;
-use crate::classes::addons::CENSORSHIP_DIR;
 use crate::classes::addons::overlay;
-use crate::classes::addons::pak::PakAddon;
+use crate::classes::addons::pak;
 use log::*;
-use shared::classes::games::capabilities::OverlayAddon;
-use shared::classes::games::nte::{Target, addons};
-use shared::config::key;
+use shared::classes::games::capabilities::{OverlayAddon, PakAddon};
+use shared::classes::games::identity::SafeRelativePath;
+use shared::classes::games::pak::{Activation, EngineComponent, InstallDir};
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileGroup {
     LoaderDll,
-    SignatureBypass,
+    Component,
     PakAddon,
     OverlayAddon,
 }
@@ -31,7 +30,7 @@ pub struct ManagedFile {
 impl PakEngine {
     pub fn managed_files(&self) -> Vec<ManagedFile> {
         let mut files = self.loader_dll_files();
-        files.extend(self.signature_bypass_files());
+        files.extend(self.component_files());
         files.extend(self.pak_addon_files());
         files.extend(self.overlay_addon_files());
         files
@@ -47,14 +46,13 @@ impl PakEngine {
         self.overlay_addons()
             .iter()
             .flat_map(|addon| {
-                let enabled = self.deployment.addon_enabled(addon.config_key)
-                    && !self.addon_unavailable(addon.config_key);
+                let enabled = self.addon_active(addon.config_key);
 
                 overlay::entries(self.payload.addons(), addon)
                     .into_iter()
                     .map(move |entry| ManagedFile {
                         label: entry.name.clone(),
-                        destination: self.win64.join(&entry.name),
+                        destination: self.layout.binaries.join(&entry.name),
                         source: entry.source,
                         required: false,
                         enabled: enabled && !entry.disabled,
@@ -66,69 +64,85 @@ impl PakEngine {
             .collect()
     }
 
+    pub(super) fn loader_targets(&self, loader: &str) -> [(String, PathBuf); 2] {
+        [
+            (format!("{loader}:root"), self.game_path.join(loader)),
+            (format!("{loader}:bin"), self.layout.binaries.join(loader)),
+        ]
+    }
+
     fn loader_dll_files(&self) -> Vec<ManagedFile> {
-        self.gpaths
-            .all_dll_targets()
+        self.loader_targets(self.loader)
             .into_iter()
-            .filter_map(|(label, destination)| {
-                let name = if let Some(n) = destination.file_name() {
-                    n.to_owned()
-                } else {
-                    error!("DLL target has no file name: {}", destination.display());
-                    return None;
-                };
+            .map(|(label, destination)| {
                 debug!(
                     "Adding loader DLL target: {} -> {}",
                     label,
                     destination.display()
                 );
-                Some(ManagedFile {
+                ManagedFile {
                     label,
-                    source: self.payload.wrappers().join(&name),
+                    source: self.payload.wrappers().join(self.loader),
                     destination,
                     required: true,
                     enabled: true,
                     group: FileGroup::LoaderDll,
                     addon: None,
-                })
+                }
             })
             .collect()
     }
 
-    pub(super) fn asi_source(&self, target: Target) -> PathBuf {
-        match target {
-            Target::AuroraTf | Target::CNAuroraTF => self
-                .payload
-                .addons()
-                .join(CENSORSHIP_DIR)
-                .join(target.as_file()),
-            Target::AsiPlugin | Target::Cutils => self.payload.root().join(target.as_file()),
+    pub(super) fn component_source(&self, component: &EngineComponent) -> PathBuf {
+        SafeRelativePath::parse(component.source).map_or_else(
+            |_| self.payload.root().join(component.source),
+            |path| path.resolve_under(self.payload.root()),
+        )
+    }
+
+    fn install_dir(&self, install: InstallDir) -> &Path {
+        match install {
+            InstallDir::GameRoot => &self.game_path,
+            InstallDir::Binaries => &self.layout.binaries,
         }
     }
 
-    fn signature_bypass_files(&self) -> Vec<ManagedFile> {
-        let crr = self.deployment.addon_enabled(key::CENSORSHIP_REMOVE)
-            && !self.addon_unavailable(key::CENSORSHIP_REMOVE);
-
-        self.targets
+    pub(super) fn applicable_components(&self) -> impl Iterator<Item = &'static EngineComponent> {
+        self.pak
+            .components()
             .iter()
-            .map(|(target, destination)| {
-                let is_asi_plugin = *target == Target::AsiPlugin;
-                let source = self.asi_source(*target);
-                let censorship_active = crr && source.exists();
-                if crr && !is_asi_plugin && !source.exists() {
-                    debug!(
-                        "Censorship remover is enabled but '{}' is not installed; skipping.",
-                        source.display()
-                    );
-                }
+            .filter(|c| c.applies_to(&self.installation))
+    }
+
+    pub(super) fn addon_active(&self, config_key: &str) -> bool {
+        self.deployment.addon_enabled(config_key) && !self.addon_unavailable(config_key)
+    }
+
+    fn component_files(&self) -> Vec<ManagedFile> {
+        self.pak
+            .components()
+            .iter()
+            .map(|component| {
+                let source = self.component_source(component);
+                let applies = component.applies_to(&self.installation);
+                let enabled = applies
+                    && match component.activation {
+                        Activation::Required => true,
+                        Activation::Optional => source.exists(),
+                        Activation::ChecksumGuard => {
+                            !self.settings.ignore_checksum && source.exists()
+                        }
+                        Activation::Addon(key) => self.addon_active(key) && source.exists(),
+                    };
                 ManagedFile {
-                    label: target.as_file().to_string(),
+                    label: component.file_name().to_string(),
+                    destination: self
+                        .install_dir(component.install)
+                        .join(component.file_name()),
                     source,
-                    destination: destination.clone(),
-                    required: is_asi_plugin,
-                    enabled: is_asi_plugin || censorship_active,
-                    group: FileGroup::SignatureBypass,
+                    required: applies && component.activation == Activation::Required,
+                    enabled,
+                    group: FileGroup::Component,
                     addon: None,
                 }
             })
@@ -136,42 +150,42 @@ impl PakEngine {
     }
 
     fn addon_unavailable(&self, config_key: &str) -> bool {
-        let unavailable = addons::is_unavailable(config_key, self.version);
+        let unavailable = self
+            .game
+            .addons()
+            .is_some_and(|addons| !addons.is_available(config_key, Some(&self.installation)));
         if unavailable {
             info!(
                 "Addon '{config_key}' is unavailable on {}, skipping",
-                self.version
+                self.installation.variant()
             );
         }
         unavailable
     }
 
-    fn pak_addon_files(&self) -> Vec<ManagedFile> {
-        PakAddon::get_pak_addons()
-            .into_iter()
-            .flat_map(|addon| {
-                let enabled = self.deployment.addon_enabled(&addon.config_key)
-                    && !self.addon_unavailable(&addon.config_key);
+    fn pak_addons(&self) -> &'static [PakAddon] {
+        self.game.addons().map_or(&[], |addons| addons.pak_addons())
+    }
 
-                addon
-                    .resolve(&self.pak_dir)
-                    .into_iter()
-                    .map(move |resolved| ManagedFile {
-                        label: resolved.file_name.clone(),
-                        source: self
-                            .payload
-                            .addons()
-                            .join(resolved.to_folder_name())
-                            .join(&resolved.file_name),
-                        destination: resolved.path,
-                        required: false,
-                        enabled,
-                        group: FileGroup::PakAddon,
-                        addon: Some(addon.base_name.clone()),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+    fn pak_addon_files(&self) -> Vec<ManagedFile> {
+        let mut files = Vec::new();
+        for addon in self.pak_addons() {
+            let enabled = self.addon_active(addon.config_key);
+            let source_dir = self.payload.addons().join(addon.folder);
+
+            for base_name in addon.base_names {
+                files.extend(pak::file_names(base_name).map(|file_name| ManagedFile {
+                    label: file_name.clone(),
+                    source: source_dir.join(&file_name),
+                    destination: self.layout.paks.join(&file_name),
+                    required: false,
+                    enabled,
+                    group: FileGroup::PakAddon,
+                    addon: Some((*base_name).to_string()),
+                }));
+            }
+        }
+        files
     }
 }
 

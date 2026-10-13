@@ -33,10 +33,20 @@ pub struct OverlayAddon {
     pub persist: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PakAddon {
+    pub config_key: &'static str,
+    pub folder: &'static str,
+    pub base_names: &'static [&'static str],
+}
+
 pub trait AddonSupport: Send + Sync {
     fn shipped_addons(&self) -> &[ShippedAddon];
     fn is_available(&self, config_key: &str, installation: Option<&InstallationFacts>) -> bool;
     fn overlay_addons(&self) -> &[OverlayAddon] {
+        &[]
+    }
+    fn pak_addons(&self) -> &[PakAddon] {
         &[]
     }
 }
