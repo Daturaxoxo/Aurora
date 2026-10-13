@@ -10,13 +10,6 @@ mod paths;
 mod screenshots;
 mod unreal;
 mod version;
-use std::{
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
-use anyhow::Result;
-use log::*;
-use serde_json::Value;
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
     capabilities::{
@@ -27,6 +20,13 @@ use super::{
     pak::PakSupport,
 };
 use crate::config::{self, ProfileKey};
+use anyhow::Result;
+use log::*;
+use serde_json::Value;
+use std::{
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 const NTE_PROCESSES: &[&str] = &[
     // GL

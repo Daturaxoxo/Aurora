@@ -11,7 +11,7 @@ const PLUGINS: &str = "Plugins";
 const ADDONS: &str = "Addons";
 const LUA: &str = "Lua";
 const LUA_MARKER: [&str; 2] = ["ue4ss", "UE4SS.dll"];
-const RUNTIME_DIRS: &[&str] = &[ADDONS, LUA];
+pub(super) const RUNTIME_DIRS: &[&str] = &[ADDONS, LUA];
 const SIDECAR_SUFFIXES: &[&str] = &[".bak", ".bak.old", ".part"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,15 +199,19 @@ impl LegacyRuntimeMigrationRequest {
     }
 
     fn is_owned(&self, path: &SafeRelativePath) -> bool {
-        self.owned.iter().any(|owned| {
-            owned.components().len() == path.components().len()
-                && owned
-                    .components()
-                    .iter()
-                    .zip(path.components())
-                    .all(|(a, b)| a.eq_ignore_ascii_case(b))
-        })
+        is_owned(&self.owned, path)
     }
+}
+
+pub(super) fn is_owned(owned: &[SafeRelativePath], path: &SafeRelativePath) -> bool {
+    owned.iter().any(|owned| {
+        owned.components().len() == path.components().len()
+            && owned
+                .components()
+                .iter()
+                .zip(path.components())
+                .all(|(a, b)| a.eq_ignore_ascii_case(b))
+    })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -225,12 +229,12 @@ enum Planned {
     Conflict,
 }
 
-fn is_sidecar(name: &str) -> bool {
+pub(super) fn is_sidecar(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     SIDECAR_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
 
-fn collect_files(
+pub(super) fn collect_files(
     source: &Path,
     dir: &str,
     report: &mut MigrationReport,
@@ -275,7 +279,7 @@ fn collect_files(
     Ok(files)
 }
 
-fn same_contents(a: &Path, b: &Path) -> Result<bool> {
+pub(super) fn same_contents(a: &Path, b: &Path) -> Result<bool> {
     let a = fs::read(a).with_context(|| format!("could not read {}", a.display()))?;
     let b = fs::read(b).with_context(|| format!("could not read {}", b.display()))?;
     Ok(md5::compute(a).0 == md5::compute(b).0)

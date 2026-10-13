@@ -7,6 +7,7 @@ pub mod pak;
 pub mod payload;
 pub mod platform;
 pub mod sp;
+pub mod upgrade;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
