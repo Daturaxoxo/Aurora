@@ -1,4 +1,3 @@
-use anyhow::Result;
 use super::{
     NTE_GAME_EXE, Nte, patcher, paths,
     version::{BypassMethod, Version},
@@ -7,6 +6,7 @@ use crate::classes::games::{
     InstallationFacts,
     pak::{self, EngineComponent, EngineLoader, PakLayout, PakSupport},
 };
+use anyhow::Result;
 
 const SIGNATURE: &[u8] = include_bytes!("../../../../../../production/engine/NTE/everlight.sig");
 const CENSORSHIP: &str = "csn_rem";

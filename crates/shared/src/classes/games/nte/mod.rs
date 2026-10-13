@@ -1,25 +1,22 @@
-pub mod addons;
+mod addons;
 mod characters;
 mod gamebanana;
 mod launcher;
 mod lua;
 mod mods;
 mod pak;
-pub mod patcher;
-pub mod paths;
+mod patcher;
+mod paths;
 mod screenshots;
 mod unreal;
-pub mod version;
-
+mod version;
 use std::{
     path::{Path, PathBuf},
     sync::LazyLock,
 };
-
 use anyhow::Result;
 use log::*;
 use serde_json::Value;
-
 use super::{
     EngineKind, Game, GameDescriptor, InstallationFacts, LauncherIdentifier, SteamMetadata,
     capabilities::{
@@ -31,7 +28,7 @@ use super::{
 };
 use crate::config::{self, ProfileKey};
 
-pub const NTE_PROCESSES: &[&str] = &[
+const NTE_PROCESSES: &[&str] = &[
     // GL
     "ntegloballauncher.exe",
     "nteglobal.exe",
@@ -46,7 +43,7 @@ pub const NTE_PROCESSES: &[&str] = &[
     "htgame.exe",
 ];
 
-pub const NTE_GAME_EXE: &str = "HTGame.exe";
+const NTE_GAME_EXE: &str = "HTGame.exe";
 const STEAM_APP_ID: &str = "4508340";
 const FOLDER_NAMES: &[&str] = &[paths::GAME_FOLDER_NAME, "異環", "NTE"];
 const PAYLOAD_FILES: &[&str] = &[

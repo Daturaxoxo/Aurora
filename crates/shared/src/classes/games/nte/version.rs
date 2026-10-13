@@ -54,7 +54,7 @@ impl Distribution {
             .find(|distribution| distribution.key() == key)
     }
 
-    pub const fn launch_args(&self) -> &'static [&'static str] {
+    pub const fn launch_args(self) -> &'static [&'static str] {
         match self {
             Self::Standalone | Self::Steam => &[],
             Self::Epic => &["-AUTH_PASSWORD=1234", "-AUTH_TYPE=exchangecode"],
@@ -76,7 +76,7 @@ impl fmt::Display for StartMethod {
 }
 
 impl StartMethod {
-    pub const fn launch_args(&self) -> &'static [&'static str] {
+    pub const fn launch_args(self) -> &'static [&'static str] {
         match self {
             Self::Direct => &["/autoplay"],
             Self::Manual => &[],
@@ -138,7 +138,7 @@ impl Version {
             .find(|version| version.key() == key)
     }
 
-    pub const fn spec(&self) -> VersionSpec {
+    pub const fn spec(self) -> VersionSpec {
         match self {
             Self::Global => VersionSpec {
                 launcher_process: "NTEGlobalLauncher.exe",
@@ -188,10 +188,6 @@ pub(super) fn detect(game_path: &Path) -> Result<Version> {
             .map(|(exe, _)| (*exe).to_string())
             .collect::<Vec<_>>(),
     ))
-}
-
-pub fn detect_version(game_path: &Path) -> Result<Version> {
-    detect(game_path)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+use super::InstallationFacts;
 use log::*;
 use serde_json::Value;
-use super::InstallationFacts;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StartMethodConfirmation {

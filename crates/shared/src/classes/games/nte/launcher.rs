@@ -98,11 +98,9 @@ impl LauncherSupport for Nte {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
     use super::*;
-    use crate::{
-        classes::games::{InstallationFacts, nte::NTE},
-    };
+    use crate::classes::games::{InstallationFacts, nte::NTE};
+    use std::{fs, path::PathBuf};
 
     fn install(name: &str, launcher: &str) -> PathBuf {
         let root =

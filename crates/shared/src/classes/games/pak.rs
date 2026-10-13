@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use anyhow::{Result, anyhow};
 use super::InstallationFacts;
+use anyhow::{Result, anyhow};
+use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallDir {
     GameRoot,
@@ -97,8 +97,12 @@ pub trait PakSupport: Send + Sync {
             .ok_or_else(|| anyhow!("Invalid engine method: {engine_method}"))
     }
     fn components(&self) -> &[EngineComponent];
-    fn incompatible_files(&self) -> &[&'static str] {&[]}
-    fn flagged_paks(&self) -> &[&'static str] {&[]}
+    fn incompatible_files(&self) -> &[&'static str] {
+        &[]
+    }
+    fn flagged_paks(&self) -> &[&'static str] {
+        &[]
+    }
     fn content_version(&self, installation: &InstallationFacts) -> Option<String> {
         let _ = installation;
         None
