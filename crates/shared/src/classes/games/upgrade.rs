@@ -1,17 +1,18 @@
-use std::path::Path;
-use anyhow::Result;
-use ipc::manifest::{LocalManifest, safe_join};
 use super::{
     Game,
     identity::SafeRelativePath,
     nte,
     payload::{
-        MigrationReport, PayloadLayoutKind, RUNTIME_DIRS, ResolvedPayloadLayout,
-        UpgradeEligibility, collect_files, is_owned, is_sidecar, same_contents,
+        MigrationReport, RUNTIME_DIRS, UpgradeEligibility, collect_files, is_owned, is_sidecar,
+        same_contents,
     },
 };
+use anyhow::Result;
+use ipc::manifest::{LocalManifest, safe_join};
+use std::path::{Path, PathBuf};
 const BIN: &str = "Bin";
 const STAGED_SUFFIX: &str = ".bak";
+const STAGING_SUFFIX: &str = ".upgrading";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommittedLayout {
@@ -56,7 +57,7 @@ pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
         CommittedLayout::UnknownManifest => {
             evidence.post_update && evidence.legacy_payload && undiverged
         }
-        CommittedLayout::UnsyncedTarget => evidence.legacy_payload && undiverged,
+        CommittedLayout::UnsyncedTarget => evidence.legacy_payload,
         CommittedLayout::TargetManifest | CommittedLayout::SyncedTarget => false,
     };
     if migrate {
@@ -106,12 +107,18 @@ pub fn manifest_layout(install_root: &Path, games: &[&dyn Game]) -> CommittedLay
     }
 }
 
-pub fn synced_layout(game: &dyn Game, target_root: &Path) -> CommittedLayout {
-    if ResolvedPayloadLayout::inspect(game, target_root, PayloadLayoutKind::Target).is_ok() {
+pub fn synced_layout(target_root: &Path) -> CommittedLayout {
+    if target_root.symlink_metadata().is_ok_and(|m| m.is_dir()) {
         CommittedLayout::SyncedTarget
     } else {
         CommittedLayout::UnsyncedTarget
     }
+}
+
+pub fn staging_root(target_root: &Path) -> PathBuf {
+    let mut name = target_root.as_os_str().to_os_string();
+    name.push(STAGING_SUFFIX);
+    PathBuf::from(name)
 }
 
 pub fn legacy_payload(bin: &Path) -> bool {
