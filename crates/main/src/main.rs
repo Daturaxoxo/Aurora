@@ -54,12 +54,6 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     shared::appimage::sync_bin();
-    // TODO(lane B, b7-3): Linux legacy-to-target migration goes here, after the sync and before
-    // the runtime initializes. Per game, build UpgradeEvidence with `committed` from
-    // appimage::report().prior(id) (captured before the sync) and call upgrade::decide. On Migrate,
-    // resolve the target (TargetOnly) and run payload::prepare_legacy_runtime_data from the flat Bin.
-    // A failed migration must make bridge::engine::payload_mode pick the complete flat fallback
-    // (see the TODO on appimage::REPORT).
 
     let oneclick_request = OneClickHandler::request_from_args();
 
@@ -81,12 +75,7 @@ fn main() -> Result<()> {
         }
     };
 
-    runtime::startup::migrate();
-    // TODO(lane B, b7-3): Windows legacy-to-target migration goes here, before any game-bound
-    // handler is built. Use upgrade::manifest_layout for `committed`, POST_UPDATE_ARG for
-    // `post_update`, upgrade::legacy_payload and upgrade::target_runtime_data, then upgrade::decide.
-    // On Migrate, run payload::prepare_legacy_runtime_data into the TargetOnly layout. Any failure
-    // (incomplete target, conflict) must withhold InitConfirmed so the updater rolls back (b7-1).
+    let migrated = runtime::startup::migrate();
 
     let exe = std::env::current_exe()?;
     let installed = exe
@@ -267,11 +256,7 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "windows")]
     set_window_icon(&window);
-    // TODO(lane B, b7-1/b7-2): confirm from the runtime initialization result (config/module
-    // migration, complete payload, backend outcome, windowed UI), not from the window showing.
-    // Only call AddonsHandler::startup_confirmed after InitConfirmed was actually delivered.
-    UpdateHandler::on_window_shown();
-    AddonsHandler::startup_confirmed(&window.as_weak());
+    UpdateHandler::startup_prepared(&window.as_weak(), migrated);
     slint::run_event_loop_until_quit()?;
     OneClickHandler::shutdown();
     runtime::shutdown();

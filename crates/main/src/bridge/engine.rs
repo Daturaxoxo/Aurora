@@ -233,8 +233,6 @@ fn payload_mode(game: &dyn Game) -> PayloadResolutionMode {
     }
 }
 
-// TODO(lane B, b7-3): Windows never falls back, a missing target must fail initialization and
-// withhold InitConfirmed instead
 #[cfg(not(target_os = "linux"))]
 const fn payload_mode(_game: &dyn Game) -> PayloadResolutionMode {
     PayloadResolutionMode::TargetOnly

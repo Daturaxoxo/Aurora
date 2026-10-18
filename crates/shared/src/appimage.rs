@@ -10,11 +10,9 @@ use crate::classes::games::{
     identity::GameId,
     payload::{PayloadLayoutKind, PayloadRoots, ResolvedPayloadLayout},
     registry,
-    upgrade::{CommittedLayout, synced_layout},
+    upgrade::{CommittedLayout, migrate_legacy_runtime_data, synced_layout},
 };
 
-// TODO(lane B, b7-3): a failed Linux migration must also count as a failed target. Either run the
-// migration before REPORT is set, or give GameSync a migration error that target_failed() checks.
 static REPORT: OnceLock<SyncReport> = OnceLock::new();
 
 #[derive(Debug)]
@@ -39,7 +37,8 @@ impl SyncReport {
     }
 
     pub fn target_failed(&self, id: &GameId) -> bool {
-        self.game(id).is_some_and(|game| game.target_error.is_some())
+        self.game(id)
+            .is_some_and(|game| game.target_error.is_some())
     }
 }
 
@@ -90,12 +89,15 @@ fn sync_into(src_root: &Path, dst_root: &Path, games: &[&dyn Game]) -> SyncRepor
                     &roots.target(*game),
                     PayloadLayoutKind::Target,
                 )
+                .and_then(|_| migrate_legacy_runtime_data(*game, dst_root, prior, false))
                 .err()
                 .map(|e| format!("{e:#}")),
             };
             let id = game.descriptor().id.clone();
             if let Some(e) = &target_error {
-                warn!("{id} target payload is unusable, only a complete flat layout may be used: {e}");
+                warn!(
+                    "{id} target payload is unusable, only a complete flat layout may be used: {e}"
+                );
             }
             GameSync {
                 id,

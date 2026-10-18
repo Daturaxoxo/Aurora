@@ -172,6 +172,7 @@ impl Bridge {
             Ok(events) => events,
             Err(e) => {
                 error!("Failed to start the game runtime: {e}");
+                updater::UpdateHandler::runtime_initialized(window, Err(e));
                 return;
             }
         };
@@ -202,9 +203,11 @@ impl Bridge {
 
         let w = window.clone();
         std::thread::spawn(move || {
-            if let Err(e) = startup::initialize() {
+            let initialized = startup::initialize().map(|_| ());
+            if let Err(e) = &initialized {
                 debug!("Startup preparation failed: {e:#}");
             }
+            updater::UpdateHandler::runtime_initialized(&w, initialized);
             shared::api::ccu::spawn();
 
             for event in events {

@@ -1,4 +1,5 @@
 use crate::bridge::Bridge;
+use crate::classes::pages::addons::AddonsHandler;
 use crate::runtime::{self, Admission, MutationGuard};
 use crate::{LaunchState, MainWindow};
 use anyhow::{Context, Result, anyhow};
@@ -14,6 +15,7 @@ use serde::Deserialize;
 use std::io::Read;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::{
@@ -40,6 +42,26 @@ const UPDATE_ADMISSION_WAIT: Duration = Duration::from_secs(60);
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static UI_LOCKED: AtomicBool = AtomicBool::new(false);
 static POST_UPDATE_PENDING: AtomicBool = AtomicBool::new(false);
+static STARTUP_GATE: Mutex<StartupGate> = Mutex::new(StartupGate {
+    prepared: None,
+    initialized: None,
+});
+
+struct StartupGate {
+    prepared: Option<Result<(), String>>,
+    initialized: Option<Result<(), String>>,
+}
+
+impl StartupGate {
+    fn take_outcome(&mut self) -> Option<Result<(), String>> {
+        if self.prepared.is_none() || self.initialized.is_none() {
+            return None;
+        }
+        let prepared = self.prepared.take()?;
+        let initialized = self.initialized.take()?;
+        Some(prepared.and(initialized))
+    }
+}
 
 const NO_SAVED_STATE: u8 = u8::MAX;
 static PRE_LOCK_STATE: AtomicU8 = AtomicU8::new(NO_SAVED_STATE);
@@ -89,7 +111,7 @@ impl UpdateHandler {
         let has = |flag: &str| args.iter().any(|arg| arg == flag);
 
         if has(ipc::POST_UPDATE_ARG) {
-            info!("launched post-update; init will be confirmed once the window is up");
+            info!("launched post-update; init will be confirmed once startup completes");
             POST_UPDATE_PENDING.store(true, Ordering::SeqCst);
             return;
         }
@@ -113,13 +135,56 @@ impl UpdateHandler {
         Self::run_update_check(window, false);
     }
 
-    // TODO(lane B, b7-1): replace this with a call that takes the runtime initialization result
-    // and only confirms on success, see the TODO above its call in main.rs
-    pub fn on_window_shown() {
-        if POST_UPDATE_PENDING.swap(false, Ordering::SeqCst) {
-            info!("window is up; sending init_confirmed");
-            std::thread::spawn(Self::send_init_confirmed);
+    pub fn startup_prepared(window: &slint::Weak<MainWindow>, result: Result<()>) {
+        let result = result.map_err(|e| format!("{e:#}"));
+        Self::record_startup(window, |gate| gate.prepared = Some(result));
+    }
+
+    pub fn runtime_initialized(window: &slint::Weak<MainWindow>, result: Result<()>) {
+        let result = result.map_err(|e| format!("runtime initialization failed: {e:#}"));
+        Self::record_startup(window, |gate| gate.initialized = Some(result));
+    }
+
+    fn record_startup(window: &slint::Weak<MainWindow>, record: impl FnOnce(&mut StartupGate)) {
+        let mut gate = STARTUP_GATE.lock().unwrap_or_else(PoisonError::into_inner);
+        record(&mut gate);
+        let outcome = gate.take_outcome();
+        drop(gate);
+        if let Some(outcome) = outcome {
+            Self::finish_startup(window, outcome);
         }
+    }
+
+    fn finish_startup(window: &slint::Weak<MainWindow>, outcome: Result<(), String>) {
+        let post_update = POST_UPDATE_PENDING.swap(false, Ordering::SeqCst);
+
+        if let Err(e) = outcome {
+            error!("startup did not complete: {e}");
+            if post_update {
+                error!("withholding init_confirmed so the updater restores the previous version");
+                slint::invoke_from_event_loop(|| {
+                    let _ = slint::quit_event_loop();
+                })
+                .ok();
+            } else {
+                warn!("automatic addon updates stay off for this session");
+            }
+            return;
+        }
+
+        if !post_update {
+            AddonsHandler::startup_confirmed(window);
+            return;
+        }
+
+        info!("startup complete; sending init_confirmed");
+        let w = window.clone();
+        std::thread::spawn(move || match Self::send_init_confirmed() {
+            Ok(()) => AddonsHandler::startup_confirmed(&w),
+            Err(e) => {
+                error!("{e:#}; automatic addon updates stay off for this session");
+            }
+        });
     }
 
     #[cfg(feature = "beta")]
@@ -1146,18 +1211,22 @@ impl UpdateHandler {
         .ok();
     }
 
-    // TODO(lane B, b7-2): return Result so callers know whether the updater got it
-    fn send_init_confirmed() {
+    fn send_init_confirmed() -> Result<()> {
+        let mut last_err = anyhow!("no attempt was made");
         for _ in 0..10 {
-            if let Ok(mut stream) = protocol::connect(&ipc::init_pipe_name())
-                && protocol::write_message(&mut stream, &Message::InitConfirmed).is_ok()
-            {
-                info!("init_confirmed sent");
-                return;
+            let sent = protocol::connect(&ipc::init_pipe_name()).and_then(|mut stream| {
+                protocol::write_message(&mut stream, &Message::InitConfirmed)
+            });
+            match sent {
+                Ok(()) => {
+                    info!("init_confirmed sent");
+                    return Ok(());
+                }
+                Err(e) => last_err = anyhow!(e),
             }
             std::thread::sleep(Duration::from_millis(300));
         }
-        warn!("could not deliver init_confirmed to the updater");
+        Err(last_err.context("could not deliver init_confirmed to the updater"))
     }
 
     #[cfg(feature = "beta")]

@@ -3,12 +3,14 @@ use super::{
     identity::SafeRelativePath,
     nte,
     payload::{
-        MigrationReport, RUNTIME_DIRS, UpgradeEligibility, collect_files, is_owned, is_sidecar,
-        same_contents,
+        LegacyRuntimeMigrationRequest, MigrationReport, PayloadResolutionMode, PayloadRoots,
+        RUNTIME_DIRS, UpgradeEligibility, collect_files, is_owned, is_sidecar,
+        prepare_legacy_runtime_data, resolve_payload, same_contents,
     },
 };
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use ipc::manifest::{LocalManifest, safe_join};
+use log::*;
 use std::path::{Path, PathBuf};
 const BIN: &str = "Bin";
 const STAGED_SUFFIX: &str = ".bak";
@@ -44,7 +46,6 @@ pub enum UpgradeDecision {
     Normal,
 }
 
-// TODO(lane B, b7-3): not called yet. Wire it in main.rs (see the TODOs there).
 pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
     let kind = match evidence.target_data {
         TargetRuntimeData::Empty => UpgradeEligibility::FirstUpgrade,
@@ -66,6 +67,49 @@ pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
     } else {
         UpgradeDecision::Normal
     }
+}
+
+pub fn migrate_legacy_runtime_data(
+    game: &dyn Game,
+    bin: &Path,
+    committed: CommittedLayout,
+    post_update: bool,
+) -> Result<()> {
+    let id = &game.descriptor().id;
+    let roots = PayloadRoots::new(bin.to_path_buf());
+    let owned = &game.descriptor().payload_files;
+    let evidence = UpgradeEvidence {
+        post_update,
+        committed,
+        legacy_payload: legacy_payload(bin),
+        target_data: target_runtime_data(bin, &roots.target(game), owned)
+            .context("could not inspect the target runtime data")?,
+    };
+
+    let UpgradeDecision::Migrate(eligibility) = decide(&evidence) else {
+        debug!("{id} needs no legacy migration ({evidence:?})");
+        return Ok(());
+    };
+    info!("Moving the legacy {id} runtime data into the target payload ({eligibility:?})");
+
+    let target = resolve_payload(game, &roots, PayloadResolutionMode::TargetOnly)?;
+    let request =
+        LegacyRuntimeMigrationRequest::new(bin.to_path_buf(), target, owned.clone(), eligibility)?;
+    let report = prepare_legacy_runtime_data(&request)
+        .with_context(|| format!("could not move the legacy {id} runtime data"))?;
+
+    info!(
+        // format: "copy, no need to copy (already there), item owned, skipped"
+        "{id} legacy migration: {} copied, {} already present, {} owned and {} skipped",
+        report.copied.len(),
+        report.identical.len(),
+        report.skipped_owned.len(),
+        report.skipped_sidecars.len()
+    );
+    for path in &report.skipped_other {
+        warn!("{id} legacy migration skipped {}", path.display());
+    }
+    Ok(())
 }
 
 fn is_flat_payload_path(path: &str, games: &[&dyn Game]) -> bool {
