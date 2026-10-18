@@ -37,6 +37,15 @@ impl PakEngine {
             }
         };
 
+        for file in self.payload.files().iter().filter(|f| !f.is_file()) {
+            report(
+                file.strip_prefix(self.payload.root())
+                    .unwrap_or(file)
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+        }
+
         for component in self.applicable_components() {
             let needed = match component.activation {
                 Activation::Required => true,

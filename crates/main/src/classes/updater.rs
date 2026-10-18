@@ -113,6 +113,8 @@ impl UpdateHandler {
         Self::run_update_check(window, false);
     }
 
+    // TODO(lane B, b7-1): replace this with a call that takes the runtime initialization result
+    // and only confirms on success, see the TODO above its call in main.rs
     pub fn on_window_shown() {
         if POST_UPDATE_PENDING.swap(false, Ordering::SeqCst) {
             info!("window is up; sending init_confirmed");
@@ -1144,6 +1146,7 @@ impl UpdateHandler {
         .ok();
     }
 
+    // TODO(lane B, b7-2): return Result so callers know whether the updater got it
     fn send_init_confirmed() {
         for _ in 0..10 {
             if let Ok(mut stream) = protocol::connect(&ipc::init_pipe_name())

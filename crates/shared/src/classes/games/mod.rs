@@ -717,6 +717,16 @@ mod tests {
     }
 
     #[test]
+    fn tracked_bin_is_a_complete_target_for_every_engine_game() {
+        let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Bin");
+        let roots = payload::PayloadRoots::new(bin);
+        for game in registry().iter().filter(|g| g.descriptor().engine.is_some()) {
+            payload::resolve_payload(*game, &roots, payload::PayloadResolutionMode::TargetOnly)
+                .unwrap();
+        }
+    }
+
+    #[test]
     fn nte_has_every_lane_a_capability_and_sp_has_none() {
         let nte = find_game("nte").unwrap();
         assert!(nte.mod_manager().is_some());

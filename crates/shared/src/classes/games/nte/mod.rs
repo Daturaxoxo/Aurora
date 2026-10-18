@@ -50,12 +50,16 @@ const PAYLOAD_FILES: &[&str] = &[
     "AuroraEngine.dll",
     "Everlight.asi",
     "Plugins/chksum.asi",
+    "Plugins/ipc.asi",
     "Wrappers/version.dll",
     "Wrappers/dsound.dll",
     "Addons/Censorship/censorship.auadd",
     "Addons/HideRedDots/hideRedDots.auadd",
     "Addons/HideUID/hideUID.auadd",
+    "Addons/OptiScaler/optiscaler.auadd",
+    "Addons/ReShade/reshade.auadd",
     "Addons/UIModPack/uiModPack.auadd",
+    "Addons/UtilityModPack/utility.auadd",
 ];
 const MARKERS: &[&str] = &[
     "NTELauncher.exe",

@@ -30,7 +30,7 @@ BLACKLISTED_EXTENSIONS = (
     "pak",
     "disabled",
 )
-BLACKLISTED_PATHS = ("Bin/Addons/Censorship/AuroraTF.asi","Bin/Addons/Censorship/CNAuroraTF.asi")
+BLACKLISTED_PATHS = ("Bin/nte/Addons/Censorship/AuroraTF.asi","Bin/nte/Addons/Censorship/CNAuroraTF.asi")
 
 
 def is_blacklisted(path):

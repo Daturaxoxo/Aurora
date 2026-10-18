@@ -46,7 +46,7 @@ impl Scope {
             game: context.game(),
             generation: context.generation(),
             installation: context.installation().cloned(),
-            dir: context.payload().addons().to_path_buf(),
+            dir: context.payload()?.addons().to_path_buf(),
         })
     }
 

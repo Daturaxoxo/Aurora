@@ -34,6 +34,10 @@ impl PakEngine {
             .installation
             .as_ref()
             .ok_or_else(|| anyhow!("{} has no game installation", input.tag))?;
+        let payload = input
+            .payload
+            .clone()
+            .ok_or_else(|| anyhow!("{} has no payload", input.tag))?;
         let game_path = installation.root().to_path_buf();
         let game = find_game(input.tag.game_id.as_str())
             .ok_or_else(|| anyhow!("{} is not a registered game", input.tag.game_id))?;
@@ -48,14 +52,14 @@ impl PakEngine {
 
         let loader = pak.loader(installation, input.settings.engine_method)?;
         trace!("Engine loader: {loader}");
-        trace!("Payload: {}", input.payload.root().display());
+        trace!("Payload: {}", payload.root().display());
 
         let layout = pak.layout(installation);
         trace!("Game layout: {layout:#?}");
 
         let lua = game
             .lua()
-            .map(|lua| lua.layout(input.payload.root(), Some(&game_path)));
+            .map(|lua| lua.layout(payload.root(), Some(&game_path)));
 
         info!("Game Path: {}", game_path.display());
         Ok(Self {
@@ -63,7 +67,7 @@ impl PakEngine {
             pak,
             installation: installation.clone(),
             game_path,
-            payload: input.payload.clone(),
+            payload,
             lua,
             layout,
             loader,

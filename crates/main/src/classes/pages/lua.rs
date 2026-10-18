@@ -44,7 +44,7 @@ impl LuaScope {
         let root = context.installation().map(InstallationFacts::root);
         Some(Self {
             generation: context.generation(),
-            layout: lua.layout(context.payload().root(), root),
+            layout: lua.layout(context.payload()?.root(), root),
             url: lua.runtime_url().to_string(),
         })
     }

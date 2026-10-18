@@ -120,14 +120,18 @@ def remove_release_folders():
             print(f"Deleted folder: {entry}")
 
 if __name__ == "__main__":
-    target_folder = Path("./Bin/Addons")
-    absolute_target = target_folder.resolve()
+    addon_folders = sorted(path for path in Path("./Bin").glob("*/Addons") if path.is_dir())
+    listed = "\n".join(f"'{path.resolve()}'" for path in addon_folders)
 
-    confirm = input(f"Are you sure you want to delete all files (except .auadd) in:\n'{absolute_target}'? (y/N): ")
-    if confirm.lower() in ['y', 'yes']:
-        clean_addons(target_folder)
+    if not addon_folders:
+        print("No Bin/*/Addons folders found.")
     else:
-        print("Operation cancelled.")
+        confirm = input(f"Are you sure you want to delete all files (except .auadd) in:\n{listed}\n(y/N): ")
+        if confirm.lower() in ['y', 'yes']:
+            for folder in addon_folders:
+                clean_addons(folder)
+        else:
+            print("Operation cancelled.")
 
     confirm = input("Do you want to remove Aurora's release zip files? (y/N): ")
     if confirm.lower() in ['y', 'yes']:

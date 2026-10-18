@@ -102,7 +102,7 @@ pub struct EngineInput {
     pub tag: CommandTag,
     pub installation: Option<InstallationFacts>,
     pub settings: EngineSettings,
-    pub payload: ResolvedPayloadLayout,
+    pub payload: Option<ResolvedPayloadLayout>,
     pub deployment: DeploymentSelection,
     pub injected_plugins: Vec<InjectedPluginRecord>,
 }

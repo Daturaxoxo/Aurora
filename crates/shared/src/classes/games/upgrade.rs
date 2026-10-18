@@ -44,6 +44,7 @@ pub enum UpgradeDecision {
     Normal,
 }
 
+// TODO(lane B, b7-3): not called yet. Wire it in main.rs (see the TODOs there).
 pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
     let kind = match evidence.target_data {
         TargetRuntimeData::Empty => UpgradeEligibility::FirstUpgrade,

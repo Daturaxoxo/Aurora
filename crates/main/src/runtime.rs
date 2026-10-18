@@ -46,7 +46,7 @@ pub struct GameContext {
     game: &'static dyn Game,
     generation: u64,
     installation: Option<InstallationFacts>,
-    payload: ResolvedPayloadLayout,
+    payload: Option<ResolvedPayloadLayout>,
     readiness: Readiness,
 }
 
@@ -71,8 +71,8 @@ impl GameContext {
     pub const fn installation(&self) -> Option<&InstallationFacts> {
         self.installation.as_ref()
     }
-    pub const fn payload(&self) -> &ResolvedPayloadLayout {
-        &self.payload
+    pub const fn payload(&self) -> Option<&ResolvedPayloadLayout> {
+        self.payload.as_ref()
     }
 
     pub const fn readiness(&self) -> Readiness {
@@ -85,7 +85,7 @@ impl fmt::Debug for GameContext {
         f.debug_struct("GameContext")
             .field("tag", &self.tag())
             .field("installation", &self.installation)
-            .field("payload", &self.payload.kind())
+            .field("payload", &self.payload.as_ref().map(ResolvedPayloadLayout::kind))
             .field("readiness", &self.readiness)
             .finish_non_exhaustive()
     }

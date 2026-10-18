@@ -94,7 +94,7 @@ pub fn engine_input(
     game: &dyn Game,
     tag: CommandTag,
     installation: Option<InstallationFacts>,
-    payload: ResolvedPayloadLayout,
+    payload: Option<ResolvedPayloadLayout>,
 ) -> Result<EngineInput> {
     let profile = config::read_profile(&tag.game_id)?;
     Ok(EngineInput {
@@ -214,11 +214,28 @@ fn deployment(game: &dyn Game, profile: &GameProfile) -> DeploymentSelection {
     DeploymentSelection { addons, modules }
 }
 
-pub fn payload(game: &dyn Game) -> Result<ResolvedPayloadLayout> {
+pub fn payload(game: &dyn Game) -> Result<Option<ResolvedPayloadLayout>> {
+    if game.descriptor().engine.is_none() {
+        return Ok(None);
+    }
     let bin = utils::get_bin_path().ok_or_else(|| anyhow!("Could not resolve bin path"))?;
-    resolve_payload(
-        game,
-        &PayloadRoots::new(bin),
-        PayloadResolutionMode::LegacyFlatOnly,
-    )
+    resolve_payload(game, &PayloadRoots::new(bin), payload_mode(game)).map(Some)
+}
+
+#[cfg(target_os = "linux")]
+fn payload_mode(game: &dyn Game) -> PayloadResolutionMode {
+    let failed = shared::appimage::report()
+        .is_some_and(|report| report.target_failed(&game.descriptor().id));
+    if failed {
+        PayloadResolutionMode::LegacyFlatOnly
+    } else {
+        PayloadResolutionMode::TargetOnly
+    }
+}
+
+// TODO(lane B, b7-3): Windows never falls back, a missing target must fail initialization and
+// withhold InitConfirmed instead
+#[cfg(not(target_os = "linux"))]
+const fn payload_mode(_game: &dyn Game) -> PayloadResolutionMode {
+    PayloadResolutionMode::TargetOnly
 }
