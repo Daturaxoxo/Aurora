@@ -5,7 +5,7 @@ use super::{
     payload::{
         LegacyRuntimeMigrationRequest, MigrationReport, PayloadResolutionMode, PayloadRoots,
         RUNTIME_DIRS, UpgradeEligibility, collect_files, is_owned, is_sidecar,
-        prepare_legacy_runtime_data, resolve_payload, same_contents,
+        prepare_legacy_runtime_data, remove_migrated_sources, resolve_payload, same_contents,
     },
 };
 use anyhow::{Context as _, Result};
@@ -37,12 +37,16 @@ pub struct UpgradeEvidence {
     pub post_update: bool,
     pub committed: CommittedLayout,
     pub legacy_payload: bool,
+    pub legacy_data: bool,
     pub target_data: TargetRuntimeData,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpgradeDecision {
-    Migrate(UpgradeEligibility),
+    Migrate {
+        eligibility: UpgradeEligibility,
+        move_legacy: bool,
+    },
     Normal,
 }
 
@@ -54,7 +58,7 @@ pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
         }
     };
     let undiverged = evidence.target_data != TargetRuntimeData::Diverged;
-    let migrate = match evidence.committed {
+    let upgrade = match evidence.committed {
         CommittedLayout::LegacyManifest => evidence.post_update,
         CommittedLayout::UnknownManifest => {
             evidence.post_update && evidence.legacy_payload && undiverged
@@ -62,8 +66,13 @@ pub fn decide(evidence: &UpgradeEvidence) -> UpgradeDecision {
         CommittedLayout::UnsyncedTarget => evidence.legacy_payload,
         CommittedLayout::TargetManifest | CommittedLayout::SyncedTarget => false,
     };
-    if migrate {
-        UpgradeDecision::Migrate(kind)
+    let settled = !evidence.post_update && evidence.committed != CommittedLayout::LegacyManifest;
+    let stranded = settled && evidence.legacy_data && undiverged;
+    if upgrade || stranded {
+        UpgradeDecision::Migrate {
+            eligibility: kind,
+            move_legacy: settled,
+        }
     } else {
         UpgradeDecision::Normal
     }
@@ -82,17 +91,30 @@ pub fn migrate_legacy_runtime_data(
         post_update,
         committed,
         legacy_payload: legacy_payload(bin),
+        legacy_data: legacy_runtime_data(bin, owned)
+            .context("could not inspect the legacy runtime data")?,
         target_data: target_runtime_data(bin, &roots.target(game), owned)
             .context("could not inspect the target runtime data")?,
     };
 
-    let UpgradeDecision::Migrate(eligibility) = decide(&evidence) else {
+    let UpgradeDecision::Migrate {
+        eligibility,
+        move_legacy,
+    } = decide(&evidence)
+    else {
         debug!("{id} needs no legacy migration ({evidence:?})");
         return Ok(());
     };
     info!("Moving the legacy {id} runtime data into the target payload ({eligibility:?})");
 
-    let target = resolve_payload(game, &roots, PayloadResolutionMode::TargetOnly)?;
+    let target = match resolve_payload(game, &roots, PayloadResolutionMode::TargetOnly) {
+        Ok(target) => target,
+        Err(e) if move_legacy => {
+            warn!("{id} legacy data was left in place: {e:#}");
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
     let request =
         LegacyRuntimeMigrationRequest::new(bin.to_path_buf(), target, owned.clone(), eligibility)?;
     let report = prepare_legacy_runtime_data(&request)
@@ -108,6 +130,11 @@ pub fn migrate_legacy_runtime_data(
     );
     for path in &report.skipped_other {
         warn!("{id} legacy migration skipped {}", path.display());
+    }
+    if move_legacy {
+        let removed = remove_migrated_sources(&request, &report)
+            .with_context(|| format!("could not clean up the legacy {id} runtime data"))?;
+        info!("{id} legacy migration: removed {removed} legacy copies");
     }
     Ok(())
 }
@@ -170,6 +197,19 @@ pub fn legacy_payload(bin: &Path) -> bool {
     nte::LEGACY_BIN_SIGNATURE
         .iter()
         .any(|name| bin.join(name).symlink_metadata().is_ok_and(|m| m.is_file()))
+}
+
+fn legacy_runtime_data(legacy_root: &Path, owned: &[SafeRelativePath]) -> Result<bool> {
+    let mut report = MigrationReport::default();
+    for dir in RUNTIME_DIRS {
+        if collect_files(legacy_root, dir, &mut report)?
+            .iter()
+            .any(|rel| !is_owned(owned, rel) && !is_sidecar(rel.file_name()))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub fn target_runtime_data(
