@@ -55,14 +55,31 @@ component GameTile inherits Rectangle {
             overflow: elide;
         }
 
-        if root.game.selected || root.game.disabled: Text {
-            text: root.game.disabled
-                ? Tr.values[TrKey.games-coming-soon]
-                : Tr.values[TrKey.games-current];
-            color: root.game.disabled ? #ffffffaa : Palette.accent-pale;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+        if root.game.selected || root.game.disabled: HorizontalLayout {
+            alignment: start;
+            Rectangle {
+                background: #00000080;
+                border-width: 1px;
+                border-color: root.game.disabled ? #e9a23b : Palette.accent-pale;
+                border-radius: self.height / 2;
+                horizontal-stretch: 0;
+
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-top: 4px;
+                    padding-bottom: 4px;
+                    Text {
+                        text: root.game.disabled
+                            ? Tr.values[TrKey.games-coming-soon]
+                            : Tr.values[TrKey.games-current];
+                        color: root.game.disabled ? #e9a23b : Palette.accent-pale;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 0.8px;
+                    }
+                }
+            }
         }
     }
 
