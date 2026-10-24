@@ -206,6 +206,7 @@ export component MainWindow inherits Window {
     callback discord-rpc-changed(bool);
     callback remember-window-size-changed(bool);
     callback reset-window-size();
+    callback add-steam-shortcut();
     callback engine-method-index-changed(int);
     callback start-method-index-changed(int);
     callback engine-scale-changed(int);
@@ -1544,6 +1545,7 @@ export component MainWindow inherits Window {
             discord-rpc-changed(v) => { root.discord-rpc-changed(v); }
             remember-window-size-changed(v) => { root.remember-window-size-changed(v); }
             reset-window-size => { root.reset-window-size(); }
+            add-steam-shortcut => { root.add-steam-shortcut(); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             start-method-index-changed(i) => { root.start-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }

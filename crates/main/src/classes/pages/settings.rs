@@ -555,6 +555,24 @@ impl SettingsHandler {
             debug!("discord_rpc saved to config");
         });
 
+        let ww = window.clone();
+        w.on_add_steam_shortcut(move || {
+            info!("add_steam_shortcut triggered");
+            let ww = ww.clone();
+            std::thread::spawn(move || match shared::steam_shortcut::add() {
+                Ok(true) => ToastHandler::show(&ww, tr("settings.steam-shortcut.added"), "success"),
+                Ok(false) => ToastHandler::show(&ww, tr("settings.steam-shortcut.exists"), "info"),
+                Err(e) => {
+                    error!("could not add Aurora to Steam: {e:#}");
+                    ToastHandler::show(
+                        &ww,
+                        format!("{} {e:#}", tr("settings.steam-shortcut.failed")),
+                        "error",
+                    );
+                }
+            });
+        });
+
         // [LAUNCHER]
         let ww = window.clone();
         w.on_browse_game_directory(move || {
