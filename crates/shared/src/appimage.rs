@@ -10,7 +10,7 @@ use crate::classes::games::{
     identity::GameId,
     payload::{PayloadLayoutKind, PayloadRoots, ResolvedPayloadLayout},
     registry,
-    upgrade::{CommittedLayout, migrate_legacy_runtime_data, synced_layout},
+    upgrade::{CommittedLayout, bundled_runtime_files, migrate_legacy_runtime_data, synced_layout},
 };
 
 static REPORT: OnceLock<SyncReport> = OnceLock::new();
@@ -68,6 +68,7 @@ pub fn sync_bin() {
 
 fn sync_into(src_root: &Path, dst_root: &Path, games: &[&dyn Game]) -> SyncReport {
     let roots = PayloadRoots::new(dst_root.to_path_buf());
+    let src_roots = PayloadRoots::new(src_root.to_path_buf());
     let prior: Vec<CommittedLayout> = games
         .iter()
         .map(|game| synced_layout(&roots.target(*game)))
@@ -89,7 +90,10 @@ fn sync_into(src_root: &Path, dst_root: &Path, games: &[&dyn Game]) -> SyncRepor
                     &roots.target(*game),
                     PayloadLayoutKind::Target,
                 )
-                .and_then(|_| migrate_legacy_runtime_data(*game, dst_root, prior, false))
+                .and_then(|_| bundled_runtime_files(&src_roots.target(*game)))
+                .and_then(|bundled| {
+                    migrate_legacy_runtime_data(*game, dst_root, prior, false, &bundled)
+                })
                 .err()
                 .map(|e| format!("{e:#}")),
             };

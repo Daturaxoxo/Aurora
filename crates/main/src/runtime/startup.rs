@@ -31,7 +31,7 @@ fn migrate_payloads() -> Result<()> {
     let failures: Vec<String> = games
         .iter()
         .filter_map(|game| {
-            upgrade::migrate_legacy_runtime_data(*game, &bin, committed, post_update)
+            upgrade::migrate_legacy_runtime_data(*game, &bin, committed, post_update, &[])
                 .err()
                 .map(|e| format!("{}: {e:#}", game.descriptor().id))
         })
