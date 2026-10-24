@@ -57,7 +57,10 @@ export component ScrollingTextInput inherits Rectangle {
         }
 
         if root.text == "" && root.placeholder != "": Text {
+            x: 0px;
+            width: 100%;
             height: 100%;
+            overflow: elide;
             text: root.placeholder;
             color: root.placeholder-color;
             font-size: root.font-size;

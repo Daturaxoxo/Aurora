@@ -77,6 +77,9 @@ ureq = { version = "3", default-features = false, features = [
 percent-encoding = "2"
 url = "2"
 
+[patch.crates-io]
+i-slint-renderer-femtovg = { path = "vendor/i-slint-renderer-femtovg" }
+
 [profile.dev.package.flate2]
 opt-level = 2
 

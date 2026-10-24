@@ -1,0 +1,564 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
+
+#![doc = include_str!("README.md")]
+#![doc(html_logo_url = "https://slint.dev/logo/slint-logo-square-light.svg")]
+#![cfg_attr(slint_nightly_test, feature(non_exhaustive_omitted_patterns_lint))]
+#![cfg_attr(slint_nightly_test, warn(non_exhaustive_omitted_patterns))]
+
+use std::cell::{Cell, RefCell};
+use std::num::NonZeroU32;
+use std::pin::Pin;
+use std::rc::{Rc, Weak};
+
+use i_slint_core::Brush;
+use i_slint_core::api::{RenderingNotifier, RenderingState, SetRenderingNotifierError};
+use i_slint_core::graphics::SharedPixelBuffer;
+use i_slint_core::graphics::{BorderRadius, Rgba8Pixel};
+use i_slint_core::graphics::{euclid, rendering_metrics_collector::RenderingMetricsCollector};
+use i_slint_core::item_rendering::ItemRenderer;
+use i_slint_core::item_tree::ItemTreeWeak;
+use i_slint_core::lengths::PhysicalPx;
+use i_slint_core::platform::PlatformError;
+use i_slint_core::renderer::{DrawOutcome, RendererSealed};
+use i_slint_core::textlayout::sharedparley;
+use i_slint_core::window::{WindowAdapter, WindowInner};
+use images::TextureImporter;
+
+type PhysicalLength = euclid::Length<f32, PhysicalPx>;
+type PhysicalRect = euclid::Rect<f32, PhysicalPx>;
+type PhysicalSize = euclid::Size2D<f32, PhysicalPx>;
+type PhysicalPoint = euclid::Point2D<f32, PhysicalPx>;
+type PhysicalBorderRadius = BorderRadius<f32, PhysicalPx>;
+
+use self::itemrenderer::CanvasRc;
+
+mod font_cache;
+mod images;
+mod itemrenderer;
+#[cfg(feature = "opengl")]
+pub mod opengl;
+#[cfg(feature = "wgpu-30")]
+pub mod wgpu;
+#[cfg(feature = "wgpu-30")]
+pub use wgpu::FemtoVGWGPURenderer;
+
+pub trait WindowSurface<R: femtovg::Renderer> {
+    fn render_output(&self) -> impl Into<R::RenderOutput>;
+    /// Return [`femtovg::RenderTarget::Image`] to redirect the frame when
+    /// [`Self::render_output`] cannot select an offscreen target, as for OpenGL, which
+    /// renders into whatever framebuffer is bound.
+    fn initial_render_target(&self) -> femtovg::RenderTarget {
+        femtovg::RenderTarget::Screen
+    }
+}
+
+/// Call after every [`femtovg::Canvas::set_size`], which queues a `SetRenderTarget(Screen)` of
+/// its own without updating the cached target. [`femtovg::Canvas::set_render_target`] does
+/// nothing when the target matches that cache, so switch through `Screen` to force the frame's
+/// target to be queued again.
+fn select_render_target<R: femtovg::Renderer>(
+    canvas: &mut femtovg::Canvas<R>,
+    target: femtovg::RenderTarget,
+) {
+    if target != femtovg::RenderTarget::Screen {
+        canvas.set_render_target(femtovg::RenderTarget::Screen);
+        canvas.set_render_target(target);
+    }
+}
+
+/// Result of [`GraphicsBackend::begin_surface_rendering`]. `Skipped` carries the reason,
+/// which propagates to the caller so it can decide whether to re-arm a redraw.
+pub enum BeginRendering<S> {
+    Acquired(S),
+    /// Always [`DrawOutcome::Occluded`] or [`DrawOutcome::Timeout`].
+    Skipped(DrawOutcome),
+}
+
+pub trait GraphicsBackend {
+    type Renderer: femtovg::Renderer + TextureImporter;
+    type WindowSurface: WindowSurface<Self::Renderer>;
+    const NAME: &'static str;
+    fn new_suspended() -> Self;
+    fn clear_graphics_context(&self);
+    fn begin_surface_rendering(
+        &self,
+    ) -> Result<BeginRendering<Self::WindowSurface>, Box<dyn std::error::Error + Send + Sync>>;
+    fn submit_commands(&self, commands: <Self::Renderer as femtovg::Renderer>::CommandBuffer);
+    fn present_surface(
+        &self,
+        surface: Self::WindowSurface,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    fn with_graphics_api<R>(
+        &self,
+        callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
+    ) -> Result<R, i_slint_core::platform::PlatformError>;
+    /// This function is called by the renderers when the surface needs to be resized, typically
+    /// in response to the windowing system notifying of a change in the window system.
+    /// For most implementations this is a no-op, with the exception for wayland for example.
+    fn resize(
+        &self,
+        width: NonZeroU32,
+        height: NonZeroU32,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Redirect the full frame drawn by `render` offscreen and read back its pixels, using
+    /// `canvas` if this backend reads back through it. `width` and `height` are the window
+    /// size, guaranteed non-zero by the caller.
+    /// Return `None` if this backend does not support `take_snapshot`.
+    fn take_snapshot_pixels(
+        &self,
+        _canvas: Option<CanvasRc<Self::Renderer>>,
+        _width: u32,
+        _height: u32,
+        _render: &dyn Fn() -> Result<(), PlatformError>,
+    ) -> Option<Result<SharedPixelBuffer<Rgba8Pixel>, PlatformError>> {
+        None
+    }
+}
+
+/// Use the FemtoVG renderer when implementing a custom Slint platform where you deliver events to
+/// Slint and want the scene to be rendered using OpenGL. The rendering is done using the [FemtoVG](https://github.com/femtovg/femtovg)
+/// library.
+pub struct FemtoVGRenderer<B: GraphicsBackend> {
+    maybe_window_adapter: RefCell<Option<Weak<dyn WindowAdapter>>>,
+    rendering_notifier: RefCell<Option<Box<dyn RenderingNotifier>>>,
+    canvas: RefCell<Option<CanvasRc<B::Renderer>>>,
+    graphics_cache: itemrenderer::ItemGraphicsCache<B::Renderer>,
+    layer_cache: itemrenderer::LayerCache<B::Renderer>,
+    texture_cache: RefCell<images::TextureCache<B::Renderer>>,
+    box_shadow_cache: itemrenderer::FemtovgBoxShadowCache<B::Renderer>,
+    text_layout_cache: sharedparley::TextLayoutCache,
+    rendering_metrics_collector: RefCell<Option<Rc<RenderingMetricsCollector>>>,
+    rendering_first_time: Cell<bool>,
+    // Last field, so that it's dropped last and for example the OpenGL context exists and is current when destroying the FemtoVG canvas
+    graphics_backend: B,
+}
+
+impl<B: GraphicsBackend> FemtoVGRenderer<B> {
+    #[cfg(feature = "wgpu-30")]
+    pub(crate) fn new_internal(graphics_backend: B) -> Self {
+        Self {
+            maybe_window_adapter: Default::default(),
+            rendering_notifier: Default::default(),
+            canvas: RefCell::new(None),
+            graphics_cache: Default::default(),
+            layer_cache: Default::default(),
+            texture_cache: Default::default(),
+            box_shadow_cache: Default::default(),
+            text_layout_cache: Default::default(),
+            rendering_metrics_collector: Default::default(),
+            rendering_first_time: Cell::new(true),
+            graphics_backend,
+        }
+    }
+
+    /// Render the scene using OpenGL.
+    pub fn render(&self) -> Result<(), i_slint_core::platform::PlatformError> {
+        self.internal_render_with_post_callback(
+            0.,
+            (0., 0.),
+            self.window_adapter()?.window().size(),
+            None,
+        )
+        .map(|_| ())
+    }
+
+    fn internal_render_with_post_callback(
+        &self,
+        rotation_angle_degrees: f32,
+        translation: (f32, f32),
+        surface_size: i_slint_core::api::PhysicalSize,
+        post_render_cb: Option<&dyn Fn(&mut dyn ItemRenderer)>,
+    ) -> Result<DrawOutcome, i_slint_core::platform::PlatformError> {
+        let surface = match self.graphics_backend.begin_surface_rendering()? {
+            BeginRendering::Acquired(s) => s,
+            BeginRendering::Skipped(outcome) => return Ok(outcome),
+        };
+        let render_target = surface.initial_render_target();
+
+        if self.rendering_first_time.take() {
+            *self.rendering_metrics_collector.borrow_mut() = RenderingMetricsCollector::new(
+                &format!("FemtoVG renderer with {} backend", B::NAME),
+            );
+
+            if let Some(callback) = self.rendering_notifier.borrow_mut().as_mut() {
+                self.with_graphics_api(|api| {
+                    callback.notify(RenderingState::RenderingSetup, &api)
+                })?;
+            }
+        }
+
+        let window_adapter = self.window_adapter()?;
+        let window = window_adapter.window();
+        let window_size = window.size();
+
+        let Some((width, height)): Option<(NonZeroU32, NonZeroU32)> =
+            window_size.width.try_into().ok().zip(window_size.height.try_into().ok())
+        else {
+            // Nothing to render
+            return Ok(DrawOutcome::Success);
+        };
+
+        if self.canvas.borrow().is_none() {
+            // Nothing to render
+            return Ok(DrawOutcome::Success);
+        }
+
+        let window_inner = WindowInner::from_pub(window);
+        let scale = window_inner.scale_factor().ceil();
+
+        window_inner
+            .draw_contents(|components, post_render| -> Result<(), PlatformError> {
+                // self.canvas is checked for being Some(...) at the beginning of this function
+                let canvas = self.canvas.borrow().as_ref().unwrap().clone();
+
+                let window_background_brush =
+                    window_inner.window_item().map(|w| w.as_pin_ref().background());
+
+                {
+                    let mut femtovg_canvas = canvas.borrow_mut();
+                    // We pass an integer that is greater than or equal to the scale factor as
+                    // dpi / device pixel ratio as the anti-alias of femtovg needs that to draw text clearly.
+                    // We need to care about that `ceil()` when calculating metrics.
+                    femtovg_canvas.set_size(surface_size.width, surface_size.height, scale);
+                    select_render_target(&mut femtovg_canvas, render_target);
+
+                    // Clear with window background if it is a solid color otherwise it will drawn as gradient
+                    if let Some(Brush::SolidColor(clear_color)) = window_background_brush {
+                        femtovg_canvas.clear_rect(
+                            0,
+                            0,
+                            surface_size.width,
+                            surface_size.height,
+                            self::itemrenderer::to_femtovg_color(&clear_color),
+                        );
+                    }
+                }
+
+                {
+                    let mut femtovg_canvas = canvas.borrow_mut();
+                    femtovg_canvas.reset();
+                    femtovg_canvas.rotate(rotation_angle_degrees.to_radians());
+                    femtovg_canvas.translate(translation.0, translation.1);
+                }
+
+                if let Some(notifier_fn) = self.rendering_notifier.borrow_mut().as_mut() {
+                    let mut femtovg_canvas = canvas.borrow_mut();
+                    // For the BeforeRendering rendering notifier callback it's important that this happens *after* clearing
+                    // the back buffer, in order to allow the callback to provide its own rendering of the background.
+                    // femtovg's clear_rect() will merely schedule a clear call, so flush right away to make it immediate.
+
+                    let commands = femtovg_canvas.flush_to_output(surface.render_output());
+                    self.graphics_backend.submit_commands(commands);
+
+                    femtovg_canvas.set_size(width.get(), height.get(), scale);
+                    select_render_target(&mut femtovg_canvas, render_target);
+                    drop(femtovg_canvas);
+
+                    self.with_graphics_api(|api| {
+                        notifier_fn.notify(RenderingState::BeforeRendering, &api)
+                    })?;
+                }
+
+                self.graphics_cache.clear_cache_if_scale_factor_changed(window);
+                self.layer_cache.clear_cache_if_scale_factor_changed(window);
+                self.box_shadow_cache.clear_cache_if_scale_factor_changed(window);
+
+                let mut item_renderer = self::itemrenderer::GLItemRenderer::new(
+                    &canvas,
+                    &self.graphics_cache,
+                    &self.layer_cache,
+                    &self.texture_cache,
+                    &self.box_shadow_cache,
+                    &self.text_layout_cache,
+                    window,
+                    width.get(),
+                    height.get(),
+                    render_target,
+                );
+
+                if let Some(window_item_rc) = window_inner.window_item_rc() {
+                    let window_item =
+                        window_item_rc.downcast::<i_slint_core::items::WindowItem>().unwrap();
+                    if let Brush::SolidColor(..) = window_item.as_pin_ref().background() {
+                        // clear_rect is called earlier
+                    } else {
+                        // Draws the window background as gradient
+                        item_renderer.draw_rectangle(
+                            window_item.as_pin_ref(),
+                            &window_item_rc,
+                            i_slint_core::lengths::logical_size_from_api(
+                                window.size().to_logical(window_inner.scale_factor()),
+                            ),
+                            &window_item.as_pin_ref().cached_rendering_data,
+                        );
+                    }
+                }
+
+                for (component, origin) in components {
+                    if let Some(component) = ItemTreeWeak::upgrade(component) {
+                        i_slint_core::item_rendering::render_component_items(
+                            &component,
+                            &mut item_renderer,
+                            *origin,
+                            &self.window_adapter()?,
+                        );
+                    }
+                }
+
+                post_render(&mut item_renderer);
+
+                if let Some(cb) = post_render_cb.as_ref() {
+                    cb(&mut item_renderer)
+                }
+
+                if let Some(collector) = &self.rendering_metrics_collector.borrow().as_ref() {
+                    let metrics = item_renderer.metrics();
+                    collector.measure_frame_rendered(&mut item_renderer, metrics);
+                }
+
+                let commands = canvas.borrow_mut().flush_to_output(surface.render_output());
+                self.graphics_backend.submit_commands(commands);
+
+                // Delete any images and layer images (and their FBOs) before making the context not current anymore, to
+                // avoid GPU memory leaks.
+                self.texture_cache.borrow_mut().drain();
+                drop(item_renderer);
+                Ok(())
+            })
+            .unwrap_or(Ok(()))?;
+
+        if let Some(callback) = self.rendering_notifier.borrow_mut().as_mut() {
+            self.with_graphics_api(|api| callback.notify(RenderingState::AfterRendering, &api))?;
+        }
+
+        self.graphics_backend.present_surface(surface)?;
+        Ok(DrawOutcome::Success)
+    }
+
+    fn with_graphics_api(
+        &self,
+        callback: impl FnOnce(i_slint_core::api::GraphicsAPI<'_>),
+    ) -> Result<(), PlatformError> {
+        self.graphics_backend.with_graphics_api(|api| callback(api.unwrap()))
+    }
+
+    fn window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
+        self.maybe_window_adapter.borrow().as_ref().and_then(|w| w.upgrade()).ok_or_else(|| {
+            "Renderer must be associated with component before use".to_string().into()
+        })
+    }
+
+    #[cfg(any(feature = "wgpu-30", feature = "opengl"))]
+    pub(crate) fn reset_canvas(&self, canvas: CanvasRc<B::Renderer>) {
+        *self.canvas.borrow_mut() = canvas.into();
+        self.rendering_first_time.set(true);
+    }
+}
+
+#[doc(hidden)]
+impl<B: GraphicsBackend> RendererSealed for FemtoVGRenderer<B> {
+    fn text_layout_cache(&self) -> Option<&sharedparley::TextLayoutCache> {
+        Some(&self.text_layout_cache)
+    }
+
+    fn set_rendering_notifier(
+        &self,
+        callback: Box<dyn i_slint_core::api::RenderingNotifier>,
+    ) -> Result<(), i_slint_core::api::SetRenderingNotifierError> {
+        let mut notifier = self.rendering_notifier.borrow_mut();
+        if notifier.replace(callback).is_some() {
+            Err(SetRenderingNotifierError::AlreadySet)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn free_graphics_resources(
+        &self,
+        component: i_slint_core::item_tree::ItemTreeRef,
+        _items: &mut dyn Iterator<Item = Pin<i_slint_core::items::ItemRef<'_>>>,
+    ) -> Result<(), i_slint_core::platform::PlatformError> {
+        self.text_layout_cache.component_destroyed(component);
+        if !self.graphics_cache.is_empty() || !self.layer_cache.is_empty() {
+            self.graphics_backend.with_graphics_api(|_| {
+                self.graphics_cache.component_destroyed(component);
+                self.layer_cache.component_destroyed(component);
+            })?;
+        }
+        Ok(())
+    }
+
+    fn set_window_adapter(&self, window_adapter: &Rc<dyn WindowAdapter>) {
+        *self.maybe_window_adapter.borrow_mut() = Some(Rc::downgrade(window_adapter));
+        self.text_layout_cache.clear_all();
+        self.graphics_backend
+            .with_graphics_api(|_| {
+                self.graphics_cache.clear_all();
+                self.layer_cache.clear_all();
+                self.texture_cache.borrow_mut().clear();
+                self.box_shadow_cache.clear();
+            })
+            .ok();
+    }
+
+    fn window_adapter(&self) -> Option<Rc<dyn WindowAdapter>> {
+        self.maybe_window_adapter
+            .borrow()
+            .as_ref()
+            .and_then(|window_adapter| window_adapter.upgrade())
+    }
+
+    fn resize(&self, size: i_slint_core::api::PhysicalSize) -> Result<(), PlatformError> {
+        if let Some((width, height)) = size.width.try_into().ok().zip(size.height.try_into().ok()) {
+            self.graphics_backend.resize(width, height)?;
+        };
+        Ok(())
+    }
+
+    fn take_snapshot(&self) -> Result<SharedPixelBuffer<Rgba8Pixel>, PlatformError> {
+        let size = self
+            .maybe_window_adapter
+            .borrow()
+            .as_ref()
+            .and_then(|w| w.upgrade())
+            .map(|a| a.size())
+            .unwrap_or_default();
+        if size.width == 0 || size.height == 0 {
+            return Err("take_snapshot: window size is zero".into());
+        }
+        let canvas = self.canvas.borrow().as_ref().cloned();
+        self.graphics_backend
+            .take_snapshot_pixels(canvas, size.width, size.height, &|| self.render())
+            .unwrap_or_else(|| Err("take_snapshot is not supported by this FemtoVG backend".into()))
+    }
+
+    fn supports_transformations(&self) -> bool {
+        true
+    }
+}
+
+impl<B: GraphicsBackend> Drop for FemtoVGRenderer<B> {
+    fn drop(&mut self) {
+        self.clear_graphics_context().ok();
+    }
+}
+
+/// The purpose of this trait is to add internal API that's accessed from the winit/linuxkms backends, but not
+/// public (as the trait isn't re-exported).
+#[doc(hidden)]
+pub trait FemtoVGRendererExt {
+    fn new_suspended() -> Self;
+    fn clear_graphics_context(&self) -> Result<(), i_slint_core::platform::PlatformError>;
+    fn render_transformed_with_post_callback(
+        &self,
+        rotation_angle_degrees: f32,
+        translation: (f32, f32),
+        surface_size: i_slint_core::api::PhysicalSize,
+        post_render_cb: Option<&dyn Fn(&mut dyn ItemRenderer)>,
+    ) -> Result<DrawOutcome, i_slint_core::platform::PlatformError>;
+}
+
+/// The purpose of this trait is to add internal API specific to the OpenGL renderer that's accessed from the winit
+/// backend. In this case, the ability to resume a suspended OpenGL renderer by providing a new context.
+#[doc(hidden)]
+#[cfg(feature = "opengl")]
+pub trait FemtoVGOpenGLRendererExt {
+    fn set_opengl_context(
+        &self,
+        #[cfg(not(target_arch = "wasm32"))] opengl_context: impl opengl::OpenGLInterface + 'static,
+        #[cfg(target_arch = "wasm32")] html_canvas: web_sys::HtmlCanvasElement,
+    ) -> Result<(), i_slint_core::platform::PlatformError>;
+}
+
+#[doc(hidden)]
+impl<B: GraphicsBackend> FemtoVGRendererExt for FemtoVGRenderer<B> {
+    /// Creates a new renderer in suspended state without OpenGL. Any attempts at rendering, etc. will produce an error,
+    /// until [`Self::set_opengl_context()`] was called successfully.
+    fn new_suspended() -> Self {
+        Self {
+            maybe_window_adapter: Default::default(),
+            rendering_notifier: Default::default(),
+            canvas: RefCell::new(None),
+            graphics_cache: Default::default(),
+            layer_cache: Default::default(),
+            texture_cache: Default::default(),
+            box_shadow_cache: Default::default(),
+            text_layout_cache: Default::default(),
+            rendering_metrics_collector: Default::default(),
+            rendering_first_time: Cell::new(true),
+            graphics_backend: B::new_suspended(),
+        }
+    }
+
+    fn clear_graphics_context(&self) -> Result<(), i_slint_core::platform::PlatformError> {
+        // Ensure the context is current before the renderer is destroyed
+        self.graphics_backend.with_graphics_api(|api| {
+            // If we've rendered a frame before, then we need to invoke the RenderingTearDown notifier.
+            if !self.rendering_first_time.get()
+                && api.is_some()
+                && let Some(callback) = self.rendering_notifier.borrow_mut().as_mut()
+            {
+                self.with_graphics_api(|api| {
+                    callback.notify(RenderingState::RenderingTeardown, &api)
+                })
+                .ok();
+            }
+
+            self.graphics_cache.clear_all();
+            self.layer_cache.clear_all();
+            self.texture_cache.borrow_mut().clear();
+            self.box_shadow_cache.clear();
+        })?;
+
+        self.text_layout_cache.clear_all();
+
+        if let Some(canvas) = self.canvas.borrow_mut().take()
+            && Rc::strong_count(&canvas) != 1
+        {
+            i_slint_core::debug_log!(
+                "internal warning: there are canvas references left when destroying the window. OpenGL resources will be leaked."
+            )
+        }
+
+        self.graphics_backend.clear_graphics_context();
+
+        Ok(())
+    }
+
+    fn render_transformed_with_post_callback(
+        &self,
+        rotation_angle_degrees: f32,
+        translation: (f32, f32),
+        surface_size: i_slint_core::api::PhysicalSize,
+        post_render_cb: Option<&dyn Fn(&mut dyn ItemRenderer)>,
+    ) -> Result<DrawOutcome, i_slint_core::platform::PlatformError> {
+        self.internal_render_with_post_callback(
+            rotation_angle_degrees,
+            translation,
+            surface_size,
+            post_render_cb,
+        )
+    }
+}
+
+#[cfg(feature = "opengl")]
+impl FemtoVGOpenGLRendererExt for FemtoVGRenderer<opengl::OpenGLBackend> {
+    fn set_opengl_context(
+        &self,
+        #[cfg(not(target_arch = "wasm32"))] opengl_context: impl opengl::OpenGLInterface + 'static,
+        #[cfg(target_arch = "wasm32")] html_canvas: web_sys::HtmlCanvasElement,
+    ) -> Result<(), i_slint_core::platform::PlatformError> {
+        self.graphics_backend.set_opengl_context(
+            self,
+            #[cfg(not(target_arch = "wasm32"))]
+            opengl_context,
+            #[cfg(target_arch = "wasm32")]
+            html_canvas,
+        )
+    }
+}
+
+#[cfg(feature = "opengl")]
+pub type FemtoVGOpenGLRenderer = FemtoVGRenderer<opengl::OpenGLBackend>;

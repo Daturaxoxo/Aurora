@@ -1,0 +1,618 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
+
+// cSpell: ignore readback Texel unpadded
+use std::{cell::RefCell, pin::Pin, rc::Rc};
+use i_slint_core::platform::PlatformError;
+use i_slint_core::renderer::RendererSealed;
+use i_slint_core::{api::PhysicalSize as PhysicalWindowSize, graphics::RequestedGraphicsAPI};
+use i_slint_core::renderer::DrawOutcome;
+use crate::{BeginRendering, FemtoVGRenderer, GraphicsBackend, WindowSurface};
+use wgpu_30 as wgpu;
+fn composite_alpha_mode(
+    transparent: bool,
+    advertised: &[wgpu::CompositeAlphaMode],
+) -> Option<wgpu::CompositeAlphaMode> {
+    use wgpu::CompositeAlphaMode::{Opaque, PostMultiplied, PreMultiplied};
+    let wanted: &[wgpu::CompositeAlphaMode] =
+        if transparent { &[PreMultiplied, PostMultiplied] } else { &[Opaque] };
+    wanted.iter().copied().find(|mode| advertised.contains(mode))
+}
+
+pub struct WGPUBackend {
+    instance: RefCell<Option<wgpu::Instance>>,
+    device: RefCell<Option<wgpu::Device>>,
+    queue: RefCell<Option<wgpu::Queue>>,
+    surface_config: RefCell<Option<wgpu::SurfaceConfiguration>>,
+    surface: RefCell<Option<wgpu::Surface<'static>>>,
+    alpha_modes: RefCell<Vec<wgpu::CompositeAlphaMode>>,
+    snapshot_output: RefCell<Option<femtovg::renderer::WGPURenderOutput>>,
+}
+
+pub enum WGPUWindowSurface {
+    Surface(wgpu::SurfaceTexture),
+    Snapshot(femtovg::renderer::WGPURenderOutput),
+}
+
+enum WGPURenderSource<'a> {
+    Texture(&'a wgpu::Texture),
+    Output(femtovg::renderer::WGPURenderOutput),
+}
+
+impl<'a> From<WGPURenderSource<'a>> for femtovg::renderer::WGPURenderOutput {
+    fn from(src: WGPURenderSource<'a>) -> Self {
+        match src {
+            WGPURenderSource::Texture(t) => t.into(),
+            WGPURenderSource::Output(o) => o,
+        }
+    }
+}
+
+impl WindowSurface<femtovg::renderer::WGPURenderer> for WGPUWindowSurface {
+    fn render_output(&self) -> impl Into<femtovg::renderer::WGPURenderOutput> {
+        match self {
+            WGPUWindowSurface::Surface(st) => WGPURenderSource::Texture(&st.texture),
+            WGPUWindowSurface::Snapshot(ro) => WGPURenderSource::Output(ro.clone()),
+        }
+    }
+}
+
+fn wgpu_take_snapshot_pixels(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    snapshot_slot: &RefCell<Option<femtovg::renderer::WGPURenderOutput>>,
+    width: u32,
+    height: u32,
+    render: &dyn Fn() -> Result<(), i_slint_core::platform::PlatformError>,
+) -> Result<
+    i_slint_core::graphics::SharedPixelBuffer<i_slint_core::graphics::Rgba8Pixel>,
+    i_slint_core::platform::PlatformError,
+> {
+    use i_slint_core::graphics::{Rgba8Pixel, SharedPixelBuffer};
+
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("slint_take_snapshot_wgpu"),
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+
+    *snapshot_slot.borrow_mut() = Some(femtovg::renderer::WGPURenderOutput {
+        view: texture.create_view(&wgpu::TextureViewDescriptor::default()),
+        width,
+        height,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+    });
+
+    let render_result = render();
+    snapshot_slot.borrow_mut().take();
+    render_result?;
+
+    let unpadded_bytes_per_row = width * 4;
+    let bytes_per_row = (unpadded_bytes_per_row + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+        & !(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1);
+    let readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("slint_take_snapshot_wgpu_readback"),
+        size: (bytes_per_row * height) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback_buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: None,
+            },
+        },
+        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+    );
+    queue.submit(std::iter::once(encoder.finish()));
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        Err("take_snapshot is not supported by FemtoVG WGPU on wasm/WebGPU".into())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let slice = readback_buffer.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |r| {
+            let _ = tx.send(r);
+        });
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|e| format!("take_snapshot: device poll failed: {e}"))?;
+        rx.recv()
+            .map_err(|e| format!("take_snapshot: map_async callback was not delivered: {e}"))?
+            .map_err(|e| format!("take_snapshot: map_async failed: {e}"))?;
+
+        let mapped = slice
+            .get_mapped_range()
+            .map_err(|e| format!("take_snapshot: mapping the readback buffer failed: {e}"))?;
+        let mut pixels = SharedPixelBuffer::<Rgba8Pixel>::new(width, height);
+        let dst = pixels.make_mut_bytes();
+        for (row_idx, src_row) in mapped.chunks(bytes_per_row as usize).enumerate() {
+            let row_bytes = unpadded_bytes_per_row as usize;
+            let dst_start = row_idx * row_bytes;
+            dst[dst_start..dst_start + row_bytes].copy_from_slice(&src_row[..row_bytes]);
+        }
+        drop(mapped);
+        readback_buffer.unmap();
+
+        Ok(pixels)
+    }
+}
+
+impl WGPUBackend {
+    fn with_surface(
+        &self,
+        f: impl FnOnce(&wgpu::Surface<'static>, &wgpu::Device, &mut wgpu::SurfaceConfiguration),
+    ) {
+        let mut surface_config = self.surface_config.borrow_mut();
+        let Some(surface_config) = surface_config.as_mut() else { return };
+        let device = self.device.borrow();
+        let Some(device) = device.as_ref() else { return };
+        let surface = self.surface.borrow();
+        let Some(surface) = surface.as_ref() else { return };
+        f(surface, device, surface_config);
+    }
+}
+
+impl GraphicsBackend for WGPUBackend {
+    type Renderer = femtovg::renderer::WGPURenderer;
+    type WindowSurface = WGPUWindowSurface;
+    const NAME: &'static str = "WGPU";
+
+    fn new_suspended() -> Self {
+        Self {
+            instance: Default::default(),
+            device: Default::default(),
+            queue: Default::default(),
+            surface_config: Default::default(),
+            surface: Default::default(),
+            alpha_modes: Default::default(),
+            snapshot_output: Default::default(),
+        }
+    }
+
+    fn clear_graphics_context(&self) {
+        self.surface_config.borrow_mut().take();
+        self.alpha_modes.borrow_mut().clear();
+        self.surface.borrow_mut().take();
+        self.queue.borrow_mut().take();
+        self.device.borrow_mut().take();
+    }
+
+    fn begin_surface_rendering(
+        &self,
+    ) -> Result<BeginRendering<Self::WindowSurface>, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(snapshot_output) = self.snapshot_output.borrow().clone() {
+            return Ok(BeginRendering::Acquired(WGPUWindowSurface::Snapshot(snapshot_output)));
+        }
+        let surface = self.surface.borrow();
+        let Some(surface) = surface.as_ref() else {
+            return Ok(BeginRendering::Skipped(DrawOutcome::Skipped));
+        };
+        if !self.surface_config.borrow().as_ref().is_some_and(|cfg| cfg.width > 0 && cfg.height > 0)
+        {
+            return Ok(BeginRendering::Skipped(DrawOutcome::Skipped));
+        }
+        let frame = match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t) => t,
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                return Ok(BeginRendering::Skipped(DrawOutcome::Occluded));
+            }
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                return Ok(BeginRendering::Skipped(DrawOutcome::Timeout));
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err("WGPU surface validation error in get_current_texture".into());
+            }
+            stale @ (wgpu::CurrentSurfaceTexture::Outdated
+            | wgpu::CurrentSurfaceTexture::Suboptimal(_)
+            | wgpu::CurrentSurfaceTexture::Lost) => {
+                drop(stale);
+                let mut device = self.device.borrow_mut();
+                let device = device.as_mut().unwrap();
+                surface.configure(device, self.surface_config.borrow().as_ref().unwrap());
+                match surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(t) => t,
+                    _ => return Ok(BeginRendering::Skipped(DrawOutcome::Occluded)),
+                }
+            }
+        };
+        Ok(BeginRendering::Acquired(WGPUWindowSurface::Surface(frame)))
+    }
+
+    fn submit_commands(&self, commands: <Self::Renderer as femtovg::Renderer>::CommandBuffer) {
+        self.queue.borrow().as_ref().unwrap().submit(commands);
+    }
+
+    fn present_surface(
+        &self,
+        surface: Self::WindowSurface,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let WGPUWindowSurface::Surface(st) = surface {
+            self.queue.borrow().as_ref().unwrap().present(st);
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "unstable-wgpu-30")]
+    fn with_graphics_api<R>(
+        &self,
+        callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
+    ) -> Result<R, i_slint_core::platform::PlatformError> {
+        let instance = self.instance.borrow().clone();
+        let device = self.device.borrow().clone();
+        let queue = self.queue.borrow().clone();
+        if let (Some(instance), Some(device), Some(queue)) = (instance, device, queue) {
+            Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_30(
+                instance, device, queue,
+            ))))
+        } else {
+            Ok(callback(None))
+        }
+    }
+
+    #[cfg(not(feature = "unstable-wgpu-30"))]
+    fn with_graphics_api<R>(
+        &self,
+        callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
+    ) -> Result<R, i_slint_core::platform::PlatformError> {
+        Ok(callback(None))
+    }
+
+    fn take_snapshot_pixels(
+        &self,
+        _canvas: Option<crate::itemrenderer::CanvasRc<Self::Renderer>>,
+        width: u32,
+        height: u32,
+        render: &dyn Fn() -> Result<(), i_slint_core::platform::PlatformError>,
+    ) -> Option<
+        Result<
+            i_slint_core::graphics::SharedPixelBuffer<i_slint_core::graphics::Rgba8Pixel>,
+            i_slint_core::platform::PlatformError,
+        >,
+    > {
+        let device = self.device.borrow().clone()?;
+        let queue = self.queue.borrow().clone()?;
+        Some(wgpu_take_snapshot_pixels(
+            &device,
+            &queue,
+            &self.snapshot_output,
+            width,
+            height,
+            render,
+        ))
+    }
+
+    fn resize(
+        &self,
+        width: std::num::NonZeroU32,
+        height: std::num::NonZeroU32,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.with_surface(|surface, device, surface_config| {
+            // Prefer FIFO modes over possible Mailbox setting for frame pacing and better energy efficiency.
+            surface_config.present_mode = wgpu::PresentMode::AutoVsync;
+            surface_config.width = width.get();
+            surface_config.height = height.get();
+
+            surface.configure(device, surface_config);
+        });
+        Ok(())
+    }
+}
+
+impl FemtoVGRenderer<WGPUBackend> {
+    pub fn set_surface(
+        &self,
+        surface_target: impl Into<i_slint_core::graphics::wgpu_30::SurfaceTarget>,
+        size: PhysicalWindowSize,
+        requested_graphics_api: Option<RequestedGraphicsAPI>,
+        transparent: bool,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let (instance, adapter, device, queue, surface) =
+            i_slint_core::graphics::wgpu_30::init_instance_adapter_device_queue_surface(
+                surface_target,
+                requested_graphics_api,
+                /* rendering artifacts :( */
+                wgpu::Backends::GL,
+            )?;
+
+        self.configure_surface_from_init_result(
+            instance,
+            adapter,
+            device,
+            queue,
+            surface,
+            size,
+            transparent,
+        );
+        Ok(())
+    }
+    pub fn set_transparent(&self, transparent: bool) {
+        let Some(mode) =
+            composite_alpha_mode(transparent, &self.graphics_backend.alpha_modes.borrow())
+        else {
+            return;
+        };
+        self.graphics_backend.with_surface(|surface, device, surface_config| {
+            if surface_config.alpha_mode != mode {
+                surface_config.alpha_mode = mode;
+                surface.configure(device, surface_config);
+            }
+        });
+    }
+
+    pub fn configure_surface_from_init_result(
+        &self,
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        surface: wgpu::Surface<'static>,
+        size: PhysicalWindowSize,
+        transparent: bool,
+    ) {
+        let mut surface_config =
+            surface.get_default_config(&adapter, size.width, size.height).unwrap();
+
+        let swapchain_capabilities = surface.get_capabilities(&adapter);
+        let swapchain_format = swapchain_capabilities
+            .formats
+            .iter()
+            .find(|f| {
+                matches!(f, wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm)
+            })
+            .copied()
+            .unwrap_or_else(|| swapchain_capabilities.formats[0]);
+        surface_config.format = swapchain_format;
+
+        if let Some(mode) = composite_alpha_mode(transparent, &swapchain_capabilities.alpha_modes) {
+            surface_config.alpha_mode = mode;
+        }
+
+        if size.width > 0 && size.height > 0 {
+            surface.configure(&device, &surface_config);
+        }
+
+        *self.graphics_backend.instance.borrow_mut() = Some(instance.clone());
+        *self.graphics_backend.device.borrow_mut() = Some(device.clone());
+        *self.graphics_backend.queue.borrow_mut() = Some(queue.clone());
+        *self.graphics_backend.surface_config.borrow_mut() = Some(surface_config);
+        *self.graphics_backend.alpha_modes.borrow_mut() = swapchain_capabilities.alpha_modes;
+        *self.graphics_backend.surface.borrow_mut() = Some(surface);
+
+        let wgpu_renderer = femtovg::renderer::WGPURenderer::new(device, queue);
+        let femtovg_canvas = femtovg::Canvas::new_with_text_context(
+            wgpu_renderer,
+            crate::font_cache::FONT_CACHE.with(|cache| cache.borrow().text_context.clone()),
+        )
+        .unwrap();
+
+        let canvas = Rc::new(RefCell::new(femtovg_canvas));
+        self.reset_canvas(canvas);
+    }
+}
+
+struct TextureWindowSurface {
+    render_output: femtovg::renderer::WGPURenderOutput,
+}
+
+impl WindowSurface<femtovg::renderer::WGPURenderer> for TextureWindowSurface {
+    fn render_output(&self) -> impl Into<femtovg::renderer::WGPURenderOutput> {
+        self.render_output.clone()
+    }
+}
+
+struct WgpuTextureBackend {
+    instance: wgpu::Instance,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    render_output: RefCell<Option<femtovg::renderer::WGPURenderOutput>>,
+}
+
+impl GraphicsBackend for WgpuTextureBackend {
+    type Renderer = femtovg::renderer::WGPURenderer;
+    type WindowSurface = TextureWindowSurface;
+    const NAME: &'static str = "WGPU Texture";
+
+    fn new_suspended() -> Self {
+        panic!("Suspended backend not supported for WgpuTextureBackend (requires device/queue)");
+    }
+
+    fn clear_graphics_context(&self) {
+        // Nothing to clear here, we don't own the device/queue/texture
+    }
+
+    fn begin_surface_rendering(
+        &self,
+    ) -> Result<BeginRendering<Self::WindowSurface>, Box<dyn std::error::Error + Send + Sync>> {
+        let render_output =
+            self.render_output.borrow().clone().ok_or("No texture set for rendering")?;
+        Ok(BeginRendering::Acquired(TextureWindowSurface { render_output }))
+    }
+
+    fn submit_commands(&self, commands: <Self::Renderer as femtovg::Renderer>::CommandBuffer) {
+        self.queue.submit(commands);
+    }
+
+    fn present_surface(
+        &self,
+        _surface: Self::WindowSurface,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
+
+    #[cfg(feature = "unstable-wgpu-30")]
+    fn with_graphics_api<R>(
+        &self,
+        callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
+    ) -> Result<R, i_slint_core::platform::PlatformError> {
+        Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_30(
+            self.instance.clone(),
+            self.device.clone(),
+            self.queue.clone(),
+        ))))
+    }
+
+    #[cfg(not(feature = "unstable-wgpu-30"))]
+    fn with_graphics_api<R>(
+        &self,
+        callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
+    ) -> Result<R, i_slint_core::platform::PlatformError> {
+        Ok(callback(None))
+    }
+
+    fn resize(
+        &self,
+        _width: std::num::NonZeroU32,
+        _height: std::num::NonZeroU32,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
+
+    fn take_snapshot_pixels(
+        &self,
+        _canvas: Option<crate::itemrenderer::CanvasRc<Self::Renderer>>,
+        width: u32,
+        height: u32,
+        render: &dyn Fn() -> Result<(), i_slint_core::platform::PlatformError>,
+    ) -> Option<
+        Result<
+            i_slint_core::graphics::SharedPixelBuffer<i_slint_core::graphics::Rgba8Pixel>,
+            i_slint_core::platform::PlatformError,
+        >,
+    > {
+        Some(wgpu_take_snapshot_pixels(
+            &self.device,
+            &self.queue,
+            &self.render_output,
+            width,
+            height,
+            render,
+        ))
+    }
+}
+
+pub struct FemtoVGWGPURenderer(FemtoVGRenderer<WgpuTextureBackend>);
+
+impl FemtoVGWGPURenderer {
+    pub fn new(
+        instance: wgpu::Instance,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Result<Self, PlatformError> {
+        let backend = WgpuTextureBackend {
+            instance,
+            device: device.clone(),
+            queue: queue.clone(),
+            render_output: RefCell::new(None),
+        };
+        let renderer = FemtoVGRenderer::new_internal(backend);
+
+        let wgpu_renderer = femtovg::renderer::WGPURenderer::new(device, queue);
+        let femtovg_canvas = femtovg::Canvas::new_with_text_context(
+            wgpu_renderer,
+            crate::font_cache::FONT_CACHE.with(|cache| cache.borrow().text_context.clone()),
+        )
+        .map_err(|e| format!("Failed to create femtovg canvas: {:?}", e))?;
+
+        let canvas = Rc::new(RefCell::new(femtovg_canvas));
+        renderer.reset_canvas(canvas);
+        Ok(Self(renderer))
+    }
+
+    pub fn render_to_texture_view(
+        &self,
+        texture_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+    ) -> Result<(), PlatformError> {
+        *self.0.graphics_backend.render_output.borrow_mut() =
+            Some(femtovg::renderer::WGPURenderOutput {
+                view: texture_view.clone(),
+                width,
+                height,
+                format,
+            });
+        let result = self.0.render();
+        *self.0.graphics_backend.render_output.borrow_mut() = None;
+        result
+    }
+
+    pub fn render_to_texture(&self, texture: &wgpu::Texture) -> Result<(), PlatformError> {
+        let size = texture.size();
+        self.render_to_texture_view(
+            &texture.create_view(&wgpu::TextureViewDescriptor::default()),
+            size.width,
+            size.height,
+            texture.format(),
+        )
+    }
+}
+
+#[doc(hidden)]
+impl RendererSealed for FemtoVGWGPURenderer {
+    fn text_layout_cache(
+        &self,
+    ) -> Option<&i_slint_core::textlayout::sharedparley::TextLayoutCache> {
+        RendererSealed::text_layout_cache(&self.0)
+    }
+
+    fn set_rendering_notifier(
+        &self,
+        callback: Box<dyn i_slint_core::api::RenderingNotifier>,
+    ) -> Result<(), i_slint_core::api::SetRenderingNotifierError> {
+        self.0.set_rendering_notifier(callback)
+    }
+
+    fn free_graphics_resources(
+        &self,
+        component: i_slint_core::item_tree::ItemTreeRef,
+        items: &mut dyn Iterator<Item = Pin<i_slint_core::items::ItemRef<'_>>>,
+    ) -> Result<(), PlatformError> {
+        self.0.free_graphics_resources(component, items)
+    }
+
+    fn set_window_adapter(&self, window_adapter: &Rc<dyn i_slint_core::window::WindowAdapter>) {
+        self.0.set_window_adapter(window_adapter)
+    }
+
+    fn window_adapter(&self) -> Option<Rc<dyn i_slint_core::window::WindowAdapter>> {
+        RendererSealed::window_adapter(&self.0)
+    }
+
+    fn resize(&self, size: i_slint_core::api::PhysicalSize) -> Result<(), PlatformError> {
+        self.0.resize(size)
+    }
+
+    fn take_snapshot(
+        &self,
+    ) -> Result<
+        i_slint_core::graphics::SharedPixelBuffer<i_slint_core::graphics::Rgba8Pixel>,
+        PlatformError,
+    > {
+        self.0.take_snapshot()
+    }
+
+    fn supports_transformations(&self) -> bool {
+        self.0.supports_transformations()
+    }
+}
