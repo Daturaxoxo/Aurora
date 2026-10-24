@@ -83,10 +83,18 @@ pub fn migrate_legacy_runtime_data(
     bin: &Path,
     committed: CommittedLayout,
     post_update: bool,
+    bundled: &[SafeRelativePath],
 ) -> Result<()> {
     let id = &game.descriptor().id;
     let roots = PayloadRoots::new(bin.to_path_buf());
-    let owned = &game.descriptor().payload_files;
+    let owned: Vec<SafeRelativePath> = game
+        .descriptor()
+        .payload_files
+        .iter()
+        .chain(bundled)
+        .cloned()
+        .collect();
+    let owned = &owned;
     let evidence = UpgradeEvidence {
         post_update,
         committed,
@@ -191,6 +199,15 @@ pub fn staging_root(target_root: &Path) -> PathBuf {
     let mut name = target_root.as_os_str().to_os_string();
     name.push(STAGING_SUFFIX);
     PathBuf::from(name)
+}
+
+pub fn bundled_runtime_files(bundled_target: &Path) -> Result<Vec<SafeRelativePath>> {
+    let mut report = MigrationReport::default();
+    let mut files = Vec::new();
+    for dir in RUNTIME_DIRS {
+        files.extend(collect_files(bundled_target, dir, &mut report)?);
+    }
+    Ok(files)
 }
 
 pub fn legacy_payload(bin: &Path) -> bool {
