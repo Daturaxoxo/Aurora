@@ -959,7 +959,6 @@ export component SettingsPage inherits Rectangle {
     callback telemetry-opt-out-changed(bool);
 
     private property <int> focus-release: 0;
-    private property <length> content-max-width: 1000px;
 
     // SEARCH
     pure callback search-filter([SearchEntry], string) -> [SearchEntry];
@@ -1277,7 +1276,7 @@ export component SettingsPage inherits Rectangle {
             content-column := VerticalLayout {
                 x: 27px;
                 y: 21px;
-                width: min(parent.width - 46px, root.content-max-width + 16px);
+                width: parent.width - 46px;
                 height: parent.height - 40px;
                 spacing: 18px;
 
