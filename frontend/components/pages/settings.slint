@@ -973,6 +973,7 @@ export component SettingsPage inherits Rectangle {
         { title: Tr.values[TrKey.settings-remember-window-size-title], subtitle: Tr.values[TrKey.settings-remember-window-size-subtitle], tab: 0, enabled: true },
         { title: Tr.values[TrKey.settings-reset-window-size-title], subtitle: Tr.values[TrKey.settings-reset-window-size-subtitle], tab: 0, enabled: true },
         { title: Tr.values[TrKey.settings-discord-rpc-title], subtitle: Tr.values[TrKey.settings-discord-rpc-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-steam-shortcut-title], subtitle: Tr.values[TrKey.settings-steam-shortcut-subtitle], tab: 0, enabled: true },
         { title: Tr.values[TrKey.settings-game-directory-title], subtitle: root.game-directory, tab: 1, enabled: true },
         { title: Tr.values[TrKey.settings-engine-method-title], subtitle: Tr.values[TrKey.settings-engine-method-subtitle], tab: 1, enabled: root.engine-settings },
         { title: Tr.values[TrKey.settings-start-method-title], subtitle: Tr.values[TrKey.settings-start-method-subtitle], tab: 1, enabled: root.start-method-choice },
@@ -1346,15 +1347,6 @@ export component SettingsPage inherits Rectangle {
                                         font-size: 13px;
                                     }
                                 }
-
-                                SettingRow {
-                                    title: Tr.values[TrKey.settings-steam-shortcut-title];
-                                    subtitle: Tr.values[TrKey.settings-steam-shortcut-subtitle];
-                                    CardButton {
-                                        text: Tr.values[TrKey.settings-steam-shortcut-button];
-                                        clicked => { root.add-steam-shortcut(); }
-                                    }
-                                }
                             }
                         }
                     }
@@ -1462,6 +1454,17 @@ export component SettingsPage inherits Rectangle {
                                         ToggleSwitch {
                                             checked <=> root.discord-rpc;
                                             toggled => { root.discord-rpc-changed(self.checked); }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-steam-shortcut-title];
+                                        subtitle: Tr.values[TrKey.settings-steam-shortcut-subtitle];
+                                        CardButton {
+                                            text: Tr.values[TrKey.settings-steam-shortcut-button];
+                                            clicked => { root.add-steam-shortcut(); }
                                         }
                                     }
                                 }
