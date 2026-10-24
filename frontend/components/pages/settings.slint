@@ -258,18 +258,17 @@ component TabButton inherits Rectangle {
 component FooterIconButton inherits Rectangle {
     in property <image> icon;
     callback clicked();
-
     horizontal-stretch: 1;
-    height: 28px;
-    border-radius: 7px;
+    height: 34px;
+    border-radius: 8px;
     background: ta.pressed ? Palette.fg-18 : (ta.has-hover ? Palette.fg-12 : Palette.fg-06);
 
     animate background { duration: 100ms; }
 
     Image {
         source: root.icon;
-        width: 15px;
-        height: 15px;
+        width: 19px;
+        height: 19px;
         image-rendering: smooth;
         image-fit: contain;
         opacity: ta.has-hover ? 1.0 : 0.65;

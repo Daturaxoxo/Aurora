@@ -205,7 +205,11 @@ impl<R: femtovg::Renderer + TextureImporter> Texture<R> {
             _ => {
                 let buffer = image.render_to_buffer(target_size_for_scalable_source)?;
                 let (image_source, flags) = image_buffer_to_image_source(&buffer);
-                canvas.borrow_mut().create_image(image_source, image_flags | flags).unwrap()
+                let mipmaps = match scaling {
+                    ImageRendering::Smooth => femtovg::ImageFlags::GENERATE_MIPMAPS,
+                    _ => femtovg::ImageFlags::empty(),
+                };
+                canvas.borrow_mut().create_image(image_source, image_flags | flags | mipmaps).unwrap()
             }
         };
 
