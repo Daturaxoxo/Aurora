@@ -47,6 +47,7 @@ sysinfo = { workspace = true }
 md5 = { workspace = true }
 open = { workspace = true }
 percent-encoding = { workspace = true }
+crc32fast = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true }

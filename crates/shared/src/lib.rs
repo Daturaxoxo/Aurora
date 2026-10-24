@@ -11,6 +11,7 @@ pub mod oneclick;
 pub mod pathfind;
 #[cfg(target_os = "windows")]
 pub mod repair;
+pub mod steam_shortcut;
 pub mod telemetry;
 pub mod utils;
 pub mod classes {

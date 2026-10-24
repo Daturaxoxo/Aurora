@@ -33,6 +33,7 @@ config.json
 *.disabled
 *.md5
 *.zip
+*.url
 /Bin/Lua
 /Bin/*/Lua/
 AuroraTF.asi

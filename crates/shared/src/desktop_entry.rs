@@ -203,10 +203,7 @@ fn install_inner_linux(exe: &Path) -> Result<()> {
     let data_dir =
         dirs::data_dir().ok_or_else(|| anyhow!("could not resolve the data directory"))?;
 
-    let icon_path = data_dir
-        .join("icons/hicolor/64x64/apps")
-        .join(format!("{APP_ID}.png"));
-    write_if_changed(&icon_path, ICON)?;
+    install_icon()?;
 
     let applications = data_dir.join("applications");
     let entry_path = applications.join(format!("{APP_ID}.desktop"));
@@ -224,6 +221,17 @@ fn install_inner_linux(exe: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn install_icon() -> Result<std::path::PathBuf> {
+    let icon_path = dirs::data_dir()
+        .ok_or_else(|| anyhow!("could not resolve the data directory"))?
+        .join("icons/hicolor/64x64/apps")
+        .join(format!("{APP_ID}.png"));
+    write_if_changed(&icon_path, ICON)?;
+
+    Ok(icon_path)
 }
 
 #[cfg(target_os = "linux")]

@@ -382,3 +382,37 @@ pub fn prepare_legacy_runtime_data(
 
     Ok(report)
 }
+
+pub fn remove_migrated_sources(
+    request: &LegacyRuntimeMigrationRequest,
+    report: &MigrationReport,
+) -> Result<usize> {
+    let target_root = request.target.root();
+    let mut removed = 0;
+
+    for rel in report.copied.iter().chain(&report.identical) {
+        let src = rel.resolve_under(&request.source);
+        if !same_contents(&src, &rel.resolve_under(target_root))? {
+            continue;
+        }
+        fs::remove_file(&src).with_context(|| format!("could not remove {}", src.display()))?;
+        removed += 1;
+    }
+
+    for dir in RUNTIME_DIRS {
+        prune_empty_dirs(&request.source.join(dir));
+    }
+    Ok(removed)
+}
+
+fn prune_empty_dirs(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            prune_empty_dirs(&entry.path());
+        }
+    }
+    let _ = fs::remove_dir(dir);
+}

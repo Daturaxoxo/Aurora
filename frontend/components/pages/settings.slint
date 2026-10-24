@@ -945,6 +945,7 @@ export component SettingsPage inherits Rectangle {
     callback discord-rpc-changed(bool);
     callback remember-window-size-changed(bool);
     callback reset-window-size();
+    callback add-steam-shortcut();
     callback engine-method-index-changed(int);
     callback start-method-index-changed(int);
     callback engine-scale-changed(int);
@@ -1345,6 +1346,15 @@ export component SettingsPage inherits Rectangle {
                                         text: Tr.values[TrKey.settings-search-empty];
                                         color: Palette.text-secondary;
                                         font-size: 13px;
+                                    }
+                                }
+
+                                SettingCard {
+                                    title: Tr.values[TrKey.settings-steam-shortcut-title];
+                                    subtitle: Tr.values[TrKey.settings-steam-shortcut-subtitle];
+                                    CardButton {
+                                        text: Tr.values[TrKey.settings-steam-shortcut-button];
+                                        clicked => { root.add-steam-shortcut(); }
                                     }
                                 }
                             }

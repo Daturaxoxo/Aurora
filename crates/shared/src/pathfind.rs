@@ -543,7 +543,7 @@ fn steam_libraries() -> Vec<PathBuf> {
 }
 
 #[cfg(windows)]
-fn registry_string(hive: isize, subkey: &str, value: &str) -> Option<PathBuf> {
+pub(crate) fn registry_string(hive: isize, subkey: &str, value: &str) -> Option<PathBuf> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
     use windows_sys::Win32::System::Registry::RegGetValueW;
