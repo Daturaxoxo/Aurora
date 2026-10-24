@@ -5,7 +5,7 @@ edition = "2024"
 default-run = "Aurora"
 
 [features]
-default = []
+default = ["beta"]
 beta = []
 
 [dependencies]
