@@ -25,6 +25,13 @@ export struct ThemeChoice {
     selected: bool,
 }
 
+export struct SearchEntry {
+    title: string,
+    subtitle: string,
+    tab: int,
+    enabled: bool,
+}
+
 export struct IconPackChoice {
     id: string,
     name: string,
@@ -41,10 +48,10 @@ component ToggleSwitch inherits Rectangle {
     in-out property <bool> checked;
     callback toggled();
 
-    width: 44px;
-    height: 24px;
-    border-radius: 12px;
-    background: root.checked ? Palette.success : Palette.fg-28;
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: root.checked ? Palette.success : (ta.has-hover ? Palette.fg-33 : Palette.fg-28);
 
     animate background { duration: 150ms; }
 
@@ -53,7 +60,10 @@ component ToggleSwitch inherits Rectangle {
         height: 16px;
         border-radius: 8px;
         background: Palette.text-primary;
-        x: root.checked ? parent.width - self.width - 4px : 4px;
+        drop-shadow-color: Palette.shade-40;
+        drop-shadow-blur: 3px;
+        drop-shadow-offset-y: 1px;
+        x: root.checked ? parent.width - self.width - 3px : 3px;
 
         animate x {
             duration: 150ms;
@@ -61,7 +71,8 @@ component ToggleSwitch inherits Rectangle {
         }
     }
 
-    TouchArea {
+    ta := TouchArea {
+        mouse-cursor: pointer;
         clicked => {
             root.checked = !root.checked;
             root.toggled();
@@ -73,45 +84,50 @@ export component Dropdown inherits Rectangle {
     in property <[string]> options: [];
     in-out property <int> selected-index: 0;
     out property <bool> opened: popup.is-open;
-    // Rows from this index on get a remove button; -1 hides them all.
     in property <int> removable-from: -1;
-
     callback selection-changed(int);
     callback remove-requested(int);
 
-    width: 140px;
+    width: 150px;
     height: 32px;
-    background: Palette.card-background;
-    border-radius: 6px;
+    background: dropdown-ta.has-hover ? Palette.fg-10 : Palette.fg-08;
+    border-radius: 8px;
     border-width: 1px;
-    border-color: Palette.glass-border;
+    border-color: root.opened ? Palette.fg-30 : Palette.fg-18;
+    animate background { duration: 100ms; }
+    animate border-color { duration: 100ms; }
 
     HorizontalLayout {
         padding-left: 12px;
-        padding-right: 12px;
-        alignment: space-between;
+        padding-right: 10px;
+        spacing: 8px;
 
         Text {
+            horizontal-stretch: 1;
             text: root.options[root.selected-index];
             color: Palette.text-primary;
             font-size: 13px;
             vertical-alignment: center;
+            overflow: elide;
         }
 
         VerticalLayout {
             alignment: center;
             Image {
                 source: Icons.down;
-                width: 16px;
-                height: 16px;
+                width: 14px;
+                height: 14px;
                 image-rendering: smooth;
                 image-fit: contain;
                 opacity: 0.7;
+                transform-rotation: root.opened ? 180deg : 0deg;
+                animate transform-rotation { duration: 150ms; easing: ease-out; }
             }
         }
     }
 
-    TouchArea {
+    dropdown-ta := TouchArea {
+        mouse-cursor: pointer;
         clicked => { popup.show(); }
     }
 
@@ -122,27 +138,32 @@ export component Dropdown inherits Rectangle {
 
         Rectangle {
             background: Palette.surface;
-            border-radius: 6px;
+            border-radius: 8px;
             border-width: 1px;
             border-color: Palette.fg-28;
+            drop-shadow-color: Palette.shade-66;
+            drop-shadow-blur: 16px;
+            drop-shadow-offset-y: 6px;
 
             VerticalLayout {
                 padding: 4px;
                 spacing: 2px;
                 for option[index] in root.options: Rectangle {
-                    height: 28px;
-                    border-radius: 4px;
-                    background: item-ta.has-hover ? Palette.fg-10 : transparent;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: item-ta.has-hover ? Palette.fg-10 : (index == root.selected-index ? Palette.fg-08 : transparent);
 
                     Text {
                         text: option;
-                        x: 8px;
-                        color: Palette.text-primary;
+                        x: 10px;
+                        color: index == root.selected-index ? Palette.text-primary : Palette.fg-cc;
                         font-size: 13px;
+                        font-weight: index == root.selected-index ? 600 : 400;
                         vertical-alignment: center;
                     }
 
                     item-ta := TouchArea {
+                        mouse-cursor: pointer;
                         clicked => {
                             root.selected-index = index;
                             root.selection-changed(index);
@@ -150,7 +171,7 @@ export component Dropdown inherits Rectangle {
                     }
 
                     if root.removable-from >= 0 && index >= root.removable-from: Rectangle {
-                        x: parent.width - self.width - 4px;
+                        x: parent.width - self.width - 5px;
                         width: 20px;
                         height: 20px;
                         border-radius: 4px;
@@ -176,55 +197,166 @@ export component Dropdown inherits Rectangle {
 
 component TabButton inherits Rectangle {
     in property <string> text;
+    in property <image> icon;
     in property <bool> active;
     callback clicked();
 
-    height: 38px;
-    border-radius: 8px;
-    background: root.active ? Palette.fg-0c : (ta.has-hover ? Palette.fg-04 : transparent);
-
-    border-width: 1px;
-    border-color: root.active
-        ? Palette.glass-border
-        : (ta.has-hover
-            ? @linear-gradient(135deg, Palette.fg-1b 0%, Palette.fg-09 100%)
-            : @linear-gradient(135deg, Palette.fg-12 0%, Palette.fg-06 100%));
+    height: 42px;
+    border-radius: 9px;
+    background: root.active ? Palette.fg-10 : (ta.has-hover ? Palette.fg-06 : transparent);
 
     animate background { duration: 120ms; }
-    animate border-color { duration: 120ms; }
 
-    ta := TouchArea {
-        clicked => { root.clicked(); }
+    Rectangle {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: 3px;
+        height: root.active ? 18px : 0px;
+        border-radius: 1.5px;
+        background: Palette.accent;
+
+        animate height { duration: 150ms; easing: ease-out; }
     }
 
-    Text {
-        text: root.text;
-        x: 16px;
-        color: root.active ? Palette.text-primary : (ta.has-hover ? Palette.text-primary : Palette.text-secondary);
-        font-size: 14px;
-        font-weight: root.active ? 600 : 400;
-        vertical-alignment: center;
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 12px;
+        spacing: 12px;
 
-        animate color { duration: 120ms; }
+        VerticalLayout {
+            alignment: center;
+            Image {
+                source: root.icon;
+                width: 18px;
+                height: 18px;
+                image-rendering: smooth;
+                image-fit: contain;
+                opacity: root.active ? 1.0 : (ta.has-hover ? 0.85 : 0.55);
+                animate opacity { duration: 120ms; }
+            }
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: root.text;
+            color: (root.active || ta.has-hover) ? Palette.text-primary : Palette.text-secondary;
+            font-size: 15px;
+            font-weight: root.active ? 600 : 500;
+            vertical-alignment: center;
+            overflow: elide;
+
+            animate color { duration: 120ms; }
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
     }
 }
 
-component SettingCard inherits Rectangle {
-    in property <string> title;
-    in property <string> subtitle;
+component FooterIconButton inherits Rectangle {
+    in property <image> icon;
+    callback clicked();
 
+    horizontal-stretch: 1;
+    height: 28px;
+    border-radius: 7px;
+    background: ta.pressed ? Palette.fg-18 : (ta.has-hover ? Palette.fg-12 : Palette.fg-06);
+
+    animate background { duration: 100ms; }
+
+    Image {
+        source: root.icon;
+        width: 15px;
+        height: 15px;
+        image-rendering: smooth;
+        image-fit: contain;
+        opacity: ta.has-hover ? 1.0 : 0.65;
+        animate opacity { duration: 100ms; }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SectionLabel inherits Text {
+    color: Palette.text-secondary;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+
+component SectionBox inherits Rectangle {
     background: Palette.card-background;
     border-radius: 12px;
     border-width: 1px;
     border-color: Palette.glass-border;
 
+    VerticalLayout {
+        padding: 4px;
+        spacing: 0px;
+        @children
+    }
+}
+
+component Section inherits VerticalLayout {
+    in property <string> label;
+    spacing: 8px;
+
     HorizontalLayout {
-        padding: 16px;
-        padding-right: 20px;
-        alignment: space-between;
+        padding-left: 4px;
+        SectionLabel { text: root.label; }
+    }
+
+    SectionBox {
+        @children
+    }
+}
+
+component RowDivider inherits Rectangle {
+    height: 1px;
+
+    Rectangle {
+        x: 14px;
+        width: parent.width - 28px;
+        height: 1px;
+        background: Palette.fg-0e;
+    }
+}
+
+component SettingRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> clickable: false;
+    in property <image> trailing-icon: Icons.down;
+    in property <angle> trailing-rotation: -90deg;
+    callback clicked();
+
+    min-height: 60px;
+    border-radius: 8px;
+    background: (root.clickable && row-ta.has-hover) ? Palette.fg-0a : transparent;
+
+    animate background { duration: 100ms; }
+
+    row-ta := TouchArea {
+        enabled: root.clickable;
+        mouse-cursor: root.clickable ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 20px;
 
         VerticalLayout {
-            spacing: 4px;
+            horizontal-stretch: 1;
+            spacing: 3px;
             alignment: center;
 
             Text {
@@ -234,17 +366,37 @@ component SettingCard inherits Rectangle {
                 font-weight: 600;
             }
 
-            Text {
+            if root.subtitle != "": Text {
                 text: root.subtitle;
-                color: Palette.fg-cc;
+                color: Palette.fg-aa;
                 font-size: 12px;
                 wrap: word-wrap;
             }
         }
 
-        VerticalLayout {
-            alignment: center;
-            @children
+        HorizontalLayout {
+            horizontal-stretch: 0;
+            spacing: 12px;
+            alignment: end;
+
+            VerticalLayout {
+                alignment: center;
+                @children
+            }
+
+            if root.clickable: VerticalLayout {
+                alignment: center;
+                Image {
+                    source: root.trailing-icon;
+                    transform-rotation: root.trailing-rotation;
+                    width: 14px;
+                    height: 14px;
+                    image-rendering: smooth;
+                    image-fit: contain;
+                    opacity: row-ta.has-hover ? 1.0 : 0.45;
+                    animate opacity { duration: 100ms; }
+                }
+            }
         }
     }
 }
@@ -254,7 +406,7 @@ component LinkButton inherits Rectangle {
     callback clicked();
 
     height: 24px;
-    border-radius: 4px;
+    border-radius: 6px;
     background: link-ta.has-hover ? Palette.fg-0c : transparent;
 
     animate background { duration: 100ms; }
@@ -336,7 +488,7 @@ component CommitTextInput inherits Rectangle {
         Rectangle {
             width: root.input-width;
             height: 32px;
-            border-radius: 6px;
+            border-radius: 8px;
             background: Palette.fg-08;
             border-width: 1px;
             border-color: input.input-focused ? Palette.accent : Palette.fg-18;
@@ -369,114 +521,102 @@ component CardButton inherits Rectangle {
     callback clicked();
     min-width: 76px;
     height: 32px;
-    background: card-btn-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
-    border-radius: 6px;
+    background: card-btn-ta.pressed ? Palette.fg-18 : (card-btn-ta.has-hover ? Palette.fg-14 : Palette.fg-08);
+    border-radius: 8px;
     border-width: 1px;
-    border-color: Palette.fg-18;
+    border-color: card-btn-ta.has-hover ? Palette.fg-24 : Palette.fg-18;
 
     animate background { duration: 100ms; }
+    animate border-color { duration: 100ms; }
 
     HorizontalLayout {
-        padding-left: 12px;
-        padding-right: 12px;
+        padding-left: 14px;
+        padding-right: 14px;
         alignment: center;
 
         Text {
             text: root.text;
             color: Palette.text-primary;
             font-size: 13px;
+            font-weight: 500;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
     }
 
     card-btn-ta := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 }
 
-component SectionBox inherits Rectangle {
-    background: Palette.card-background;
-    border-radius: 12px;
+component ThemeThumb inherits Rectangle {
+    in property <ThemeChoice> choice;
+
+    width: 64px;
+    height: 36px;
+    border-radius: 6px;
+    clip: true;
+    background: root.choice.backdrop;
     border-width: 1px;
-    border-color: Palette.glass-border;
+    border-color: Palette.fg-18;
 
-    VerticalLayout {
-        padding: 6px;
-        spacing: 0px;
-        @children
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.choice.preview;
+        image-fit: cover;
+        image-rendering: smooth;
     }
-}
 
-component RowDivider inherits Rectangle {
-    height: 1px;
-    background: Palette.fg-0e;
-}
-
-component InfoRow inherits Rectangle {
-    in property <string> title;
-    in property <string> subtitle;
-    in property <bool> clickable: false;
-    callback clicked();
-
-    border-radius: 8px;
-    background: (root.clickable && row-ta.has-hover) ? Palette.fg-0a : transparent;
-
-    animate background { duration: 100ms; }
-
-    row-ta := TouchArea {
-        enabled: root.clickable;
-        mouse-cursor: root.clickable ? MouseCursor.pointer : MouseCursor.default;
-        clicked => { root.clicked(); }
+    Rectangle {
+        background: @linear-gradient(180deg, root.choice.scrim-top 0%, root.choice.scrim-bottom 100%);
     }
 
     HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
-        padding-top: 13px;
-        padding-bottom: 13px;
-        spacing: 16px;
-        alignment: space-between;
+        padding: 5px;
+        spacing: 3px;
+        alignment: start;
 
         VerticalLayout {
-            spacing: 4px;
-            alignment: center;
-
-            Text {
-                text: root.title;
-                color: Palette.text-primary;
-                font-size: 14px;
-                font-weight: 600;
-            }
-
-            if root.subtitle != "": Text {
-                text: root.subtitle;
-                color: Palette.fg-cc;
-                font-size: 12px;
-                wrap: word-wrap;
+            alignment: end;
+            HorizontalLayout {
+                spacing: 3px;
+                for swatch in [root.choice.accent, root.choice.text-primary, root.choice.text-secondary]: Rectangle {
+                    width: 7px;
+                    height: 7px;
+                    border-radius: 3.5px;
+                    background: swatch;
+                    border-width: 1px;
+                    border-color: Palette.shade-44;
+                }
             }
         }
+    }
+}
 
-        HorizontalLayout {
-            spacing: 12px;
-            alignment: end;
+component IconPackStrip inherits Rectangle {
+    in property <IconPackChoice> choice;
 
-            VerticalLayout {
-                alignment: center;
-                @children
-            }
+    height: 30px;
+    border-radius: 6px;
+    background: root.choice.contrast.mix(root.choice.tint, 0.92);
+    border-width: 1px;
+    border-color: Palette.fg-18;
 
-            if root.clickable: VerticalLayout {
-                alignment: center;
-                Image {
-                    source: Icons.link;
-                    width: 14px;
-                    height: 14px;
-                    image-rendering: smooth;
-                    image-fit: contain;
-                    opacity: row-ta.has-hover ? 1.0 : 0.45;
-                    animate opacity { duration: 100ms; }
-                }
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 8px;
+
+        for sample in [root.choice.sample-1, root.choice.sample-2, root.choice.sample-3, root.choice.sample-4]: VerticalLayout {
+            alignment: center;
+            Image {
+                source: sample;
+                width: 14px;
+                height: 14px;
+                image-fit: contain;
+                image-rendering: smooth;
             }
         }
     }
@@ -725,6 +865,11 @@ component TabPage inherits Rectangle {
     @children
 }
 
+component PageScroll inherits ScrollView {
+    in property <length> content-min-height;
+    content-height: root.content-min-height + 24px;
+}
+
 // MAIN
 export component SettingsPage inherits Rectangle {
     callback close-settings();
@@ -814,9 +959,60 @@ export component SettingsPage inherits Rectangle {
     callback telemetry-opt-out-changed(bool);
 
     private property <int> focus-release: 0;
+    private property <length> content-max-width: 1000px;
+
+    // SEARCH
+    pure callback search-filter([SearchEntry], string) -> [SearchEntry];
+    private property <string> search-query: "";
+    private property <bool> searching: root.search-query != "";
+    private property <[SearchEntry]> search-hits: root.searching ? root.search-filter(root.search-index, root.search-query) : [];
+    private property <[SearchEntry]> search-index: [
+        { title: Tr.values[TrKey.settings-theme-title], subtitle: root.theme-name, tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-icon-pack-title], subtitle: root.icon-pack-name, tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-language-title], subtitle: Tr.values[TrKey.settings-language-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-interface-minimization-title], subtitle: Tr.values[TrKey.settings-interface-minimization-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-remember-window-size-title], subtitle: Tr.values[TrKey.settings-remember-window-size-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-reset-window-size-title], subtitle: Tr.values[TrKey.settings-reset-window-size-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-discord-rpc-title], subtitle: Tr.values[TrKey.settings-discord-rpc-subtitle], tab: 0, enabled: true },
+        { title: Tr.values[TrKey.settings-game-directory-title], subtitle: root.game-directory, tab: 1, enabled: true },
+        { title: Tr.values[TrKey.settings-engine-method-title], subtitle: Tr.values[TrKey.settings-engine-method-subtitle], tab: 1, enabled: root.engine-settings },
+        { title: Tr.values[TrKey.settings-start-method-title], subtitle: Tr.values[TrKey.settings-start-method-subtitle], tab: 1, enabled: root.start-method-choice },
+        { title: Tr.values[TrKey.settings-ignore-checksum-title], subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle], tab: 1, enabled: root.engine-settings },
+        { title: Tr.values[TrKey.settings-launch-args-title], subtitle: Tr.values[TrKey.settings-launch-args-subtitle], tab: 1, enabled: root.engine-settings },
+        { title: Tr.values[TrKey.settings-engine-scale-title], subtitle: Tr.values[TrKey.settings-engine-scale-subtitle], tab: 1, enabled: root.engine-settings && root.show-engine-scale },
+        { title: Tr.values[TrKey.settings-linux-args-title], subtitle: Tr.values[TrKey.settings-linux-args-subtitle], tab: 3, enabled: root.is-linux },
+        { title: Tr.values[TrKey.settings-proton-version-title], subtitle: Tr.values[TrKey.settings-proton-version-subtitle], tab: 3, enabled: root.is-linux },
+        { title: Tr.values[TrKey.settings-desktop-entry-title], subtitle: Tr.values[TrKey.settings-desktop-entry-subtitle], tab: 3, enabled: root.is-linux },
+        { title: Tr.values[TrKey.settings-developer-mode-title], subtitle: Tr.values[TrKey.settings-developer-mode-subtitle], tab: 2, enabled: true },
+        { title: Tr.values[TrKey.settings-export-telemetry-title], subtitle: Tr.values[TrKey.settings-export-telemetry-subtitle], tab: 2, enabled: true },
+        { title: Tr.values[TrKey.settings-telemetry-opt-out-title], subtitle: Tr.values[TrKey.settings-telemetry-opt-out-subtitle], tab: 4, enabled: true },
+        { title: Tr.values[TrKey.settings-about-version-title], subtitle: root.app-version, tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-contributors-title], subtitle: Tr.values[TrKey.settings-about-contributors-subtitle], tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-website-title], subtitle: "getaurora.moe", tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-discord-title], subtitle: "discord.gg/565jfeYsbp", tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-github-title], subtitle: "github.com/Daturaxoxo/Aurora", tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-docs-title], subtitle: "docs.getaurora.moe", tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-license-title], subtitle: Tr.values[TrKey.settings-about-license-subtitle], tab: 5, enabled: true },
+        { title: Tr.values[TrKey.settings-about-terms-title], subtitle: Tr.values[TrKey.settings-about-terms-subtitle], tab: 5, enabled: true },
+    ];
+
+    pure function tab-name(tab: int) -> string {
+        tab == 0 ? Tr.values[TrKey.settings-tab-general] :
+            tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
+            tab == 3 ? Tr.values[TrKey.settings-tab-linux] :
+            tab == 4 ? Tr.values[TrKey.settings-tab-privacy] :
+            tab == 5 ? Tr.values[TrKey.settings-tab-about] : Tr.values[TrKey.settings-tab-developer]
+    }
 
     function release-focus() {
         root.focus-release += 1;
+        key-scope.focus();
+    }
+
+    function select-tab(tab: int) {
+        root.release-focus();
+        root.search-query = "";
+        root.active-tab = tab;
     }
 
     background: Palette.panel-background;
@@ -827,536 +1023,679 @@ export component SettingsPage inherits Rectangle {
     drop-shadow-blur: 25px;
     drop-shadow-offset-y: 10px;
 
+    init => { key-scope.focus(); }
+
+    key-scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                if (root.searching) {
+                    root.search-query = "";
+                } else if (root.theme-pending-delete != "") {
+                    root.theme-pending-delete = "";
+                } else if (root.theme-picker-open) {
+                    root.theme-picker-open = false;
+                } else if (root.icon-pack-picker-open) {
+                    root.icon-pack-picker-open = false;
+                } else {
+                    root.close-settings();
+                }
+                return accept;
+            }
+            reject
+        }
+    }
+
     TouchArea {
         clicked => { root.release-focus(); }
     }
 
     HorizontalLayout {
-        padding: 24px;
-        spacing: 32px;
+        padding: 1px;
+        spacing: 0px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
         Rectangle {
-            width: 180px;
+            width: 256px;
+            background: Palette.shade-33;
+            border-top-left-radius: 15px;
+            border-bottom-left-radius: 15px;
 
             VerticalLayout {
-                spacing: 8px;
+                padding: 20px;
+                padding-top: 21px;
+                spacing: 4px;
 
-                VerticalLayout {
+                HorizontalLayout {
+                    height: 32px;
+                    padding-left: 10px;
                     vertical-stretch: 0;
-                    padding-left: 8px;
-                    padding-bottom: 12px;
+
                     Text {
                         text: Tr.values[TrKey.settings-panel-title];
-                        color: Palette.text-secondary;
-                        font-size: 11px;
+                        color: Palette.text-primary;
+                        font-size: 24px;
                         font-weight: 700;
+                        vertical-alignment: center;
                     }
+                }
+
+                Rectangle {
+                    height: 12px;
+                    vertical-stretch: 0;
+                }
+
+                Rectangle {
+                    height: 38px;
+                    vertical-stretch: 0;
+                    border-radius: 9px;
+                    background: search-input.input-focused ? Palette.fg-0c : Palette.fg-08;
+                    border-width: 1px;
+                    border-color: search-input.input-focused ? Palette.fg-30 : Palette.fg-12;
+
+                    animate background { duration: 100ms; }
+                    animate border-color { duration: 100ms; }
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 8px;
+                        spacing: 10px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Image {
+                                source: Icons.search;
+                                width: 16px;
+                                height: 16px;
+                                image-rendering: smooth;
+                                image-fit: contain;
+                                opacity: search-input.input-focused ? 0.9 : 0.55;
+                            }
+                        }
+
+                        search-input := ScrollingTextInput {
+                            horizontal-stretch: 1;
+                            text-padding: 0px;
+                            font-size: 14px;
+                            text <=> root.search-query;
+                            placeholder: Tr.values[TrKey.settings-search-placeholder];
+                        }
+
+                        if root.search-query != "": VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 20px;
+                                height: 20px;
+                                border-radius: 5px;
+                                background: clear-ta.has-hover ? Palette.fg-14 : transparent;
+
+                                Image {
+                                    source: Icons.close;
+                                    width: 10px;
+                                    height: 10px;
+                                    image-rendering: smooth;
+                                    opacity: clear-ta.has-hover ? 1.0 : 0.6;
+                                }
+
+                                clear-ta := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { root.search-query = ""; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 10px;
+                    vertical-stretch: 0;
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-general];
-                    active: root.active-tab == 0;
-                    clicked => { root.release-focus(); root.active-tab = 0; }
+                    icon: Icons.settings-general;
+                    active: !root.searching && root.active-tab == 0;
+                    clicked => { root.select-tab(0); }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-launcher];
-                    active: root.active-tab == 1;
-                    clicked => { root.release-focus(); root.active-tab = 1; }
+                    icon: Icons.settings-launcher;
+                    active: !root.searching && root.active-tab == 1;
+                    clicked => { root.select-tab(1); }
                 }
 
                 if root.is-linux: TabButton {
                     text: Tr.values[TrKey.settings-tab-linux];
-                    active: root.active-tab == 3;
-                    clicked => { root.release-focus(); root.active-tab = 3; }
+                    icon: Icons.settings-linux;
+                    active: !root.searching && root.active-tab == 3;
+                    clicked => { root.select-tab(3); }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-developer];
-                    active: root.active-tab == 2;
-                    clicked => { root.release-focus(); root.active-tab = 2; }
+                    icon: Icons.settings-developer;
+                    active: !root.searching && root.active-tab == 2;
+                    clicked => { root.select-tab(2); }
                 }
 
-                // Pushes About and Privacy down to the bottom of the sidebar
                 Rectangle {
                     vertical-stretch: 1;
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-privacy];
-                    active: root.active-tab == 4;
-                    clicked => { root.release-focus(); root.active-tab = 4; }
+                    icon: Icons.settings-privacy;
+                    active: !root.searching && root.active-tab == 4;
+                    clicked => { root.select-tab(4); }
                 }
 
                 TabButton {
                     text: Tr.values[TrKey.settings-tab-about];
-                    active: root.active-tab == 5;
-                    clicked => { root.release-focus(); root.active-tab = 5; }
-                }
-            }
-
-            // Separator
-            Rectangle {
-                x: parent.width + 15px;
-                width: 1px;
-                height: 100%;
-                background: Palette.glass-border;
-            }
-        }
-
-        // RIGHT COLUMN: PAGES VIEWS CONTENT
-        VerticalLayout {
-            spacing: 16px;
-
-            HorizontalLayout {
-                alignment: space-between;
-                padding-bottom: 4px;
-
-                Text {
-                    text: root.active-tab == 0 ? Tr.values[TrKey.settings-tab-general] :
-                        root.active-tab == 1 ? Tr.values[TrKey.settings-tab-launcher] :
-                        root.active-tab == 3 ? Tr.values[TrKey.settings-tab-linux] :
-                        root.active-tab == 4 ? Tr.values[TrKey.settings-tab-privacy] :
-                        root.active-tab == 5 ? Tr.values[TrKey.settings-tab-about] : Tr.values[TrKey.settings-tab-developer];
-                    color: Palette.text-primary;
-                    font-size: 22px;
-                    font-weight: 700;
+                    icon: Icons.settings-about;
+                    active: !root.searching && root.active-tab == 5;
+                    clicked => { root.select-tab(5); }
                 }
 
                 Rectangle {
-                    width: 28px;
-                    height: 28px;
-                    border-radius: 6px;
-                    background: ta.has-hover ? Palette.fg-10 : transparent;
+                    height: 8px;
+                    vertical-stretch: 0;
+                }
 
-                    animate background { duration: 100ms; }
+                Rectangle {
+                    vertical-stretch: 0;
+                    height: app-card.preferred-height;
+                    border-radius: 10px;
+                    background: Palette.fg-06;
+                    border-width: 1px;
+                    border-color: Palette.fg-0e;
 
-                    Image {
-                        source: Icons.close;
-                        width: 14px;
-                        height: 14px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        opacity: ta.has-hover ? 1.0 : 0.7;
-                        animate opacity { duration: 100ms; }
-                    }
+                    app-card := VerticalLayout {
+                        padding: 10px;
+                        spacing: 10px;
 
-                    ta := TouchArea {
-                        clicked => { root.release-focus(); root.close-settings(); }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            padding-left: 2px;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Image {
+                                    source: Icons.logo;
+                                    width: 26px;
+                                    height: 26px;
+                                    image-fit: contain;
+                                    image-rendering: smooth;
+                                }
+                            }
+
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                spacing: 1px;
+
+                                Text {
+                                    text: "Aurora";
+                                    color: Palette.text-primary;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                }
+
+                                Text {
+                                    text: root.app-version;
+                                    color: Palette.text-secondary;
+                                    font-size: 11px;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px;
+
+                            for link in [
+                                { icon: Icons.settings-website, id: "website" },
+                                { icon: Icons.settings-github, id: "github" },
+                                { icon: Icons.settings-changelog, id: "changelog" },
+                            ]: FooterIconButton {
+                                icon: link.icon;
+                                clicked => { root.open-link(link.id); }
+                            }
+                        }
                     }
                 }
             }
 
-            // LAYER STACKING BOX FOR INTERACTIVE CROSSFADE TRANSITIONS
             Rectangle {
-                vertical-stretch: 1;
+                x: parent.width - self.width;
+                width: 1px;
+                height: parent.height;
+                background: Palette.fg-0e;
+            }
+        }
 
-                // TAB 0: GENERAL SETTINGS CONTENT
-                TabPage {
-                    active: root.active-tab == 0;
+        Rectangle {
+            content-column := VerticalLayout {
+                x: 27px;
+                y: 21px;
+                width: min(parent.width - 46px, root.content-max-width + 16px);
+                height: parent.height - 40px;
+                spacing: 18px;
 
-                    ScrollView {
-                        content-height: general-layout.min-height;
-                        general-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
+                HorizontalLayout {
+                    height: 32px;
+                    padding-right: 16px;
+                    padding-left: 2px;
 
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-appearance];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.searching ? Tr.values[TrKey.settings-search-title] : root.tab-name(root.active-tab);
+                        color: Palette.text-primary;
+                        font-size: 22px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-language-title];
-                                    subtitle: Tr.values[TrKey.settings-language-subtitle];
-                                    Dropdown {
-                                        options: Languages.names;
-                                        selected-index <=> root.language-index;
-                                        selection-changed(idx) => { root.language-index-changed(idx); }
+                Rectangle {
+                    vertical-stretch: 1;
+                    TabPage {
+                        active: root.searching;
+
+                        PageScroll {
+                            content-min-height: search-layout.min-height;
+                            search-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
+
+                                if root.search-hits.length > 0: SectionBox {
+                                    for hit[i] in root.search-hits: VerticalLayout {
+                                        if i > 0: RowDivider { }
+
+                                        SettingRow {
+                                            title: hit.title;
+                                            subtitle: hit.subtitle;
+                                            clickable: true;
+                                            clicked => { root.select-tab(hit.tab); }
+
+                                            Rectangle {
+                                                height: 22px;
+                                                width: hit-tab.preferred-width + 16px;
+                                                border-radius: 6px;
+                                                background: Palette.fg-0c;
+
+                                                hit-tab := Text {
+                                                    text: root.tab-name(hit.tab);
+                                                    color: Palette.fg-cc;
+                                                    font-size: 12px;
+                                                    font-weight: 600;
+                                                    horizontal-alignment: center;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-interface-minimization-title];
-                                    subtitle: Tr.values[TrKey.settings-interface-minimization-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.interface-minimization;
-                                        toggled => { root.interface-minimization-changed(self.checked); }
-                                    }
-                                }
+                                if root.search-hits.length == 0: HorizontalLayout {
+                                    padding-top: 40px;
+                                    alignment: center;
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-remember-window-size-title];
-                                    subtitle: Tr.values[TrKey.settings-remember-window-size-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.remember-window-size;
-                                        toggled => { root.remember-window-size-changed(self.checked); }
-                                    }
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-reset-window-size-title];
-                                    subtitle: Tr.values[TrKey.settings-reset-window-size-subtitle];
-                                    CardButton {
-                                        text: Tr.values[TrKey.settings-reset-window-size-button];
-                                        clicked => { root.reset-window-size(); }
-                                    }
-                                }
-                            }
-
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-themes];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-theme-title];
-                                    subtitle: root.theme-author == ""
-                                        ? "\"\{root.theme-name}\""
-                                        : "\"\{root.theme-name}\" \{Tr.values[TrKey.global-label-by]} \{root.theme-author}";
-                                    CardButton {
-                                        text: Tr.values[TrKey.settings-theme-browse];
-                                        clicked => { root.theme-picker-open = true; }
-                                    }
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-icon-pack-title];
-                                    subtitle: "\"\{root.icon-pack-name}\"";
-                                    CardButton {
-                                        text: Tr.values[TrKey.settings-theme-browse];
-                                        clicked => { root.icon-pack-picker-open = true; }
-                                    }
-                                }
-                            }
-
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-integration];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-discord-rpc-title];
-                                    subtitle: Tr.values[TrKey.settings-discord-rpc-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.discord-rpc;
-                                        toggled => { root.discord-rpc-changed(self.checked); }
+                                    Text {
+                                        text: Tr.values[TrKey.settings-search-empty];
+                                        color: Palette.text-secondary;
+                                        font-size: 13px;
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                // TAB 1: LAUNCHER SETTINGS CONTENT
-                TabPage {
-                    active: root.active-tab == 1;
+                    // TAB 0: GENERAL SETTINGS CONTENT
+                    TabPage {
+                        active: !root.searching && root.active-tab == 0;
 
-                    ScrollView {
-                        content-height: launcher-layout.min-height;
-                        launcher-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
+                        PageScroll {
+                            content-min-height: general-layout.min-height;
+                            general-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
 
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-game-directory];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-appearance];
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-theme-title];
+                                        subtitle: root.theme-author == ""
+                                            ? root.theme-name
+                                            : "\{root.theme-name} · \{Tr.values[TrKey.global-label-by]} \{root.theme-author}";
+                                        clickable: true;
+                                        clicked => { root.release-focus(); root.theme-picker-open = true; }
+
+                                        HorizontalLayout {
+                                            spacing: 0px;
+                                            for choice in root.theme-choices: HorizontalLayout {
+                                                if choice.selected: ThemeThumb { choice: choice; }
+                                            }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-icon-pack-title];
+                                        subtitle: root.icon-pack-name;
+                                        clickable: true;
+                                        clicked => { root.release-focus(); root.icon-pack-picker-open = true; }
+
+                                        HorizontalLayout {
+                                            spacing: 0px;
+                                            for choice in root.icon-pack-choices: HorizontalLayout {
+                                                if choice.selected: IconPackStrip { choice: choice; }
+                                            }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-language-title];
+                                        subtitle: Tr.values[TrKey.settings-language-subtitle];
+                                        Dropdown {
+                                            options: Languages.names;
+                                            selected-index <=> root.language-index;
+                                            selection-changed(idx) => { root.language-index-changed(idx); }
+                                        }
+                                    }
                                 }
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-game-directory-title];
-                                    subtitle: root.game-directory == "" ? Tr.values[TrKey.settings-game-directory-none] : root.game-directory;
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-window];
 
-                                    Rectangle {
-                                        width: 76px;
-                                        height: 32px;
-                                        background: browse-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
-                                        border-radius: 6px;
-                                        border-width: 1px;
-                                        border-color: Palette.fg-18;
-
-                                        animate background { duration: 100ms; }
-
-                                        Text {
-                                            text: Tr.values[TrKey.settings-game-directory-browse];
-                                            color: Palette.text-primary;
-                                            font-size: 13px;
-
-                                            horizontal-alignment: center;
-                                            vertical-alignment: center;
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-interface-minimization-title];
+                                        subtitle: Tr.values[TrKey.settings-interface-minimization-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.interface-minimization;
+                                            toggled => { root.interface-minimization-changed(self.checked); }
                                         }
+                                    }
 
-                                        browse-ta := TouchArea {
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-remember-window-size-title];
+                                        subtitle: Tr.values[TrKey.settings-remember-window-size-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.remember-window-size;
+                                            toggled => { root.remember-window-size-changed(self.checked); }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-reset-window-size-title];
+                                        subtitle: Tr.values[TrKey.settings-reset-window-size-subtitle];
+                                        CardButton {
+                                            text: Tr.values[TrKey.settings-reset-window-size-button];
+                                            clicked => { root.reset-window-size(); }
+                                        }
+                                    }
+                                }
+
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-integration];
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-discord-rpc-title];
+                                        subtitle: Tr.values[TrKey.settings-discord-rpc-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.discord-rpc;
+                                            toggled => { root.discord-rpc-changed(self.checked); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TAB 1: LAUNCHER SETTINGS CONTENT
+                    TabPage {
+                        active: !root.searching && root.active-tab == 1;
+
+                        PageScroll {
+                            content-min-height: launcher-layout.min-height;
+                            launcher-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
+
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-game-directory];
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-game-directory-title];
+                                        subtitle: root.game-directory == "" ? Tr.values[TrKey.settings-game-directory-none] : root.game-directory;
+                                        CardButton {
+                                            text: Tr.values[TrKey.settings-game-directory-browse];
                                             clicked => { root.browse-game-directory(); }
                                         }
                                     }
                                 }
-                            }
 
-                            if root.engine-settings || root.start-method-choice: VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-engine];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                                if root.engine-settings || root.start-method-choice: Section {
+                                    label: Tr.values[TrKey.settings-section-engine];
 
-                                if root.engine-settings: SettingCard {
-                                    title: Tr.values[TrKey.settings-engine-method-title];
-                                    subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
-                                    Dropdown {
-                                        options: root.engine-method-options;
-                                        selected-index <=> root.engine-method-index;
-                                        selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                    if root.engine-settings: SettingRow {
+                                        title: Tr.values[TrKey.settings-engine-method-title];
+                                        subtitle: Tr.values[TrKey.settings-engine-method-subtitle];
+                                        Dropdown {
+                                            options: root.engine-method-options;
+                                            selected-index <=> root.engine-method-index;
+                                            selection-changed(idx) => { root.engine-method-index-changed(idx); }
+                                        }
                                     }
-                                }
 
-                                if root.start-method-choice: SettingCard {
-                                    title: Tr.values[TrKey.settings-start-method-title];
-                                    subtitle: Tr.values[TrKey.settings-start-method-subtitle];
-                                    Dropdown {
-                                        options: root.start-method-options;
-                                        selected-index <=> root.start-method-index;
-                                        selection-changed(idx) => { root.start-method-index-changed(idx); }
+                                    if root.engine-settings && root.start-method-choice: RowDivider { }
+
+                                    if root.start-method-choice: SettingRow {
+                                        title: Tr.values[TrKey.settings-start-method-title];
+                                        subtitle: Tr.values[TrKey.settings-start-method-subtitle];
+                                        Dropdown {
+                                            options: root.start-method-options;
+                                            selected-index <=> root.start-method-index;
+                                            selection-changed(idx) => { root.start-method-index-changed(idx); }
+                                        }
                                     }
-                                }
 
-                                if root.engine-settings: SettingCard {
-                                    title: Tr.values[TrKey.settings-ignore-checksum-title];
-                                    subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.ignore-checksum;
-                                        toggled => { root.ignore-checksum-changed(self.checked); }
-                                    }
-                                }
-                            }
+                                    if root.engine-settings: RowDivider { }
 
-                            if root.engine-settings: VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-launch-arguments];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-launch-args-title];
-                                    subtitle: Tr.values[TrKey.settings-launch-args-subtitle];
-
-                                    CommitTextInput {
-                                        value <=> root.launch-args;
-                                        saved-text: Tr.values[TrKey.settings-launch-args-saved];
-                                        release-token: root.focus-release;
-                                        committed(text) => { root.launch-args-changed(text); }
-
-                                        VerticalLayout {
-                                            alignment: center;
-                                            LinkButton {
-                                                text: Tr.values[TrKey.settings-launch-args-view-list];
-                                                clicked => { root.open-link("launch-arguments"); }
-                                            }
+                                    if root.engine-settings: SettingRow {
+                                        title: Tr.values[TrKey.settings-ignore-checksum-title];
+                                        subtitle: Tr.values[TrKey.settings-ignore-checksum-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.ignore-checksum;
+                                            toggled => { root.ignore-checksum-changed(self.checked); }
                                         }
                                     }
                                 }
 
-                                if root.show-engine-scale: SettingCard {
-                                    title: Tr.values[TrKey.settings-engine-scale-title];
-                                    subtitle: Tr.values[TrKey.settings-engine-scale-subtitle];
+                                if root.engine-settings: Section {
+                                    label: Tr.values[TrKey.settings-section-launch-arguments];
 
-                                    HorizontalLayout {
-                                        spacing: 12px;
-                                        alignment: end;
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-launch-args-title];
+                                        subtitle: Tr.values[TrKey.settings-launch-args-subtitle];
 
-                                        VerticalLayout {
-                                            alignment: center;
-                                            Slider {
-                                                width: 160px;
-                                                minimum: 50;
-                                                maximum: 200;
-                                                step: 5;
-                                                value <=> root.engine-scale;
-                                                changed(value) => { root.engine-scale-changed(value); }
+                                        CommitTextInput {
+                                            value <=> root.launch-args;
+                                            input-width: 260px;
+                                            saved-text: Tr.values[TrKey.settings-launch-args-saved];
+                                            release-token: root.focus-release;
+                                            committed(text) => { root.launch-args-changed(text); }
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                LinkButton {
+                                                    text: Tr.values[TrKey.settings-launch-args-view-list];
+                                                    clicked => { root.open-link("launch-arguments"); }
+                                                }
                                             }
                                         }
+                                    }
+
+                                    if root.show-engine-scale: RowDivider { }
+
+                                    if root.show-engine-scale: SettingRow {
+                                        title: Tr.values[TrKey.settings-engine-scale-title];
+                                        subtitle: Tr.values[TrKey.settings-engine-scale-subtitle];
+
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            alignment: end;
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Slider {
+                                                    width: 160px;
+                                                    minimum: 50;
+                                                    maximum: 200;
+                                                    step: 5;
+                                                    value <=> root.engine-scale;
+                                                    changed(value) => { root.engine-scale-changed(value); }
+                                                }
+                                            }
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Text {
+                                                    width: 42px;
+                                                    text: "\{root.engine-scale}%";
+                                                    color: Palette.text-primary;
+                                                    font-size: 13px;
+                                                    font-weight: 600;
+                                                    horizontal-alignment: right;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TAB 3: LINUX SETTINGS CONTENT
+                    if root.is-linux: TabPage {
+                        active: !root.searching && root.active-tab == 3;
+
+                        PageScroll {
+                            content-min-height: linux-layout.min-height;
+                            linux-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
+
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-launch-options];
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-linux-args-title];
+                                        subtitle: Tr.values[TrKey.settings-linux-args-subtitle];
+
+                                        CommitTextInput {
+                                            value <=> root.proton-launch-args;
+                                            placeholder: Tr.values[TrKey.settings-linux-args-placeholder];
+                                            saved-text: Tr.values[TrKey.settings-linux-args-saved];
+                                            release-token: root.focus-release;
+                                            committed(text) => { root.proton-launch-args-changed(text); }
+                                        }
+                                    }
+
+                                    RowDivider { }
+
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-proton-version-title];
+                                        subtitle: Tr.values[TrKey.settings-proton-version-subtitle];
 
                                         VerticalLayout {
+                                            spacing: 6px;
                                             alignment: center;
-                                            Text {
-                                                width: 42px;
-                                                text: "\{root.engine-scale}%";
-                                                color: Palette.text-primary;
-                                                font-size: 13px;
+
+                                            HorizontalLayout {
+                                                spacing: 8px;
+                                                alignment: end;
+
+                                                Dropdown {
+                                                    options: root.proton-versions;
+                                                    selected-index <=> root.proton-version-index;
+                                                    removable-from: root.proton-builtin-count;
+                                                    selection-changed(idx) => { root.proton-version-index-changed(idx); }
+                                                    remove-requested(idx) => { root.remove-proton-version(idx); }
+                                                }
+
+                                                CardButton {
+                                                    text: Tr.values[TrKey.settings-proton-version-browse];
+                                                    clicked => { root.browse-proton-directory(); }
+                                                }
+                                            }
+
+                                            if root.proton-version-not-recommended: Text {
+                                                text: Tr.values[TrKey.settings-proton-version-warning];
+                                                color: Palette.warning;
+                                                font-size: 12px;
                                                 horizontal-alignment: right;
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
 
-                // TAB 3: LINUX SETTINGS CONTENT (LINUX ONLY)
-                if root.is-linux: TabPage {
-                    active: root.active-tab == 3;
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-desktop-integration];
 
-                    ScrollView {
-                        content-height: linux-layout.min-height;
-                        linux-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
-
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-launch-options];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-linux-args-title];
-                                    subtitle: Tr.values[TrKey.settings-linux-args-subtitle];
-
-                                    CommitTextInput {
-                                        value <=> root.proton-launch-args;
-                                        placeholder: Tr.values[TrKey.settings-linux-args-placeholder];
-                                        saved-text: Tr.values[TrKey.settings-linux-args-saved];
-                                        release-token: root.focus-release;
-                                        committed(text) => { root.proton-launch-args-changed(text); }
-                                    }
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-proton-version-title];
-                                    subtitle: Tr.values[TrKey.settings-proton-version-subtitle];
-
-                                    VerticalLayout {
-                                        spacing: 6px;
-                                        alignment: center;
-
-                                        HorizontalLayout {
-                                            spacing: 8px;
-                                            alignment: end;
-
-                                            Dropdown {
-                                                width: 140px;
-                                                options: root.proton-versions;
-                                                selected-index <=> root.proton-version-index;
-                                                removable-from: root.proton-builtin-count;
-                                                selection-changed(idx) => { root.proton-version-index-changed(idx); }
-                                                remove-requested(idx) => { root.remove-proton-version(idx); }
-                                            }
-
-                                            CardButton {
-                                                text: Tr.values[TrKey.settings-proton-version-browse];
-                                                clicked => { root.browse-proton-directory(); }
-                                            }
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-desktop-entry-title];
+                                        subtitle: Tr.values[TrKey.settings-desktop-entry-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.desktop-entry;
+                                            toggled => { root.desktop-entry-changed(self.checked); }
                                         }
-
-                                        if root.proton-version-not-recommended: Text {
-                                            text: Tr.values[TrKey.settings-proton-version-warning];
-                                            color: Palette.warning;
-                                            font-size: 12px;
-                                            horizontal-alignment: right;
-                                        }
-                                    }
-                                }
-                            }
-
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-desktop-integration];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-desktop-entry-title];
-                                    subtitle: Tr.values[TrKey.settings-desktop-entry-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.desktop-entry;
-                                        toggled => { root.desktop-entry-changed(self.checked); }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                // TAB 2: DEVELOPER ENGINE BLOCK
-                TabPage {
-                    active: root.active-tab == 2;
+                    TabPage {
+                        active: !root.searching && root.active-tab == 2;
 
-                    ScrollView {
-                        content-height: dev-layout.min-height;
-                        dev-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
+                        PageScroll {
+                            content-min-height: dev-layout.min-height;
+                            dev-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
 
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-debug];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-debug];
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-developer-mode-title];
-                                    subtitle: Tr.values[TrKey.settings-developer-mode-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.developer-mode;
-                                        toggled => { root.developer-mode-changed(self.checked); }
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-developer-mode-title];
+                                        subtitle: Tr.values[TrKey.settings-developer-mode-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.developer-mode;
+                                            toggled => { root.developer-mode-changed(self.checked); }
+                                        }
                                     }
-                                }
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-export-telemetry-title];
-                                    subtitle: Tr.values[TrKey.settings-export-telemetry-subtitle];
+                                    RowDivider { }
 
-                                    Rectangle {
-                                        width: 76px;
-                                        height: 32px;
-                                        background: export-ta.has-hover ? Palette.fg-14 : Palette.fg-08;
-                                        border-radius: 6px;
-                                        border-width: 1px;
-                                        border-color: Palette.fg-18;
-
-                                        animate background { duration: 100ms; }
-
-                                        Text {
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-export-telemetry-title];
+                                        subtitle: Tr.values[TrKey.settings-export-telemetry-subtitle];
+                                        CardButton {
                                             text: Tr.values[TrKey.settings-export-telemetry-button];
-                                            color: Palette.text-primary;
-                                            font-size: 13px;
-                                            horizontal-alignment: center;
-                                            vertical-alignment: center;
-                                        }
-
-                                        export-ta := TouchArea {
                                             clicked => { root.export-telemetry(); }
                                         }
                                     }
@@ -1364,29 +1703,21 @@ export component SettingsPage inherits Rectangle {
                             }
                         }
                     }
-                }
 
-                TabPage {
-                    active: root.active-tab == 5;
-                    ScrollView {
-                        content-height: about-layout.min-height;
-                        about-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
-                            padding-right: 16px;
+                    TabPage {
+                        active: !root.searching && root.active-tab == 5;
 
-                            // APP + AUTHORS
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-software];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                        PageScroll {
+                            content-min-height: about-layout.min-height;
+                            about-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
 
-                                SectionBox {
-                                    InfoRow {
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-software];
+
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-version-title];
                                         subtitle: root.build-timestamp == ""
                                             ? Tr.values[TrKey.settings-about-build-unknown]
@@ -1398,12 +1729,20 @@ export component SettingsPage inherits Rectangle {
 
                                             VerticalLayout {
                                                 alignment: center;
-                                                Text {
-                                                    text: root.app-version;
-                                                    color: Palette.text-primary;
-                                                    font-size: 13px;
-                                                    font-weight: 600;
-                                                    horizontal-alignment: right;
+                                                Rectangle {
+                                                    height: 22px;
+                                                    width: version-text.preferred-width + 16px;
+                                                    border-radius: 6px;
+                                                    background: Palette.fg-0c;
+
+                                                    version-text := Text {
+                                                        text: root.app-version;
+                                                        color: Palette.text-primary;
+                                                        font-size: 12px;
+                                                        font-weight: 600;
+                                                        horizontal-alignment: center;
+                                                        vertical-alignment: center;
+                                                    }
                                                 }
                                             }
 
@@ -1416,100 +1755,98 @@ export component SettingsPage inherits Rectangle {
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: "Daturaxoxo";
                                         subtitle: "\{Tr.values[TrKey.settings-about-role-app]} · \{Tr.values[TrKey.settings-about-role-engine]} · \{Tr.values[TrKey.settings-about-role-website]}";
                                     } // hi hi hi :3 thats me!!! thats mee!!!!!!!!!! -youknowwhoitis!
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: "Alawapr";
                                         subtitle: Tr.values[TrKey.settings-about-role-app];
                                     }
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-contributors-title];
                                         subtitle: Tr.values[TrKey.settings-about-contributors-subtitle];
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("contributors"); }
                                     }
                                 }
-                            }
 
-                            // LINKS
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-links];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                                // LINKS
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-links];
 
-                                SectionBox {
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-website-title];
                                         subtitle: "getaurora.moe";
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("website"); }
                                     }
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-discord-title];
                                         subtitle: "discord.gg/565jfeYsbp";
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("discord"); }
                                     }
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-github-title];
                                         subtitle: "github.com/Daturaxoxo/Aurora";
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("github"); }
                                     }
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-docs-title];
                                         subtitle: "docs.getaurora.moe";
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("docs"); }
                                     }
                                 }
-                            }
 
-                            // LICENSE
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-license];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                                // LICENSE
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-license];
 
-                                SectionBox {
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-license-title];
                                         subtitle: Tr.values[TrKey.settings-about-license-subtitle];
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("license"); }
                                     }
 
                                     RowDivider { }
 
-                                    InfoRow {
+                                    SettingRow {
                                         title: Tr.values[TrKey.settings-about-terms-title];
                                         subtitle: Tr.values[TrKey.settings-about-terms-subtitle];
                                         clickable: true;
+                                        trailing-icon: Icons.link;
+                                        trailing-rotation: 0deg;
                                         clicked => { root.open-link("terms"); }
                                     }
 
@@ -1527,40 +1864,68 @@ export component SettingsPage inherits Rectangle {
                             }
                         }
                     }
-                }
 
-                // PRIVACY SETTINGS
-                TabPage {
-                    active: root.active-tab == 4;
+                    // PRIVACY SETTINGS
+                    TabPage {
+                        active: !root.searching && root.active-tab == 4;
 
-                    ScrollView {
-                        content-height: privacy-layout.min-height;
-                        privacy-layout := VerticalLayout {
-                            spacing: 24px;
-                            alignment: start;
+                        PageScroll {
+                            content-min-height: privacy-layout.min-height;
+                            privacy-layout := VerticalLayout {
+                                spacing: 24px;
+                                alignment: start;
+                                padding-right: 16px;
 
-                            VerticalLayout {
-                                spacing: 10px;
-                                Text {
-                                    text: Tr.values[TrKey.settings-section-telemetry];
-                                    color: Palette.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
+                                Section {
+                                    label: Tr.values[TrKey.settings-section-telemetry];
 
-                                SettingCard {
-                                    title: Tr.values[TrKey.settings-telemetry-opt-out-title];
-                                    subtitle: Tr.values[TrKey.settings-telemetry-opt-out-subtitle];
-                                    ToggleSwitch {
-                                        checked <=> root.telemetry-opt-out;
-                                        toggled => { root.telemetry-opt-out-changed(self.checked); }
+                                    SettingRow {
+                                        title: Tr.values[TrKey.settings-telemetry-opt-out-title];
+                                        subtitle: Tr.values[TrKey.settings-telemetry-opt-out-subtitle];
+                                        ToggleSwitch {
+                                            checked <=> root.telemetry-opt-out;
+                                            toggled => { root.telemetry-opt-out-changed(self.checked); }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    Rectangle {
+                        x: 0px;
+                        y: parent.height - self.height;
+                        width: parent.width - 16px;
+                        height: 36px;
+                        background: @linear-gradient(180deg, Palette.background-bottom.with-alpha(0) 0%, Palette.background-bottom.with-alpha(0.96) 100%);
+                    }
                 }
             }
+        }
+    }
+
+    Rectangle {
+        x: parent.width - self.width - 20px;
+        y: 23px;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: close-ta.has-hover ? Palette.fg-10 : transparent;
+
+        animate background { duration: 100ms; }
+
+        Image {
+            source: Icons.close;
+            width: 14px;
+            height: 14px;
+            image-rendering: smooth;
+            opacity: close-ta.has-hover ? 1.0 : 0.6;
+            animate opacity { duration: 100ms; }
+        }
+
+        close-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.release-focus(); root.close-settings(); }
         }
     }
 

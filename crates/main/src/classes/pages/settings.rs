@@ -41,6 +41,7 @@ const ABOUT_LINKS: &[(&str, &str)] = &[
     ("website", "https://getaurora.moe/"),
     ("discord", "https://discord.gg/565jfeYsbp"),
     ("github", "https://github.com/Daturaxoxo/Aurora"),
+    ("changelog", "https://blogs.getaurora.moe/"),
     ("docs", "https://docs.getaurora.moe"),
     (
         "launch-arguments",
@@ -846,6 +847,19 @@ impl SettingsHandler {
             if let Err(e) = open::that(url) {
                 error!("could not open {url}: {e}");
             }
+        });
+
+        w.on_settings_search_filter(|entries, query| {
+            let needle = query.trim().to_lowercase();
+            let hits: Vec<crate::SearchEntry> = entries
+                .iter()
+                .filter(|entry| {
+                    entry.enabled
+                        && (entry.title.to_lowercase().contains(&needle)
+                            || entry.subtitle.to_lowercase().contains(&needle))
+                })
+                .collect();
+            slint::ModelRc::new(slint::VecModel::from(hits))
         });
 
         let ww = window.clone();
