@@ -167,7 +167,7 @@ impl Monitor {
             if self.stopped() {
                 return Ok(false);
             }
-            snapshot.rerefresh();
+            snapshot.rerefresh_names();
         }
 
         if let Err(e) = RPC.set_idle() {
@@ -181,12 +181,17 @@ impl Monitor {
 
 pub(super) fn ensure_processes_gone(targets: &ProcessTargets, grace: Duration) -> Result<()> {
     let deadline = Instant::now() + grace;
-    let mut snapshot = ProcessSnapshot::refresh();
+    let mut snapshot = ProcessSnapshot::empty();
 
     while Instant::now() < deadline {
-        snapshot.rerefresh();
-        if !snapshot.any_matching(targets.processes) && !snapshot.any_in_dir(&targets.win64) {
-            return Ok(());
+        snapshot.rerefresh_names();
+        if !snapshot.any_matching(targets.processes) {
+            snapshot.rerefresh();
+            if !snapshot.any_in_dir(&targets.win64) {
+                return Ok(());
+            }
+            thread::sleep(POST_EXIT_POLL);
+            continue;
         }
 
         let launchers: Vec<_> = std::iter::once(&targets.launcher_process)

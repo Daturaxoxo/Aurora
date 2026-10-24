@@ -122,8 +122,20 @@ impl ProcessSnapshot {
         Self(system)
     }
 
+    pub fn empty() -> Self {
+        Self(System::new())
+    }
+
     pub fn rerefresh(&mut self) {
         Self::refresh_into(&mut self.0);
+    }
+
+    pub fn rerefresh_names(&mut self) {
+        self.0.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing(),
+        );
     }
 
     fn refresh_into(system: &mut System) {
@@ -131,8 +143,8 @@ impl ProcessSnapshot {
             ProcessesToUpdate::All,
             true,
             ProcessRefreshKind::nothing()
-                .with_exe(UpdateKind::Always)
-                .with_cmd(UpdateKind::Always),
+                .with_exe(UpdateKind::OnlyIfNotSet)
+                .with_cmd(UpdateKind::OnlyIfNotSet),
         );
     }
 
