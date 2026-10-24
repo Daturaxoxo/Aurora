@@ -591,6 +591,7 @@ export component ModManagerPage inherits Rectangle {
     property <bool> filter-open: false;
     in property <bool> all-selected: false;
     in property <int> selected-count: 0;
+    in property <int> update-count: 0;
     in property <int> selected-group-count: 0;
     in property <bool> file-hover: false;
     in property <[GroupOption]> groups: [];
@@ -604,6 +605,7 @@ export component ModManagerPage inherits Rectangle {
     callback open-gamebanana();
     callback toggle-mod(string);
     callback update-mod(string);
+    callback update-all();
     callback delete-mod(string);
     callback rename-mod(string, string);
     callback select-mod(string);
@@ -1342,6 +1344,36 @@ export component ModManagerPage inherits Rectangle {
                             clicked => {
                                 commit-focus.focus();
                                 root.toggle-all();
+                            }
+                        }
+                    }
+                }
+
+                if root.update-count > 0: VerticalLayout {
+                    alignment: center;
+                    update-all-btn := Rectangle {
+                        width: update-all-text.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: update-all-ta.has-hover ? Palette.accent : Palette.fg-28;
+                        background: update-all-ta.has-hover ? Palette.fg-12 : Palette.fg-08;
+                        animate background { duration: 100ms; }
+                        animate border-color { duration: 100ms; }
+
+                        update-all-text := Text {
+                            text: Tr.values[TrKey.modmanager-update-all] + " (" + root.update-count + ")";
+                            color: Palette.accent-pale;
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        update-all-ta := TouchArea {
+                            clicked => {
+                                commit-focus.focus();
+                                root.update-all();
                             }
                         }
                     }

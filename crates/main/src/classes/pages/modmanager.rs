@@ -26,7 +26,7 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -689,6 +689,8 @@ impl ModManagerHandler {
 }
 
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+static UPDATE_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
 pub fn profile_map(game: &dyn Game, key: ProfileKey) -> Map<String, Value> {
     match config::read_profile(&game.descriptor().id) {
@@ -1667,6 +1669,59 @@ impl ModManagerHandler {
         });
     }
 
+    fn update_all(window: &slint::Weak<MainWindow>) {
+        let ids: VecDeque<String> = {
+            let state = STATE.lock().unwrap();
+            state
+                .scanned
+                .iter()
+                .flat_map(|g| g.mods.iter())
+                .map(mod_id)
+                .filter(|id| matches!(state.updates.get(id), Some(Some(_))))
+                .collect()
+        };
+        if ids.is_empty() {
+            return;
+        }
+        if gbbrowser::GbBrowserHandler::install_in_progress(window) {
+            if let Some(w) = window.upgrade() {
+                Self::show_toast(&w, "warning", "Another install is in progress".into());
+            }
+            return;
+        }
+
+        info!("updating {} mod(s)", ids.len());
+        *UPDATE_QUEUE.lock().unwrap_or_else(PoisonError::into_inner) = ids;
+        Self::continue_update_queue(window);
+    }
+
+    pub(crate) fn continue_update_queue(window: &slint::Weak<MainWindow>) {
+        loop {
+            let Some(id) = UPDATE_QUEUE
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .pop_front()
+            else {
+                return;
+            };
+            let file = STATE.lock().unwrap().updates.get(&id).cloned().flatten();
+            let (Some(file), Some(m)) = (file, Self::mod_by_id(&id)) else {
+                continue;
+            };
+            let Some(source) = m.source else { continue };
+
+            gbbrowser::GbBrowserHandler::download_update(window, source, file, m.path);
+            return;
+        }
+    }
+
+    pub(crate) fn clear_update_queue() {
+        UPDATE_QUEUE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+    }
+
     fn tag_for(m: &Mod, updates: &HashMap<String, UpdateCheck>) -> ModTag {
         if m.source.is_none() {
             return ModTag::Local;
@@ -1976,6 +2031,14 @@ impl ModManagerHandler {
         w.set_mods_grid(Rc::new(VecModel::from(sections)).into());
         w.set_mods_groups(Rc::new(VecModel::from(groups)).into());
         w.set_mods_selected_count(i32::try_from(selected_count).unwrap_or(0));
+        let update_count = STATE
+            .lock()
+            .unwrap()
+            .updates
+            .values()
+            .filter(|u| u.is_some())
+            .count();
+        w.set_mods_update_count(i32::try_from(update_count).unwrap_or(0));
         w.set_mods_selected_group_count(i32::try_from(selected_group_count).unwrap_or(0));
         w.set_mods_all_selected(all_selected);
 
@@ -2604,6 +2667,9 @@ impl ModManagerHandler {
 
             gbbrowser::GbBrowserHandler::download_update(&ww, source, file, m.path);
         });
+
+        let ww = window.clone();
+        w.on_mods_update_all(move || Self::update_all(&ww));
 
         let ww = window.clone();
         w.on_mods_toggle_all(move || {

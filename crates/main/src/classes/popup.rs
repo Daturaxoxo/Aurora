@@ -1,4 +1,4 @@
-use crate::bridge::Bridge;
+use crate::bridge::{Bridge, PopupSpec};
 use crate::classes::oneclick::OneClickHandler;
 use crate::classes::pages::addons::AddonsHandler;
 use crate::classes::pages::lua::LuaScriptsHandler;
@@ -69,7 +69,23 @@ impl PopupHandler {
                         let remove_files = checkboxes[2].checked;
 
                         match RepairHandler::repair(validate_files, clean_cache, remove_files) {
-                            Ok(()) => {}
+                            Ok(report) => {
+                                Bridge::show_popup_spec(
+                                    &w,
+                                    PopupSpec {
+                                        id: "repair-summary".to_owned(),
+                                        title: "Repair finished".to_owned(),
+                                        message: report.summary(),
+                                        kind: if report.warnings.is_empty() {
+                                            "info"
+                                        } else {
+                                            "warning"
+                                        }
+                                        .to_owned(),
+                                        ..PopupSpec::default()
+                                    },
+                                );
+                            }
                             Err(e) => {
                                 Bridge::show_toast(&w, &e.to_string(), "error");
                             }

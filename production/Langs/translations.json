@@ -3097,6 +3097,24 @@
         "id": "Alihkan Semua"
     },
     {
+        "key": "modmanager.update-all",
+        "en": "Update All",
+        "tr": "Tümünü Güncelle",
+        "zh-CN": "全部更新",
+        "es": "Actualizar todo",
+        "de": "Alle aktualisieren",
+        "nl": "Alles bijwerken",
+        "vi": "Cập nhật tất cả",
+        "fr": "Tout mettre à jour",
+        "it": "Aggiorna tutto",
+        "ru": "Обновить все",
+        "jp": "すべて更新",
+        "ko": "모두 업데이트",
+        "pt": "Atualizar todos",
+        "pt-BR": "Atualizar todos",
+        "id": "Perbarui Semua"
+    },
+    {
         "key": "modmanager.empty",
         "en": "No mods installed",
         "tr": "Yüklü mod yok",

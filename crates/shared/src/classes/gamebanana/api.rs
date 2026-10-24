@@ -521,6 +521,15 @@ impl GameBananaApi {
     }
 
     pub async fn get_mod_files(&self, mod_id: u32) -> Option<Vec<GbModFile>> {
+        self.get_mod_files_and_version(mod_id)
+            .await
+            .map(|(files, _)| files)
+    }
+
+    pub async fn get_mod_files_and_version(
+        &self,
+        mod_id: u32,
+    ) -> Option<(Vec<GbModFile>, Option<String>)> {
         let url = format!("{BASE_URL}/apiv11/Mod/{mod_id}/ProfilePage");
         let request = self.client.get(&url);
         let what = format!("the files of mod {mod_id}");
@@ -533,7 +542,12 @@ impl GameBananaApi {
             }
         };
 
-        Some(Self::map_files(profile.files))
+        let version = profile
+            .version
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+
+        Some((Self::map_files(profile.files), version))
     }
 
     pub async fn get_mod_profile(&self, mod_id: u32) -> Result<ModProfile> {

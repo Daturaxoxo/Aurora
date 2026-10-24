@@ -874,9 +874,6 @@ impl AddonsHandler {
                 match key.trim() {
                     "NAME" => addon.name = value.trim().to_string(),
                     "AUTHOR" => addon.author = value.trim().to_string(),
-                    // TODO: get version from gamebanana api too
-                    // alawapr (2 months ago)
-                    // status: ain't done shit :laugh_57:
                     "VERSION" => addon.version = value.trim().to_string(),
                     "DESCRIPTION" => addon.description = value.trim().to_string(),
                     "LINK" => addon.link = value.trim().to_string(),
@@ -915,7 +912,11 @@ impl AddonsHandler {
                         .flatten()
                         .map_or_default(Self::variant_files)
                 } else if file_urls.is_empty() {
-                    Self::fetch_gamebanana_files(&addon)
+                    let (files, version) = Self::fetch_gamebanana_files(&addon);
+                    if let Some(version) = version {
+                        addon.version = version;
+                    }
+                    files
                 } else {
                     file_urls.iter().map(|url| Self::direct_file(url)).collect()
                 };
@@ -980,18 +981,18 @@ impl AddonsHandler {
             .join(",")
     }
 
-    fn fetch_gamebanana_files(addon: &Addon) -> Vec<AddonData> {
+    fn fetch_gamebanana_files(addon: &Addon) -> (Vec<AddonData>, Option<String>) {
         if addon.link.is_empty() {
             warn!(
                 "Addons scan: '{}' has neither a FILE nor a LINK field",
                 addon.name
             );
-            return Vec::new();
+            return (Vec::new(), None);
         }
 
         let mod_files = crate::classes::pages::gbbrowser::runtime().block_on(async {
             GAMEBANANA_API
-                .get_mod_files(
+                .get_mod_files_and_version(
                     addon
                         .link
                         .split('/')
@@ -1009,13 +1010,14 @@ impl AddonsHandler {
                     "Addons scan: could not fetch mod files for '{}'",
                     addon.name
                 );
-                Vec::new()
+                (Vec::new(), None)
             },
-            |files| {
-                files
+            |(files, version)| {
+                let data = files
                     .into_iter()
                     .map(|f| AddonData::new(f.name, f.url, f.md5))
-                    .collect()
+                    .collect();
+                (data, version)
             },
         )
     }

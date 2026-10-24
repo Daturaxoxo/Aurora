@@ -1091,6 +1091,7 @@ impl GbBrowserHandler {
                     {
                         info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
                         Self::discard_partial(&path).await;
+                        ModManagerHandler::clear_update_queue();
                         return;
                     }
                     info!("GameBanana Browser Backend: downloaded '{}'", path.display());
@@ -1121,7 +1122,13 @@ impl GbBrowserHandler {
                             folder,
                             path,
                             source,
-                            Some(Box::new(|_| Self::finish_install())),
+                            Some(Box::new({
+                                let ww = ww.clone();
+                                move |_| {
+                                    Self::finish_install();
+                                    ModManagerHandler::continue_update_queue(&ww);
+                                }
+                            })),
                         );
                     } else {
                         ModManagerHandler::install_paths_with_done(
@@ -1139,10 +1146,12 @@ impl GbBrowserHandler {
                 Ok(None) => {
                     info!("GameBanana Browser Backend: download of '{}' cancelled", file.name);
                     Self::finish_install();
+                    ModManagerHandler::clear_update_queue();
                 }
                 Err(e) => {
                     warn!("GameBanana Browser Backend: could not download '{}': {e}", file.name);
                     Self::finish_install();
+                    ModManagerHandler::clear_update_queue();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(w) = ww.upgrade() {
                             w.set_progress_overlay_active(false);

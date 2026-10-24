@@ -93,6 +93,8 @@ pub struct ProfilePage {
     pub files: Option<Vec<ApiFile>>,
     #[serde(rename = "_aGame", default)]
     pub game: Option<ApiGame>,
+    #[serde(rename = "_sVersion", default)]
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -258,10 +258,12 @@ export component MainWindow inherits Window {
     callback mods-view-changed(bool);
     in-out property <bool> mods-all-selected: false;
     in-out property <int> mods-selected-count: 0;
+    in-out property <int> mods-update-count: 0;
     in-out property <int> mods-selected-group-count: 0;
     callback mods-delete-selected-groups();
     callback mod-toggle(string);
     callback mod-update(string);
+    callback mods-update-all();
     callback mod-delete(string);
     callback mod-rename(string, string);
     callback mod-select(string);
@@ -1345,6 +1347,8 @@ export component MainWindow inherits Window {
             view-changed(grid) => { root.mods-view-changed(grid); }
             all-selected: root.mods-all-selected;
             selected-count: root.mods-selected-count;
+            update-count: root.mods-update-count;
+            update-all => { root.mods-update-all(); }
             selected-group-count: root.mods-selected-group-count;
             delete-selected-groups => { root.mods-delete-selected-groups(); }
             file-hover: root.mods-file-hover;
