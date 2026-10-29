@@ -29,7 +29,6 @@ const COMPONENTS: &[EngineComponent] = &[
         .only_on(&[Version::Global.key(), Version::TW.key()]),
     EngineComponent::addon("Addons/Censorship/CNAuroraTF.asi", CENSORSHIP)
         .only_on(&[Version::CN.key()]),
-    EngineComponent::addon("cutils.dll", CENSORSHIP),
 ];
 
 fn version(installation: &InstallationFacts) -> Version {
