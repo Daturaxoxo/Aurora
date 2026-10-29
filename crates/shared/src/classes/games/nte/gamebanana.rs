@@ -9,8 +9,10 @@ const fn remote(name: &'static str, category: u32) -> RemoteCharacter {
 
 const REMOTE_CHARACTERS: &[RemoteCharacter] = &[
     remote("Adler", 43034),
+    remote("Akane", 49661),
     remote("Aurelia", 46387),
     remote("Baicang", 43035),
+    remote("Blackbird", 49659),
     remote("Chaos", 46559),
     remote("Chiz", 45472),
     remote("Daffodill", 45474),
