@@ -227,8 +227,8 @@ component TabButton inherits Rectangle {
             alignment: center;
             Image {
                 source: root.icon;
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
                 image-rendering: smooth;
                 image-fit: contain;
                 opacity: root.active ? 1.0 : (ta.has-hover ? 0.85 : 0.55);
@@ -267,8 +267,8 @@ component FooterIconButton inherits Rectangle {
 
     Image {
         source: root.icon;
-        width: 19px;
-        height: 19px;
+        width: 22px;
+        height: 22px;
         image-rendering: smooth;
         image-fit: contain;
         opacity: ta.has-hover ? 1.0 : 0.65;
@@ -766,8 +766,6 @@ component IconPackCard inherits Rectangle {
         padding: 10px;
         spacing: 8px;
 
-        // The samples sit on the colour that reads against them, so a pack of
-        // pale icons previews on dark and a pack of dark icons on pale.
         Rectangle {
             height: 48px;
             border-radius: 6px;

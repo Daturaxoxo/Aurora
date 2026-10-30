@@ -399,7 +399,6 @@ fn generate_icon_packs() {
         &format!(
             "{HEADER}\n\
              export global Icons {{\n\
-             \x20   // The colour this pack draws in, and one that reads on top of it.\n\
              \x20   in property <color> tint;\n\
              \x20   in property <color> tint-contrast;\n\
              \n\
@@ -525,14 +524,12 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                     continue;
                 }
 
-                if is_up_to_date(&path, &dest_path) {
+                let size = processed_size(relative, file_name);
+                if is_up_to_date(&path, &dest_path)
+                    && image::image_dimensions(&dest_path).is_ok_and(|(w, h)| w.max(h) == size)
+                {
                     continue;
                 }
-                let size = if relative.starts_with("characters") {
-                    128
-                } else {
-                    64
-                };
 
                 if let Ok(img) = image::open(&path) {
                     let scaled = img.resize(size, size, FilterType::Lanczos3);
@@ -544,6 +541,27 @@ fn process_directory(root_source: &Path, current_source: &Path, target_base: &Pa
                 }
             }
         }
+    }
+}
+
+fn processed_size(relative: &Path, file_name: &str) -> u32 {
+    if relative.starts_with("characters") {
+        return 128;
+    }
+
+    let in_settings = relative
+        .parent()
+        .and_then(Path::file_name)
+        .is_some_and(|dir| dir == "settings");
+    if !in_settings {
+        return 64;
+    }
+
+    match file_name {
+        // FooterIconButton
+        "website.png" | "github.png" | "changelog.png" => 38,
+        // TabButton
+        _ => 36,
     }
 }
 
