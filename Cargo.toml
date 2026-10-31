@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+
+[patch.crates-io]
+i-slint-renderer-femtovg = { path = "vendor/i-slint-renderer-femtovg" }
+
+[profile.dev]
+debug = "line-tables-only"
+panic = "abort"
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 16
+strip = "symbols"
+panic = "abort"
