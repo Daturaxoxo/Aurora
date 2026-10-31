@@ -47,18 +47,28 @@ pub fn parse(text: &str) -> Parsed {
             section = if name.eq_ignore_ascii_case("everlight") {
                 Section::Settings
             } else if let Some(label) = target_label(name) {
-                let label = if label.is_empty() { format!("#{}", raw_targets.len() + 1) } else { label.to_string() };
-                raw_targets.push(RawTarget { line: n, label, ..Default::default() });
+                let label = if label.is_empty() {
+                    format!("#{}", raw_targets.len() + 1)
+                } else {
+                    label.to_string()
+                };
+                raw_targets.push(RawTarget {
+                    line: n,
+                    label,
+                    ..Default::default()
+                });
                 Section::Target
             } else {
-                out.ignored.push(format!("line {n}: unknown section [{name}]"));
+                out.ignored
+                    .push(format!("line {n}: unknown section [{name}]"));
                 Section::Unknown
             };
             continue;
         }
 
         let Some((key, value)) = line.split_once('=') else {
-            out.ignored.push(format!("line {n}: not a key = value line"));
+            out.ignored
+                .push(format!("line {n}: not a key = value line"));
             continue;
         };
         let key = key.trim().to_ascii_lowercase();
@@ -68,18 +78,26 @@ pub fn parse(text: &str) -> Parsed {
             Section::Settings => match key.as_str() {
                 "schema" => match parse_int(value).and_then(|v| u32::try_from(v).ok()) {
                     Some(v) => schema = Some(v),
-                    None => out.warnings.push(format!("line {n}: Schema '{value}' is not a number")),
+                    None => out
+                        .warnings
+                        .push(format!("line {n}: Schema '{value}' is not a number")),
                 },
                 "folder" => settings.folder = value.to_string(),
                 "debug" => match parse_bool(value) {
                     Some(v) => settings.debug = v,
-                    None => out.warnings.push(format!("line {n}: Debug '{value}' is not true/false")),
+                    None => out
+                        .warnings
+                        .push(format!("line {n}: Debug '{value}' is not true/false")),
                 },
                 "method" => match LoadMethod::parse(value) {
                     Some(v) => settings.method = v,
-                    None => out.warnings.push(format!("line {n}: unknown Method '{value}'")),
+                    None => out
+                        .warnings
+                        .push(format!("line {n}: unknown Method '{value}'")),
                 },
-                _ => out.ignored.push(format!("line {n}: unknown key '{key}' in [Everlight]")),
+                _ => out
+                    .ignored
+                    .push(format!("line {n}: unknown key '{key}' in [Everlight]")),
             },
             Section::Target => {
                 let target = raw_targets.last_mut().expect("in a target section");
@@ -91,20 +109,27 @@ pub fn parse(text: &str) -> Parsed {
                     "offset" => &mut target.offset,
                     "bytes" => &mut target.bytes,
                     _ => {
-                        out.ignored.push(format!("line {n}: unknown key '{key}' in target '{}'", target.label));
+                        out.ignored.push(format!(
+                            "line {n}: unknown key '{key}' in target '{}'",
+                            target.label
+                        ));
                         continue;
                     }
                 };
                 *slot = Some(value.to_string());
             }
-            Section::None => out.ignored.push(format!("line {n}: key '{key}' is outside any section")),
+            Section::None => out
+                .ignored
+                .push(format!("line {n}: key '{key}' is outside any section")),
             Section::Unknown => {}
         }
     }
 
     out.config.schema = match schema {
         Some(s) if s != SCHEMA => {
-            out.warnings.push(format!("Schema is {s}, expected {SCHEMA}; reading it anyway"));
+            out.warnings.push(format!(
+                "Schema is {s}, expected {SCHEMA}; reading it anyway"
+            ));
             s
         }
         Some(s) => s,
@@ -115,7 +140,9 @@ pub fn parse(text: &str) -> Parsed {
         let (label, line) = (raw.label.clone(), raw.line);
         match build_target(raw, &settings) {
             Ok(target) => out.config.targets.push(target),
-            Err(why) => out.warnings.push(format!("target '{label}' (line {line}) skipped: {why}")),
+            Err(why) => out
+                .warnings
+                .push(format!("target '{label}' (line {line}) skipped: {why}")),
         }
     }
     out.config.settings = settings;
@@ -159,7 +186,15 @@ fn build_target(raw: RawTarget, settings: &Settings) -> Result<Target, String> {
     if method == LoadMethod::SigBypass && kind != PatchType::ResolveCall && bytes.is_empty() {
         return Err("no Bytes".into());
     }
-    Ok(Target { label: raw.label, exe, method, kind, pattern, offset, bytes })
+    Ok(Target {
+        label: raw.label,
+        exe,
+        method,
+        kind,
+        pattern,
+        offset,
+        bytes,
+    })
 }
 
 fn parse_int(s: &str) -> Option<u64> {
@@ -181,7 +216,10 @@ fn parse_hex_bytes(s: &str) -> Option<Vec<u8>> {
     s.split(|c: char| c.is_whitespace() || c == ',')
         .filter(|t| !t.is_empty())
         .map(|t| {
-            let t = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")).unwrap_or(t);
+            let t = t
+                .strip_prefix("0x")
+                .or_else(|| t.strip_prefix("0X"))
+                .unwrap_or(t);
             u8::from_str_radix(t, 16).ok()
         })
         .collect()

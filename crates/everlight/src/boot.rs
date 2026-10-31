@@ -1,10 +1,10 @@
-use std::thread;
-use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
-use windows_sys::Win32::System::Threading::CreateEventW;
 use crate::loaders::ModLoader;
 use crate::loaders::sigbypass::SigBypass;
 use crate::sig::{self, LoadMethod, Target};
 use crate::{log, paths};
+use std::thread;
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
+use windows_sys::Win32::System::Threading::CreateEventW;
 const TAG: &str = "Everlight";
 
 pub fn start() {
@@ -15,7 +15,10 @@ pub fn start() {
 
 fn run() {
     if !claim_process() {
-        log_info!(TAG, "Everlight is already running in this process, so this module will skip.");
+        log_info!(
+            TAG,
+            "Everlight is already running in this process, so this module will skip."
+        );
         return;
     }
     main();
@@ -75,8 +78,6 @@ fn main() {
         cfg.settings.method.name()
     );
 
-    crate::plugins::load_all();
-
     let for_host = |method| -> Vec<&Target> {
         cfg.targets
             .iter()
@@ -103,6 +104,10 @@ fn main() {
         );
     }
     if sig_targets.is_empty() && asset_targets.is_empty() {
-        log_info!(TAG, "No targets match host \"{host}\" - nothing to do in this process (aborted).");
+        log_info!(
+            TAG,
+            "No targets match host \"{host}\" - nothing to do in this process (aborted)."
+        );
     }
+    crate::plugins::load_all();
 }

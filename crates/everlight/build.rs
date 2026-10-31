@@ -4,11 +4,22 @@ fn main() {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
-
     let version = env::var("CARGO_PKG_VERSION").unwrap();
-    // The proxy build ships as the system DLL it impersonates.
-    let original_filename =
-        if env::var_os("CARGO_FEATURE_VERSION").is_some() { "version.dll" } else { "Everlight.asi" };
+    let original_filename = if env::var_os("CARGO_FEATURE_VERSION").is_some() {
+        "version.dll"
+    } else if env::var_os("CARGO_FEATURE_WINHTTP").is_some() {
+        "winhttp.dll"
+    } else if env::var_os("CARGO_FEATURE_WINMM").is_some() {
+        "winmm.dll"
+    } else if env::var_os("CARGO_FEATURE_DWMAPI").is_some() {
+        "dwmapi.dll"
+    } else if env::var_os("CARGO_FEATURE_DBGHELP").is_some() {
+        "dbghelp.dll"
+    } else if env::var_os("CARGO_FEATURE_XINPUT1_4").is_some() {
+        "xinput1_4.dll"
+    } else {
+        "Everlight.asi"
+    };
     let part = |name: &str| env::var(name).unwrap();
     let numeric = format!(
         "{},{},{},0",

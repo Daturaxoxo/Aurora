@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "proxy", allow(dead_code, unused_macros))]
+use crate::paths;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -7,7 +8,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use windows_sys::Win32::Foundation::{FILETIME, SYSTEMTIME};
 use windows_sys::Win32::System::SystemInformation::GetSystemTimePreciseAsFileTime;
 use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
-use crate::paths;
 pub const FILE_NAME: &str = "Everlight.log";
 
 #[derive(Clone, Copy)]
@@ -65,7 +65,10 @@ pub fn write(level: Level, tag: &str, line: u32, args: fmt::Arguments) {
 }
 
 fn local_time() -> (SYSTEMTIME, u64) {
-    let mut ft = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+    let mut ft = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
     let mut utc: SYSTEMTIME = unsafe { std::mem::zeroed() };
     let mut local: SYSTEMTIME = unsafe { std::mem::zeroed() };
     unsafe {

@@ -9,23 +9,35 @@ try {
     $built = "target\release\everlight.dll"
     $stage = "target\everlight"
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    $targets = [ordered]@{
+        ""        = "Everlight.asi"
+        "version" = "version.dll"
+        "winhttp" = "winhttp.dll"
+        "winmm"   = "winmm.dll"
+        "dwmapi"  = "dwmapi.dll"
+        "dbghelp" = "dbghelp.dll"
+        "xinput1_4" = "xinput1_4.dll"
+    }
 
-    Write-Host "Building engine (Everlight.asi)..."
-    cargo build -p everlight --release
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Copy-Item $built "$stage\Everlight.asi" -Force
+    foreach ($feature in $targets.Keys) {
+        $out = $targets[$feature]
+        if ($feature) {
+            Write-Host "Building proxy ($out)..."
+            cargo build -p everlight --features $feature --release
+        } else {
+            Write-Host "Building engine ($out)..."
+            cargo build -p everlight --release
+        }
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Copy-Item $built "$stage\$out" -Force
+    }
 
-    Write-Host "Building proxy (version.dll)..."
-    cargo build -p everlight --features version --release
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Copy-Item $built "$stage\version.dll" -Force
-
-    Write-Host "Staged:`n  $root\$stage\Everlight.asi`n  $root\$stage\version.dll"
+    Write-Host "Staged into $root\$stage\:"
+    $targets.Values | ForEach-Object { Write-Host "  $_" }
 
     if ($Deploy) {
-        Copy-Item "$stage\Everlight.asi" "Bin\nte\Everlight.asi" -Force
-        Copy-Item "$stage\version.dll"  "Bin\nte\version.dll"   -Force
-        Write-Host "Deployed both into Bin\nte\"
+        $targets.Values | ForEach-Object { Copy-Item "$stage\$_" "Bin\nte\$_" -Force }
+        Write-Host "Deployed all into Bin\nte\"
     }
 }
 finally {

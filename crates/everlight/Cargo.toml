@@ -11,6 +11,11 @@ crate-type = ["cdylib"]
 default = []
 proxy = []
 version = ["proxy"]
+winhttp = ["proxy"]
+winmm = ["proxy"]
+dwmapi = ["proxy"]
+dbghelp = ["proxy"]
+xinput1_4 = ["proxy"]
 
 [dependencies]
 windows-sys = { version = "0.61", features = [

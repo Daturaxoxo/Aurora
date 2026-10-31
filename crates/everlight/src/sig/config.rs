@@ -52,7 +52,11 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { folder: "AuroraMods".into(), debug: false, method: LoadMethod::SigBypass }
+        Self {
+            folder: "AuroraMods".into(),
+            debug: false,
+            method: LoadMethod::SigBypass,
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 #![allow(non_snake_case, non_upper_case_globals)]
+pub const DLL_NAME: &str = "version.dll";
 #[macro_use]
 #[path = "exports.rs"]
 mod exports;

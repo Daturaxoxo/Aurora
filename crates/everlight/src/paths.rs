@@ -32,7 +32,8 @@ pub fn module_dir() -> &'static Path {
         let anchor = module_dir as *const () as *const u16;
         let found = unsafe {
             GetModuleHandleExW(
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                    | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                 anchor,
                 &mut module,
             )
@@ -48,7 +49,8 @@ pub fn module_dir() -> &'static Path {
 fn module_path(module: HMODULE) -> Option<PathBuf> {
     let mut buf = vec![0u16; 260];
     loop {
-        let len = unsafe { GetModuleFileNameW(module, buf.as_mut_ptr(), buf.len() as u32) } as usize;
+        let len =
+            unsafe { GetModuleFileNameW(module, buf.as_mut_ptr(), buf.len() as u32) } as usize;
         if len == 0 {
             return None;
         }
