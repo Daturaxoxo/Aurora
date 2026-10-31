@@ -1,4 +1,25 @@
 [package]
 name = "everlight"
-version = "0.0.0"
+version = "4.0.0"
 edition = "2024"
+description = "Aurora's external engine process, patches the game itself."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_ProcessStatus",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+] }
+
+[build-dependencies]
+embed-resource = "3"

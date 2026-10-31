@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+members = ["src/everlight"]
 
 [patch.crates-io]
 i-slint-renderer-femtovg = { path = "vendor/i-slint-renderer-femtovg" }
