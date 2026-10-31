@@ -6,6 +6,9 @@ fn main() {
     }
 
     let version = env::var("CARGO_PKG_VERSION").unwrap();
+    // The proxy build ships as the system DLL it impersonates.
+    let original_filename =
+        if env::var_os("CARGO_FEATURE_VERSION").is_some() { "version.dll" } else { "Everlight.asi" };
     let part = |name: &str| env::var(name).unwrap();
     let numeric = format!(
         "{},{},{},0",
@@ -36,7 +39,7 @@ BEGIN
             VALUE "InternalName",     "Everlight"
             VALUE "LegalCopyright",   "Copyright (C) 2026 Aurora Launcher"
             VALUE "LegalTrademarks",  "Aurora Launcher, Everlight"
-            VALUE "OriginalFilename", "Everlight.asi"
+            VALUE "OriginalFilename", "{original_filename}"
             VALUE "ProductName",      "Everlight"
             VALUE "ProductVersion",   "{version}"
         END

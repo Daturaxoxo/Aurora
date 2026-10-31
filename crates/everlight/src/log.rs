@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "proxy", allow(dead_code, unused_macros))]
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;

@@ -75,6 +75,8 @@ fn main() {
         cfg.settings.method.name()
     );
 
+    crate::plugins::load_all();
+
     let for_host = |method| -> Vec<&Target> {
         cfg.targets
             .iter()

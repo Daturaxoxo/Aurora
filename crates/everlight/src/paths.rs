@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "proxy", allow(dead_code))]
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
