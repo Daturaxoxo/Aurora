@@ -1,4 +1,4 @@
-use crate::engine::contract::{EventSink, NotificationKind};
+use crate::engine::contract::EventSink;
 use anyhow::{Context, Result};
 use log::*;
 use std::fs;
@@ -65,15 +65,7 @@ fn watch_checksum(
                     res_version.as_deref().unwrap_or("<unknown>"),
                     win64.display()
                 );
-                let text = res_version.as_deref().map_or_else(
-                    || "Game version mismatch, wait for Aurora to update".to_string(),
-                    |res_version| {
-                        format!(
-                            "Game version mismatch (game is on {res_version}), wait for Aurora to update"
-                        )
-                    },
-                );
-                events.notify(NotificationKind::Error, text);
+                events.checksum_mismatch(res_version);
             }
         }
 

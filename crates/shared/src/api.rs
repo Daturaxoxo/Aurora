@@ -71,7 +71,6 @@ fn download_client() -> &'static Client {
     })
 }
 
-/// Downloads an absolute `url` into memory.
 pub fn download_bytes(url: &str) -> Result<Vec<u8>> {
     let response = download_client()
         .get(url)

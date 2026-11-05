@@ -17,6 +17,17 @@ use shared::config::{self, key};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
 
+fn checksum_mismatch_message(game_version: Option<&str>) -> String {
+    let message = tr("popup.checksum-mismatch.message");
+    match game_version {
+        Some(v) => format!(
+            "{message}\n\n{}",
+            tr("popup.checksum-mismatch.game-version").replace("{0}", v)
+        ),
+        None => message,
+    }
+}
+
 const INIT_WARNINGS: &[(&str, &str)] = &[
     (
         "None of the expected launchers were found",
@@ -136,6 +147,10 @@ impl Bridge {
                 EngineEvent::EverlightFatal { message, .. } => {
                     error!("Quick start: Everlight fatal error, game was closed: {message}");
                 }
+                EngineEvent::ChecksumMismatch { game_version, .. } => error!(
+                    "Quick start: game version mismatch (game is on {}), Aurora needs an update",
+                    game_version.as_deref().unwrap_or("<unknown>")
+                ),
                 EngineEvent::EverlightTimeout { .. } => {
                     error!(
                         "Quick start: Everlight produced no log within the timeout, game was \
@@ -422,6 +437,7 @@ impl Bridge {
                 }
             },
             EngineEvent::SessionClosed(_) => {
+                crate::classes::ingame::session_closed();
                 crate::classes::tray::deactivate(&w);
                 let w_ui = w.clone();
                 slint::invoke_from_event_loop(move || {
@@ -496,6 +512,14 @@ impl Bridge {
                     "Everlight did not start",
                     "Everlight did not produce a log file within 45 seconds, so the game \
                      has been closed.\n\nTry switching engine methods in Settings.",
+                );
+            }
+            EngineEvent::ChecksumMismatch { game_version, .. } => {
+                Self::show_popup(
+                    &w,
+                    "checksum-mismatch",
+                    &tr("popup.checksum-mismatch.title"),
+                    &checksum_mismatch_message(game_version.as_deref()),
                 );
             }
         }

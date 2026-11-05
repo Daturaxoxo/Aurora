@@ -654,7 +654,6 @@ struct State {
     sort: ModSort,
     filter_characters: HashSet<String>,
     filter_authors: HashSet<String>,
-    /// A group id, [`UNGROUPED`], or empty for every group
     filter_group: String,
     add_existing: Option<AddExisting>,
     scope: Option<ModScope>,
@@ -2148,7 +2147,6 @@ impl ModManagerHandler {
         w.set_mods_active_filter_count(count);
     }
 
-    /// Drops a finished custom image onto its card.
     fn apply_icon(w: &MainWindow, id: &str, image: &slint::Image) {
         Self::update_row(w, id, |row| row.icon = image.clone());
     }
@@ -2167,8 +2165,6 @@ impl ModManagerHandler {
     }
 
     // [ADD EXISTING MODS]
-
-    /// Creates `dst` as a real folder whose files are hard links into `src`
     fn hard_link_dir(src: &Path, dst: &Path) -> Result<()> {
         std::fs::create_dir_all(dst)?;
         for entry in src.read_dir()? {

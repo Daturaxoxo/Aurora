@@ -20,10 +20,7 @@ impl RepairReport {
     }
 }
 
-/// Set once, when the manifest could not be fetched
 static MANIFEST_UNREACHABLE: AtomicBool = AtomicBool::new(false);
-
-/// Paths we have already tried to restore this session
 static ATTEMPTED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 
 fn first_attempt(relative: &str) -> bool {

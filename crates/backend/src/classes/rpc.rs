@@ -6,17 +6,12 @@ use discord_rich_presence::{
 use log::*;
 use shared::config::{self, key};
 use shared::utils::{self, get_current_timestamp};
-
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::Duration;
-
 const APPLICATION_ID: &str = "1505644188060876920";
-
 const MIN_BACKOFF: Duration = Duration::from_secs(15);
 const MAX_BACKOFF: Duration = Duration::from_mins(5);
-
-/// Global Discord RPC client
 pub static RPC: std::sync::LazyLock<DiscordRpc> = std::sync::LazyLock::new(|| {
     DiscordRpc::new(utils::get_current_timestamp()).unwrap_or_default()
 });

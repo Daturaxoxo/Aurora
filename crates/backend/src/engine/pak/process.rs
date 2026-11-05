@@ -3,15 +3,11 @@ use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-
 use anyhow::{Result, anyhow};
 use log::*;
 use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-
 use super::PakEngine;
 use super::locks;
-
-/// How long to wait for a process to actually disappear after asking it to die.
 const KILL_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
 const KILL_CONFIRM_POLL: Duration = Duration::from_millis(100);
 const PROBE_ATTEMPTS: u32 = 5;

@@ -237,6 +237,15 @@ impl EventSink {
             })
             .ok();
     }
+
+    pub fn checksum_mismatch(&self, game_version: Option<String>) {
+        self.tx
+            .send(EngineEvent::ChecksumMismatch {
+                tag: self.tag.clone(),
+                game_version,
+            })
+            .ok();
+    }
 }
 
 pub struct SessionHooks {

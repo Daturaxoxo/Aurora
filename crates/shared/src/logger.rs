@@ -48,10 +48,7 @@ pub(crate) fn log_dir() -> std::path::PathBuf {
     ipc::state_root().join("Logs")
 }
 
-/// Maximum amount of log entries allowed in the in-memory buffer
 pub const LOG_BUFFER_CAPACITY: usize = 10_000;
-
-/// Maximum amount of `aurora-*.log` files kept on disk
 const MAX_LOG_FILES: usize = 20;
 
 fn session_log_modified(entry: &fs::DirEntry) -> Option<std::time::SystemTime> {

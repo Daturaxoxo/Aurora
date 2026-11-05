@@ -39,6 +39,10 @@ pub enum EngineEvent {
     EverlightTimeout {
         tag: CommandTag,
     },
+    ChecksumMismatch {
+        tag: CommandTag,
+        game_version: Option<String>,
+    },
 }
 
 impl EngineEvent {
@@ -50,7 +54,8 @@ impl EngineEvent {
             Self::Validated(o) => &o.tag,
             Self::Notification { tag, .. }
             | Self::EverlightFatal { tag, .. }
-            | Self::EverlightTimeout { tag } => tag,
+            | Self::EverlightTimeout { tag }
+            | Self::ChecksumMismatch { tag, .. } => tag,
         }
     }
 }

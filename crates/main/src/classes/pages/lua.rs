@@ -307,7 +307,6 @@ impl LuaScriptsHandler {
         }
     }
 
-    /// UE4SS Install Main
     fn start_install(window: Weak<MainWindow>, guard: MutationGuard, scope: LuaScope) {
         crate::classes::pages::gbbrowser::runtime().spawn(async move {
             let result =

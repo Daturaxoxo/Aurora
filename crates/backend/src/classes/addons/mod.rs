@@ -76,7 +76,6 @@ fn manifest_urls(folder: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Re-downloads `file_name` into `folder` using the addon manifest's `FILE` urls.
 pub fn repair_file(folder: &Path, file_name: &str) -> Result<()> {
     if Path::new(file_name).file_name() != Some(OsStr::new(file_name)) {
         return Err(anyhow!("refusing to repair unsafe file name '{file_name}'"));
@@ -101,7 +100,6 @@ pub fn repair_file(folder: &Path, file_name: &str) -> Result<()> {
     shared::api::download_to(&url, &folder.join(file_name))
 }
 
-/// All files inside an addon folder except blacklisted extensions
 pub fn payload_files(folder: &Path) -> Vec<PathBuf> {
     pub const BLACKLISTED_EXTENSIONS: [&str; 10] = [
         "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst", "lz4", "md5",

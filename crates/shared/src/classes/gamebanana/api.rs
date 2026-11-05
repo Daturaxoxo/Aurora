@@ -33,7 +33,6 @@ enum Attempt {
     Fatal(anyhow::Error),
 }
 
-/// a registered game's `GameBanana` id plus the cache namespace its requests write to (dont delete this comment or else)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteGame {
     pub id: u32,

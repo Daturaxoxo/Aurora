@@ -5,6 +5,7 @@ pub mod desktop;
 #[cfg(target_os = "windows")]
 pub mod filedrop;
 pub mod iconpack;
+pub mod ingame;
 pub mod logwindow;
 pub mod modicons;
 pub mod oneclick;

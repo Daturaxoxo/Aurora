@@ -1,6 +1,8 @@
 use crate::bridge::Bridge;
+use crate::classes::ingame;
 use crate::classes::pages::addons::AddonsHandler;
 use crate::runtime::{self, Admission, MutationGuard};
+use crate::translations::tr;
 use crate::{LaunchState, MainWindow};
 use anyhow::{Context, Result, anyhow};
 use ipc::manifest::hash_file;
@@ -39,6 +41,8 @@ struct BetaPhaseResponse {
 }
 
 const UPDATE_ADMISSION_WAIT: Duration = Duration::from_secs(60);
+const BACKGROUND_CHECK_INTERVAL: Duration = Duration::from_secs(180);
+const BACKGROUND_CHECK_JITTER_SECS: u64 = 30;
 static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static UI_LOCKED: AtomicBool = AtomicBool::new(false);
 static POST_UPDATE_PENDING: AtomicBool = AtomicBool::new(false);
@@ -110,6 +114,10 @@ impl UpdateHandler {
         let args: Vec<String> = std::env::args().skip(1).collect();
         let has = |flag: &str| args.iter().any(|arg| arg == flag);
 
+        if !has(ipc::SKIP_UPDATE_CHECK_ARG) {
+            Self::start_background_checks(window);
+        }
+
         if has(ipc::POST_UPDATE_ARG) {
             info!("launched post-update; init will be confirmed once startup completes");
             POST_UPDATE_PENDING.store(true, Ordering::SeqCst);
@@ -133,6 +141,84 @@ impl UpdateHandler {
         }
 
         Self::run_update_check(window, false);
+    }
+
+    fn start_background_checks(window: &slint::Weak<MainWindow>) {
+        if cfg!(debug_assertions) {
+            return;
+        }
+        #[cfg(target_os = "linux")]
+        if ipc::appimage_path().is_none() {
+            return;
+        }
+
+        let w = window.clone();
+        std::thread::spawn(move || {
+            let mut offered: Option<String> = None;
+            loop {
+                std::thread::sleep(BACKGROUND_CHECK_INTERVAL + background_check_jitter());
+
+                let remote = match Self::fetch_remote_version() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        debug!("background update check failed: {e:#}");
+                        continue;
+                    }
+                };
+                if offered.as_deref() == Some(remote.as_str()) {
+                    continue;
+                }
+
+                let local = shared::utils::get_local_version();
+                let (Some(local_parts), Some(remote_parts)) =
+                    (Self::parse_version(&local), Self::parse_version(&remote))
+                else {
+                    continue;
+                };
+                if Self::compare_versions(&local_parts, &remote_parts) != std::cmp::Ordering::Less {
+                    continue;
+                }
+
+                info!(
+                    "background check: {remote} is available (installed {})",
+                    local.trim()
+                );
+                if Self::update_kind(&local, &remote) == UpdateKind::Major {
+                    offered = Some(remote);
+                }
+                Self::run_update_check(&w, false);
+            }
+        });
+    }
+
+    fn notify_in_game(version: &str, deferred: bool) {
+        let (title_key, subtitle_key) = if deferred {
+            (
+                "toast.ingame.update-deferred.title",
+                "toast.ingame.update-deferred.subtitle",
+            )
+        } else {
+            (
+                "toast.ingame.update-available.title",
+                "toast.ingame.update-available.subtitle",
+            )
+        };
+        ingame::notify_once(
+            &format!("update-{version}"),
+            tr(title_key).replace("{0}", version),
+            tr(subtitle_key),
+            ipc::ingame::Accent::Aurora,
+        );
+    }
+
+    #[cfg(windows)]
+    fn fetch_remote_version() -> Result<String> {
+        Ok(Self::fetch_manifest()?.version)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn fetch_remote_version() -> Result<String> {
+        Ok(Self::fetch_linux_manifest()?.version)
     }
 
     pub fn startup_prepared(window: &slint::Weak<MainWindow>, result: Result<()>) {
@@ -320,6 +406,7 @@ impl UpdateHandler {
                             "minor update {} is available but {e}; it will be applied on the next start",
                             manifest.version
                         );
+                        Self::notify_in_game(&manifest.version, true);
                         return Ok(None);
                     }
                 };
@@ -340,6 +427,7 @@ impl UpdateHandler {
             }
             UpdateKind::Major => {
                 info!("update {} available; asking the user", manifest.version);
+                Self::notify_in_game(&manifest.version, false);
 
                 return Ok(Some(manifest.version));
             }
@@ -404,6 +492,7 @@ impl UpdateHandler {
                             "minor update {} is available but {e}; it will be applied on the next start",
                             manifest.version
                         );
+                        Self::notify_in_game(&manifest.version, true);
                         return Ok(None);
                     }
                 };
@@ -423,6 +512,7 @@ impl UpdateHandler {
             }
             UpdateKind::Major => {
                 info!("update {} available; asking the user", manifest.version);
+                Self::notify_in_game(&manifest.version, false);
                 return Ok(Some(manifest.version));
             }
         }
@@ -1303,6 +1393,13 @@ fn read_response(response: &mut Response, url: &str, budget: Duration) -> Result
 
         body.extend_from_slice(&chunk[..n]);
     }
+}
+
+fn background_check_jitter() -> Duration {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::from(d.subsec_nanos()));
+    Duration::from_secs(nanos % BACKGROUND_CHECK_JITTER_SECS)
 }
 
 fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T> {

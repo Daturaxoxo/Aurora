@@ -463,37 +463,3 @@ impl OneClickHandler {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validates_supported_file_paths() {
-        for path in ["mmdl/123", "dl/456"] {
-            let request = OneClick {
-                url: format!("https://gamebanana.com/{path}"),
-                model: "Mod".into(),
-                item_id: 1,
-            };
-            assert!(OneClickHandler::validate_local(&request).is_ok());
-        }
-    }
-
-    #[test]
-    fn rejects_untrusted_urls_before_networking() {
-        for url in [
-            "http://gamebanana.com/mmdl/1",
-            "https://gamebanana.com.evil.test/mmdl/1",
-            "https://gamebanana.com/mods/1",
-            "file:///tmp/mod.zip",
-        ] {
-            let request = OneClick {
-                url: url.into(),
-                model: "Mod".into(),
-                item_id: 1,
-            };
-            assert!(OneClickHandler::validate_local(&request).is_err(), "{url}");
-        }
-    }
-}

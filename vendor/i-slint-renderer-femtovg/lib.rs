@@ -45,18 +45,11 @@ pub use wgpu::FemtoVGWGPURenderer;
 
 pub trait WindowSurface<R: femtovg::Renderer> {
     fn render_output(&self) -> impl Into<R::RenderOutput>;
-    /// Return [`femtovg::RenderTarget::Image`] to redirect the frame when
-    /// [`Self::render_output`] cannot select an offscreen target, as for OpenGL, which
-    /// renders into whatever framebuffer is bound.
     fn initial_render_target(&self) -> femtovg::RenderTarget {
         femtovg::RenderTarget::Screen
     }
 }
 
-/// Call after every [`femtovg::Canvas::set_size`], which queues a `SetRenderTarget(Screen)` of
-/// its own without updating the cached target. [`femtovg::Canvas::set_render_target`] does
-/// nothing when the target matches that cache, so switch through `Screen` to force the frame's
-/// target to be queued again.
 fn select_render_target<R: femtovg::Renderer>(
     canvas: &mut femtovg::Canvas<R>,
     target: femtovg::RenderTarget,
@@ -67,11 +60,8 @@ fn select_render_target<R: femtovg::Renderer>(
     }
 }
 
-/// Result of [`GraphicsBackend::begin_surface_rendering`]. `Skipped` carries the reason,
-/// which propagates to the caller so it can decide whether to re-arm a redraw.
 pub enum BeginRendering<S> {
     Acquired(S),
-    /// Always [`DrawOutcome::Occluded`] or [`DrawOutcome::Timeout`].
     Skipped(DrawOutcome),
 }
 
@@ -93,19 +83,13 @@ pub trait GraphicsBackend {
         &self,
         callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
     ) -> Result<R, i_slint_core::platform::PlatformError>;
-    /// This function is called by the renderers when the surface needs to be resized, typically
-    /// in response to the windowing system notifying of a change in the window system.
-    /// For most implementations this is a no-op, with the exception for wayland for example.
     fn resize(
         &self,
         width: NonZeroU32,
         height: NonZeroU32,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
-    /// Redirect the full frame drawn by `render` offscreen and read back its pixels, using
-    /// `canvas` if this backend reads back through it. `width` and `height` are the window
-    /// size, guaranteed non-zero by the caller.
-    /// Return `None` if this backend does not support `take_snapshot`.
+
     fn take_snapshot_pixels(
         &self,
         _canvas: Option<CanvasRc<Self::Renderer>>,
@@ -117,9 +101,6 @@ pub trait GraphicsBackend {
     }
 }
 
-/// Use the FemtoVG renderer when implementing a custom Slint platform where you deliver events to
-/// Slint and want the scene to be rendered using OpenGL. The rendering is done using the [FemtoVG](https://github.com/femtovg/femtovg)
-/// library.
 pub struct FemtoVGRenderer<B: GraphicsBackend> {
     maybe_window_adapter: RefCell<Option<Weak<dyn WindowAdapter>>>,
     rendering_notifier: RefCell<Option<Box<dyn RenderingNotifier>>>,
@@ -131,7 +112,6 @@ pub struct FemtoVGRenderer<B: GraphicsBackend> {
     text_layout_cache: sharedparley::TextLayoutCache,
     rendering_metrics_collector: RefCell<Option<Rc<RenderingMetricsCollector>>>,
     rendering_first_time: Cell<bool>,
-    // Last field, so that it's dropped last and for example the OpenGL context exists and is current when destroying the FemtoVG canvas
     graphics_backend: B,
 }
 
@@ -153,7 +133,6 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
         }
     }
 
-    /// Render the scene using OpenGL.
     pub fn render(&self) -> Result<(), i_slint_core::platform::PlatformError> {
         self.internal_render_with_post_callback(
             0.,
@@ -445,8 +424,6 @@ impl<B: GraphicsBackend> Drop for FemtoVGRenderer<B> {
     }
 }
 
-/// The purpose of this trait is to add internal API that's accessed from the winit/linuxkms backends, but not
-/// public (as the trait isn't re-exported).
 #[doc(hidden)]
 pub trait FemtoVGRendererExt {
     fn new_suspended() -> Self;
@@ -460,8 +437,6 @@ pub trait FemtoVGRendererExt {
     ) -> Result<DrawOutcome, i_slint_core::platform::PlatformError>;
 }
 
-/// The purpose of this trait is to add internal API specific to the OpenGL renderer that's accessed from the winit
-/// backend. In this case, the ability to resume a suspended OpenGL renderer by providing a new context.
 #[doc(hidden)]
 #[cfg(feature = "opengl")]
 pub trait FemtoVGOpenGLRendererExt {
@@ -474,8 +449,6 @@ pub trait FemtoVGOpenGLRendererExt {
 
 #[doc(hidden)]
 impl<B: GraphicsBackend> FemtoVGRendererExt for FemtoVGRenderer<B> {
-    /// Creates a new renderer in suspended state without OpenGL. Any attempts at rendering, etc. will produce an error,
-    /// until [`Self::set_opengl_context()`] was called successfully.
     fn new_suspended() -> Self {
         Self {
             maybe_window_adapter: Default::default(),

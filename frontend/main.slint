@@ -159,6 +159,7 @@ export component MainWindow inherits Window {
     in-out property <bool> discord-rpc: true;
     in-out property <bool> remember-window-size: true;
     in-out property <string> game-directory: "";
+    in-out property <bool> auto-pathfinding: true;
     in-out property <int> engine-method-index: 0;
     in-out property <int> start-method-index: 0;
     in-out property <int> engine-scale: 100;
@@ -202,6 +203,7 @@ export component MainWindow inherits Window {
     callback remember-window-size-changed(bool);
     callback reset-window-size();
     callback add-steam-shortcut();
+    callback auto-pathfinding-changed(bool);
     callback engine-method-index-changed(int);
     callback start-method-index-changed(int);
     callback engine-scale-changed(int);
@@ -1500,6 +1502,7 @@ export component MainWindow inherits Window {
             discord-rpc <=> root.discord-rpc;
             remember-window-size <=> root.remember-window-size;
             game-directory <=> root.game-directory;
+            auto-pathfinding <=> root.auto-pathfinding;
             engine-method-index <=> root.engine-method-index;
             start-method-index <=> root.start-method-index;
             engine-scale <=> root.engine-scale;
@@ -1546,6 +1549,7 @@ export component MainWindow inherits Window {
             remember-window-size-changed(v) => { root.remember-window-size-changed(v); }
             reset-window-size => { root.reset-window-size(); }
             add-steam-shortcut => { root.add-steam-shortcut(); }
+            auto-pathfinding-changed(v) => { root.auto-pathfinding-changed(v); }
             engine-method-index-changed(i) => { root.engine-method-index-changed(i); }
             start-method-index-changed(i) => { root.start-method-index-changed(i); }
             engine-scale-changed(v) => { root.engine-scale-changed(v); }

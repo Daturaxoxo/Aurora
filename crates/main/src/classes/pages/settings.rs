@@ -103,6 +103,11 @@ impl SettingsHandler {
             error!("could not set Discord RPC to idle: {e}");
         }
 
+        let raw_pathfinding = config::get(key::AUTO_PATHFINDING);
+        let auto_pathfinding = raw_pathfinding.as_bool().unwrap_or(true);
+        debug!("auto_pathfinding: raw={raw_pathfinding:?} → {auto_pathfinding}");
+        w.set_auto_pathfinding(auto_pathfinding);
+
         // Launcher, until the runtime commits a game this shows the selected game's profile
         Self::load_game(&w, Self::current_game(), None);
 
@@ -528,6 +533,12 @@ impl SettingsHandler {
             } else {
                 crate::classes::tray::deactivate(&ww);
             }
+        });
+
+        w.on_auto_pathfinding_changed(move |enabled| {
+            info!("auto_pathfinding changed → {enabled}");
+            config::set(key::AUTO_PATHFINDING, enabled);
+            debug!("auto_pathfinding saved to config");
         });
 
         w.on_remember_window_size_changed(move |enabled| {

@@ -1,12 +1,11 @@
+pub mod ingame;
 pub mod lock;
 pub mod manifest;
 pub mod oneclick;
 pub mod protocol;
-
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::Duration;
-
 pub const DOWNLOAD_BASE_PRIMARY: &str = "https://host.getaurora.moe/files/app/";
 pub const DOWNLOAD_BASE_FALLBACK: &str =
     "https://github.com/Daturaxoxo/AuroraInstallation/releases/latest/download/";

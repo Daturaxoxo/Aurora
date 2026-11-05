@@ -55,6 +55,10 @@ pub fn mirror_legacy_game_path(game: &dyn Game, root: &Path) {
     }
 }
 
+pub fn auto_pathfinding_enabled() -> bool {
+    config::get(key::AUTO_PATHFINDING).as_bool().unwrap_or(true)
+}
+
 pub fn find_installation_root(
     game: &dyn Game,
     configured: Option<&Path>,
@@ -74,6 +78,11 @@ pub fn find_installation_root(
             );
         }
         None => debug!("No game directory stored yet; searching for one"),
+    }
+
+    if !auto_pathfinding_enabled() {
+        info!("Automatic pathfinding is disabled; skipping the installation search");
+        return Ok(None);
     }
 
     let instant = std::time::Instant::now();

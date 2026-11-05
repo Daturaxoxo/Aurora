@@ -19,30 +19,20 @@ const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(20);
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Message {
-    /// Updater -> Aurora: connection message.
     Hello,
-    /// Updater -> Aurora: update in progress, lock the UI.
     Lock,
-    /// Updater -> Aurora: update finished (non-exe files!), UI back to normal.
     Unlock,
-    /// Updater -> Aurora: Aurora.exe is being replaced, exit
     CloseNow,
-    /// Updater -> Aurora: periodic liveness ping while locked.
     Heartbeat,
-    /// Updater -> Aurora: download progress while locked.
     Progress {
         file_index: u32,
         file_count: u32,
         bytes_done: u64,
         bytes_total: u64,
     },
-    /// Aurora -> Updater: new Aurora launched successfully after an exe swap.
     InitConfirmed,
-    /// Updater -> Aurora: update failed.
     Error { message: String },
-    /// Updater -> Aurora: manifest matches local state, updater exits.
     NoUpdate,
-    /// One-click -> Aurora: browser 1-click request.
     OneClick {
         url: String,
         model: String,
@@ -101,7 +91,6 @@ pub fn listen_cross_elevation(pipe: &str) -> io::Result<Listener> {
     listen(pipe)
 }
 
-/// The current process user's SID in string form, for building an SDDL string.
 #[cfg(windows)]
 fn current_user_sid() -> io::Result<String> {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};

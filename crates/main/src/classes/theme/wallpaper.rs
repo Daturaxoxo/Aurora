@@ -170,8 +170,6 @@ fn decode_still(bytes: &[u8]) -> Result<Decoded> {
     let decoded = image::load_from_memory(bytes).context("could not decode the wallpaper")?;
     let (width, height) = (decoded.width(), decoded.height());
     let (target_width, target_height) = target_size(width, height);
-
-    // A still costs one buffer, so it is only ever shrunk to fit the display.
     let scaled = if (target_width, target_height) == (width, height) {
         decoded
     } else {
@@ -187,11 +185,6 @@ fn decode_still(bytes: &[u8]) -> Result<Decoded> {
     })
 }
 
-/// Reads the GIF's header, then hands the bytes to a worker that decodes frames
-/// on demand for as long as anyone is listening.
-///
-/// Returns the bytes back on failure so the caller can still try them as a still
-/// image without re-reading the file.
 fn open_animated(bytes: Vec<u8>) -> std::result::Result<Wallpaper, (Vec<u8>, anyhow::Error)> {
     use image::ImageDecoder as _;
     use image::codecs::gif::GifDecoder;
@@ -230,10 +223,6 @@ fn open_animated(bytes: Vec<u8>) -> std::result::Result<Wallpaper, (Vec<u8>, any
     })
 }
 
-/// Decodes frames in a loop until the receiver goes away.
-///
-/// The channel is bounded, so this parks on a full queue rather than racing
-/// ahead: at rest it wakes once per frame delay and does one frame's work.
 fn stream_frames(
     bytes: &[u8],
     (target_width, target_height): (u32, u32),

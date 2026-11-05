@@ -87,11 +87,15 @@ pub mod key {
     pub const ICON_PACK: &str = "icon_pack";
     pub const REMEMBER_WINDOW_SIZE: &str = "remember_window_size";
     pub const WINDOW_SIZE: &str = "window_size";
+    pub const AUTO_PATHFINDING: &str = "auto_pathfinding";
 }
 
 pub fn default_value(k: &str) -> Value {
     match k {
-        key::DISCORD_RPC | key::UI_MINIMIZATION | key::REMEMBER_WINDOW_SIZE => {
+        key::DISCORD_RPC
+        | key::UI_MINIMIZATION
+        | key::REMEMBER_WINDOW_SIZE
+        | key::AUTO_PATHFINDING => {
             json!(true)
         }
 

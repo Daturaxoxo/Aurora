@@ -21,15 +21,10 @@ thread_local! {
     static PLAYBACK: RefCell<Option<Rc<Playback>>> = const { RefCell::new(None) };
 }
 
-/// The animation on screen. Holding this keeps the decoder thread alive; drop it
-/// and the worker's next send fails, which is how playback stops.
 struct Playback {
     timer: slint::Timer,
     frames: std::sync::mpsc::Receiver<wallpaper::Frame>,
-    /// What the timer is currently set to, so it is only re-armed when the next
-    /// frame is held for a different length of time.
     interval: Cell<Duration>,
-    /// Whether playback is currently held because nothing is on screen.
     paused: Cell<bool>,
 }
 

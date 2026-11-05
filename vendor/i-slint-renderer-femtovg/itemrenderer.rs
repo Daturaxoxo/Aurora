@@ -89,14 +89,10 @@ pub struct GLItemRenderer<'a, R: femtovg::Renderer + TextureImporter> {
     texture_cache: &'a RefCell<super::images::TextureCache<R>>,
     box_shadow_cache: &'a FemtovgBoxShadowCache<R>,
     canvas: CanvasRc<R>,
-    // Textures from layering or tiling that were scheduled for rendering where we can't delete the femtovg::ImageId yet
-    // because that can only happen after calling `flush`. Otherwise femtovg ends up processing
-    // `set_render_target` commands with image ids that have been deleted.
     textures_to_delete_after_flush: RefCell<Vec<Rc<super::images::Texture<R>>>>,
     window: &'a i_slint_core::api::Window,
     scale_factor: ScaleFactor,
     text_layout_cache: &'a sharedparley::TextLayoutCache,
-    /// track the state manually since femtovg don't have accessor for its state
     state: Vec<State>,
     metrics: RenderingMetrics,
 }
@@ -257,10 +253,6 @@ impl<'a, R: femtovg::Renderer + TextureImporter> ItemRenderer for GLItemRenderer
         };
 
         let mut femtovg_path = femtovg::Path::new();
-
-        /// Contrary to the SVG spec, femtovg does not use the orientation of the path to
-        /// know if it needs to fill or not some part, it uses its own Solidity enum.
-        /// We must then compute ourself the orientation and set the Solidity accordingly.
         #[derive(Default)]
         struct OrientationCalculator {
             area: f32,
@@ -374,14 +366,6 @@ impl<'a, R: femtovg::Renderer + TextureImporter> ItemRenderer for GLItemRenderer
         })
     }
 
-    /// Draws a rectangular shadow shape, which is usually placed underneath another rectangular shape
-    /// with an offset (the drop-shadow-offset-x/y). The algorithm follows the HTML Canvas spec 4.12.5.1.18:
-    ///  * Create a new image to cache the shadow rendering
-    ///  * Fill the image with transparent "black"
-    ///  * Draw the (rounded) rectangle at shadow offset_x/offset_y
-    ///  * Blur the image
-    ///  * Fill the image with the shadow color and SourceIn as composition mode
-    ///  * Draw the shadow image
     fn draw_box_shadow(
         &mut self,
         box_shadow: Pin<&items::BoxShadow>,
@@ -1441,8 +1425,6 @@ impl<'a, R: femtovg::Renderer + TextureImporter> GLItemRenderer<'a, R> {
         }
     }
 
-    /// Converts the brush into a femtovg paint, with gradients resolved against the
-    /// `size` of the shape's geometry.
     fn brush_to_paint(&self, brush: Brush, size: PhysicalSize) -> Option<femtovg::Paint> {
         let resolved = i_slint_core::graphics::resolve_brush(&brush, size, self.scale_factor)?;
         Some(match resolved {

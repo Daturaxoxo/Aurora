@@ -1,16 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-
 use crate::logic::{GameRoot, ModTarget, configured_roots, is_protected_dir, mod_targets};
 use serde_json::Value;
 use shared::classes::games::registry;
 use shared::config::{get_userdata_path, key};
-
 const DATA_DIR_NAME: &str = "Aurora";
-
-/// Folder the user picked by hand after automatic detection failed.
 static APP_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
-
 pub fn set_app_dir_override(dir: PathBuf) {
     *APP_DIR_OVERRIDE.lock().unwrap() = Some(dir);
 }
@@ -23,8 +18,6 @@ pub struct Plan {
     pub data_dir: PathBuf,
     pub app_dir: Option<PathBuf>,
     pub app_dir_error: Option<String>,
-    /// The application folder holds things Aurora did not install, so the user
-    /// is told upfront that those are left alone.
     pub app_dir_shared: bool,
     pub mods: Vec<ModTarget>,
     pub mods_rejected: Vec<String>,
@@ -83,8 +76,6 @@ impl Plan {
     }
 }
 
-/// Takes the first candidate that verifies. If none do, reports why the best
-/// guess was rejected.
 fn select_app_dir(candidates: Vec<PathBuf>) -> (Option<PathBuf>, Option<String>) {
     let mut first_error = None;
 
@@ -129,8 +120,6 @@ pub fn verify_app_dir(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Aurora's own data folder, and no other. `--data-dir` comes from the
-/// elevated relaunch, so it is checked rather than trusted.
 pub fn verify_data_dir(dir: &Path) -> Result<(), String> {
     if is_protected_dir(dir) {
         return Err(format!(

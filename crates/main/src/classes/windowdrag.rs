@@ -2,7 +2,6 @@ use i_slint_backend_winit::WinitWindowAccessor;
 use log::*;
 use slint::ComponentHandle;
 
-/// Hands the drag over to the compositor.
 pub fn start<T: ComponentHandle + 'static>(component: &T) {
     let started = component
         .window()
