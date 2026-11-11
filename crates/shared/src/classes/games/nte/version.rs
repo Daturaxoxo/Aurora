@@ -57,7 +57,7 @@ impl Distribution {
     pub const fn launch_args(self) -> &'static [&'static str] {
         match self {
             Self::Standalone | Self::Steam => &[],
-            Self::Epic => &["-AUTH_PASSWORD=1234", "-AUTH_TYPE=exchangecode"],
+            Self::Epic => &["-AUTH_PASSWORD=1234", "-AUTH_TYPE=exchangecode", "-epicdeploymentid=6767676767", "-epicsandboxid=676767676767"],
         }
     }
 }
