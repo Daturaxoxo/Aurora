@@ -217,8 +217,7 @@ impl<F: EngineFactory> Worker<F> {
             EngineCommand::Shutdown => unreachable!("handled by run"),
         }
     }
-
-    // the tag may be a candidate the runtime has not published yet, the runtime routes the reply to the transition waiting on it
+    
     fn configure(&mut self, input: &EngineInput) -> OperationOutcome<Readiness> {
         let tag = input.tag.clone();
         if let Some(active) = &self.session {

@@ -1602,7 +1602,7 @@ impl ModManagerHandler {
             let (groups, error) = match scanned {
                 Ok(groups) => (groups, None),
                 Err(e) => {
-                    error!("could not scan the mods folder: {e}");
+                    warn!("could not scan the mods folder: {e}");
                     (vec![], supported.then(|| format!("{e}")))
                 }
             };
