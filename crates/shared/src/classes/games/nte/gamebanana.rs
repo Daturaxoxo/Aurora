@@ -17,6 +17,8 @@ const REMOTE_CHARACTERS: &[RemoteCharacter] = &[
     remote("Chiz", 45472),
     remote("Daffodill", 45474),
     remote("Edgar", 45475),
+    remote("Elyms", 51360),
+    remote("Exe", 51362),
     remote("Fadia", 43036),
     remote("Haniel", 45473),
     remote("Hathor", 43037),
