@@ -15,7 +15,7 @@ use crate::{config, telemetry, utils};
 
 const PATH: &str = "/app/ccu";
 const TELEMETRY_KEY: &str = "telemetry";
-const HEARTBEAT: Duration = Duration::from_mins(10);
+const HEARTBEAT: Duration = Duration::from_mins(15);
 const JITTER: f64 = 0.05;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 const REGION_UNKNOWN: &str = "unknown";
