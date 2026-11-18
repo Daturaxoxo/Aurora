@@ -45,6 +45,11 @@ const PAKS: &[PakAddon] = &[
         folder: "UtilityModPack",
         base_names: &["UtilityPack_P"],
     },
+    PakAddon {
+        config_key: "interactive_map",
+        folder: "InteractiveMap",
+        base_names: &["NTE_InteractiveMap_999_P"],
+    },
 ];
 
 pub(super) const SHIPPED: &[ShippedAddon] = &[
@@ -61,6 +66,11 @@ pub(super) const SHIPPED: &[ShippedAddon] = &[
     ShippedAddon {
         name: "Utility Mod Pack",
         config_key: "util_pack",
+        legacy_names: &[],
+    },
+    ShippedAddon {
+        name: "Interactive Map",
+        config_key: "interactive_map",
         legacy_names: &[],
     },
     ShippedAddon {

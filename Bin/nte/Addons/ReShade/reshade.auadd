@@ -4,3 +4,4 @@ VERSION|v6.8.0
 DESCRIPTION|Post-processing tool to apply shaders, colour grading and sharpening. Press Home to open in-game.
 FILE|https://host.getaurora.moe/files/addons/reshade/ReShade.zip
 IMAGE|https://host.getaurora.moe/assets/app/addons/ReShadeThumbnail4.png
+GET_VERSION_FROM_LINK|false

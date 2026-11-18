@@ -53,6 +53,7 @@ pub mod key {
     pub const RESHADE: &str = "rshd";
     pub const OPTISCALER: &str = "optsc";
     pub const UTILITY_MOD_PACK: &str = "util_pack";
+    pub const INTERACTIVE_MAP: &str = "interactive_map";
     pub const DISCORD_RPC: &str = "discord_rpc";
     pub const EXPORT_CONSOLE: &str = "export_console";
     pub const UI_SCALING: &str = "ui_scaling";
@@ -110,6 +111,7 @@ pub fn default_value(k: &str) -> Value {
         | key::UTILITY_MOD_PACK
         | key::RESHADE
         | key::OPTISCALER
+        | key::INTERACTIVE_MAP
         | key::GB_NSFW
         | key::QUICK_START_CREATED
         | key::DESKTOP_ENTRY

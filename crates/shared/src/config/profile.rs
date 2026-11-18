@@ -72,6 +72,7 @@ config_keys! {
         HideNotifDots => HIDE_NOTIF_DOTS,
         UiModPack => UI_MOD_PACK,
         UtilityModPack => UTILITY_MOD_PACK,
+        InteractiveMap => INTERACTIVE_MAP,
         Reshade => RESHADE,
         Optiscaler => OPTISCALER,
         AddonAutoUpdates => ADDON_AUTO_UPDATES,

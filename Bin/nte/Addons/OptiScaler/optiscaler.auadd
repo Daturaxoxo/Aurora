@@ -5,3 +5,4 @@ DESCRIPTION|Swaps the game's upscaler for DLSS, FSR or XeSS and adds frame gener
 VARIANT|Intel/AMD|https://host.getaurora.moe/files/addons/optiscaler/OptiScaler_IntelAMD.zip
 VARIANT|NVIDIA|https://host.getaurora.moe/files/addons/optiscaler/OptiScaler_NVIDIA.zip
 IMAGE|https://host.getaurora.moe/assets/app/addons/OptiScalerThumbnail.png
+GET_VERSION_FROM_LINK|false

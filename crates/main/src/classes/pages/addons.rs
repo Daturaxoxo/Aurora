@@ -181,6 +181,7 @@ struct Addon {
     variants: Vec<AddonVariant>,
     install_data: Vec<AddonData>,
     link: String,
+    version_from_link: Option<bool>,
     image_url: String,
     installed: bool,
     enabled: bool,
@@ -877,6 +878,16 @@ impl AddonsHandler {
                     "VERSION" => addon.version = value.trim().to_string(),
                     "DESCRIPTION" => addon.description = value.trim().to_string(),
                     "LINK" => addon.link = value.trim().to_string(),
+                    "GET_VERSION_FROM_LINK" => {
+                        match value.trim().to_ascii_lowercase().as_str() {
+                            "true" => addon.version_from_link = Some(true),
+                            "false" => addon.version_from_link = Some(false),
+                            other => warn!(
+                                "Addons scan: invalid GET_VERSION_FROM_LINK '{other}' in '{}', expected a boolean",
+                                auadd_path.display()
+                            ),
+                        }
+                    }
                     "FILE" => file_urls.push(value.trim().to_string()),
                     "VARIANT" => match value.split_once('|') {
                         Some((label, url)) => {
@@ -905,6 +916,10 @@ impl AddonsHandler {
                     .all(|f| !f.to_string_lossy().ends_with(".disabled"));
 
             if fetch_remote {
+                let link_only = addon.variants.is_empty() && file_urls.is_empty();
+                let want_link_version = addon.version_from_link.unwrap_or(link_only);
+                let mut link_version: Option<String> = None;
+
                 addon.install_data = if !addon.variants.is_empty() {
                     addon
                         .installed
@@ -913,13 +928,24 @@ impl AddonsHandler {
                         .map_or_default(Self::variant_files)
                 } else if file_urls.is_empty() {
                     let (files, version) = Self::fetch_gamebanana_files(&addon);
-                    if let Some(version) = version {
-                        addon.version = version;
-                    }
+                    link_version = version;
                     files
                 } else {
                     file_urls.iter().map(|url| Self::direct_file(url)).collect()
                 };
+
+                if want_link_version {
+                    if !link_only {
+                        link_version = Self::fetch_link_version(&addon);
+                    }
+                    match link_version.map(|v| v.trim().to_string()) {
+                        Some(version) if !version.is_empty() => addon.version = version,
+                        _ => debug!(
+                            "Addons scan: no version from the link for '{}', using the local version instead which is '{}'",
+                            addon.name, addon.version
+                        ),
+                    }
+                }
             }
 
             if addon.installed {
@@ -1020,6 +1046,17 @@ impl AddonsHandler {
                 (data, version)
             },
         )
+    }
+
+    fn fetch_link_version(addon: &Addon) -> Option<String> {
+        if addon.link.is_empty() {
+            warn!(
+                "Addons scan: '{}' wants its version from the link but has no LINK field, using local version",
+                addon.name
+            );
+            return None;
+        }
+        Self::fetch_gamebanana_files(addon).1
     }
 
     fn direct_file(url: &str) -> AddonData {
