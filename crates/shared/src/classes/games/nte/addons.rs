@@ -50,6 +50,11 @@ const PAKS: &[PakAddon] = &[
         folder: "InteractiveMap",
         base_names: &["NTE_InteractiveMap_999_P"],
     },
+    PakAddon {
+        config_key: "traffic_overhaul",
+        folder: "TrafficOverhaul",
+        base_names: &["HTO_TrafficOverhaul_P"],
+    },
 ];
 
 pub(super) const SHIPPED: &[ShippedAddon] = &[
@@ -71,6 +76,11 @@ pub(super) const SHIPPED: &[ShippedAddon] = &[
     ShippedAddon {
         name: "Interactive Map",
         config_key: "interactive_map",
+        legacy_names: &[],
+    },
+    ShippedAddon {
+        name: "Traffic Overhaul",
+        config_key: "traffic_overhaul",
         legacy_names: &[],
     },
     ShippedAddon {
