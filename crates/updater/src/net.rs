@@ -3,18 +3,15 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
-
 use ipc::manifest::Manifest;
 use ipc::manifest_urls;
-
 use shared::utils;
-
+use shared::classes::proxy::{registry_proxy_url};
 use crate::logfile::log;
-
 const CHUNK: usize = 64 * 1024;
 
 fn agent(global_timeout: Duration) -> ureq::Agent {
-    ureq::Agent::config_builder()
+    let mut config = ureq::Agent::config_builder()
         .user_agent(ipc::user_agent(&utils::get_local_version()))
         .timeout_connect(Some(ipc::HTTP_CONNECT_TIMEOUT))
         .timeout_recv_response(Some(ipc::HTTP_MANIFEST_TIMEOUT))
@@ -23,9 +20,29 @@ fn agent(global_timeout: Duration) -> ureq::Agent {
             ureq::tls::TlsConfig::builder()
                 .root_certs(ureq::tls::RootCerts::PlatformVerifier)
                 .build(),
-        )
-        .build()
-        .into()
+        );
+
+    if let Some(proxy) = system_proxy() {
+        config = config.proxy(Some(proxy));
+    }
+    config.build().into()
+}
+
+fn system_proxy() -> Option<ureq::Proxy> {
+    if ureq::Proxy::try_from_env().is_some() {
+        return None;
+    }
+    let url = registry_proxy_url()?;
+    match ureq::Proxy::new(&url) {
+        Ok(proxy) => {
+            log(&format!("using system proxy {url}"));
+            Some(proxy)
+        }
+        Err(e) => {
+            log(&format!("ignoring system proxy {url}: {e}"));
+            None
+        }
+    }
 }
 
 pub fn fetch_manifest() -> Result<Manifest, String> {

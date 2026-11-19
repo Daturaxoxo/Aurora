@@ -37,6 +37,7 @@ reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "rustls",
     "query",
+    "system-proxy",
 ] }
 once_cell = "1"
 chrono = { version = "0.4", default-features = false, features = [
@@ -73,6 +74,7 @@ ureq = { version = "3", default-features = false, features = [
     "rustls",
     "platform-verifier",
     "gzip",
+    "socks-proxy",
 ] }
 percent-encoding = "2"
 url = "2"

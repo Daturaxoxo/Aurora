@@ -2,21 +2,41 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::time::Duration;
-
+use shared::classes::proxy::{registry_proxy_url};
 use ipc::manifest::Manifest;
 use ipc::manifest_urls;
 use log::{debug, info, warn};
 
 fn agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
+    let mut config = ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
         .tls_config(
             ureq::tls::TlsConfig::builder()
                 .root_certs(ureq::tls::RootCerts::PlatformVerifier)
                 .build(),
-        )
-        .build()
-        .into()
+        );
+
+    if let Some(proxy) = system_proxy() {
+        config = config.proxy(Some(proxy));
+    }
+    config.build().into()
+}
+
+fn system_proxy() -> Option<ureq::Proxy> {
+    if ureq::Proxy::try_from_env().is_some() {
+        return None;
+    }
+    let url = registry_proxy_url()?;
+    match ureq::Proxy::new(&url) {
+        Ok(proxy) => {
+            info!("Aurora is using the system proxy {url}");
+            Some(proxy)
+        }
+        Err(e) => {
+            warn!("Aurora is ignoring the system proxy {url}: {e}");
+            None
+        }
+    }
 }
 
 pub fn fetch_manifest() -> Result<Manifest, String> {
