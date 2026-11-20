@@ -117,7 +117,6 @@ export component Dropdown inherits Rectangle {
                 source: Icons.down;
                 width: 14px;
                 height: 14px;
-                image-rendering: smooth;
                 image-fit: contain;
                 opacity: 0.7;
                 transform-rotation: root.opened ? 180deg : 0deg;
@@ -229,7 +228,6 @@ component TabButton inherits Rectangle {
                 source: root.icon;
                 width: 20px;
                 height: 20px;
-                image-rendering: smooth;
                 image-fit: contain;
                 opacity: root.active ? 1.0 : (ta.has-hover ? 0.85 : 0.55);
                 animate opacity { duration: 120ms; }
@@ -269,7 +267,6 @@ component FooterIconButton inherits Rectangle {
         source: root.icon;
         width: 22px;
         height: 22px;
-        image-rendering: smooth;
         image-fit: contain;
         opacity: ta.has-hover ? 1.0 : 0.65;
         animate opacity { duration: 100ms; }
@@ -296,7 +293,6 @@ component SectionBox inherits Rectangle {
 
     VerticalLayout {
         padding: 4px;
-        spacing: 0px;
         @children
     }
 }
@@ -390,7 +386,6 @@ component SettingRow inherits Rectangle {
                     transform-rotation: root.trailing-rotation;
                     width: 14px;
                     height: 14px;
-                    image-rendering: smooth;
                     image-fit: contain;
                     opacity: row-ta.has-hover ? 1.0 : 0.45;
                     animate opacity { duration: 100ms; }
@@ -498,7 +493,6 @@ component CommitTextInput inherits Rectangle {
                 width: 100%;
                 height: 100%;
                 text-padding: 10px;
-                font-size: 13px;
                 text: root.value;
                 placeholder: root.placeholder;
 
@@ -565,7 +559,6 @@ component ThemeThumb inherits Rectangle {
         height: 100%;
         source: root.choice.preview;
         image-fit: cover;
-        image-rendering: smooth;
     }
 
     Rectangle {
@@ -615,7 +608,6 @@ component IconPackStrip inherits Rectangle {
                 width: 14px;
                 height: 14px;
                 image-fit: contain;
-                image-rendering: smooth;
             }
         }
     }
@@ -641,12 +633,9 @@ component ThemeCard inherits Rectangle {
         height: 100%;
         source: root.choice.preview;
         image-fit: cover;
-        image-rendering: smooth;
     }
 
     Rectangle {
-        width: 100%;
-        height: 100%;
         background: @linear-gradient(180deg, root.choice.scrim-top 0%, root.choice.scrim-bottom 100%);
     }
 
@@ -788,7 +777,6 @@ component IconPackCard inherits Rectangle {
                         width: 24px;
                         height: 24px;
                         image-fit: contain;
-                        image-rendering: smooth;
                     }
                 }
             }
@@ -1052,7 +1040,6 @@ export component SettingsPage inherits Rectangle {
 
     HorizontalLayout {
         padding: 1px;
-        spacing: 0px;
 
         // LEFT COLUMN: SIDEBAR NAVIGATION
         Rectangle {
@@ -1080,126 +1067,135 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
 
-                Rectangle {
-                    height: 12px;
-                    vertical-stretch: 0;
-                }
+                nav-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    min-height: 0px;
+                    horizontal-scrollbar-policy: always-off;
+                    content-height: max(nav-column.min-height, nav-scroll.height);
 
-                Rectangle {
-                    height: 38px;
-                    vertical-stretch: 0;
-                    border-radius: 9px;
-                    background: search-input.input-focused ? Palette.fg-0c : Palette.fg-08;
-                    border-width: 1px;
-                    border-color: search-input.input-focused ? Palette.fg-30 : Palette.fg-12;
+                    nav-column := VerticalLayout {
+                        spacing: 4px;
 
-                    animate background { duration: 100ms; }
-                    animate border-color { duration: 100ms; }
+                        Rectangle {
+                            height: 12px;
+                            vertical-stretch: 0;
+                        }
 
-                    HorizontalLayout {
-                        padding-left: 14px;
-                        padding-right: 8px;
-                        spacing: 10px;
+                        Rectangle {
+                            height: 38px;
+                            vertical-stretch: 0;
+                            border-radius: 9px;
+                            background: search-input.input-focused ? Palette.fg-0c : Palette.fg-08;
+                            border-width: 1px;
+                            border-color: search-input.input-focused ? Palette.fg-30 : Palette.fg-12;
 
-                        VerticalLayout {
-                            alignment: center;
-                            Image {
-                                source: Icons.search;
-                                width: 16px;
-                                height: 16px;
-                                image-rendering: smooth;
-                                image-fit: contain;
-                                opacity: search-input.input-focused ? 0.9 : 0.55;
+                            animate background { duration: 100ms; }
+                            animate border-color { duration: 100ms; }
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 8px;
+                                spacing: 10px;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    Image {
+                                        source: Icons.search;
+                                        width: 16px;
+                                        height: 16px;
+                                        image-fit: contain;
+                                        opacity: search-input.input-focused ? 0.9 : 0.55;
+                                    }
+                                }
+
+                                search-input := ScrollingTextInput {
+                                    horizontal-stretch: 1;
+                                    text-padding: 0px;
+                                    font-size: 14px;
+                                    text <=> root.search-query;
+                                    placeholder: Tr.values[TrKey.settings-search-placeholder];
+                                }
+
+                                if root.search-query != "": VerticalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 20px;
+                                        height: 20px;
+                                        border-radius: 5px;
+                                        background: clear-ta.has-hover ? Palette.fg-14 : transparent;
+
+                                        Image {
+                                            source: Icons.close;
+                                            width: 10px;
+                                            height: 10px;
+                                            opacity: clear-ta.has-hover ? 1.0 : 0.6;
+                                        }
+
+                                        clear-ta := TouchArea {
+                                            mouse-cursor: pointer;
+                                            clicked => { root.search-query = ""; }
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        search-input := ScrollingTextInput {
-                            horizontal-stretch: 1;
-                            text-padding: 0px;
-                            font-size: 14px;
-                            text <=> root.search-query;
-                            placeholder: Tr.values[TrKey.settings-search-placeholder];
+                        Rectangle {
+                            height: 10px;
+                            vertical-stretch: 0;
                         }
 
-                        if root.search-query != "": VerticalLayout {
-                            alignment: center;
-                            Rectangle {
-                                width: 20px;
-                                height: 20px;
-                                border-radius: 5px;
-                                background: clear-ta.has-hover ? Palette.fg-14 : transparent;
+                        TabButton {
+                            text: Tr.values[TrKey.settings-tab-general];
+                            icon: Icons.settings-general;
+                            active: !root.searching && root.active-tab == 0;
+                            clicked => { root.select-tab(0); }
+                        }
 
-                                Image {
-                                    source: Icons.close;
-                                    width: 10px;
-                                    height: 10px;
-                                    image-rendering: smooth;
-                                    opacity: clear-ta.has-hover ? 1.0 : 0.6;
-                                }
+                        TabButton {
+                            text: Tr.values[TrKey.settings-tab-launcher];
+                            icon: Icons.settings-launcher;
+                            active: !root.searching && root.active-tab == 1;
+                            clicked => { root.select-tab(1); }
+                        }
 
-                                clear-ta := TouchArea {
-                                    mouse-cursor: pointer;
-                                    clicked => { root.search-query = ""; }
-                                }
-                            }
+                        if root.is-linux: TabButton {
+                            text: Tr.values[TrKey.settings-tab-linux];
+                            icon: Icons.settings-linux;
+                            active: !root.searching && root.active-tab == 3;
+                            clicked => { root.select-tab(3); }
+                        }
+
+                        TabButton {
+                            text: Tr.values[TrKey.settings-tab-developer];
+                            icon: Icons.settings-developer;
+                            active: !root.searching && root.active-tab == 2;
+                            clicked => { root.select-tab(2); }
+                        }
+
+                        Rectangle {
+                            vertical-stretch: 1;
+                        }
+
+                        TabButton {
+                            text: Tr.values[TrKey.settings-tab-privacy];
+                            icon: Icons.settings-privacy;
+                            active: !root.searching && root.active-tab == 4;
+                            clicked => { root.select-tab(4); }
+                        }
+
+                        TabButton {
+                            text: Tr.values[TrKey.settings-tab-about];
+                            icon: Icons.settings-about;
+                            active: !root.searching && root.active-tab == 5;
+                            clicked => { root.select-tab(5); }
+                        }
+
+                        Rectangle {
+                            height: 8px;
+                            vertical-stretch: 0;
                         }
                     }
-                }
-
-                Rectangle {
-                    height: 10px;
-                    vertical-stretch: 0;
-                }
-
-                TabButton {
-                    text: Tr.values[TrKey.settings-tab-general];
-                    icon: Icons.settings-general;
-                    active: !root.searching && root.active-tab == 0;
-                    clicked => { root.select-tab(0); }
-                }
-
-                TabButton {
-                    text: Tr.values[TrKey.settings-tab-launcher];
-                    icon: Icons.settings-launcher;
-                    active: !root.searching && root.active-tab == 1;
-                    clicked => { root.select-tab(1); }
-                }
-
-                if root.is-linux: TabButton {
-                    text: Tr.values[TrKey.settings-tab-linux];
-                    icon: Icons.settings-linux;
-                    active: !root.searching && root.active-tab == 3;
-                    clicked => { root.select-tab(3); }
-                }
-
-                TabButton {
-                    text: Tr.values[TrKey.settings-tab-developer];
-                    icon: Icons.settings-developer;
-                    active: !root.searching && root.active-tab == 2;
-                    clicked => { root.select-tab(2); }
-                }
-
-                Rectangle {
-                    vertical-stretch: 1;
-                }
-
-                TabButton {
-                    text: Tr.values[TrKey.settings-tab-privacy];
-                    icon: Icons.settings-privacy;
-                    active: !root.searching && root.active-tab == 4;
-                    clicked => { root.select-tab(4); }
-                }
-
-                TabButton {
-                    text: Tr.values[TrKey.settings-tab-about];
-                    icon: Icons.settings-about;
-                    active: !root.searching && root.active-tab == 5;
-                    clicked => { root.select-tab(5); }
-                }
-
-                Rectangle {
-                    height: 8px;
-                    vertical-stretch: 0;
                 }
 
                 Rectangle {
@@ -1225,7 +1221,6 @@ export component SettingsPage inherits Rectangle {
                                     width: 26px;
                                     height: 26px;
                                     image-fit: contain;
-                                    image-rendering: smooth;
                                 }
                             }
 
@@ -1375,7 +1370,6 @@ export component SettingsPage inherits Rectangle {
                                         clicked => { root.release-focus(); root.theme-picker-open = true; }
 
                                         HorizontalLayout {
-                                            spacing: 0px;
                                             for choice in root.theme-choices: HorizontalLayout {
                                                 if choice.selected: ThemeThumb { choice: choice; }
                                             }
@@ -1391,7 +1385,6 @@ export component SettingsPage inherits Rectangle {
                                         clicked => { root.release-focus(); root.icon-pack-picker-open = true; }
 
                                         HorizontalLayout {
-                                            spacing: 0px;
                                             for choice in root.icon-pack-choices: HorizontalLayout {
                                                 if choice.selected: IconPackStrip { choice: choice; }
                                             }
@@ -1582,7 +1575,6 @@ export component SettingsPage inherits Rectangle {
                                             VerticalLayout {
                                                 alignment: center;
                                                 Slider {
-                                                    width: 160px;
                                                     minimum: 50;
                                                     maximum: 200;
                                                     step: 5;
@@ -1941,7 +1933,6 @@ export component SettingsPage inherits Rectangle {
             source: Icons.close;
             width: 14px;
             height: 14px;
-            image-rendering: smooth;
             opacity: close-ta.has-hover ? 1.0 : 0.6;
             animate opacity { duration: 100ms; }
         }
@@ -1953,8 +1944,6 @@ export component SettingsPage inherits Rectangle {
     }
 
     if root.theme-picker-open: Rectangle {
-        width: 100%;
-        height: 100%;
         border-radius: 16px;
         background: Palette.shade-aa;
 
@@ -2015,14 +2004,11 @@ export component SettingsPage inherits Rectangle {
                             y: 6px;
                             width: 12px;
                             height: 12px;
-                            viewbox-x: 0;
-                            viewbox-y: 0;
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
                             stroke: theme-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
-                            fill: transparent;
                             animate stroke { duration: 100ms; }
                         }
 
@@ -2093,8 +2079,6 @@ export component SettingsPage inherits Rectangle {
     }
 
     if root.icon-pack-picker-open: Rectangle {
-        width: 100%;
-        height: 100%;
         border-radius: 16px;
         background: Palette.shade-aa;
 
@@ -2155,14 +2139,11 @@ export component SettingsPage inherits Rectangle {
                             y: 6px;
                             width: 12px;
                             height: 12px;
-                            viewbox-x: 0;
-                            viewbox-y: 0;
                             viewbox-width: 14;
                             viewbox-height: 14;
                             commands: "M1 1 L13 13 M13 1 L1 13";
                             stroke: pack-close-ta.has-hover ? Palette.fg-dd : Palette.fg-66;
                             stroke-width: 1.8px;
-                            fill: transparent;
                             animate stroke { duration: 100ms; }
                         }
 
@@ -2216,8 +2197,6 @@ export component SettingsPage inherits Rectangle {
     }
 
     if root.theme-pending-delete != "": Rectangle {
-        width: 100%;
-        height: 100%;
         border-radius: 16px;
         background: Palette.shade-aa;
 
