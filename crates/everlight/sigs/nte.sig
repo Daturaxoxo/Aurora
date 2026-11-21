@@ -4,7 +4,7 @@ Folder = AuroraMods
 Debug  = true
 Method = sigbypass
 
-[Target:NTE / UE 5.4+ generic (gacha UE5)]
+[Target:NTE]
 Exe     = HTGame.exe
 Method  = sigbypass
 Type    = follow_jump
